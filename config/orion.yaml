@@ -1,0 +1,112 @@
+# ORION OS — Configuração única (Capítulo 17)
+# Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
+
+system:
+  robot_name: "ORION X"
+  language: "pt-BR"
+  timezone: "America/Sao_Paulo"
+  log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
+  profile: "HOME"            # HOME | SILENT | DEMO | SAFE | DEV
+
+communication:
+  raspberry:                  # enlace Notebook <-> Raspberry (Motion Core)
+    transport: "tcp"          # Ethernet ponto a ponto (EDR-0018)
+    host: "192.168.50.2"      # IP fixo do Raspberry na sub-rede do robo
+    tcp_port: 5757
+    maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
+  arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
+    port: "auto"              # "auto" = descoberta via WHO_ARE_YOU (no Raspberry)
+    baud_rate: 115200
+  ack_timeout_ms: 500
+  max_retries: 3
+  heartbeat_interval_s: 1.0
+  heartbeats_lost_threshold: 3
+
+motion:
+  max_speed_percent: 60
+  acceleration_percent: 40
+  steps_per_meter: 4000          # base; ajustado pela autocalibracao
+  odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
+  autocalibrate_on_first_boot: true
+  min_front_distance_cm: 25      # parada reativa (Camada 1)
+  min_rear_distance_cm: 20
+  mission_timeout_s: 30
+  tilt_limit_degrees: 20         # inclinação máxima antes de SAFE_MODE
+
+navigation:
+  follow_distance_m: 1.2
+  follow_lost_timeout_s: 10
+  patrol_scan_before_segment: true
+  obstacle_retry_max: 3
+  reduced_speed_near_person_percent: 30
+
+vision:
+  resolution: [640, 480]
+  fps: 15
+  yolo_model: "yolov8n"
+  confidence_threshold: 0.55
+  pan_limits_degrees: [-80, 80]
+  tilt_limits_degrees: [-30, 45]
+  servo_max_speed_deg_s: 60
+
+voice:
+  wake_word: "fofão"
+  whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
+  piper_voice: "pt_BR-faber-medium"
+  volume_percent: 70
+  preferred_mic: "auto"          # auto | notebook | webcam
+
+ai:
+  ollama_model: "llama3.2:3b"   # dimensionado para 8 GB (EDR-0019); 8b com upgrade de RAM
+  temperature: 0.6
+  context_window: 4096
+  keep_alive_minutes: 5          # descarrega o modelo da RAM quando ocioso
+  system_prompt_file: "config/prompt_sistema.txt"
+
+display:
+  avatar:                        # tela do notebook (Cap 13)
+    initial_mode: "AVATAR"
+    brightness_percent: 80
+    sleep_timeout_min: 15
+  web:                           # servida pelo Raspberry (Cap 13)
+    port: 8080
+    restricted_pages: ["CONFIGURACAO"]
+
+diagnostics:
+  metrics_interval_s: 5
+  thresholds:
+    cpu_warning_percent: 80
+    cpu_critical_percent: 95
+    ram_warning_percent: 85
+    ram_critical_percent: 95
+    cpu_temp_warning_c: 80
+    cpu_temp_critical_c: 90
+    disk_warning_percent: 85
+
+database:                        # roda no Raspberry, SSD 500 GB (EDR-0019)
+  path: "/mnt/ssd/orion/orion.db"
+  backup_dir: "/mnt/ssd/orion/backups"
+  replica_to_notebook: true      # replica cruzada diaria via Ethernet
+  notebook_replica_dir: "data/backups_replica"
+  backup_hour: 3                 # 03:00 diário
+  retention:
+    telemetria_days: 30
+    eventos_days: 90
+    logs_days: 30
+    logs_error_days: 180
+
+lighting:
+  auto_flashlight: true
+  brightness_threshold: 60       # brilho médio 0-255 abaixo do qual acende
+
+connectivity:                    # offline-first: tudo opcional (EDR-0019)
+  online_features_enabled: true  # habilita extras quando houver Internet
+  remote_access: "pi_connect"    # acesso externo a interface web
+  notifications:
+    enabled: true                # avisos no celular em eventos criticos
+    channel: "none"              # none | telegram | email (configurar)
+
+security:
+  authorized_users: []           # preenchido via interface
+  restricted_actions: ["config.security", "database.restore"]
+  child_safe_profile_on_detection: true

@@ -1,0 +1,21 @@
+[project]
+name = "orion-os"
+version = "0.1.0"
+description = "ORION OS - plataforma de robotica modular offline"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4", "pytest-asyncio>=0.23"]
+mission = ["ollama", "faster-whisper", "sounddevice", "numpy"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]   # permite rodar pytest antes do pip install -e
+markers = ["sim: testes de integracao com simuladores"]

@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/orion/__init__.py
+src/orion/__main__.py
+src/orion/communication/__init__.py
+src/orion/diagnostics/__init__.py
+src/orion/display/__init__.py
+src/orion/kernel/__init__.py
+src/orion/memory/__init__.py
+src/orion/mission/__init__.py
+src/orion/vision/__init__.py
+src/orion/voice/__init__.py
+src/orion_os.egg-info/PKG-INFO
+src/orion_os.egg-info/SOURCES.txt
+src/orion_os.egg-info/dependency_links.txt
+src/orion_os.egg-info/requires.txt
+src/orion_os.egg-info/top_level.txt
