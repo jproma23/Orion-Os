@@ -1262,3 +1262,41 @@ servo). Primeira vez testando esses três com hardware real.
 - **Não commitado ainda.**
 
 
+
+## 2026-07-18 (noite - diagnostico de software cravou a causa dos ultrassons: ECHO flutuando)
+
+- **Ferramenta nova:** `tools/testar_ultrassom.py` - monitor ao vivo dos
+  dois ultrassons via RETURN_STATUS (distancias, flags de validade e os
+  flags `echo_*_ja_visto_alto`), no estilo do `testar_pan_tilt.py`.
+  Primeira rodada: mesmo resultado da sessao anterior, nenhum ECHO
+  desde o boot em nenhum sensor.
+- **Sketch descartavel `ultra_diag`** (scratchpad, fora do repo), em 3
+  versoes progressivas, todas com `pulseIn()` bloqueante puro (zero
+  codigo do protocolo):
+  - v1: ECHO lia HIGH constante *mesmo sem pullup* nos dois sensores;
+    `pulseIn` sempre 0. Primeira hipotese: clone do HC-SR04 travado
+    com ECHO preso em HIGH.
+  - v2 (truque de destravamento - forcar ECHO LOW como OUTPUT por
+    10ms): depois disso o pino passou a ler LOW constante. O "HIGH
+    constante" da v1 era so a carga do pullup retida no fio - ou seja,
+    o pino segue o que a gente grava nele.
+  - v3 (prova do fio flutuante): carrega o pino em HIGH -> solta ->
+    ainda le 1 apos 50ms; descarrega em LOW -> solta -> le 0. Nos DOIS
+    sensores, em todos os ciclos. **Um pino conectado a um sensor vivo
+    forcaria o proprio nivel; segurar a carga gravada e assinatura de
+    pino eletricamente flutuando.**
+- **Conclusao:** os pinos 23 (ECHO frontal) e 27 (ECHO traseiro) do Mega
+  NAO tem conexao eletrica com uma saida ativa. Duas causas possiveis:
+  (a) os fios de ECHO nao chegam eletricamente ao Mega (jumper ruim/
+  trilha interrompida), ou (b) **os sensores estao sem alimentacao** -
+  HC-SR04 sem VCC fica com a saida em alta impedancia, que flutua
+  igualzinho. Como os DOIS sensores flutuam identico, a causa comum
+  mais provavel e alimentacao (ex.: trilho de 5V da protoboard
+  interrompido no meio - pegadinha classica - ou fio VCC/GND do trilho
+  solto).
+- **Nao e codigo, nem pinagem:** confirmado em dois niveis (firmware
+  completo + sketch cru) e com a pinagem ja conferida fio a fio na
+  sessao anterior.
+- **Atencao:** o Mega esta com o sketch de diagnostico gravado agora -
+  regravar o firmware real (`pio run -t upload` em
+  `firmware/hardware_core/`) depois do conserto fisico.
