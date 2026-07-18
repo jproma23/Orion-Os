@@ -19,10 +19,18 @@ class AiManager:
         modelo: str = "llama3.2:3b",
         temperatura: float = 0.6,
         caminho_prompt_sistema: str | Path = "config/prompt_sistema.txt",
+        max_tokens_resposta: int | None = None,
+        keep_alive_minutes: int | None = None,
     ) -> None:
         self._modelo = modelo
         self._temperatura = temperatura
         self._prompt_sistema = Path(caminho_prompt_sistema).read_text(encoding="utf-8")
+        # Numa conversa falada, resposta longa = espera longa duas vezes
+        # (gerar + sintetizar/falar). Limitar os tokens mantem o dialogo agil.
+        self._max_tokens_resposta = max_tokens_resposta
+        # Sem keep_alive o Ollama descarrega o modelo apos ~5min ocioso e a
+        # proxima resposta paga o recarregamento inteiro (dezenas de segundos).
+        self._keep_alive = f"{keep_alive_minutes}m" if keep_alive_minutes else None
         self._cliente = ollama.Client()
 
     async def responder(self, texto_usuario: str, contexto: dict | None = None) -> str:
@@ -32,10 +40,14 @@ class AiManager:
         ]
 
         def _chamar() -> str:
+            opcoes: dict = {"temperature": self._temperatura}
+            if self._max_tokens_resposta:
+                opcoes["num_predict"] = self._max_tokens_resposta
             resposta = self._cliente.chat(
                 model=self._modelo,
                 messages=mensagens,
-                options={"temperature": self._temperatura},
+                options=opcoes,
+                keep_alive=self._keep_alive,
             )
             return resposta["message"]["content"]
 

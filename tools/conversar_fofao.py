@@ -97,6 +97,8 @@ async def principal() -> None:
 
     logger.info("Carregando Whisper '%s' (a primeira vez demora)...", secao_voz["whisper_model"])
     transcritor = TranscritorComLog(modelo=secao_voz["whisper_model"])
+    logger.info("Carregando Whisper '%s' (vigia da wake word)...", secao_voz["whisper_model_ativacao"])
+    transcritor_ativacao = TranscritorComLog(modelo=secao_voz["whisper_model_ativacao"])
 
     sintetizador = Sintetizador(
         secao_voz["piper_voice_path"],
@@ -107,6 +109,8 @@ async def principal() -> None:
         modelo=secao_ia["ollama_model"],
         temperatura=secao_ia["temperature"],
         caminho_prompt_sistema=secao_ia["system_prompt_file"],
+        max_tokens_resposta=secao_ia["resposta_max_tokens"],
+        keep_alive_minutes=secao_ia["keep_alive_minutes"],
     )
 
     async def processar_comando(texto: str) -> str:
@@ -125,6 +129,7 @@ async def principal() -> None:
         processar_comando=processar_comando,
         detector_palavra_ativacao=DetectorPalavraAtivacao(VARIACOES_FOFAO),
         frase_ativacao="Oi? Pode falar!",
+        transcritor_ativacao=transcritor_ativacao,
     )
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")

@@ -48,6 +48,7 @@ class VoiceCore:
         duracao_comando_s: float = 5.0,
         gravar_audio: CallbackGravarAudio | None = None,
         frase_ativacao: str | None = None,
+        transcritor_ativacao: Transcritor | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -61,6 +62,11 @@ class VoiceCore:
         # "Oi?") - sem ela o usuario nao sabe QUANDO falar o comando e a
         # janela de gravacao captura silencio (visto ao vivo em 2026-07-18).
         self._frase_ativacao = frase_ativacao
+        # Transcritor mais leve (ex.: Whisper "tiny") so para as janelas de
+        # vigilancia da palavra de ativacao, que rodam sem parar - o
+        # transcritor principal (mais preciso, mais lento) fica so para o
+        # comando de verdade. None = usar o principal para tudo.
+        self._transcritor_ativacao = transcritor_ativacao or transcritor
         # injetavel para testar sem microfone/hardware real
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
@@ -94,7 +100,7 @@ class VoiceCore:
             await self._publicar_erro_audio(erro)
             return False
 
-        texto_janela = await self._transcritor.transcrever(audio_janela)
+        texto_janela = await self._transcritor_ativacao.transcrever(audio_janela)
         if not self._detector.verificar(texto_janela):
             await self._definir_estado(EstadoVoz.IDLE)
             return False

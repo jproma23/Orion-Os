@@ -72,6 +72,9 @@ vision:
 voice:
   wake_word: "fofão"
   whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
+  # modelo leve so para as janelas de vigilancia da wake word (rodam sem
+  # parar); o "base" fica para transcrever o comando em si
+  whisper_model_ativacao: "tiny"
   piper_voice: "pt_BR-faber-medium"
   piper_voice_path: "data/piper_voices/pt_BR-faber-medium.onnx"
   volume_percent: 70
@@ -90,7 +93,9 @@ ai:
   ollama_model: "llama3.2:3b"   # dimensionado para 8 GB (EDR-0019); 8b com upgrade de RAM
   temperature: 0.6
   context_window: 4096
-  keep_alive_minutes: 5          # descarrega o modelo da RAM quando ocioso
+  keep_alive_minutes: 30         # numa conversa ao vivo, manter o modelo na RAM
+  # resposta curta = falar logo (gerar + sintetizar demoram proporcional ao texto)
+  resposta_max_tokens: 100
   system_prompt_file: "config/prompt_sistema.txt"
 
 display:
