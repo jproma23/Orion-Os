@@ -113,11 +113,20 @@ async def principal() -> None:
         keep_alive_minutes=secao_ia["keep_alive_minutes"],
     )
 
+    def limpar_para_fala(texto: str) -> str:
+        """Tira o que nao da para falar: emojis, markdown (*negrito*),
+        quebras de linha viram pausa. O gemma3 adora um emoji."""
+        import re
+
+        texto = re.sub(r"[*_#`]", "", texto)
+        texto = "".join(c for c in texto if c.isascii() or c.isalpha() or c in "áéíóúâêôãõçÁÉÍÓÚÂÊÔÃÕÇ ")
+        return re.sub(r"\s+", " ", texto).strip()
+
     async def processar_comando(texto: str) -> str:
         if not texto.strip():
             return "Não entendi, pode repetir?"
         logger.info("Voce disse: %s", texto)
-        resposta = await ia.responder(texto)
+        resposta = limpar_para_fala(await ia.responder(texto))
         logger.info("Fofao respondeu: %s", resposta)
         return resposta
 

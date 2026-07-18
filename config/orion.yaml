@@ -91,7 +91,9 @@ voice:
   microfones_candidatos_indices: [0, 1, 5]
 
 ai:
-  ollama_model: "llama3.2:3b"   # dimensionado para 8 GB (EDR-0019); 8b com upgrade de RAM
+  # gemma3:4b desde 2026-07-18: portugues muito melhor que o llama3.2:3b
+  # que estreou aqui, ocupando quase o mesmo (~3,3GB; 8b so com mais RAM)
+  ollama_model: "gemma3:4b"
   temperature: 0.6
   context_window: 4096
   keep_alive_minutes: 30         # numa conversa ao vivo, manter o modelo na RAM
