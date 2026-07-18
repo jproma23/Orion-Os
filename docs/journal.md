@@ -1122,9 +1122,26 @@ passo.
   `SET_PAN_TILT` (Cap 8 s.8) no nível de hardware, faltando só conectar
   o Vision Core de verdade a esses comandos (hoje só testado
   manualmente via `tools/testar_pan_tilt.py`).
+- **Renomeação incompleta corrigida:** o sed de "ORION X" -> "Fofão" de
+  mais cedo hoje só cobriu `*.md`/`*.yaml`/`*.py` e deixou passar HTML/
+  JS/CSS da interface web e do avatar, `tools/orion-avatar.service`/
+  `.desktop`, e principalmente `config/prompt_sistema.txt` - o robô se
+  apresentaria como "ORION X" numa conversa de voz de verdade (Fase 6).
+  Corrigido e sincronizado também no Notebook via scp.
+- **Achado real no Notebook - gap na config de "nunca dormir" (Fase 6):**
+  usuário reportou a tela do kiosk entrando em descanso sozinha.
+  Systemd sleep/suspend/hibernate seguiam mascarados, logind com
+  `HandleLidSwitch=ignore` etc., DPMS desligado - tudo isso conferido e
+  correto. O que faltava: o protetor de tela **nativo do X11** (`xset
+  s`), mecanismo separado do DPMS, seguia no padrão (`timeout: 600`,
+  `prefer blanking: yes`) - apagava a tela depois de 10min parado
+  mesmo com o resto certo. Corrigido com `xset s off; xset s noblank;
+  xset -dpms` embutido no `Exec=` do `.desktop` do kiosk, pra rodar
+  toda vez que o autostart sobe (sobrevive a reboot).
 - **Próximo passo:** conectar o Vision Core (rastreamento de rosto) ao
   pan/tilt de verdade; motores de passo ainda não foram montados
   fisicamente (fica para outra sessão).
-- **Não commitado ainda.**
+- **Commitado:** histórico reconstruído em 11 commits (Fase 0 a 8 + 2
+  commits de hoje) - ver `git log --oneline`.
 
 
