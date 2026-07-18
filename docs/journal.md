@@ -1345,3 +1345,26 @@ servo). Primeira vez testando esses três com hardware real.
   (3) armadilha aprendida: pkill -f com padrao que aparece no proprio
   comando ssh mata a propria sessao (aconteceu 3x) - padrao seguro e
   "[c]olchete" no inicio E nenhuma ocorrencia literal no resto do comando.
+
+## 2026-07-18 (madrugada - ajustes de conversa ao vivo com a familia testando)
+
+- **"Oi? Pode falar!":** VoiceCore ganhou `frase_ativacao` opcional - sem
+  uma confirmacao audivel o usuario nao sabia QUANDO falar e a janela de
+  comando gravava silencio (visto ao vivo). Commit 98942ce.
+- **Velocidade (queixa real: "demora muito pensando"):** resposta do
+  Ollama limitada a 100 tokens + keep_alive de 30min (sem isso a primeira
+  pergunta apos ocioso pagava o recarregamento inteiro do llama3.2).
+  Commit d309cef.
+- **Experimento fracassado, revertido no mesmo commit noturno:** Whisper
+  "tiny" na vigia da wake word (para acelerar as janelas de 3s). Rapido,
+  porem errava demais com este mic: "Fofão" virou "Loco! Loco!"/"Fofa no"
+  e o robo nao acordava. Vigia voltou ao "base" via config
+  (`whisper_model_ativacao`), a infra de dois transcritores fica pronta
+  para um modelo wake word de verdade no futuro. Commits d309cef/50585ab.
+- **Variacoes de wake word acumuladas ao vivo:** fafao, fufao, furacao,
+  falfao (grafias reais que o Whisper produziu para "Fofão").
+- **Kiosk da TV:** quando o servidor do avatar reinicia, a pagina fica
+  "sem conexao" - relancar o firefox resolve (sem auto-reconexao no
+  frontend ainda - candidato a melhoria no avatar_server/JS).
+- **RAM do notebook monitorada durante a farra toda: ~3,8GiB disponiveis**
+  com 2x Whisper base + Ollama + Firefox kiosk + avatar - folga boa.
