@@ -72,9 +72,10 @@ vision:
 voice:
   wake_word: "fofão"
   whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
-  # modelo leve so para as janelas de vigilancia da wake word (rodam sem
-  # parar); o "base" fica para transcrever o comando em si
-  whisper_model_ativacao: "tiny"
+  # modelo das janelas de vigilancia da wake word. Testado "tiny" ao vivo
+  # (2026-07-18): rapido, mas errava demais ("Fofão" virava "Loco"/"Fofa no")
+  # e o robo nao acordava - com este mic, "base" e o minimo confiavel.
+  whisper_model_ativacao: "base"
   piper_voice: "pt_BR-faber-medium"
   piper_voice_path: "data/piper_voices/pt_BR-faber-medium.onnx"
   volume_percent: 70
