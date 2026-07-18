@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORION X — Diagnóstico</title>
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="diagnostico.css" />
+</head>
+<body>
+<header>
+  <h1>ORION X <span id="robot-name"></span></h1>
+  <nav class="paginas">
+    <a href="/">Dashboard</a>
+    <a href="/mapa">Mapa</a>
+    <a href="/diagnostico" class="ativo">Diagnóstico</a>
+    <a href="/conversa">Conversa</a>
+    <a href="/configuracao">Configuração</a>
+  </nav>
+  <span id="conexao" class="badge badge--off">conectando...</span>
+</header>
+
+<main class="grade">
+
+  <section class="painel">
+    <h2>Saúde dos módulos</h2>
+    <ul id="lista-modulos" class="lista-simples">
+      <li class="vazio">nenhum evento de saúde ainda</li>
+    </ul>
+  </section>
+
+  <section class="painel">
+    <h2>Últimos erros</h2>
+    <ul id="lista-erros" class="lista-simples">
+      <li class="vazio">nenhum erro registrado</li>
+    </ul>
+  </section>
+
+  <section class="painel painel--log">
+    <h2>Log (somente leitura, últimas <span id="log-contagem">200</span> linhas)</h2>
+    <pre id="log-conteudo">carregando...</pre>
+  </section>
+
+</main>
+
+<script src="diagnostico.js"></script>
+</body>
+</html>

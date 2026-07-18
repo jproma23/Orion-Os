@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORION X — Conversa</title>
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="conversa.css" />
+</head>
+<body>
+<header>
+  <h1>ORION X <span id="robot-name"></span></h1>
+  <nav class="paginas">
+    <a href="/">Dashboard</a>
+    <a href="/mapa">Mapa</a>
+    <a href="/diagnostico">Diagnóstico</a>
+    <a href="/conversa" class="ativo">Conversa</a>
+    <a href="/configuracao">Configuração</a>
+  </nav>
+  <span id="conexao" class="badge badge--off">conectando...</span>
+</header>
+
+<main class="pagina-conversa">
+  <section class="painel">
+    <h2>Transcrição da interação por voz</h2>
+    <p id="conversa-aviso" class="aviso" hidden></p>
+    <ul id="lista-conversa" class="lista-conversa">
+      <li class="vazio">nenhuma conversa registrada ainda</li>
+    </ul>
+  </section>
+</main>
+
+<script src="conversa.js"></script>
+</body>
+</html>

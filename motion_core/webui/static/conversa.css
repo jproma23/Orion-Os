@@ -1,0 +1,54 @@
+.pagina-conversa {
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.aviso {
+  color: var(--texto-fraco);
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.lista-conversa {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.lista-conversa li.vazio {
+  color: var(--texto-fraco);
+  font-size: 13px;
+}
+
+.balao {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.balao .hora {
+  display: block;
+  font-size: 10px;
+  color: var(--texto-fraco);
+  margin-top: 4px;
+}
+
+.balao--usuario {
+  align-self: flex-end;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+}
+
+.balao--robo {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--acento) 14%, var(--painel));
+  border: 1px solid color-mix(in srgb, var(--acento) 35%, var(--borda));
+}

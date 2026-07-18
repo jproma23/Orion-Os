@@ -1,0 +1,105 @@
+/*
+  ORION X — Fofão (Cap 13 s.3)
+
+  Mascote 3D (Three.js) em vez da silhueta 2D anterior - visual
+  fofo/companheiro em vez de tatico/HUD militar, a pedido do usuario.
+  Paleta: ceu noturno de sitio (--noite), olhos/lanterna ambar
+  (--lanterna), detalhe tecnologico ciano (--ciano).
+*/
+
+:root {
+  --noite: #0b1026;
+  --noite-2: #141c3d;
+  --lanterna: #ffb340;
+  --ciano: #4fd8eb;
+  --alerta: #e85d4a;
+  --branco: #eef2ff;
+  --pill: #1b2450;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(ellipse at 50% 120%, #1d2a5e 0%, var(--noite-2) 45%, var(--noite) 100%);
+  color: var(--branco);
+}
+
+#cena { position: fixed; inset: 0; }
+
+header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.logo { font-weight: 800; letter-spacing: .18em; font-size: 15px; }
+.logo span { color: var(--lanterna); }
+.tag { font-size: 11px; opacity: .55; letter-spacing: .08em; text-transform: uppercase; }
+
+#status {
+  position: fixed;
+  top: 16px; right: 16px;
+  z-index: 10;
+  background: var(--pill);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: .3s;
+}
+
+#status .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #666;
+  transition: .3s;
+}
+
+/* estado do dot segue --state-color, definido pelo JS a cada evento */
+#status.on .dot { background: var(--ciano); box-shadow: 0 0 8px var(--ciano); }
+#status.ativo .dot { background: var(--lanterna); box-shadow: 0 0 10px var(--lanterna); }
+#status.alerta .dot { background: var(--alerta); box-shadow: 0 0 10px var(--alerta); }
+
+#fala {
+  position: fixed;
+  left: 50%; bottom: 60px;
+  transform: translateX(-50%);
+  background: rgb(20 28 68 / 0.85);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(8px);
+  padding: 10px 18px;
+  border-radius: 16px;
+  font-size: 14px;
+  max-width: min(420px, 86vw);
+  text-align: center;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity .4s;
+}
+
+#fala.show { opacity: 1; }
+
+footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 12px;
+  text-align: center;
+  font-size: 11px;
+  opacity: .4;
+  z-index: 5;
+  letter-spacing: .05em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #fala { transition: none; }
+}

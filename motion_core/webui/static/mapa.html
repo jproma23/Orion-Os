@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORION X — Mapa</title>
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="mapa.css" />
+</head>
+<body>
+<header>
+  <h1>ORION X <span id="robot-name"></span></h1>
+  <nav class="paginas">
+    <a href="/">Dashboard</a>
+    <a href="/mapa" class="ativo">Mapa</a>
+    <a href="/diagnostico">Diagnóstico</a>
+    <a href="/conversa">Conversa</a>
+    <a href="/configuracao">Configuração</a>
+  </nav>
+  <span id="conexao" class="badge badge--off">conectando...</span>
+</header>
+
+<main class="pagina-mapa">
+  <section class="painel painel--radar">
+    <h2>Radar frontal (0°–180°)</h2>
+    <canvas id="radar" width="600" height="340"></canvas>
+    <p id="radar-status" class="radar-status">nenhuma varredura ainda</p>
+  </section>
+
+  <section class="painel">
+    <h2>Posição estimada</h2>
+    <dl>
+      <dt>X</dt><dd id="pos-x">—</dd>
+      <dt>Y</dt><dd id="pos-y">—</dd>
+      <dt>Orientação</dt><dd id="pos-orientacao">—</dd>
+    </dl>
+  </section>
+</main>
+
+<script src="mapa.js"></script>
+</body>
+</html>

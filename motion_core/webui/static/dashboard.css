@@ -1,0 +1,152 @@
+/* ORION X — Dashboard (Cap 13 s.4-5). Pensado pra abrir de qualquer
+   dispositivo da rede local (celular, tablet, notebook) - grade
+   responsiva, nada de layout fixo pra desktop. */
+
+:root {
+  --bg: #0b0e14;
+  --painel: #141924;
+  --borda: #232a3a;
+  --texto: #e7ecf3;
+  --texto-fraco: #8a93a6;
+  --acento: #4fd1c5;
+  --alerta: #e85d4a;
+  --ok: #6fd88a;
+  font-family: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--texto);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--borda);
+}
+
+header h1 {
+  font-size: 18px;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+#robot-name {
+  color: var(--texto-fraco);
+  font-weight: normal;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--borda);
+}
+
+.badge--on { color: var(--ok); border-color: var(--ok); }
+.badge--off { color: var(--texto-fraco); }
+
+.paginas {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.paginas a {
+  color: var(--texto-fraco);
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.paginas a.ativo {
+  color: var(--texto);
+  background: var(--painel);
+  border: 1px solid var(--borda);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+.painel {
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.painel h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--texto-fraco);
+  margin: 0 0 10px;
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(auto, 42%) 1fr;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+
+dt {
+  color: var(--texto-fraco);
+  font-size: 13px;
+}
+
+dd {
+  margin: 0;
+  text-align: right;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.valor-ok { color: var(--ok); }
+.valor-alerta { color: var(--alerta); font-weight: bold; }
+
+.painel--eventos {
+  grid-column: 1 / -1;
+}
+
+#lista-eventos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+#lista-eventos li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--borda);
+  display: flex;
+  gap: 10px;
+}
+
+#lista-eventos .hora {
+  color: var(--texto-fraco);
+  flex: 0 0 auto;
+}
+
+#lista-eventos .topico {
+  color: var(--acento);
+  flex: 0 0 auto;
+}
+
+#lista-eventos .dados {
+  color: var(--texto-fraco);
+  overflow-wrap: anywhere;
+}

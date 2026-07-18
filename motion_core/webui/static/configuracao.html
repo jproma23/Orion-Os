@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORION X — Configuração</title>
+<link rel="stylesheet" href="dashboard.css" />
+<link rel="stylesheet" href="diagnostico.css" />
+</head>
+<body>
+<header>
+  <h1>ORION X <span id="robot-name"></span></h1>
+  <nav class="paginas">
+    <a href="/">Dashboard</a>
+    <a href="/mapa">Mapa</a>
+    <a href="/diagnostico">Diagnóstico</a>
+    <a href="/conversa">Conversa</a>
+    <a href="/configuracao" class="ativo">Configuração</a>
+  </nav>
+  <span id="conexao" class="badge badge--off">conectando...</span>
+</header>
+
+<main class="grade">
+  <section class="painel painel--log">
+    <h2>Parâmetros do sistema (config/orion.yaml — somente leitura)</h2>
+    <p class="radar-status">Página restrita: só acessível a partir do próprio Raspberry.</p>
+    <pre id="config-conteudo">carregando...</pre>
+  </section>
+</main>
+
+<script src="configuracao.js"></script>
+</body>
+</html>

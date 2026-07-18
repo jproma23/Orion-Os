@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORION X — Dashboard</title>
+<link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+<header>
+  <h1>ORION X <span id="robot-name"></span></h1>
+  <nav class="paginas">
+    <a href="/" class="ativo">Dashboard</a>
+    <a href="/mapa">Mapa</a>
+    <a href="/diagnostico">Diagnóstico</a>
+    <a href="/conversa">Conversa</a>
+    <a href="/configuracao">Configuração</a>
+  </nav>
+  <span id="conexao" class="badge badge--off">conectando...</span>
+</header>
+
+<main class="grade">
+
+  <section class="painel">
+    <h2>Sistema</h2>
+    <dl>
+      <dt>Modo de execução</dt><dd id="sistema-modo">—</dd>
+      <dt>Modo de navegação</dt><dd id="nav-modo">—</dd>
+      <dt>Estado do Hardware Core</dt><dd id="hw-estado">—</dd>
+      <dt>Em movimento</dt><dd id="hw-movimento">—</dd>
+      <dt>Último passo da missão</dt><dd id="missao-ultimo">—</dd>
+    </dl>
+  </section>
+
+  <section class="painel">
+    <h2>Segurança</h2>
+    <dl>
+      <dt>SAFE_MODE</dt><dd id="seg-ativo" class="valor-ok">inativo</dd>
+      <dt>Motivo</dt><dd id="seg-motivo">—</dd>
+    </dl>
+  </section>
+
+  <section class="painel">
+    <h2>Telemetria</h2>
+    <dl>
+      <dt>Distância frontal</dt><dd id="tel-distancia">—</dd>
+      <dt>Temperatura</dt><dd id="tel-temp">—</dd>
+      <dt>Umidade</dt><dd id="tel-umidade">—</dd>
+      <dt>Inclinação (IMU)</dt><dd id="tel-inclinacao">—</dd>
+    </dl>
+  </section>
+
+  <section class="painel">
+    <h2>Posição estimada</h2>
+    <dl>
+      <dt>X</dt><dd id="pos-x">—</dd>
+      <dt>Y</dt><dd id="pos-y">—</dd>
+      <dt>Orientação</dt><dd id="pos-orientacao">—</dd>
+      <dt>Velocidade</dt><dd id="pos-velocidade">—</dd>
+    </dl>
+  </section>
+
+  <section class="painel painel--eventos">
+    <h2>Últimos eventos</h2>
+    <ul id="lista-eventos"></ul>
+  </section>
+
+</main>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Temporario: roda tools/preview_avatar.py (eventos simulados) ate o loop
+# principal de execucao do ORION OS existir de verdade (ver docs/journal.md,
+# Fase 8) - trocar ExecStart por "python -m orion" quando isso acontecer.
+[Unit]
+Description=ORION X - servidor do avatar (Fofao)
+After=graphical-session.target
+
+[Service]
+WorkingDirectory=%h/orion-os
+ExecStart=%h/orion-os/.venv/bin/python tools/preview_avatar.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

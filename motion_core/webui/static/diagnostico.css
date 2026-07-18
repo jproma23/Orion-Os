@@ -1,0 +1,39 @@
+.lista-simples {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.lista-simples li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--borda);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.lista-simples li.vazio {
+  color: var(--texto-fraco);
+  justify-content: flex-start;
+}
+
+.status-ok { color: var(--ok); }
+.status-perdido { color: var(--alerta); font-weight: bold; }
+
+.painel--log {
+  grid-column: 1 / -1;
+}
+
+#log-conteudo {
+  margin: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--texto-fraco);
+}
