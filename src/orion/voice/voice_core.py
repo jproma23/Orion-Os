@@ -47,6 +47,7 @@ class VoiceCore:
         duracao_janela_escuta_s: float = 3.0,
         duracao_comando_s: float = 5.0,
         gravar_audio: CallbackGravarAudio | None = None,
+        frase_ativacao: str | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -56,6 +57,10 @@ class VoiceCore:
         self._detector = detector_palavra_ativacao or DetectorPalavraAtivacao()
         self._duracao_janela_escuta_s = duracao_janela_escuta_s
         self._duracao_comando_s = duracao_comando_s
+        # Confirmacao audivel de que a palavra de ativacao foi ouvida (ex.:
+        # "Oi?") - sem ela o usuario nao sabe QUANDO falar o comando e a
+        # janela de gravacao captura silencio (visto ao vivo em 2026-07-18).
+        self._frase_ativacao = frase_ativacao
         # injetavel para testar sem microfone/hardware real
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
@@ -96,6 +101,8 @@ class VoiceCore:
 
         await self._definir_estado(EstadoVoz.WAKE_DETECTED)
         await self._event_bus.publish("voice.wake_detected", {"texto_janela": texto_janela})
+        if self._frase_ativacao:
+            await self._sintetizador.falar(self._frase_ativacao)
 
         await self._definir_estado(EstadoVoz.TRANSCRIBING)
         try:

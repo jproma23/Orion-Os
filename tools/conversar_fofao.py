@@ -49,6 +49,7 @@ from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 # aceitar as variacoes proximas evita o robo ignorar o dono.
 VARIACOES_FOFAO = (
     "fofão", "fofao", "fafão", "fafao", "fufão", "fufao", "furacão", "furacao",
+    "falfão", "falfao",
 )
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
@@ -123,6 +124,7 @@ async def principal() -> None:
         sintetizador=sintetizador,
         processar_comando=processar_comando,
         detector_palavra_ativacao=DetectorPalavraAtivacao(VARIACOES_FOFAO),
+        frase_ativacao="Oi? Pode falar!",
     )
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
