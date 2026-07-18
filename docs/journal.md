@@ -1144,4 +1144,121 @@ passo.
 - **Commitado:** histórico reconstruído em 11 commits (Fase 0 a 8 + 2
   commits de hoje) - ver `git log --oneline`.
 
+## 2026-07-18 (continuação - motores e ultrassons chegaram fisicamente)
+
+Usuário conectou fisicamente hoje: os 2 motores de passo (NEMA17 via
+TB6600), o ultrassom traseiro (pinos 26/27, antes reservado) e o
+ultrassom frontal remontado no servo do radar (pino 9, antes fixo sem
+servo). Primeira vez testando esses três com hardware real.
+
+- **`pins.h` atualizado:** `ULTRASSOM_TRAS_TRIG/ECHO` e `SERVO_RADAR`
+  movidos de RESERVADO para CONFIRMADO. Comentário desatualizado do
+  `RadarManager` (dizia "ultrassom fixo, sem servo") corrigido.
+- **Ultrassom traseiro ganhou código de verdade:** antes só tinha os
+  pinos reservados em `pins.h`, nenhum manager lia eles. Adicionado
+  `SensorUltrassonico ultrassomTraseiro` global em `main.cpp`,
+  `TelemetryManager` ganhou o campo `distancia_traseira_cm`/`_valida`
+  (novo parametro no construtor).
+- **Servo do radar (pino 9):** confirmado fisicamente girando (o
+  `RadarManager::iniciar()` ja chamava `_servo.attach()` dentro de um
+  metodo proprio chamado do `setup()`, entao nao tinha o mesmo bug de
+  construtor global do pan/tilt de mais cedo).
+- **Bug real corrigido - `ENABLE_ATIVO_EM_BAIXO`:** motores completamente
+  mudos/parados (nem vibravam) com o valor original (`true`, ativo em
+  baixo). Invertido para `false` - os TB6600 desta montagem só habilitam
+  com o pino em HIGH. Comentário do código ja antecipava essa
+  possibilidade (`motor_manager.h`).
+- **Achado NÃO resolvido - ultrassons sem eco:** mesmo com energia e
+  GND comum confirmados pelo usuário, `echo_frontal_ja_visto_alto` e
+  `echo_traseiro_ja_visto_alto` (flag nova em `SensorUltrassonico`,
+  fica `true` para sempre no primeiro ECHO valido desde o boot -
+  substituiu um diagnostico anterior por amostragem via
+  `RETURN_STATUS` que era pouco confiavel, dado o pulso de ECHO poder
+  ser mais curto que o intervalo de amostragem) continuam `false`
+  depois de mais de 8s (100+ tentativas de trigger) em ambos os
+  sensores. TRIG/ECHO conferidos contra os pinos certos (22/23
+  frontal, 26/27 traseiro) pelo usuário. Causa raiz não encontrada -
+  precisa de multímetro (medir se o TRIG realmente pulsa no pino certo,
+  se ECHO tem 5V quando deveria, GND de verdade comum).
+- **Achado NÃO resolvido - motores não giram, apesar de tudo checado:**
+  depois do fix do `ENABLE_ATIVO_EM_BAIXO`, motor chegou a "quase girar"
+  uma vez (zumbido, sem completar o giro - padrão de corrente
+  insuficiente), mas depois de ajustar a corrente (usuário mexeu de
+  0.5A nominal do motor até 1.2A, depois para ~0.7A) parou de fazer até
+  isso. Checklist completo tentado sem sucesso: ENABLE nas duas
+  polaridades E flutuando (pino sem `pinMode(OUTPUT)`), corrente em
+  varios valores, STEP/DIR reencostados, fios da bobina invertidos,
+  GND comum de PUL-/DIR-/EN- confirmado, testado inclusive com um
+  motor+cabo de uma CNC (conhecido bom) no lugar do NEMA17 - mesmo
+  resultado. **Prova definitiva de que não é código:** com
+  `tools/testar_pan_tilt.py`-style telemetria, confirmado que o
+  firmware gera e conta os 200 passos certos (`passos_esquerda`/
+  `passos_direita` = 200 para um `MOVE_DISTANCE` de 5cm). Escrito
+  tambem um sketch minimo (`/tmp/.../motor_diag/`, fora do repo,
+  descartavel) que pulsa STEP/DIR/ENABLE via `digitalWrite()` puro, sem
+  nenhum codigo do protocolo, alternando a polaridade do ENABLE
+  sozinho a cada 10s - motor tambem nao reagiu. Ou seja: testado em
+  dois niveis de software (protocolo completo + GPIO cru) e varias
+  frentes de hardware, sem sucesso. Suspeita mais forte agora: driver
+  TB6600 com defeito, ou rompimento fisico de fiacao entre Mega e
+  driver nao visivel sem multimetro (continuidade fio a fio). Pausado
+  aqui - precisa de instrumento de medicao pra continuar.
+- **Susto a parte:** o servo de tilt teve um episodio de movimento
+  erratico ("ficou maluco") no meio da sessão, provavelmente ruído
+  induzido pelo manuseio da fiação dos motores por perto. Mega
+  confirmado vivo e saudável durante o episódio (RETURN_STATUS normal).
+  Retestado depois com `tools/testar_pan_tilt.py` e voltou ao normal
+  (10/10 comandos ok) - não reaconteceu, mas fica registrado caso volte.
+- **Pendências físicas para retomar:** (1) multímetro para depurar os
+  ultrassons (TRIG pulsando? ECHO com 5V?) e os motores (continuidade
+  Mega→driver→motor, tensão real no driver); (2) considerar testar os
+  TB6600 isolados (sem o Mega, com um gerador de pulso simples ou
+  outro microcontrolador) para confirmar se o defeito é mesmo no
+  driver.
+- **Não commitado ainda** (mudanças de hoje: `pins.h`, `radar_manager.h`,
+  `telemetry_manager.h`, `main.cpp`, `motor_manager.h`,
+  `sensor_ultrassonico.h`).
+
+## 2026-07-18 (fechamento da sessão - pinagem dos ultrassons confirmada correta, ainda sem sinal)
+
+- **Motores - decisão do usuário:** depois do checklist completo sem
+  sucesso (ver entrada anterior), incluindo testar com motor+cabo+driver
+  **inteiros** de uma CNC (conjunto conhecido bom, mesmo resultado: nada),
+  usuário decidiu não perseguir mais o NEMA17/TB6600 por agora e já
+  comprou motores DC de 2 fios + ponte H. Arquitetura de controle é
+  bem diferente (PWM de velocidade + pino de direção, sem STEP/DIR/
+  micropasso) - `motor_manager.h` vai precisar ser reescrito do zero
+  quando o hardware novo chegar. Até lá, o `MotorManager` atual
+  (stepper) fica como está no código, sem mais tentativas de debug.
+- **Ultrassons - pinagem confirmada correta, causa raiz ainda não
+  encontrada:** usuário conferiu fio a fio e confirmou explicitamente:
+  frontal TRIG=22/ECHO=23, traseiro TRIG=26/ECHO=27 - exatamente o que
+  `pins.h` espera (bateu certinho depois de descartar duas hipóteses
+  no caminho: um sensor temporariamente achado em pinos 24/25, que são
+  do DHT/LED no nosso firmware - acabou não sendo o caso real; e uma
+  inversão TRIG/ECHO no traseiro, também descartada na checagem final).
+  Mesmo com a pinagem 100% batendo com o código, `echo_frontal_ja_visto_alto`
+  e `echo_traseiro_ja_visto_alto` continuam `false` - nenhum pulso de
+  ECHO chegou nos pinos do Mega em nenhum teste do dia. Mesma
+  conclusão dos motores: sem multímetro pra medir tensão real nos
+  pinos (TRIG realmente pulsando? VCC do sensor realmente em 5V? ECHO
+  do sensor emitindo algo?), não dá pra achar a causa exata só
+  verificando fiação visualmente.
+- **Confirmado funcionando de verdade hoje:** pan, tilt e o servo do
+  radar (varredura física do `SCAN_FRONT`) - os três reconfirmados
+  pelo usuário no fim da sessão.
+- **Resumo do estado físico ao final do dia:**
+  - ✅ Pan/tilt (servos, pinos 10/11)
+  - ✅ Servo do radar (pino 9) - varredura física confirmada
+  - ⚠️ Ultrassom frontal e traseiro (pinos 22/23, 26/27) - pinagem
+    correta, sem sinal, precisa de multímetro
+  - ⚠️ Motores de passo (NEMA17/TB6600) - pausado, indo para motor DC
+    + ponte H (hardware novo a caminho)
+- **Próxima sessão:** (1) quando os motores DC + ponte H chegarem,
+  escrever `motor_manager.h` novo pra essa arquitetura; (2) com
+  multímetro em mãos, medir TRIG/VCC/ECHO ponto a ponto nos dois
+  ultrassons; (3) considerar Vision Core -> pan/tilt de verdade
+  (Fase 5 -> hardware), já que pan/tilt está validado.
+- **Não commitado ainda.**
+
 

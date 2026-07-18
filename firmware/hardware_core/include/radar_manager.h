@@ -1,13 +1,9 @@
 // Radar Manager (Cap 10 secao 6) - radar frontal (SCAN_FRONT).
 //
-// RESERVADO: nesta montagem o ultrassom frontal e FIXO (sem servo) - o
-// SERVO_RADAR nao esta fisicamente ligado (confirmado com o usuario). A
-// varredura abaixo continua funcionando estruturalmente (move o "alvo" do
-// servo e agrupa leituras por angulo), mas sem o servo real todas as
-// leituras vem do mesmo angulo fisico - so passa a fazer sentido de
-// verdade quando o servo for instalado. distanciaFrontalCm() (sem
-// varredura) e o que ja funciona de verdade hoje, usado pelo Safety
-// Manager.
+// CONFIRMADO 2026-07-18: SERVO_RADAR fisicamente montado - a varredura
+// abaixo agora move o sensor de verdade, cada angulo le uma distancia
+// fisica diferente. distanciaFrontalCm() (sem varredura, angulo atual do
+// servo) e o que o Safety Manager usa para obstaculo frontal.
 #pragma once
 
 #include <Arduino.h>
@@ -51,6 +47,7 @@ class RadarManager {
 
   float distanciaFrontalCm() const { return _ultrassom.distanciaCm(); }
   bool distanciaFrontalValida() const { return _ultrassom.leituraValida(); }
+  bool frontalAlgumaVezValida() const { return _ultrassom.algumaVezValida(); }
 
  private:
   // membro de instancia normal (nao static) - evita a exigencia de uma

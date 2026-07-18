@@ -4,10 +4,11 @@
 // usar Serial.print() aqui para depuracao, corromperia o enquadramento
 // binario.
 //
-// Fiacao confirmada nesta montagem (Sentinela X - guia de ligacao eletrica):
-// motores (pinos 2-6), ultrassom frontal fixo (22/23), IMU I2C (20/21),
-// DHT (24). Encoders, ultrassom traseiro, servo do radar, pan/tilt e LED
-// sao pinos RESERVADOS - ver pins.h - ainda nao ligados fisicamente.
+// Fiacao confirmada nesta montagem (guia de ligacao eletrica, atualizado
+// 2026-07-18): motores (pinos 2-6), ultrassom frontal fixo (22/23),
+// ultrassom traseiro (26/27), IMU I2C (20/21), DHT (24), servo do radar
+// (9) e servos pan/tilt (10/11). Encoders e LED continuam RESERVADOS -
+// ver pins.h - ainda nao ligados fisicamente.
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <string.h>
@@ -19,9 +20,11 @@
 #include "framing.h"
 #include "imu_manager.h"
 #include "motor_manager.h"
+#include "pins.h"
 #include "protocolo.h"
 #include "radar_manager.h"
 #include "safety_manager.h"
+#include "sensor_ultrassonico.h"
 #include "telemetry_manager.h"
 
 // Simbolos do heap do avr-libc (malloc.c) - precisam ficar no escopo global,
@@ -39,8 +42,9 @@ orion::RadarManager radar;
 orion::ImuManager imu;
 orion::DhtManager dht;
 orion::SafetyManager safety;
+orion::SensorUltrassonico ultrassomTraseiro;
 orion::CommandExecutor comandos(motores, radar, estados);
-orion::TelemetryManager telemetria(motores, radar, imu, dht, estados);
+orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 constexpr unsigned long INTERVALO_TELEMETRIA_MS = 500;
@@ -99,6 +103,10 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
   payload["uptime_ms"] = millis();
   payload["em_movimento"] = motores.emMovimento();
   payload["imu_conectado"] = imu.conectado();
+  // DIAGNOSTICO TEMPORARIO - ver algumaVezValida() em SensorUltrassonico.
+  // Remover depois.
+  payload["echo_frontal_ja_visto_alto"] = radar.frontalAlgumaVezValida();
+  payload["echo_traseiro_ja_visto_alto"] = ultrassomTraseiro.algumaVezValida();
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
@@ -151,6 +159,7 @@ void setup() {
   radar.iniciar();
   imu.iniciar();
   dht.iniciar();
+  ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
   comandos.iniciar();
   g_payloadVazio.to<JsonObject>();  // forca virar {} em vez de null ao serializar
 
@@ -169,6 +178,7 @@ void loop() {
 
   motores.atualizar();
   radar.atualizar();
+  ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
 
   unsigned long agora = millis();

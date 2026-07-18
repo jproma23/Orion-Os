@@ -30,14 +30,20 @@ constexpr uint8_t IMU_SCL = 21;
 // --- Temperatura/umidade (CONFIRMADO) - DHT11/22 ---
 constexpr uint8_t DHT_DATA = 24;
 
+// --- Ultrassonico traseiro (CONFIRMADO 2026-07-18) - HC-SR04 fixo ---
+constexpr uint8_t ULTRASSOM_TRAS_TRIG = 26;
+constexpr uint8_t ULTRASSOM_TRAS_ECHO = 27;
+
+// --- Servo do radar (CONFIRMADO 2026-07-18) - varre o ultrassom frontal ---
+constexpr uint8_t SERVO_RADAR = 9;
+
+// --- Servos pan/tilt (CONFIRMADO 2026-07-18) ---
+constexpr uint8_t SERVO_PAN = 10;
+constexpr uint8_t SERVO_TILT = 11;
+
 // --- RESERVADO: nao fisicamente conectado nesta montagem ---
 constexpr uint8_t ENCODER_ESQUERDO = 18;  // interrupt externo do Mega
 constexpr uint8_t ENCODER_DIREITO = 19;   // interrupt externo do Mega
-constexpr uint8_t ULTRASSOM_TRAS_TRIG = 26;
-constexpr uint8_t ULTRASSOM_TRAS_ECHO = 27;
-constexpr uint8_t SERVO_RADAR = 9;   // varredura do ultrassom frontal (0-180)
-constexpr uint8_t SERVO_PAN = 10;
-constexpr uint8_t SERVO_TILT = 11;
 constexpr uint8_t LED_LANTERNA = 25;
 
 }  // namespace pinos

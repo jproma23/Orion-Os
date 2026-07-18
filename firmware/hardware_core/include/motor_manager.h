@@ -22,9 +22,11 @@ constexpr float PASSOS_POR_METRO = 4000.0f;  // igual ao default de config/orion
 constexpr float PASSOS_POR_GRAU = 20.0f;     // aproximado - ajustar na autocalibracao
 constexpr long PASSOS_POR_SEGUNDO_MAXIMO = 2000;
 constexpr long PASSOS_POR_SEGUNDO_MINIMO = 50;
-// TB6600 comuns tem EN+ ativo em nivel baixo - verificar na bancada se o
-// motor so habilita com o pino em HIGH; se sim, inverta esta constante.
-constexpr bool ENABLE_ATIVO_EM_BAIXO = true;
+// Testado na bancada em 2026-07-18: os TB6600 desta montagem so habilitam
+// com o pino em HIGH (nao no padrao "ativo em baixo" mais comum) - motor
+// ficava completamente mudo/parado (sem nem vibrar) com o valor antigo
+// (true), sinal classico de driver permanentemente desabilitado.
+constexpr bool ENABLE_ATIVO_EM_BAIXO = false;
 
 struct EstadoRoda {
   uint8_t pinoStep;
