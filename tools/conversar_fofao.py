@@ -49,7 +49,7 @@ from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 # aceitar as variacoes proximas evita o robo ignorar o dono.
 VARIACOES_FOFAO = (
     "fofão", "fofao", "fafão", "fafao", "fufão", "fufao", "furacão", "furacao",
-    "falfão", "falfao",
+    "falfão", "falfao", "japão", "japao", "vovão", "vovao", "bofão", "bofao",
 )
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
