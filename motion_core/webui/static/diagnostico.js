@@ -1,4 +1,4 @@
-// ORION X — Diagnóstico (Cap 13 s.4-5): saúde dos módulos, últimos erros
+// Fofão — Diagnóstico (Cap 13 s.4-5): saúde dos módulos, últimos erros
 // e acesso ao log (somente leitura). Consumidor puro via SSE.
 
 const $ = (id) => document.getElementById(id);

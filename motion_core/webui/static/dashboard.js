@@ -1,4 +1,4 @@
-// ORION X — Dashboard (Cap 13 s.4-5): consumidor puro do Event Bus via
+// Fofão — Dashboard (Cap 13 s.4-5): consumidor puro do Event Bus via
 // SSE, igual o avatar (Cap 13 s.2) - nenhuma decisao acontece aqui.
 
 const $ = (id) => document.getElementById(id);

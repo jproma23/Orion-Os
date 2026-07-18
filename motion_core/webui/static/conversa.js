@@ -1,4 +1,4 @@
-// ORION X — Conversa (Cap 13 s.4: "transcrição da interação por voz").
+// Fofão — Conversa (Cap 13 s.4: "transcrição da interação por voz").
 // Historico vem do banco (Fase 3, /api/conversas) - eventos novos so
 // avisam que precisa recarregar (memory.updated), o dado de verdade
 // sempre vem da API, nunca fica duplicado em dois lugares.

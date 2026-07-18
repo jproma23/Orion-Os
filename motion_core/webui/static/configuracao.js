@@ -1,4 +1,4 @@
-// ORION X — Configuração (Cap 13 s.4: "parâmetros do sistema, acesso
+// Fofão — Configuração (Cap 13 s.4: "parâmetros do sistema, acesso
 // restrito"). Somente leitura por ora - editar configuração ao vivo fica
 // para uma iteração futura (precisa de validação/confirmação de reinício).
 

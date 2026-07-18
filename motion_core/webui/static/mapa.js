@@ -1,4 +1,4 @@
-// ORION X — Mapa polar do radar (Cap 13 s.4: "MAPA — radar polar (0°–180°),
+// Fofão — Mapa polar do radar (Cap 13 s.4: "MAPA — radar polar (0°–180°),
 // posição e orientação estimadas"). Consumidor puro via SSE, igual as
 // outras páginas - só desenha o que o servidor manda (motion.scan_complete
 // vem de NavigationCore.executar_goto/patrol/explore, Cap 12 s.7).

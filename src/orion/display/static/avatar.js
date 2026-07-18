@@ -1,5 +1,5 @@
 /* ============================================================
-   ORION X — FOFÃO
+   Fofão — FOFÃO
    Mascote 3D (Three.js r128) — puro consumidor do Event Bus
    (Cap 13 s.2): nenhuma decisao acontece aqui, so reflete os
    eventos que o avatar_server.py repassa via SSE.

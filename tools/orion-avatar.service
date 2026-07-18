@@ -2,7 +2,7 @@
 # principal de execucao do ORION OS existir de verdade (ver docs/journal.md,
 # Fase 8) - trocar ExecStart por "python -m orion" quando isso acontecer.
 [Unit]
-Description=ORION X - servidor do avatar (Fofao)
+Description=Fofão - servidor do avatar (Fofao)
 After=graphical-session.target
 
 [Service]
