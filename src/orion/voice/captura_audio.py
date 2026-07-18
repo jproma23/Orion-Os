@@ -65,6 +65,11 @@ async def gravar_trecho(
                 f"Falha ao gravar do dispositivo {indice_dispositivo}: {erro}"
             ) from erro
         audio = audio.flatten()
+        # Remove o offset DC: microfones baratos desta montagem entregam o
+        # sinal deslocado de um nivel constante (~0.25 medido em silencio no
+        # mic da webcam, 2026-07-18), o que infla o RMS, engana a selecao
+        # de microfone por qualidade e degrada a transcricao do Whisper.
+        audio = audio - np.float32(np.mean(audio))
         if taxa_nativa != taxa_amostragem:
             audio = reamostrar(audio, taxa_nativa, taxa_amostragem)
         return audio

@@ -77,13 +77,14 @@ voice:
   volume_percent: 70
   preferred_mic: "auto"          # auto | notebook | webcam
   # alto-falante interno e P2 (jack) ainda nao aparecem no audio do Linux
-  # nesta montagem (falta driver/quirk do codec HDA) - usando o dispositivo
-  # de audio USB como saida por enquanto (indice sounddevice, nao fixo -
-  # conferir com `python -m sounddevice` se mudar de porta USB).
-  saida_audio_indice: 4
-  # indices de entrada (sounddevice) descobertos nesta montagem: mic da
-  # webcam PC Camera, USB Audio Device e USB Composite Device (2a webcam)
-  microfones_candidatos_indices: [3, 4, 5]
+  # nesta montagem (falta driver/quirk do codec HDA) - a saida agora e a TV
+  # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
+  # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
+  # com `python -m sounddevice` se mudar as portas USB/HDMI.
+  saida_audio_indice: 2
+  # indices de entrada (sounddevice) reconferidos em 2026-07-18: USB
+  # Composite Device (2a webcam), PC Camera e USB Audio Device
+  microfones_candidatos_indices: [0, 1, 5]
 
 ai:
   ollama_model: "llama3.2:3b"   # dimensionado para 8 GB (EDR-0019); 8b com upgrade de RAM

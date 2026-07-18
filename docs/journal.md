@@ -1300,3 +1300,48 @@ servo). Primeira vez testando esses três com hardware real.
 - **Atencao:** o Mega esta com o sketch de diagnostico gravado agora -
   regravar o firmware real (`pio run -t upload` em
   `firmware/hardware_core/`) depois do conserto fisico.
+
+## 2026-07-18 (noite - Fofao na TV e PRIMEIRA CONVERSA DE VOZ COMPLETA!)
+
+- **Avatar na TV via HDMI do Notebook:** TV detectada como segundo monitor
+  (HDMI-2, 1920x1080). `xrandr --output HDMI-2 --primary` + relancamento
+  do Firefox kiosk (com `setsid -f`, senao o processo morre junto com a
+  sessao SSH) colocou o avatar em tela cheia na TV. Confirmado pelo usuario.
+- **Descoberta que destravou a Fase 6: a TV e a saida de audio!** O chip
+  HDA do notebook so expoe audio via HDMI (journal da Fase 6) - e agora ha
+  uma TV no HDMI ("HDA Intel PCH: Android TV"). Teste com Piper + aplay
+  confirmado pelo usuario: "a voz saiu". O headset USB planejado deixou de
+  ser bloqueante para a saida.
+- **Ferramenta nova `tools/conversar_fofao.py`:** substituto ao vivo do
+  preview_avatar - AvatarServer + VoiceCore + AiManager (Ollama) +
+  Sintetizador num processo so, mesmo Event Bus: o avatar do kiosk reage
+  aos estados reais de voz. Sem Raspberry envolvido (EDR-0018).
+- **Indices de audio reconferidos e atualizados em config/orion.yaml**
+  (mudam quando USB troca de porta!): saida agora e a TV (indice 2);
+  mics candidatos [0, 1, 5]. Seletor escolheu o mic da PC Camera (1).
+- **Bug real achado e corrigido - offset DC na captura
+  (`captura_audio.py`):** em silencio absoluto o RMS media ~0,25 (quase
+  identico ao RMS falando!) - o mic entrega o sinal deslocado de um nivel
+  constante. Isso inflava o RMS, enganava a selecao por qualidade e
+  degradava o Whisper (janelas viravam '' ou alucinacao tipo "e acalpa-lo
+  no inside"). Fix: subtrair a media do trecho gravado. Depois do fix,
+  silencio mede rms 0,02-0,03 e fala ~0,16-0,23 - separacao limpa.
+- **Wake word na pratica:** o Whisper ouve "Fofao" mas escreve "Fafao" ou
+  "furacao" (e ate completa "carreta furacao" sozinho, contexto dos
+  palhacos). `conversar_fofao.py` passa um DetectorPalavraAtivacao com as
+  variacoes (fofao/fafao/fufao/furacao, com e sem til) - paliativo ate um
+  modelo openWakeWord treinado para "Fofao" existir (decisao ja documentada
+  em wake_word.py).
+- **PRIMEIRA CONVERSA COMPLETA (criterio de pronto da Fase 6 - PARCIAL,
+  ver abaixo):** usuario disse "Oi, fofao!" -> wake detectado -> comando
+  transcrito -> Ollama respondeu -> Piper falou pela TV, avatar reagindo:
+  "Ahah, sim! Sou um robo da marca Carreta Foracao, modelo Fofao..."
+  (o proprio llama3.2 entrou na brincadeira da carreta).
+- **183 testes passando** (6 de voz revalidados apos o fix do DC).
+- **Pendencias:** (1) o criterio completo da Fase 6 inclui "acenda a
+  lanterna" acionando LIGHT_ON - precisa do link Notebook->Raspberry->Mega
+  de pe (Mission Planner completo); (2) trocar o orion-avatar.service para
+  apontar para conversar_fofao.py se o usuario quiser a conversa no boot;
+  (3) armadilha aprendida: pkill -f com padrao que aparece no proprio
+  comando ssh mata a propria sessao (aconteceu 3x) - padrao seguro e
+  "[c]olchete" no inicio E nenhuma ocorrencia literal no resto do comando.
