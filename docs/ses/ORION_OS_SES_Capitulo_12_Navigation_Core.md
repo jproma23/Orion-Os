@@ -3,7 +3,7 @@
 Versão 1.1 — alinhada ao TCC (EDR-0018)
 
 ## 1. Objetivo
-O Motion Core é o subsistema responsável por planejar e supervisionar o deslocamento do ORION X. Ele executa no **Raspberry Pi**, transforma missões de alto nível recebidas do Notebook em sequências de comandos para o Hardware Core (Arduino) e garante navegação segura utilizando fusão de sensores: radar frontal, ultrassônico traseiro, encoders e IMU.
+O Motion Core é o subsistema responsável por planejar e supervisionar o deslocamento do Fofão. Ele executa no **Raspberry Pi**, transforma missões de alto nível recebidas do Notebook em sequências de comandos para o Hardware Core (Arduino) e garante navegação segura utilizando fusão de sensores: radar frontal, ultrassônico traseiro, encoders e IMU.
 
 ## 2. Princípio Fundamental
 O Notebook decide; o Raspberry navega; o Arduino executa. Nenhum algoritmo de navegação roda no Arduino, que recebe apenas comandos simples (MOVE_FORWARD, MOVE_DISTANCE, TURN_LEFT, TURN_RIGHT, SCAN_FRONT, STOP, DOCK) e devolve telemetria.
@@ -79,4 +79,4 @@ Motivação:
 - Evolução para SLAM sem troca de firmware.
 
 ## Conclusão
-O Motion Core dá ao ORION X a capacidade de se mover com propósito e segurança, mantendo a separação rigorosa entre decisão estratégica, navegação e execução em tempo real definida pela arquitetura do ORION OS.
+O Motion Core dá ao Fofão a capacidade de se mover com propósito e segurança, mantendo a separação rigorosa entre decisão estratégica, navegação e execução em tempo real definida pela arquitetura do ORION OS.

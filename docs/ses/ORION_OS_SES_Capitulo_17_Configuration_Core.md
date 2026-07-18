@@ -57,4 +57,4 @@ Motivação:
 - Auditoria completa de mudanças.
 - Perfis simplificam operação por não-técnicos.
 ## Conclusão
-O Configuration Core torna o ORION X ajustável, auditável e seguro de operar, garantindo que todo comportamento configurável do sistema tenha origem única e controlada.
+O Configuration Core torna o Fofão ajustável, auditável e seguro de operar, garantindo que todo comportamento configurável do sistema tenha origem única e controlada.

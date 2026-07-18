@@ -30,7 +30,7 @@ Estabelecer o plano oficial de evolução do ORION OS, definindo o escopo de cad
 - Integração com automação residencial (luzes, tomadas, sensores da casa).
 - Câmeras IP como fontes adicionais do Vision Core.
 - GPS para áreas externas.
-- Multi-robô: dois ou mais ORION X compartilhando o mesmo Mission Core lógico.
+- Multi-robô: dois ou mais Fofão compartilhando o mesmo Mission Core lógico.
 - Rotinas proativas (aprendizado de hábitos da família com consentimento).
 ## 6. Evolução Contínua (todas as versões)
 - Atualização de modelos de IA (Ollama) sem mudança de arquitetura.

@@ -10,7 +10,7 @@ O ORION OS é uma plataforma de robótica modular destinada ao
 desenvolvimento de robôs autônomos capazes de perceber, compreender e
 interagir com o ambiente de forma inteligente.
 
-O primeiro robô baseado nesta plataforma será denominado **ORION X**.
+O primeiro robô baseado nesta plataforma será denominado **Fofão**.
 
 A filosofia do projeto é separar claramente as responsabilidades entre
 os dispositivos físicos:

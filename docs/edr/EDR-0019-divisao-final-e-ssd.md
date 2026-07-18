@@ -48,7 +48,7 @@ Decisões complementares:
 - Cada função no hardware onde rende mais: IA/visão no x86 com 8 GB;
   dados e serviços contínuos no Pi com SSD; tempo real no Arduino.
 - A memória permanente vive no corpo do robô: trocar o Notebook não
-  apaga o que o ORION X aprendeu.
+  apaga o que o Fofão aprendeu.
 - Dashboard ao lado do banco: consultas de histórico são locais ao SSD.
 - SSD via USB 3 tem confiabilidade e desempenho adequados para escrita
   contínua de telemetria, ao contrário do cartão SD.

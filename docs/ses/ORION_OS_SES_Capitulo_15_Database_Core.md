@@ -69,4 +69,4 @@ Motivação:
 - Backup e restauração triviais (arquivo único).
 - Migração futura para outro SGBD isolada no Database Manager.
 ## Conclusão
-O Database Core garante que todo o conhecimento e histórico do ORION X esteja persistido de forma íntegra, recuperável e eficiente, sustentando o aprendizado contínuo definido pelo Memory Core.
+O Database Core garante que todo o conhecimento e histórico do Fofão esteja persistido de forma íntegra, recuperável e eficiente, sustentando o aprendizado contínuo definido pelo Memory Core.

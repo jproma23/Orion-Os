@@ -2,7 +2,7 @@
 ## Capítulo 18 — Segurança Operacional
 Versão 1.0 — Especificação Oficial
 ## 1. Objetivo
-Definir as regras de segurança física e operacional do ORION X: comportamento fail-safe, resposta a perda de comunicação, tratamento de obstáculos, recuperação de falhas e modos degradados. A segurança tem prioridade sobre qualquer missão.
+Definir as regras de segurança física e operacional do Fofão: comportamento fail-safe, resposta a perda de comunicação, tratamento de obstáculos, recuperação de falhas e modos degradados. A segurança tem prioridade sobre qualquer missão.
 ## 2. Princípios de Segurança
 1. Em dúvida, parar.
 2. A camada reativa nunca depende do Notebook.
@@ -66,4 +66,4 @@ Motivação:
 - Tempo de reação determinístico.
 - Conformidade com o princípio "em dúvida, parar".
 ## Conclusão
-A segurança operacional do ORION X não é um módulo, mas uma propriedade da arquitetura: cada camada protege as demais, e nenhuma falha isolada pode resultar em movimento sem controle.
+A segurança operacional do Fofão não é um módulo, mas uma propriedade da arquitetura: cada camada protege as demais, e nenhuma falha isolada pode resultar em movimento sem controle.

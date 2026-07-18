@@ -1,6 +1,6 @@
 # ORION OS
 
-Plataforma de robótica modular e **offline-first** (Internet apenas habilita extras). Primeiro robô: **ORION X**.
+Plataforma de robótica modular e **offline-first** (Internet apenas habilita extras). Primeiro robô: **Fofão**.
 
 - **Especificação oficial:** `docs/ses/` (Capítulos 01–20)
 - **Guia para o Claude Code:** `CLAUDE.md`

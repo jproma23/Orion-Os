@@ -6,7 +6,7 @@ Versão 1.0 — Especificação Oficial
 
 ## 1. Objetivo
 
-Definir oficialmente toda a arquitetura de hardware do ORION X, incluindo responsabilidades de cada equipamento, critérios de integração elétrica, comunicação, alimentação e expansão futura.
+Definir oficialmente toda a arquitetura de hardware do Fofão, incluindo responsabilidades de cada equipamento, critérios de integração elétrica, comunicação, alimentação e expansão futura.
 
 ## 2. Arquitetura Física
 
@@ -108,4 +108,4 @@ Novos módulos poderão ser adicionados utilizando o barramento de eventos do OR
 
 ## Conclusão
 
-Esta especificação define a base física oficial do ORION X e será utilizada pelos próximos capítulos para protocolos, software e integração.
+Esta especificação define a base física oficial do Fofão e será utilizada pelos próximos capítulos para protocolos, software e integração.

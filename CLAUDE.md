@@ -6,7 +6,7 @@ Este arquivo orienta o Claude Code no desenvolvimento do ORION OS.
 ## O que é o projeto
 
 ORION OS é uma plataforma de robótica modular, 100% offline (sem nuvem).
-O primeiro robô é o **ORION X**, composto por três computadores em cadeia:
+O primeiro robô é o **Fofão**, composto por três computadores em cadeia:
 
 | Unidade | Papel | Hardware | Linguagem |
 |---|---|---|---|

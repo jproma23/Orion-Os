@@ -3,7 +3,7 @@
 Versão 1.1 — alinhada ao EDR-0019
 
 ## 1. Objetivo
-O Display Core é o subsistema de interface do ORION OS. Ele é dividido em duas partes: o **Avatar**, exibido na tela do notebook embarcado (o "rosto" do ORION X), e a **Interface Web**, servida pelo Raspberry Pi e acessível de qualquer dispositivo (celular, notebook, TV) pela rede local.
+O Display Core é o subsistema de interface do ORION OS. Ele é dividido em duas partes: o **Avatar**, exibido na tela do notebook embarcado (o "rosto" do Fofão), e a **Interface Web**, servida pelo Raspberry Pi e acessível de qualquer dispositivo (celular, notebook, TV) pela rede local.
 
 ## 2. Princípios
 - A interface reflete o estado real do sistema, alimentada exclusivamente por eventos do Event Bus.
@@ -66,4 +66,4 @@ Motivação:
 - Estado sempre consistente com o sistema real; núcleo inalterado se a interface for substituída.
 
 ## Conclusão
-O Display Core humaniza o ORION X (avatar) e oferece transparência operacional total de qualquer dispositivo (interface web), permanecendo desacoplado da inteligência do sistema conforme os princípios do ORION OS.
+O Display Core humaniza o Fofão (avatar) e oferece transparência operacional total de qualquer dispositivo (interface web), permanecendo desacoplado da inteligência do sistema conforme os princípios do ORION OS.
