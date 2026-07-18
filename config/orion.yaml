@@ -2,7 +2,7 @@
 # Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
 
 system:
-  robot_name: "ORION X"
+  robot_name: "Fofão"
   language: "pt-BR"
   timezone: "America/Sao_Paulo"
   log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
@@ -10,8 +10,15 @@ system:
 
 communication:
   raspberry:                  # enlace Notebook <-> Raspberry (Motion Core)
-    transport: "tcp"          # Ethernet ponto a ponto (EDR-0018)
-    host: "192.168.50.2"      # IP fixo do Raspberry na sub-rede do robo
+    transport: "tcp"          # TCP ponto a ponto - Ethernet na producao final
+                               # (EDR-0018), mas hoje os dois falam por WiFi
+                               # (decisao do usuario, 2026-07-17: ja validado
+                               # funcionando, ver docs/journal.md) - o "host"
+                               # abaixo e o IP da Raspberry NESSA rede WiFi de
+                               # desenvolvimento, nao a subrede Ethernet fixa
+                               # de producao (192.168.50.x) que ainda nao
+                               # existe fisicamente.
+    host: "10.20.20.185"      # IP da Raspberry na rede WiFi atual (dev)
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
   arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
@@ -32,6 +39,10 @@ motion:
   min_rear_distance_cm: 20
   mission_timeout_s: 30
   tilt_limit_degrees: 20         # inclinação máxima antes de SAFE_MODE
+  wheel_base_m: 0.30             # distância entre as rodas (bitola), usada na
+  # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
+  # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
+  # medir com o chassi real e ajustar aqui quando os motores forem montados.
 
 navigation:
   follow_distance_m: 1.2
@@ -48,13 +59,31 @@ vision:
   pan_limits_degrees: [-80, 80]
   tilt_limits_degrees: [-30, 45]
   servo_max_speed_deg_s: 60
+  camera_indice_principal: 2   # webcam USB dedicada a visao (Cap 8 s.2)
+  camera_indice_luminosidade: 0 # camera integrada do notebook (estimativa de brilho)
+  # indices de /dev/videoN podem mudar se os cabos USB forem replugados em
+  # outra ordem - conferir com `v4l2-ctl --list-devices` se a visao parecer
+  # estar usando a camera errada.
+  camera_frontal_espelhada: true
+  # a webcam frontal entrega o frame no efeito "selfie" (espelhado) - sem
+  # desfazer isso na captura, o Pan/Tilt gira para o lado errado ao seguir
+  # uma pessoa (esquerda/direita reais ficam trocadas na imagem).
 
 voice:
   wake_word: "fofão"
   whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
   piper_voice: "pt_BR-faber-medium"
+  piper_voice_path: "data/piper_voices/pt_BR-faber-medium.onnx"
   volume_percent: 70
   preferred_mic: "auto"          # auto | notebook | webcam
+  # alto-falante interno e P2 (jack) ainda nao aparecem no audio do Linux
+  # nesta montagem (falta driver/quirk do codec HDA) - usando o dispositivo
+  # de audio USB como saida por enquanto (indice sounddevice, nao fixo -
+  # conferir com `python -m sounddevice` se mudar de porta USB).
+  saida_audio_indice: 4
+  # indices de entrada (sounddevice) descobertos nesta montagem: mic da
+  # webcam PC Camera, USB Audio Device e USB Composite Device (2a webcam)
+  microfones_candidatos_indices: [3, 4, 5]
 
 ai:
   ollama_model: "llama3.2:3b"   # dimensionado para 8 GB (EDR-0019); 8b com upgrade de RAM
