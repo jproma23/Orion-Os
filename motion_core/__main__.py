@@ -22,7 +22,12 @@ import signal
 from pathlib import Path
 
 from motion_core.behavior.behavior_core import BehaviorCore
-from motion_core.behavior.comportamentos import Atender, Repouso, VigilanciaObstaculo
+from motion_core.behavior.comportamentos import (
+    Atender,
+    Repouso,
+    Vigilia,
+    VigilanciaObstaculo,
+)
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
@@ -201,10 +206,12 @@ async def principal() -> None:
     maestro = BehaviorCore(event_bus)
     maestro.registrar(Repouso(event_bus))
     maestro.registrar(Atender(event_bus))
+    maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
     maestro.registrar(VigilanciaObstaculo(event_bus))
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(
-        "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilancia_obstaculo"
+        "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilia, "
+        "vigilancia_obstaculo"
     )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.

@@ -78,6 +78,55 @@ class Atender(Comportamento):
             raise
 
 
+class Vigilia(Comportamento):
+    """Vigília / Modo Sentinela (prio 60): entre Atender (80) e Patrulha
+    (40). Dispara ao receber `sentinela.alerta` (barulho estranho ou rosto
+    desconhecido, detectados no Notebook e encaminhados ao Pi). Ao assumir:
+    pede foto na direção (`sentinela.capturar_foto`), notifica e segura o
+    controle por `duracao_alerta_s`, depois libera. Um alerta mais forte
+    (Atender/Segurança) preempta normalmente.
+
+    Os DETECTORES que produzem `sentinela.alerta` (anomalia de som, rosto
+    desconhecido) ainda serão construídos no Notebook - este é o slot que
+    reage a eles."""
+
+    nome = "vigilia"
+    prioridade = 60
+
+    def __init__(self, event_bus: EventBus, duracao_alerta_s: float) -> None:
+        super().__init__(event_bus)
+        self._duracao_alerta_s = duracao_alerta_s
+        self._alerta = False
+        self._tipo = ""
+        event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
+
+    async def _ao_receber_alerta(self, evento: Evento) -> None:
+        self._tipo = evento.dados.get("tipo", "desconhecido")
+        if not self._alerta:
+            self._alerta = True
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._alerta
+
+    async def executar(self) -> None:
+        logger.warning("maestro: VIGÍLIA - alerta '%s', investigando", self._tipo)
+        await self._event_bus.publish(
+            "behavior.status", {"estado": "vigilia", "tipo": self._tipo}, prioridade=Prioridade.ALTA
+        )
+        # pede uma foto da origem e notifica (o Notebook/interface tratam).
+        await self._event_bus.publish("sentinela.capturar_foto", {"motivo": self._tipo})
+        await self._event_bus.publish(
+            "diagnostic.alerta", {"origem": "vigilia", "tipo": self._tipo}, prioridade=Prioridade.ALTA
+        )
+        # se preemptado (obstáculo/atender) durante a espera, CancelledError
+        # sobe e _alerta continua True -> a Vigília RETOMA depois. Só libera
+        # o controle ao concluir a investigação por completo.
+        await asyncio.sleep(self._duracao_alerta_s)
+        self._alerta = False
+        self._reavaliar()
+
+
 class VigilanciaObstaculo(Comportamento):
     """Segurança tática (prio 100): assume o controle quando o Hardware Core
     reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus

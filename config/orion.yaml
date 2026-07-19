@@ -171,3 +171,8 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     limiar_folga_mb: 1200
   # de quanto em quanto tempo o Notebook reporta sua RAM livre ao Pi.
   notebook_health_interval_s: 10
+  # Vigília (Modo Sentinela): ao receber um alerta (barulho estranho ou
+  # rosto desconhecido), o maestro assume o controle por este tempo -
+  # orienta-se para a origem, pede foto e notifica - antes de liberar.
+  vigilia:
+    duracao_alerta_s: 8
