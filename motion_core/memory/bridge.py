@@ -13,6 +13,7 @@ Fase 2 ganhar autenticacao de origem.
 """
 from __future__ import annotations
 
+import base64
 import logging
 from typing import Any
 
@@ -24,6 +25,26 @@ from orion.kernel.event_bus import EventBus, Evento
 logger = logging.getLogger("motion_core.memory.bridge")
 
 PREFIXO_COMANDO = "memory."
+
+#: Marcador de campo binario no protocolo. Colunas BLOB (embedding_face,
+#: assinatura_visual - Cap 11 s.5/7) nao cabem no JSON do protocolo; o
+#: cliente as envia como {"_bytes_b64": "<base64>"} e a ponte desembrulha
+#: para bytes antes de gravar. Chave unica no dict = e um valor binario.
+CHAVE_BINARIO = "_bytes_b64"
+
+
+def _decodificar_binarios(valor: Any) -> Any:
+    """Converte recursivamente os marcadores {"_bytes_b64": str} em bytes.
+
+    Deixa qualquer outro valor intacto. Usado nas dados de remember/update,
+    onde um embedding de rosto chega embrulhado em base64."""
+    if isinstance(valor, dict):
+        if list(valor.keys()) == [CHAVE_BINARIO] and isinstance(valor[CHAVE_BINARIO], str):
+            return base64.b64decode(valor[CHAVE_BINARIO])
+        return {chave: _decodificar_binarios(v) for chave, v in valor.items()}
+    if isinstance(valor, list):
+        return [_decodificar_binarios(v) for v in valor]
+    return valor
 
 
 class PonteMemoria:
@@ -55,15 +76,15 @@ class PonteMemoria:
 
     async def _executar(self, operacao: str, payload: dict[str, Any]) -> Any:
         if operacao == "remember":
-            return await self._memory_api.remember(payload["categoria"], payload["dados"])
+            dados = _decodificar_binarios(payload["dados"])
+            return await self._memory_api.remember(payload["categoria"], dados)
         if operacao == "recall":
             return await self._memory_api.recall(
                 payload["categoria"], payload.get("filtro"), payload.get("limite", 20)
             )
         if operacao == "update":
-            return await self._memory_api.update(
-                payload["categoria"], payload["id"], payload["dados"]
-            )
+            dados = _decodificar_binarios(payload["dados"])
+            return await self._memory_api.update(payload["categoria"], payload["id"], dados)
         if operacao == "forget":
             return await self._memory_api.forget(payload["categoria"], payload["id"])
         if operacao == "context":

@@ -133,9 +133,14 @@ class ComunicacaoService:
         finally:
             self._pendentes_ack.pop(mensagem.id, None)
 
-    async def publish(self, topico: str, payload: dict | None = None) -> None:
-        """comm.publish: difunde um EVENT a todos os links conectados e
-        tambem no Event Bus local (Cap 14 secao 7)."""
+    async def publish(self, topico: str, payload: dict | None = None, local: bool = True) -> None:
+        """comm.publish: difunde um EVENT a todos os links conectados e,
+        se `local` (padrao), tambem no Event Bus local (Cap 14 secao 7).
+
+        `local=False` encaminha um evento que ja existe no bus local para os
+        peers SEM re-publica-lo aqui - evita laco infinito quando o proprio
+        handler que reage ao evento e quem o encaminha (ex.: o Notebook
+        repassando voice.* ao Pi)."""
         payload = payload or {}
         mensagem = Mensagem.nova(
             TipoMensagem.EVENT,
@@ -148,7 +153,8 @@ class ComunicacaoService:
                 await transporte.enviar(mensagem.to_bytes())
             except ErroTransporte:
                 logger.warning("Falha ao propagar evento '%s' via '%s'", topico, nome_peer)
-        await self._event_bus.publish(topico, payload)
+        if local:
+            await self._event_bus.publish(topico, payload)
 
     async def request(self, destino: str, payload: dict, timeout_s: float) -> Mensagem:
         """comm.request: envia um COMMAND e aguarda a RESPONSE correspondente

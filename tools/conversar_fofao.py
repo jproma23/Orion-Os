@@ -227,6 +227,19 @@ async def principal() -> None:
     tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
     tarefa_link = asyncio.create_task(supervisor_link_pi())
 
+    # Encaminha ao Pi os eventos de voz que o maestro (Behavior Core) usa
+    # para o comportamento Atender: quando o dono chama "Fofão", o robô deve
+    # parar o que faz e atender. local=False evita eco (o evento ja existe
+    # no bus do Notebook - so precisa CHEGAR ao Pi).
+    async def _repassar_ao_pi(evento) -> None:
+        try:
+            await comm.publish(evento.topico, dict(evento.dados), local=False)
+        except Exception:
+            logger.debug("falha ao repassar '%s' ao Pi", evento.topico, exc_info=True)
+
+    bus.subscribe("voice.wake_detected", _repassar_ao_pi)
+    bus.subscribe("voice.response_finished", _repassar_ao_pi)
+
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
         assert comm is not None

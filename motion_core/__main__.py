@@ -22,7 +22,7 @@ import signal
 from pathlib import Path
 
 from motion_core.behavior.behavior_core import BehaviorCore
-from motion_core.behavior.comportamentos import Repouso, VigilanciaObstaculo
+from motion_core.behavior.comportamentos import Atender, Repouso, VigilanciaObstaculo
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
@@ -200,9 +200,12 @@ async def principal() -> None:
     # dispara com o OBSTACLE_DETECTED real do Mega).
     maestro = BehaviorCore(event_bus)
     maestro.registrar(Repouso(event_bus))
+    maestro.registrar(Atender(event_bus))
     maestro.registrar(VigilanciaObstaculo(event_bus))
     tarefa_maestro = asyncio.create_task(maestro.executar())
-    logger.info("Behavior Core (maestro) ativo - comportamentos: repouso, vigilancia_obstaculo")
+    logger.info(
+        "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilancia_obstaculo"
+    )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
     memory_api = _abrir_memoria(config, event_bus, logger)
