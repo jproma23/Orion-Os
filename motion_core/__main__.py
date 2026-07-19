@@ -22,6 +22,7 @@ import signal
 from pathlib import Path
 
 from motion_core.memory.api import MemoryAPI
+from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
@@ -174,6 +175,12 @@ async def principal() -> None:
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
     memory_api = _abrir_memoria(config, event_bus, logger)
+    if memory_api is not None:
+        # Sem esta ponte o banco ate abre, mas os comandos memory.* vindos
+        # do Notebook via comm.request nunca chegam na MemoryAPI (fio solto
+        # achado na primeira integracao completa, 2026-07-19).
+        PonteMemoria(memory_api, comm).registrar(event_bus)
+        logger.info("Ponte de memoria registrada - comandos memory.* ativos via TCP")
 
     # 5. Interface web (Cap 13 s.4).
     conf_web = config.secao("display")["web"]

@@ -1532,3 +1532,20 @@ servo). Primeira vez testando esses três com hardware real.
   nao cabe no Pi 4GB; mics/audio sao fisicos do Notebook; Cap 9/EDR-0019
   preservados) - em vez de mudar ONDE roda, baixamos QUANTO custa.
   openWakeWord treinado para "Fofao" segue como evolucao futura.
+
+## 2026-07-19 (banco de dados vivo no SSD + primeira memoria do Fofao)
+
+- Descoberta: o Pi ja BOOTA do SSD de 500GB (sda2 = raiz, 412G livres) -
+  nao ha cartao SD; a exigencia do EDR-0019 (banco no SSD) e satisfeita
+  criando /mnt/ssd/orion no proprio filesystem. Criados orion/ e backups/.
+- Fio solto achado no "ligar tudo": a PonteMemoria (Fase 3, testada em
+  test_memory_bridge.py) nunca era registrada pelo __main__.py do Motion
+  Core - com o banco aberto, os comandos memory.* do Notebook morriam sem
+  resposta. Corrigido: PonteMemoria(memory_api, comm).registrar(bus)
+  quando o banco abre.
+- Motion Core reiniciado: Migracao 1 aplicada, orion.db em WAL no SSD,
+  ponte ativa. Validacao ponta a ponta do Notebook via TCP:
+  memory.remember (id=1, conhecimento/primeiro_dia_de_vida) ->
+  memory.recall (voltou identica) -> memory.stats (conhecimento: 1).
+  A primeira memoria persistente da vida do Fofao.
+- pytest: 184 passed, 8 skipped. __main__.py sincronizado ao Notebook.
