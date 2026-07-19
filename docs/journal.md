@@ -1402,3 +1402,57 @@ servo). Primeira vez testando esses três com hardware real.
   comandos; (2) modelo openWakeWord treinado para "Fofao" aposentaria o
   fuzzy; (3) ligar o Mission Planner ao Motion Core para "acenda a
   lanterna" fechar o criterio completo da Fase 6.
+
+## 2026-07-19 (teste ultrassom apos religar no 5V do Arduino)
+
+- Usuario trocou a alimentacao dos HC-SR04: fonte externa 5V -> 5V do
+  proprio Arduino. Teste com tools/testar_ultrassom.py (37 leituras):
+  comunicacao ok, uptime continuo (sem brownout com a carga nova), mas
+  **eco zero nos dois sensores** - `echo_*_ja_visto_alto` ficou "nao" o
+  tempo todo, frontal e traseiro.
+- Conclusao: o problema nao era a fonte. Sensor mudo total aponta para
+  causa fisica: TRIG/ECHO trocados (sintoma exato), VCC/GND sem contato
+  ou jumper dupont ruim. Proximo passo: conferir ordem VCC-Trig-Echo-GND
+  no corpo do sensor e medir com multimetro (TRIG pulsando = ~0,1-0,8V
+  medio oscilante, nao 5V fixo).
+- Isolamento hardware x firmware: gravado sketch minimo descartavel
+  (pulseIn bloqueante, scratchpad) no Mega. Resultado: SEM ECO nos dois
+  sensores, pino ECHO parado em baixo. Firmware do ORION inocentado -
+  defeito e fisico. Os dois mudos ao mesmo tempo sugere causa comum:
+  linha de 5V/GND compartilhada (trilho de protoboard, jumper) ou os dois
+  modulos queimados pela fonte externa anterior. Sketch de teste segue
+  gravado no Mega durante a depuracao fisica; regravar firmware oficial
+  (cd firmware/hardware_core && pio run -t upload) ao terminar.
+- Escaner de pinos (sketch descartavel: pulsa trigger em cada pino 22..31
+  e escuta todos os outros): achou sensor VIVO em TRIG=24/ECHO=25,
+  medindo distancia estavel (~273cm) - sensor bom, so que fora da posicao
+  planejada (22/23). Pino 22 esta preso em ALTO no repouso (100/100
+  amostras) - comportamento tipico da linha de dados do DHT (idle alto
+  por pull-up), nao de ultrassom; suspeita de DHT e ultrassom trocados de
+  coluna no conector duplo. Segundo ultrassom nao respondeu em nenhum par
+  22..31: trig dele provavelmente solto/fora dessa faixa, ou modulo morto.
+  Licao: "5V chegando" + eco zero nao significa modulo queimado - conferir
+  mapeamento real dos pinos por software antes de condenar hardware.
+- Identificacao ao vivo: com a mao do usuario na frente do sensor FRONTAL,
+  o par 24/25 caiu de ~273cm para 2-15cm e voltou ao tirar. Confirmado:
+  frontal = vivo e saudavel, plugado uma coluna deslocado (24/25 em vez
+  de 22/23). Pino 22 preso em alto = provavel fio do DHT (deveria estar
+  no 24) - DHT e ultrassom frontal aparentemente trocados de coluna.
+  Traseiro segue invisivel no escaner 22..53 (trig solto ou modulo sem
+  5V/morto) - pendente inspecao fisica.
+- Usuario reposicionou os fios (frontal 24/25 -> 22/23, DHT -> 24, e
+  ajustou o traseiro): sketch minimo confirmou OS DOIS sensores medindo
+  (frontal ~36cm estavel, traseiro reagindo a mao). O traseiro nunca
+  esteve morto - era so posicao de fio tambem.
+- Firmware oficial regravado no Mega. testar_ultrassom.py mostrava
+  "eco desde boot: SIM" mas distancia "---": o script pedia
+  distancia_*_cm ao RETURN_STATUS, que nunca teve esses campos - eles so
+  existem na TELEMETRY (Cap 5). Corrigido o tool: assina
+  comm.mensagem.telemetry no Event Bus (inicia bus.iniciar() em task) e
+  imprime a distancia do ultimo quadro TELEMETRY; RETURN_STATUS segue
+  para uptime (vigia de reset) e flags de diagnostico.
+- Validacao final com firmware oficial: frontal ~37cm estavel, traseiro
+  acompanhando a mao (3-250cm), flags SIM nos dois. pytest tests/unit:
+  183 passed, 7 skipped. Pendente: remover os flags DIAGNOSTICO
+  TEMPORARIO (echo_*_ja_visto_alto) do firmware quando nao forem mais
+  uteis.

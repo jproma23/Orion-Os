@@ -1,10 +1,14 @@
 """Monitor ao vivo dos ultrassons no Mega real (Cap 10 secao 10).
 
-Fica consultando RETURN_STATUS em loop e imprime, a cada meio segundo, o
-estado dos dois ultrassons: distancia frontal/traseira, se a leitura atual
-e valida e os flags de diagnostico `echo_*_ja_visto_alto` (true se algum
-pulso de ECHO chegou no pino do Mega desde o boot - e o que separa
-"sensor mudo" de "sensor que responde as vezes").
+As distancias vem da TELEMETRY periodica do firmware (500ms) - e o unico
+canal que carrega distancia_frontal_cm/distancia_traseira_cm; o
+RETURN_STATUS nao tem esses campos. O quadro TELEMETRY chega ao Event Bus
+local como evento `comm.mensagem.telemetry` (ComunicacaoService), entao o
+script assina esse topico e guarda o payload mais recente. O RETURN_STATUS
+continua sendo consultado em loop para o uptime (vigia de reset) e os
+flags de diagnostico `echo_*_ja_visto_alto` (true se alguma leitura valida
+completa aconteceu desde o boot - e o que separa "sensor mudo" de "sensor
+que responde as vezes").
 
 Uso tipico durante depuracao fisica:
   1. Rode este script e deixe rodando.
@@ -41,6 +45,16 @@ async def main() -> int:
     svc = ComunicacaoService("motion_core", bus)
     transporte = SerialTransport(PORTA, BAUD)
 
+    # Payload da TELEMETRY mais recente (dict vazio ate a primeira chegar).
+    ultima_telemetria: dict = {}
+
+    def guardar_telemetria(evento) -> None:
+        ultima_telemetria.clear()
+        ultima_telemetria.update(evento.dados.get("payload") or {})
+
+    bus.subscribe("comm.mensagem.telemetry", guardar_telemetria)
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+
     print(f"Conectando em {PORTA} @ {BAUD} (aguardando reset do Mega)...")
     await transporte.conectar()
     svc.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
@@ -76,8 +90,9 @@ async def main() -> int:
                 print(f"!!! RESET DETECTADO - uptime caiu de {ultimo_uptime}ms para {uptime}ms !!!")
             ultimo_uptime = uptime
 
-            frontal = _fmt(p.get("distancia_frontal_cm"), p.get("distancia_frontal_valida"))
-            traseira = _fmt(p.get("distancia_traseira_cm"), p.get("distancia_traseira_valida"))
+            t = ultima_telemetria
+            frontal = _fmt(t.get("distancia_frontal_cm"), t.get("distancia_frontal_valida"))
+            traseira = _fmt(t.get("distancia_traseira_cm"), t.get("distancia_traseira_valida"))
             eco_f = "SIM" if p.get("echo_frontal_ja_visto_alto") else "nao"
             eco_t = "SIM" if p.get("echo_traseiro_ja_visto_alto") else "nao"
             print(
@@ -89,6 +104,8 @@ async def main() -> int:
     except KeyboardInterrupt:
         print("\nEncerrado pelo usuario.")
     finally:
+        bus.parar()
+        await tarefa_bus
         await transporte.fechar()
 
     return 0
