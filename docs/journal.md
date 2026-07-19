@@ -1626,3 +1626,27 @@ servo). Primeira vez testando esses três com hardware real.
 - PLANO Fase 7 atualizado: 4 de 5 entregaveis concluidos; pendencias
   fisicas: autocalibracao (Cap 12 s.9), encoders/IMU nao montados, FOLLOW
   completo quando a visao rodar junto ao vivo.
+
+## 2026-07-19 (Behavior Core + resiliencia do link Notebook<->Pi)
+
+- EDR-0020: Behavior Core ("maestro"/consciencia) - arbitragem de
+  prioridade sobre o Event Bus, roda no Pi (revisao: no estavel sobrevive
+  a crash do Notebook). NAO adota ROS (so multitarefa exige coordenacao,
+  nao middleware; ROS futuro so p/ SLAM). Esqueleto BehaviorCore +
+  Comportamento + 3 testes.
+- Guardiao de RAM do Notebook (behavior/guardiao_ram.py): Notebook publica
+  diagnostic.notebook_health (/proc/meminfo) a cada 10s; guardiao no Pi
+  pede behavior.reduzir_carga_ia + alerta abaixo do limiar, com histerese.
+  3 testes.
+- Arduino port-scan: CH340 re-enumerou p/ ttyUSB1 e o servico (so ttyUSB0)
+  falhava; _conectar_arduino agora varre ttyUSB0/1/ACM0. Reconectou.
+- BUG FOUNDATIONAL consertado: o Notebook NAO reconectava ao Pi apos um
+  restart do Pi - ficava orfao p/ sempre (reporter so imprimia "Falha ao
+  propagar"). Novo supervisor de link em conversar_fofao.py: conecta no
+  inicio e reconecta em comm.module_lost (retenta 5s). Comprovado ao vivo:
+  restart do Pi -> "Link caiu -> reconectando" -> reconectado em 2s.
+- So DEPOIS disso o guardiao de RAM disparou ponta a ponta ("RAM do
+  Notebook critica: 5110 MB < 5608"). Era o link fragil que mascarava.
+- Licao: verificar features de rede ao vivo exige o link resiliente
+  primeiro; meus restarts do Pi orfanavam o Notebook e davam falso
+  negativo no guardiao.
