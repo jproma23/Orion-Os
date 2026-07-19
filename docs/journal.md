@@ -1613,3 +1613,16 @@ servo). Primeira vez testando esses três com hardware real.
   Detalhe de arquitetura confirmado de passagem: TELEMETRY e endereada ao
   motion_core e consumida la (nao e repassada ao mission_core) - clientes
   TCP nao a veem; a webui e o retrato dela.
+
+## 2026-07-19 (Fase 7 conferida e validada - navegacao pronta menos autocalibracao)
+
+- Levantamento: NavigationCore (HOLD/MANUAL/GOTO/PATROL completos, FOLLOW
+  minimo deliberado) e FusaoSensores ja existiam com 27 testes unitarios +
+  8 de integracao (sim) - todos verdes no Pi.
+- Validacao ao vivo do fluxo de missao SEM movimento: do Notebook,
+  comm.publish("navigation.comando", MANUAL/STOP) -> modo MANUAL na webui
+  (STOP entregue ao Mega); depois HOLD -> modo HOLD. Cadeia de missao
+  Notebook->Pi->Arduino operante.
+- PLANO Fase 7 atualizado: 4 de 5 entregaveis concluidos; pendencias
+  fisicas: autocalibracao (Cap 12 s.9), encoders/IMU nao montados, FOLLOW
+  completo quando a visao rodar junto ao vivo.

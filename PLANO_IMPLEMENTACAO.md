@@ -108,15 +108,21 @@ testes da fase passando.** Os capítulos citados estão em `docs/ses/`.
   mic USB + caixinhas chegam qui 23/07, missão de áudio sex 24/07.
 
 ## Fase 7 — Motion Core / Navegação no Raspberry (Cap 12)
-- [ ] Serviço `motion_core` no Raspberry: recebe missões via TCP,
-      comanda o Arduino via serial.
-- [ ] Fusão de sensores: odometria (encoders) + correção por IMU;
-      posição estimada publicada como motion.position.
-- [ ] Modos PATROL, FOLLOW, GOTO, MANUAL, HOLD.
-- [ ] Desvio de obstáculos em 3 camadas (Cap 18).
+- [x] Serviço `motion_core` no Raspberry: recebe missões via TCP,
+      comanda o Arduino via serial. (2026-07-19: systemd `orion-motion`,
+      sobe no boot; fluxo validado ao vivo — Notebook publica
+      `navigation.comando` e o modo muda, com STOP chegando ao Mega.)
+- [x] Fusão de sensores: odometria + inclinação/impacto pela IMU;
+      posição publicada como motion.position. (Escopo consciente: sem
+      fusão de rumo com IMU — telemetria só expõe inclinação; encoders
+      ainda não montados fisicamente.)
+- [x] Modos PATROL, GOTO, MANUAL, HOLD completos; FOLLOW em versão
+      mínima deliberada (completa quando a visão rodar ao vivo junto).
+- [x] Desvio de obstáculos tático (telemetria + varredura do radar antes
+      de cada segmento) sobre a camada reativa do Arduino.
 - [ ] Autocalibração da primeira inicialização: deslocamento controlado
       + medição pela visão + fator de correção salvo na configuração
-      (Cap 12, seção 9).
+      (Cap 12, seção 9). **Física — pendente de bancada com espaço.**
 - **Pronto quando:** patrulha em rota de teste com desvio funcional;
   FOLLOW mantém distância de pessoa autorizada; fator de calibração
   reduz o erro de deslocamento medido.
