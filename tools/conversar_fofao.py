@@ -40,6 +40,7 @@ from orion.mission.ai_manager import AiManager  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
+from orion.voice.vad import DetectorAtividadeSonora  # noqa: E402
 from orion.voice.voice_core import VoiceCore  # noqa: E402
 from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 
@@ -167,6 +168,18 @@ async def principal() -> None:
         logger.info("Fofao respondeu: %s", resposta)
         return resposta
 
+    conf_vad = secao_voz["vad"]
+    detector_atividade = None
+    if conf_vad["habilitado"]:
+        detector_atividade = DetectorAtividadeSonora(
+            fator_acima_do_ruido=conf_vad["fator_acima_do_ruido"],
+            rms_minimo=conf_vad["rms_minimo"],
+            janelas_de_historico=conf_vad["janelas_de_historico"],
+        )
+        logger.info(
+            "VAD ligado: Whisper de vigilancia so roda com som acima do ruido de fundo"
+        )
+
     voz = VoiceCore(
         event_bus=bus,
         indice_microfone=indice_mic,
@@ -176,6 +189,7 @@ async def principal() -> None:
         detector_palavra_ativacao=DetectorFuzzy(VARIACOES_FOFAO),
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
+        detector_atividade=detector_atividade,
     )
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")

@@ -17,6 +17,7 @@ from orion.kernel.event_bus import EventBus, Prioridade
 from orion.voice.captura_audio import ErroAudio, gravar_trecho
 from orion.voice.sintese import Sintetizador
 from orion.voice.transcricao import Transcritor
+from orion.voice.vad import DetectorAtividadeSonora
 from orion.voice.wake_word import DetectorPalavraAtivacao
 
 logger = logging.getLogger("orion.voice.voice_core")
@@ -49,6 +50,7 @@ class VoiceCore:
         gravar_audio: CallbackGravarAudio | None = None,
         frase_ativacao: str | None = None,
         transcritor_ativacao: Transcritor | None = None,
+        detector_atividade: "DetectorAtividadeSonora | None" = None,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -67,6 +69,10 @@ class VoiceCore:
         # transcritor principal (mais preciso, mais lento) fica so para o
         # comando de verdade. None = usar o principal para tudo.
         self._transcritor_ativacao = transcritor_ativacao or transcritor
+        # Portao barato na frente do Whisper de vigilancia (ver vad.py):
+        # janela sem som acima do ruido de fundo nem chega a ser transcrita.
+        # None = comportamento antigo (transcreve toda janela).
+        self._detector_atividade = detector_atividade
         # injetavel para testar sem microfone/hardware real
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
@@ -98,6 +104,14 @@ class VoiceCore:
             audio_janela = await self._gravar_audio(self._duracao_janela_escuta_s)
         except ErroAudio as erro:
             await self._publicar_erro_audio(erro)
+            return False
+
+        if self._detector_atividade is not None and not self._detector_atividade.tem_som(
+            audio_janela
+        ):
+            # Silencio: poupa a transcricao inteira (era o maior custo de
+            # CPU do Notebook - Whisper rodando continuamente, 2026-07-19).
+            await self._definir_estado(EstadoVoz.IDLE)
             return False
 
         texto_janela = await self._transcritor_ativacao.transcrever(audio_janela)

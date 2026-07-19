@@ -89,6 +89,19 @@ voice:
   # indices de entrada (sounddevice) reconferidos em 2026-07-18: USB
   # Composite Device (2a webcam), PC Camera e USB Audio Device
   microfones_candidatos_indices: [0, 1, 5]
+  # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
+  # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
+  # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
+  # (~165% medido em 2026-07-19). Piso de ruido e adaptativo (percentil
+  # baixo do historico de RMS); "fator" = quantas vezes acima do piso o som
+  # precisa estar; "rms_minimo" = limiar absoluto de seguranca para salas
+  # muito silenciosas. Se o robo parar de acordar com "Fofao", abaixe o
+  # fator (ex.: 1.8) ou desabilite para voltar ao comportamento antigo.
+  vad:
+    habilitado: true
+    fator_acima_do_ruido: 2.5
+    rms_minimo: 0.003
+    janelas_de_historico: 30
 
 ai:
   # gemma3:4b desde 2026-07-18: portugues muito melhor que o llama3.2:3b

@@ -197,3 +197,49 @@ async def test_deteccao_de_ativacao_customizada():
 
     bus.parar()
     await tarefa
+
+
+@pytest.mark.asyncio
+async def test_janela_silenciosa_pula_a_transcricao_de_vigilancia():
+    """Regressao de custo (2026-07-19): com o portao VAD, uma janela sem
+    som nao deve nem chegar ao transcritor de vigilancia - era o Whisper
+    rodando continuamente que saturava a CPU do Notebook."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+
+    class DetectorSempreSilencio:
+        def tem_som(self, audio) -> bool:
+            return False
+
+    class TranscritorContador(TranscritorFalso):
+        def __init__(self, textos):
+            super().__init__(textos)
+            self.chamadas = 0
+
+        async def transcrever(self, audio) -> str:
+            self.chamadas += 1
+            return await super().transcrever(audio)
+
+    async def processar(texto):
+        return "nao deveria chamar"
+
+    vigia = TranscritorContador(["fofão"])
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso([]),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+        transcritor_ativacao=vigia,
+        detector_atividade=DetectorSempreSilencio(),
+    )
+
+    processou = await voice.ciclo_uma_vez()
+
+    assert processou is False
+    assert vigia.chamadas == 0  # Whisper poupado
+    assert voice.estado is EstadoVoz.IDLE
+
+    bus.parar()
+    await tarefa

@@ -1508,3 +1508,27 @@ servo). Primeira vez testando esses três com hardware real.
   ainda nao ligado fisicamente - esperado).
 - Motion Core segue rodando em background no Pi (webui em
   http://10.20.20.185:8080).
+
+## 2026-07-19 (VAD: escuta do Fofao ficou ~20x mais barata)
+
+- Medicao no Notebook: load 4.0 cravado em 4 nucleos, conversar_fofao a
+  165% de CPU continuo - o Whisper de vigilancia transcrevia TODA janela
+  de 3s, 24h, mesmo silencio (e alucinava: "E ai? E ai?"). RAM ok
+  (gemma3 descarrega quando ocioso).
+- Implementado portao VAD por energia com piso de ruido adaptativo
+  (src/orion/voice/vad.py, DetectorAtividadeSonora): percentil 20 do
+  historico de RMS = piso; som so passa se > fator (2.5x) o piso, com
+  rms_minimo absoluto 0.003. Config em voice.vad no orion.yaml (Cap 17).
+  VoiceCore ganhou detector_atividade opcional; janela silenciosa nem
+  chega ao Whisper. Testes: test_voice_vad.py (4) + regressao de custo no
+  test_voice_core.py; 10/10 no Notebook.
+- Resultado apos restart: 8.3% de CPU instantanea (era 165%), zero
+  transcricoes em silencio (eram ~26/80s), load caindo (4.0 -> 2.9).
+  Ruido ambiente da sala: RMS ~0.02 - piso adaptativo aprendeu sozinho.
+- PENDENTE VALIDAR: usuario dizer "Fofao" ao vivo para confirmar que o
+  portao nao deixou o robo surdo (se nao acordar: baixar
+  fator_acima_do_ruido para ~1.8 no orion.yaml, ou desabilitar).
+- Decisao de arquitetura mantida: nada migrou do Notebook para o Pi (IA
+  nao cabe no Pi 4GB; mics/audio sao fisicos do Notebook; Cap 9/EDR-0019
+  preservados) - em vez de mudar ONDE roda, baixamos QUANTO custa.
+  openWakeWord treinado para "Fofao" segue como evolucao futura.
