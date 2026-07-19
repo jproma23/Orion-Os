@@ -2,6 +2,6 @@
 Type=Application
 Name=Fofao - Avatar em modo kiosk
 Comment=Abre o Firefox em tela cheia mostrando o avatar do Fofao (Cap 13)
-Exec=sh -c 'xset s off; xset s noblank; xset -dpms; mkdir -p "$HOME/.mozilla/firefox/orion-avatar-kiosk"; exec firefox --profile "$HOME/.mozilla/firefox/orion-avatar-kiosk" --no-remote --kiosk http://127.0.0.1:8090'
+Exec=sh -c 'xset s off; xset s noblank; xset -dpms; mkdir -p "$HOME/.mozilla/firefox/orion-avatar-kiosk"; until curl -sf -o /dev/null http://127.0.0.1:8090; do sleep 2; done; exec firefox --profile "$HOME/.mozilla/firefox/orion-avatar-kiosk" --no-remote --kiosk http://127.0.0.1:8090'
 X-GNOME-Autostart-enabled=true
 NoDisplay=false

@@ -1,15 +1,16 @@
-# Temporario: roda tools/preview_avatar.py (eventos simulados) ate o loop
-# principal de execucao do ORION OS existir de verdade (ver docs/journal.md,
-# Fase 8) - trocar ExecStart por "python -m orion" quando isso acontecer.
+# Modo conversa ao vivo (2026-07-18): avatar + voz + IA num processo so
+# (tools/conversar_fofao.py). Ainda sem o boot completo do ORION OS -
+# trocar ExecStart por "python -m orion" quando o loop principal existir
+# (ver docs/journal.md, Fase 8).
 [Unit]
-Description=Fofão - servidor do avatar (Fofao)
-After=graphical-session.target
+Description=Fofão - avatar + conversa de voz (Fofao)
+After=graphical-session.target sound.target
 
 [Service]
 WorkingDirectory=%h/orion-os
-ExecStart=%h/orion-os/.venv/bin/python tools/preview_avatar.py
+ExecStart=%h/orion-os/.venv/bin/python -u tools/conversar_fofao.py
 Restart=always
-RestartSec=2
+RestartSec=5
 
 [Install]
 WantedBy=default.target
