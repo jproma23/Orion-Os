@@ -44,13 +44,50 @@ from orion.voice.voice_core import VoiceCore  # noqa: E402
 from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 
 # Grafias que o Whisper realmente produziu para "Fofão" nos testes ao vivo
-# (2026-07-18): "Fafão", "furacão" (e por seguranca as versoes sem til).
-# Ate existir um modelo de wake word treinado de verdade (ver wake_word.py),
-# aceitar as variacoes proximas evita o robo ignorar o dono.
+# (2026-07-18): "Fafão", "furacão", "Japão", "falfão"... Lista fixa virou
+# enxugar gelo - alem dela, o DetectorFuzzy abaixo aceita qualquer palavra
+# a ate 2 edicoes de distancia de "fofao". Ate existir um modelo de wake
+# word treinado de verdade (ver wake_word.py), e o que evita o robo
+# ignorar o dono.
 VARIACOES_FOFAO = (
-    "fofão", "fofao", "fafão", "fafao", "fufão", "fufao", "furacão", "furacao",
-    "falfão", "falfao", "japão", "japao", "vovão", "vovao", "bofão", "bofao",
+    "fofão", "fofao", "furacão", "furacao", "japão", "japao",
 )
+
+
+def _distancia_edicao(a: str, b: str) -> int:
+    """Levenshtein simples (sem lib externa - strings de ~5 letras)."""
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            atual.append(min(
+                anterior[j] + 1,          # remocao
+                atual[j - 1] + 1,         # insercao
+                anterior[j - 1] + (ca != cb),  # troca
+            ))
+        anterior = atual
+    return anterior[-1]
+
+
+class DetectorFuzzy(DetectorPalavraAtivacao):
+    """Alem das variacoes exatas, acorda com qualquer palavra 'parecida'
+    com fofao (distancia de edicao <= 2 apos tirar acentos)."""
+
+    _ALVO = "fofao"
+
+    def verificar(self, texto_transcrito: str) -> bool:
+        if super().verificar(texto_transcrito):
+            return True
+        import re
+        import unicodedata
+
+        sem_acento = unicodedata.normalize("NFD", texto_transcrito.lower())
+        sem_acento = "".join(c for c in sem_acento if unicodedata.category(c) != "Mn")
+        return any(
+            _distancia_edicao(palavra, self._ALVO) <= 2
+            for palavra in re.findall(r"[a-z]+", sem_acento)
+            if len(palavra) >= 4
+        )
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("conversar_fofao")
@@ -136,7 +173,7 @@ async def principal() -> None:
         transcritor=transcritor,
         sintetizador=sintetizador,
         processar_comando=processar_comando,
-        detector_palavra_ativacao=DetectorPalavraAtivacao(VARIACOES_FOFAO),
+        detector_palavra_ativacao=DetectorFuzzy(VARIACOES_FOFAO),
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
     )
