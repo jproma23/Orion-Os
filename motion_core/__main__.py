@@ -45,11 +45,37 @@ from orion.kernel.registry import EstadoModulo, ServiceRegistry
 VERSAO_MOTION_CORE = "0.1.0"
 NOME_MODULO = "motion_core"
 
-#: "auto" em communication.arduino.port (Cap 17) significa "descoberta via
-#: WHO_ARE_YOU no Raspberry" (comentario do proprio config/orion.yaml), nao
-#: uma varredura de multiplas portas - esta e a porta real confirmada
-#: nesta montagem (adaptador CH340, ver docs/journal.md Fase 2).
-PORTA_SERIAL_PADRAO = "/dev/ttyUSB0"
+#: "auto" em communication.arduino.port (Cap 17) = tentar estas portas em
+#: ordem ate uma responder ao WHO_ARE_YOU. O CH340 do Mega re-enumera entre
+#: ttyUSB0/ttyUSB1 quando o USB e replugado ou ha varias reconexoes (visto
+#: 2026-07-19) - varrer a lista evita "Arduino sumiu" por causa disso.
+PORTAS_SERIAIS_CANDIDATAS = ("/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0")
+
+
+async def _tentar_porta(
+    comm: ComunicacaoService,
+    porta: str,
+    baud_rate: int,
+    event_bus: EventBus,
+    logger: logging.Logger,
+) -> bool:
+    """Tenta abrir UMA porta e confirmar o Arduino por WHO_ARE_YOU."""
+    transporte = SerialTransport(porta, baud_rate=baud_rate)
+    try:
+        await transporte.conectar()
+    except ErroTransporte:
+        return False
+
+    comm.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
+    try:
+        await descobrir(comm, "hardware_core", event_bus, timeout_s=3.0)
+    except (ErroVersaoIncompativel, ErroComunicacao):
+        # deixa o link registrado (comm.encerrar fecha o transporte no fim);
+        # uma proxima candidata que responda sobrescreve "hardware_core".
+        return False
+
+    logger.info("Arduino (Hardware Core) conectado e confirmado em %s", porta)
+    return True
 
 
 async def _conectar_arduino(
@@ -59,38 +85,22 @@ async def _conectar_arduino(
     logger: logging.Logger,
 ) -> bool:
     """Abre o link serial com o Hardware Core e confirma via WHO_ARE_YOU.
-    Retorna False (tolerado, Cap 6 s.8) se a porta nao abrir ou o Arduino
-    nao responder - nunca levanta excecao."""
+    Retorna False (tolerado, Cap 6 s.8) se nenhuma porta responder - nunca
+    levanta excecao."""
     porta = config_arduino["port"]
-    if porta == "auto":
-        porta = PORTA_SERIAL_PADRAO
+    candidatas = PORTAS_SERIAIS_CANDIDATAS if porta == "auto" else (porta,)
 
-    transporte = SerialTransport(porta, baud_rate=config_arduino["baud_rate"])
-    try:
-        await transporte.conectar()
-    except ErroTransporte as erro:
-        logger.warning("Porta serial do Arduino indisponivel (%s): %s", porta, erro)
-        await event_bus.publish(
-            "diagnostic.error",
-            {"modulo": "hardware_core", "motivo": "serial_indisponivel", "detalhe": str(erro)},
-            prioridade=Prioridade.ALTA,
-        )
-        return False
+    for candidata in candidatas:
+        if await _tentar_porta(comm, candidata, config_arduino["baud_rate"], event_bus, logger):
+            return True
 
-    comm.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
-    try:
-        await descobrir(comm, "hardware_core", event_bus, timeout_s=3.0)
-    except (ErroVersaoIncompativel, ErroComunicacao) as erro:
-        logger.warning("Arduino nao respondeu WHO_ARE_YOU em '%s': %s", porta, erro)
-        await event_bus.publish(
-            "diagnostic.error",
-            {"modulo": "hardware_core", "motivo": "sem_resposta_who_are_you", "detalhe": str(erro)},
-            prioridade=Prioridade.ALTA,
-        )
-        return False
-
-    logger.info("Arduino (Hardware Core) conectado e confirmado em %s", porta)
-    return True
+    logger.warning("Arduino nao encontrado em nenhuma porta: %s", ", ".join(candidatas))
+    await event_bus.publish(
+        "diagnostic.error",
+        {"modulo": "hardware_core", "motivo": "serial_indisponivel", "portas": list(candidatas)},
+        prioridade=Prioridade.ALTA,
+    )
+    return False
 
 
 def _abrir_memoria(config: ConfigurationManager, event_bus: EventBus, logger: logging.Logger):
