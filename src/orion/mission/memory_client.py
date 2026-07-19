@@ -7,7 +7,26 @@ COMMAND/RESPONSE para "motion_core", tratada la por `PonteMemoria`.
 """
 from __future__ import annotations
 
+import base64
+from typing import Any
+
 from orion.communication.service import ComunicacaoService
+
+#: mesmo marcador de campo binario da PonteMemoria (bridge.py): campos BLOB
+#: (embedding_face) viajam como {"_bytes_b64": "<base64>"} no JSON e sao
+#: desembrulhados de volta para bytes aqui.
+CHAVE_BINARIO = "_bytes_b64"
+
+
+def _decodificar_binarios(valor: Any) -> Any:
+    """Converte recursivamente {"_bytes_b64": str} de volta em bytes."""
+    if isinstance(valor, dict):
+        if list(valor.keys()) == [CHAVE_BINARIO] and isinstance(valor[CHAVE_BINARIO], str):
+            return base64.b64decode(valor[CHAVE_BINARIO])
+        return {chave: _decodificar_binarios(v) for chave, v in valor.items()}
+    if isinstance(valor, list):
+        return [_decodificar_binarios(v) for v in valor]
+    return valor
 
 
 class ErroMemoriaRemota(Exception):
@@ -28,7 +47,7 @@ class MemoryClient:
         )
         if not resposta.payload.get("ok", False):
             raise ErroMemoriaRemota(resposta.payload.get("erro", "erro desconhecido"))
-        return resposta.payload.get("resultado")
+        return _decodificar_binarios(resposta.payload.get("resultado"))
 
     async def remember(self, categoria: str, dados: dict) -> int:
         return await self._chamar("remember", categoria=categoria, dados=dados)

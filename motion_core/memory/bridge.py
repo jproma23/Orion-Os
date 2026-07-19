@@ -47,6 +47,19 @@ def _decodificar_binarios(valor: Any) -> Any:
     return valor
 
 
+def _codificar_binarios(valor: Any) -> Any:
+    """Inverso de _decodificar_binarios: embrulha bytes em {"_bytes_b64": ...}
+    para o resultado caber no JSON do protocolo (ex.: recall de pessoas
+    devolve o embedding_face BLOB). O cliente desembrulha do outro lado."""
+    if isinstance(valor, bytes):
+        return {CHAVE_BINARIO: base64.b64encode(valor).decode("ascii")}
+    if isinstance(valor, dict):
+        return {chave: _codificar_binarios(v) for chave, v in valor.items()}
+    if isinstance(valor, list):
+        return [_codificar_binarios(v) for v in valor]
+    return valor
+
+
 class PonteMemoria:
     """Liga comandos `memory.*` recebidos via comm.request a MemoryAPI."""
 
@@ -72,6 +85,7 @@ class PonteMemoria:
             await self._servico.responder(mensagem_original, {"ok": False, "erro": str(erro)})
             return
 
+        resultado = _codificar_binarios(resultado)  # embrulha BLOBs (embedding) em base64
         await self._servico.responder(mensagem_original, {"ok": True, "resultado": resultado})
 
     async def _executar(self, operacao: str, payload: dict[str, Any]) -> Any:
