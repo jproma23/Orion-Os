@@ -248,3 +248,42 @@ async def test_roteamento_transparente_encaminha_para_outro_link():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_roteamento_reassina_checksum_de_mensagem_do_firmware():
+    """Regressao (2026-07-19): uma RESPONSE do Arduino carrega o checksum
+    calculado pelo firmware C++, que nao reproduz a serializacao canonica do
+    Python. Ao ser encaminhada pelo Raspberry ao Notebook via TCP (enlace
+    que valida checksum), chegava invalida e era NACKada - toda a cadeia
+    Notebook->Arduino ficava sem resposta. O roteador deve reassinar o
+    checksum ao encaminhar (a integridade da entrada ja foi garantida pelo
+    CRC16 do enquadramento serial)."""
+    bus = EventBus()
+    tarefa_bus = await _rodar_bus(bus)
+    servico = ComunicacaoService("motion_core", bus)
+    link_notebook = FakeTransporte()
+    link_arduino = FakeTransporte()
+    servico.adicionar_link("mission_core", link_notebook)
+    servico.adicionar_link("hardware_core", link_arduino, exigir_checksum_mensagem=False)
+
+    resposta = Mensagem.nova(
+        TipoMensagem.RESPONSE,
+        "hardware_core",
+        "mission_core",
+        {"uptime_ms": 123},
+        id_referencia="abc123",
+    )
+    resposta.checksum = "beef"  # simula o checksum nao-canonico do firmware
+    await link_arduino.injetar(resposta.to_bytes())
+    await asyncio.sleep(0.05)
+
+    assert len(link_notebook.enviados) == 1
+    encaminhada = Mensagem.from_bytes(link_notebook.enviados[0])
+    assert encaminhada.checksum_valido()  # reassinada pelo roteador
+    assert encaminhada.payload == {"uptime_ms": 123}
+    assert encaminhada.id_referencia == "abc123"
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus

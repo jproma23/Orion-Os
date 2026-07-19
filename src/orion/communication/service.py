@@ -292,6 +292,14 @@ class ComunicacaoService:
                 mensagem.origem,
             )
             return
+        # Reassina o checksum antes de reenviar: o firmware C++ nao reproduz
+        # a serializacao JSON canonica do Python, entao o checksum original
+        # de uma mensagem vinda do serial nunca validaria no proximo enlace
+        # TCP (o Notebook rejeitava com NACK toda resposta do Arduino
+        # encaminhada pelo Raspberry). A integridade do enlace de entrada ja
+        # foi garantida ao receber (checksum da mensagem no TCP; CRC16 do
+        # enquadramento no serial) - o roteador pode assinar pela mensagem.
+        mensagem.checksum = mensagem.checksum_esperado()
         try:
             await transporte.enviar(mensagem.to_bytes())
         except ErroTransporte:

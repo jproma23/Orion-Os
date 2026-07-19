@@ -1484,3 +1484,27 @@ servo). Primeira vez testando esses três com hardware real.
   CNC dele). Documentado em pins.h (fiacao real dos TB6600: PUL+/DIR+ nos
   pinos 2-5, PUL-/DIR- no GND do Mega, ENA nao conectado). Firmware
   recompilado ok - sem mudanca de comportamento, so documentacao.
+
+## 2026-07-19 (MARCO: cadeia completa viva - Notebook -> Pi -> Arduino)
+
+- Fase 7 iniciada pela integracao. Descoberta: python -m motion_core ja
+  existia completo (memoria da sessao anterior estava desatualizada).
+  Primeira execucao real no Pi: TCP 5757 ouvindo, Arduino confirmado via
+  WHO_ARE_YOU no serial, webui 8080 no ar, SSD ausente tolerado.
+- BUG REAL achado pela sonda de integracao (cliente minimo no Notebook):
+  toda resposta do Arduino encaminhada pelo Pi ao Notebook era NACKada
+  ("checksum invalido"). Causa: o firmware C++ nao reproduz a serializacao
+  JSON canonica do Python; o link serial ignora o checksum de mensagem de
+  proposito (confia no CRC16 do enquadramento), mas o roteador repassava o
+  checksum original para o enlace TCP, que valida. Correcao: _encaminhar
+  reassina o checksum ao rotear (service.py) + teste de regressao
+  (test_roteamento_reassina_checksum_de_mensagem_do_firmware). 10/10 no
+  test_service.py; fix sincronizado ao Notebook via scp.
+- CADEIA COMPLETA VALIDADA: do Notebook, WHO_ARE_YOU ao Pi (ok),
+  WHO_ARE_YOU ao Arduino atraves do Pi (ok), RETURN_STATUS pela cadeia
+  inteira (ok). Bonus: estado veio OBSTACLE_DETECTED - a seguranca
+  reativa do Mega (Cap 18 camada 1) esta ativa sozinha na bancada, com o
+  ultrassom frontal vendo obstaculo proximo. imu_conectado=False (MPU
+  ainda nao ligado fisicamente - esperado).
+- Motion Core segue rodando em background no Pi (webui em
+  http://10.20.20.185:8080).
