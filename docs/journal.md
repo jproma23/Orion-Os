@@ -1675,3 +1675,18 @@ servo). Primeira vez testando esses três com hardware real.
   repouso no boot (hardware IDLE). Prova falada (dizer "Fofão") fica para
   o usuario testar no robo. Nota: journalctl --user segue flaky ("No
   journal files"); usar `systemctl --user status -n N` para ver o log.
+
+## 2026-07-19 (família cadastrada - Fofão conhece os donos)
+
+- Cadastrados os 3 moradores por foto (tools/cadastrar_de_fotos.py, fotos
+  baixadas no Pi -> scp pro Notebook -> face_recognition no Notebook ->
+  memory.remember via TCP com embedding base64): João Paulo (dono, id=1,
+  2 fotos), Ana (dono, id=2, 4 fotos), Bruno (morador, id=3, 3 fotos; 1
+  foto sem rosto detectavel, ignorada). Embeddings de 1024 bytes (128
+  float64) confirmados na tabela pessoas do SSD. A ponte binaria base64 do
+  bridge.py funcionou ponta a ponta.
+- Gmail: conector achou o rascunho "fotos" mas NAO baixa anexo (sem
+  permissao + sem get_attachment) - plano B (fotos direto no Pi) resolveu.
+- face_recognition NAO esta no Pi (so no Notebook, Cap 8) - fotos precisam
+  passar pelo Notebook para virar embedding.
+- Base do Modo Sentinela pronta: rosto que nao casar com os 3 = estranho.
