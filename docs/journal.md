@@ -1690,3 +1690,21 @@ servo). Primeira vez testando esses três com hardware real.
 - face_recognition NAO esta no Pi (so no Notebook, Cap 8) - fotos precisam
   passar pelo Notebook para virar embedding.
 - Base do Modo Sentinela pronta: rosto que nao casar com os 3 = estranho.
+
+## 2026-07-19 (Sentinela de visão - rosto desconhecido dispara alerta)
+
+- Transporte binario de recall (a metade que faltava): bridge
+  _codificar_binarios embrulha BLOB em base64 no resultado; MemoryClient
+  _decodificar_binarios desembrulha. O Notebook agora LE os embeddings da
+  familia do banco. Round-trip testado.
+- SentinelaVisao (src/orion/vision/sentinela_visao.py, roda no Notebook):
+  carrega os conhecidos, olha um frame a cada intervalo_s; rosto que nao
+  casa -> salva foto (data/sentinela) + sentinela.alerta {tipo:pessoa} ->
+  encaminhado ao Pi -> Vigilia (maestro) assume. Config
+  behavior.sentinela_visao. Ligado no conversar_fofao, tolera camera/link
+  ausentes. Ao vivo: "3 rostos conhecidos carregados" + "Sentinela de
+  visao ativa". Prova do estranho fica para o usuario (por alguem de fora
+  na frente da camera).
+- Detector de barulho (VAD) NAO plugado ainda: RMS sozinho nao separa
+  barulho de fala (dispararia em conversa/TV) e o VoiceCore ja e dono do
+  mic. So faz sentido em "modo ausente" - decisao pendente do usuario.
