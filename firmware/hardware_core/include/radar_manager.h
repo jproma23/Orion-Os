@@ -47,7 +47,6 @@ class RadarManager {
 
   float distanciaFrontalCm() const { return _ultrassom.distanciaCm(); }
   bool distanciaFrontalValida() const { return _ultrassom.leituraValida(); }
-  bool frontalAlgumaVezValida() const { return _ultrassom.algumaVezValida(); }
 
  private:
   // membro de instancia normal (nao static) - evita a exigencia de uma

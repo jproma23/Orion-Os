@@ -5,10 +5,7 @@ canal que carrega distancia_frontal_cm/distancia_traseira_cm; o
 RETURN_STATUS nao tem esses campos. O quadro TELEMETRY chega ao Event Bus
 local como evento `comm.mensagem.telemetry` (ComunicacaoService), entao o
 script assina esse topico e guarda o payload mais recente. O RETURN_STATUS
-continua sendo consultado em loop para o uptime (vigia de reset) e os
-flags de diagnostico `echo_*_ja_visto_alto` (true se alguma leitura valida
-completa aconteceu desde o boot - e o que separa "sensor mudo" de "sensor
-que responde as vezes").
+continua sendo consultado em loop para o uptime (vigia de reset).
 
 Uso tipico durante depuracao fisica:
   1. Rode este script e deixe rodando.
@@ -20,6 +17,11 @@ Uso tipico durante depuracao fisica:
 
 Ctrl+C encerra a qualquer momento. Como no testar_pan_tilt.py, o uptime do
 Mega e vigiado: se cair de repente, houve reset/brownout real.
+
+ATENCAO: este tool abre /dev/ttyUSB0 direto - pare o servico do Motion
+Core antes (systemctl --user stop orion-motion.service) ou a porta estara
+ocupada. Com o servico rodando, prefira conferir as distancias na
+interface web (http://<pi>:8080/estado, secao "hardware").
 """
 from __future__ import annotations
 
@@ -93,13 +95,7 @@ async def main() -> int:
             t = ultima_telemetria
             frontal = _fmt(t.get("distancia_frontal_cm"), t.get("distancia_frontal_valida"))
             traseira = _fmt(t.get("distancia_traseira_cm"), t.get("distancia_traseira_valida"))
-            eco_f = "SIM" if p.get("echo_frontal_ja_visto_alto") else "nao"
-            eco_t = "SIM" if p.get("echo_traseiro_ja_visto_alto") else "nao"
-            print(
-                f"frontal {frontal} (eco desde boot: {eco_f})  |  "
-                f"traseiro {traseira} (eco desde boot: {eco_t})  |  "
-                f"uptime {uptime}ms"
-            )
+            print(f"frontal {frontal}  |  traseiro {traseira}  |  uptime {uptime}ms")
             await asyncio.sleep(INTERVALO_S)
     except KeyboardInterrupt:
         print("\nEncerrado pelo usuario.")

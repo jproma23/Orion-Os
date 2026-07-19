@@ -1598,3 +1598,18 @@ servo). Primeira vez testando esses três com hardware real.
 - Faxina: tests/unit/conftest.py orfao no Notebook (duplicata antiga do
   FakeTransporte de tests/conftest.py) removido; suite completa re-rodada
   no Notebook apos o reset.
+
+## 2026-07-19 (faxina do firmware - flags de diagnostico removidos)
+
+- Removidos os DIAGNOSTICO TEMPORARIO echo_*_ja_visto_alto de
+  sensor_ultrassonico.h, radar_manager.h e do RETURN_STATUS (main.cpp) -
+  cumpriram a missao na cacada dos fios. testar_ultrassom.py atualizado
+  (sem os flags; nota nova: parar orion-motion.service antes de rodar,
+  senao a serial esta ocupada - com o servico de pe, conferir distancias
+  em http://<pi>:8080/estado).
+- Mega regravado (servico pausado durante o upload e religado).
+  Verificacao pela cadeia TCP: RETURN_STATUS sem os flags; webui mostrando
+  distancia_frontal_cm ~15 e OBSTACLE_DETECTED coerente com a bancada.
+  Detalhe de arquitetura confirmado de passagem: TELEMETRY e endereada ao
+  motion_core e consumida la (nao e repassada ao mission_core) - clientes
+  TCP nao a veem; a webui e o retrato dela.

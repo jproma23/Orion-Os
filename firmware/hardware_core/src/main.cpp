@@ -103,10 +103,6 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
   payload["uptime_ms"] = millis();
   payload["em_movimento"] = motores.emMovimento();
   payload["imu_conectado"] = imu.conectado();
-  // DIAGNOSTICO TEMPORARIO - ver algumaVezValida() em SensorUltrassonico.
-  // Remover depois.
-  payload["echo_frontal_ja_visto_alto"] = radar.frontalAlgumaVezValida();
-  payload["echo_traseiro_ja_visto_alto"] = ultrassomTraseiro.algumaVezValida();
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 

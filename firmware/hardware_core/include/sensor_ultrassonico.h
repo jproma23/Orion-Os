@@ -47,7 +47,6 @@ class SensorUltrassonico {
           unsigned long duracao = agora - _inicioEchoUs;
           _distanciaCm = duracao / 58.0f;  // formula padrao do HC-SR04
           _leituraValida = true;
-          _algumaVezValida = true;
           _ultimaLeituraUs = agora;
           _estagio = Estagio::OCIOSO;
         } else if (agora - _inicioEchoUs > TIMEOUT_US) {
@@ -59,12 +58,6 @@ class SensorUltrassonico {
 
   float distanciaCm() const { return _distanciaCm; }
   bool leituraValida() const { return _leituraValida; }
-
-  // DIAGNOSTICO TEMPORARIO - true se algum ECHO valido ja chegou desde o
-  // boot, mesmo que a leitura mais recente tenha dado timeout. Ajuda a
-  // distinguir "sensor nunca respondeu" de "responde as vezes". Remover
-  // depois (junto com as chamadas em main.cpp).
-  bool algumaVezValida() const { return _algumaVezValida; }
 
  private:
   enum class Estagio { OCIOSO, AGUARDANDO_SUBIDA, AGUARDANDO_DESCIDA };
@@ -79,7 +72,6 @@ class SensorUltrassonico {
   unsigned long _inicioEchoUs = 0;
   float _distanciaCm = -1;
   bool _leituraValida = false;
-  bool _algumaVezValida = false;
 
   void _semLeitura(unsigned long agora) {
     _leituraValida = false;
