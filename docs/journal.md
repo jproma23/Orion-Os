@@ -1581,3 +1581,20 @@ servo). Primeira vez testando esses três com hardware real.
 - PLANO atualizado: Fase 6 "[~] QUASE" (falta so a validacao FALADA,
   aguardando mic USB sex 24/07); Fase 4 "[~] DESBLOQUEADO" (bancada
   parcial de 2026-07-19 registrada).
+
+## 2026-07-19 (git remote Pi->Notebook - fim do scp artesanal)
+
+- Antes de mexer: checksum de TODOS os arquivos rastreados nas duas
+  maquinas. Divergencias eram uniformemente o Notebook desatualizado
+  (rename "ORION X"->"Fofao" nunca sincronizado + mudancas de hoje) -
+  nada exclusivo do Notebook a preservar. Ancestral comum confirmado
+  (Notebook = commit raiz 819456c).
+- Setup: remote "notebook" no Pi (jproma23@10.20.20.195:orion-os),
+  push fast-forward 819456c..f726278, git reset --hard no Notebook e
+  receive.denyCurrentBranch=updateInstead - de agora em diante,
+  sincronizar = "git push notebook" no Pi (o worktree do Notebook
+  atualiza sozinho se estiver limpo). Historico do Notebook saiu da
+  Fase 0 e agora espelha o Pi.
+- Faxina: tests/unit/conftest.py orfao no Notebook (duplicata antiga do
+  FakeTransporte de tests/conftest.py) removido; suite completa re-rodada
+  no Notebook apos o reset.
