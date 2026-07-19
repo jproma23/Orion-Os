@@ -1664,3 +1664,14 @@ servo). Primeira vez testando esses três com hardware real.
   assumiu 'repouso' (hardware IDLE). Preempcao por obstaculo coberta por
   teste; ao vivo reage quando o Mega reportar. Notebook reconectou
   sozinho apos o restart do Pi (fix da reconexao confirmado de novo).
+
+## 2026-07-19 (Atender plugado - maestro reage ao "Fofão")
+
+- Atender (prio 80) no maestro: dono chama "Fofão" -> robo para (HOLD) e
+  atende ate a resposta terminar. Notebook encaminha voice.wake_detected
+  e voice.response_finished ao Pi (comm.publish local=False, novo, evita
+  eco). 3 testes: atender preempta repouso + HOLD; obstaculo (100) vence
+  atender (80). Maestro no ar com repouso+atender+vigilancia; assumiu
+  repouso no boot (hardware IDLE). Prova falada (dizer "Fofão") fica para
+  o usuario testar no robo. Nota: journalctl --user segue flaky ("No
+  journal files"); usar `systemctl --user status -n N` para ver o log.
