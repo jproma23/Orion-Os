@@ -31,8 +31,13 @@ logger = logging.getLogger("orion.mission.mission_planner")
 CallbackComandoHardware = Callable[[str], Awaitable[None]]
 
 _PADROES_COMANDO = (
-    (re.compile(r"acend[ae].*lanterna|lig[ae].*luz|luz.*lig"), "LIGHT_ON"),
-    (re.compile(r"apag[ae].*lanterna|deslig[ae].*luz|luz.*desli"), "LIGHT_OFF"),
+    # LIGHT_OFF ANTES de LIGHT_ON: "desligue a luz" contem "ligue a luz"
+    # como substring - se ON fosse testado primeiro, desligar LIGARIA a
+    # lanterna. \w* cobre as conjugacoes (apaga/apague/apagar, desliga/
+    # desligue...), que o padrao antigo [ae] nao cobria (bug real: "apague
+    # a lanterna" caia na IA, achado no teste de 2026-07-19).
+    (re.compile(r"apag\w*.*(lanterna|luz)|deslig\w*.*(lanterna|luz)"), "LIGHT_OFF"),
+    (re.compile(r"acend\w*.*(lanterna|luz)|lig\w*.*(lanterna|luz)|luz.*lig"), "LIGHT_ON"),
     (re.compile(r"\bpar[ae]\b|\bparar\b|\bstop\b"), "STOP"),
     (re.compile(r"anda[re]? para frente|va[i]? para frente|siga em frente"), "MOVE_FORWARD"),
     (re.compile(r"vir[ae] (a|para a) esquerda|gir[ae] (a|para a) esquerda"), "TURN_LEFT"),

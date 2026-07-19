@@ -132,3 +132,38 @@ async def test_falha_na_memoria_nao_derruba_o_processamento():
     resposta = await planner.processar("ola")
 
     assert resposta == "oi"
+
+
+@pytest.mark.asyncio
+async def test_apague_no_subjuntivo_desliga_a_lanterna():
+    """Regressao (2026-07-19): 'apague a lanterna' caia na IA - o padrao
+    antigo apag[ae] nao cobria o subjuntivo 'apague'."""
+    ai = AiManagerFalso()
+    comandos_enviados = []
+
+    async def enviar(comando):
+        comandos_enviados.append(comando)
+
+    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
+    await planner.processar("Fofao, apague a lanterna")
+
+    assert comandos_enviados == ["LIGHT_OFF"]
+    assert ai.chamadas == []
+
+
+@pytest.mark.asyncio
+async def test_desligue_a_luz_nao_liga_a_lanterna():
+    """Regressao (2026-07-19): 'desligue a luz' contem 'ligue a luz' como
+    substring - com LIGHT_ON testado primeiro, desligar LIGARIA a
+    lanterna. A ordem dos padroes (OFF antes de ON) protege disso."""
+    ai = AiManagerFalso()
+    comandos_enviados = []
+
+    async def enviar(comando):
+        comandos_enviados.append(comando)
+
+    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
+    await planner.processar("desligue a luz")
+
+    assert comandos_enviados == ["LIGHT_OFF"]
+    assert ai.chamadas == []

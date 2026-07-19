@@ -64,12 +64,14 @@ testes da fase passando.** Os capítulos citados estão em `docs/ses/`.
 - **Pronto quando:** bancada executa cada comando com rodas suspensas;
   obstáculo à frente para o robô sem participação do Raspberry nem do
   notebook.
-  **[ ] AINDA NÃO — bloqueado por hardware.** Em 2026-07-17 nenhum motor/
-  sensor está fisicamente montado (só o Mega + cabo USB existem). Todo o
-  firmware acima foi validado no Mega real no nível de protocolo/lógica
-  (ACK, transições de estado, eventos de conclusão, degradação graciosa
-  sem periféricos) — falta a montagem física (ver
-  `docs/hardware/wiring_arduino.md`) para o teste de bancada de verdade.
+  **[~] DESBLOQUEADO em 2026-07-19 — bancada parcial feita.** Hardware
+  montado e validado: os dois ultrassons medindo (22/23 e 26/27, após
+  corrigir fios deslocados no conector), motores girando (TB6600, após
+  ligar PUL−/DIR− ao GND do Mega), segurança reativa disparando sozinha
+  (OBSTACLE_DETECTED com obstáculo real). IMU/encoders/LED seguem não
+  conectados. Falta a bancada formal completa: cada comando de movimento
+  com rodas suspensas + confirmação do micropasso das chaves DIP (contar
+  voltas) para calibrar PASSOS_POR_METRO.
 
 ## Fase 5 — Vision Core no Notebook (Cap 8)
 - [x] Pipeline no Notebook: captura → YOLO → reconhecimento facial →
@@ -94,14 +96,16 @@ testes da fase passando.** Os capítulos citados estão em `docs/ses/`.
 - [x] Mission Planner: fluxo de decisão do Cap 7 seção 4.
 - **Pronto quando:** "Fofão, que horas são?" recebe resposta falada;
   "Fofão, acenda a lanterna" resulta em LIGHT_ON no Mega.
-  **[ ] AINDA NÃO — bloqueado por hardware de áudio.** Pipeline completo
-  implementado e testado (164 testes no Notebook): captura, reamostragem,
-  Whisper, detecção de palavra-chave, Ollama, Mission Planner, Piper. Dois
-  bugs reais de taxa de amostragem (gravação e reprodução) encontrados e
-  corrigidos. Falta hardware para validar ao vivo: sem alto-falante físico
-  (nenhum conectado ainda) e o mic disponível capta sinal fraco demais para
-  o Whisper transcrever de forma confiável. Usuário vai comprar um
-  headset/caixinha USB com microfone — refazer o teste real quando chegar.
+  **[~] QUASE — integração completa validada em 2026-07-19.** O serviço de
+  voz ao vivo (conversar_fofao.py) agora conecta no Motion Core via TCP e
+  os comandos passam primeiro pelo Mission Planner (Cap 7 s.4): "acenda a
+  lanterna" → LIGHT_ON **ACKado pelo Mega real** através da cadeia
+  TCP+serial (validado por teste de texto ponta a ponta); hora → resposta
+  direta; conversa livre → gemma3; interações registradas no banco do SSD.
+  Dois bugs de regex corrigidos com regressão ("apague" no subjuntivo;
+  "desligue a luz" ligava a lanterna). Escuta 20x mais barata com o portão
+  VAD. Falta só a validação FALADA do critério — o mic atual é fraco;
+  mic USB + caixinhas chegam qui 23/07, missão de áudio sex 24/07.
 
 ## Fase 7 — Motion Core / Navegação no Raspberry (Cap 12)
 - [ ] Serviço `motion_core` no Raspberry: recebe missões via TCP,

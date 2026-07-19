@@ -1561,3 +1561,23 @@ servo). Primeira vez testando esses três com hardware real.
 - Pegadinha de shell que custou um restart: pkill -f "a\|b" NAO e
   alternacao (ERE usa "|" sem escape) - o processo antigo sobreviveu
   segurando as portas 5757/8080 e o servico novo crashava em loop.
+
+## 2026-07-19 (Mission Planner ligado - Fase 6 fechada na integracao)
+
+- conversar_fofao.py agora e o Mission Core completo: conecta via TCP no
+  Motion Core no boot (tolerando ausencia, Cap 6 s.8), monta o
+  MissionPlanner com enviar_comando_hardware (comm.send ao hardware_core)
+  e MemoryClient - predefinidos e hora resolvidos sem IA, conversa livre
+  vai ao gemma3, interacoes registradas em "conversas" no banco do SSD.
+- Teste de texto do criterio da Fase 6 (sem falar, do Notebook):
+  "acenda a lanterna" -> LIGHT_ON ACKado pelo Mega real pela cadeia;
+  "que horas sao" -> resposta direta; conversa livre -> IA; 4 linhas
+  gravadas em conversas. O proprio teste achou 2 bugs de regex:
+  "apague" (subjuntivo) caia na IA, e "desligue a luz" LIGARIA a
+  lanterna ("ligue a luz" e substring; LIGHT_ON era testado primeiro).
+  Corrigidos (\w* nas conjugacoes + OFF antes de ON) com 2 regressoes.
+- Servico reiniciado no Notebook: "Motion Core conectado - comandos de
+  hardware e memoria ATIVOS". 16/16 testes de planner+voz no Notebook.
+- PLANO atualizado: Fase 6 "[~] QUASE" (falta so a validacao FALADA,
+  aguardando mic USB sex 24/07); Fase 4 "[~] DESBLOQUEADO" (bancada
+  parcial de 2026-07-19 registrada).

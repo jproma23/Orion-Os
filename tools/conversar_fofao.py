@@ -19,10 +19,14 @@ Fluxo de uso: espere o "pronto" no log (a primeira carga do Whisper pode
 demorar), diga "Fofão" perto do microfone, aguarde o avatar mudar para
 WAKE_DETECTED e fale o comando/pergunta. Ctrl+C para sair.
 
-Sem Raspberry envolvido (EDR-0018: Voice/Mission/Display sao do Notebook):
-perguntas sao respondidas pela IA; comandos de hardware ("acende a
-lanterna") ainda nao chegam ao robo por aqui - isso e o Mission Planner
-completo, quando o link com o Motion Core estiver de pe.
+Com o Motion Core de pe no Raspberry (2026-07-19), este processo agora e o
+Mission Core completo do criterio da Fase 6: conecta via TCP no Raspberry
+e os comandos de voz passam primeiro pelo Mission Planner (Cap 7 s.4) -
+comandos predefinidos ("acende a lanterna" -> LIGHT_ON no Mega pela cadeia
+TCP+serial; "que horas sao" -> resposta direta) e so a conversa livre vai
+para a IA (gemma3). Sem o Raspberry alcancavel, degrada graciosamente
+(Cap 6 s.8): a conversa continua, so os comandos de hardware e a memoria
+persistente ficam indisponiveis.
 """
 from __future__ import annotations
 
@@ -33,10 +37,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from orion.communication.heartbeat import MonitorHeartbeat  # noqa: E402
+from orion.communication.service import ComunicacaoService  # noqa: E402
+from orion.communication.transport import ErroTransporte, TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
+from orion.mission.memory_client import MemoryClient  # noqa: E402
+from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
@@ -151,6 +160,59 @@ async def principal() -> None:
         keep_alive_minutes=secao_ia["keep_alive_minutes"],
     )
 
+    # Link TCP com o Motion Core (Raspberry) - Cap 14 s.2. Tolerado ausente
+    # (Cap 6 s.8): sem ele a conversa segue, mas comandos de hardware e a
+    # memoria persistente ficam desligados.
+    conf_comm = config.secao("communication")
+    conf_raspberry = conf_comm["raspberry"]
+    comm = None
+    heartbeat = None
+    tarefa_heartbeat = None
+    transporte_pi = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
+    try:
+        await asyncio.wait_for(transporte_pi.conectar(), timeout=3.0)
+    except (ErroTransporte, asyncio.TimeoutError) as erro:
+        logger.warning(
+            "Motion Core inalcancavel em %s:%d (%s) - sem comandos de "
+            "hardware nem memoria persistente nesta sessao",
+            conf_raspberry["host"],
+            conf_raspberry["tcp_port"],
+            erro,
+        )
+    else:
+        comm = ComunicacaoService(
+            "mission_core",
+            bus,
+            max_retries=conf_comm["max_retries"],
+            ack_timeout_ms=conf_comm["ack_timeout_ms"],
+        )
+        comm.adicionar_link("motion_core", transporte_pi, alcancaveis_via=["hardware_core"])
+        heartbeat = MonitorHeartbeat(
+            comm,
+            bus,
+            intervalo_s=conf_comm["heartbeat_interval_s"],
+            heartbeats_perdidos_limite=conf_comm["heartbeats_lost_threshold"],
+        )
+        heartbeat.monitorar("motion_core")
+        tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
+        logger.info(
+            "Motion Core conectado (%s:%d) - comandos de hardware e memoria ATIVOS",
+            conf_raspberry["host"],
+            conf_raspberry["tcp_port"],
+        )
+
+    async def enviar_comando_hardware(comando: str) -> None:
+        """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
+        assert comm is not None
+        await comm.send("hardware_core", {"comando": comando})
+        logger.info("Comando '%s' entregue ao Hardware Core (ACK recebido)", comando)
+
+    planner = MissionPlanner(
+        ia,
+        enviar_comando_hardware=enviar_comando_hardware if comm is not None else None,
+        memory_client=MemoryClient(comm) if comm is not None else None,
+    )
+
     def limpar_para_fala(texto: str) -> str:
         """Tira o que nao da para falar: emojis, markdown (*negrito*),
         quebras de linha viram pausa. O gemma3 adora um emoji."""
@@ -164,7 +226,10 @@ async def principal() -> None:
         if not texto.strip():
             return "Não entendi, pode repetir?"
         logger.info("Voce disse: %s", texto)
-        resposta = limpar_para_fala(await ia.responder(texto))
+        # Fluxo do Cap 7 s.4: comandos predefinidos e hora sao resolvidos
+        # pelo Mission Planner (rapido, deterministico, chega ao Mega);
+        # so a conversa livre vai para a IA.
+        resposta = limpar_para_fala(await planner.processar(texto))
         logger.info("Fofao respondeu: %s", resposta)
         return resposta
 
@@ -199,6 +264,12 @@ async def principal() -> None:
         await voz.executar()
     finally:
         voz.parar()
+        if heartbeat is not None:
+            heartbeat.parar()
+        if tarefa_heartbeat is not None:
+            tarefa_heartbeat.cancel()
+        if comm is not None:
+            await comm.encerrar()
         await servidor.encerrar()
         bus.parar()
         tarefa_bus.cancel()
