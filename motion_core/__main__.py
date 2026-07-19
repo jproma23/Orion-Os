@@ -21,6 +21,7 @@ import logging
 import signal
 from pathlib import Path
 
+from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
@@ -172,6 +173,15 @@ async def principal() -> None:
     config_navigation = config.secao("navigation")
     NavigationCore(event_bus, comm, config_motion, config_navigation)
     FusaoSensores(event_bus, config_motion)
+
+    # Guardião de RAM do Notebook (EDR-0020): o Pi vigia a memória do Notebook
+    # e pede alívio antes do crash. Só um monitor de eventos - sem task própria.
+    conf_guardiao = config.secao("behavior")["guardiao_ram"]
+    GuardiaoRamNotebook(
+        event_bus,
+        limiar_critico_mb=conf_guardiao["limiar_critico_mb"],
+        limiar_folga_mb=conf_guardiao["limiar_folga_mb"],
+    )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
     memory_api = _abrir_memoria(config, event_bus, logger)

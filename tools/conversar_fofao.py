@@ -207,6 +207,26 @@ async def principal() -> None:
         await comm.send("hardware_core", {"comando": comando})
         logger.info("Comando '%s' entregue ao Hardware Core (ACK recebido)", comando)
 
+    def _ram_livre_mb() -> int:
+        """RAM disponivel do Notebook em MB, lida de /proc/meminfo
+        (MemAvailable - o que o kernel estima que da pra usar sem swap)."""
+        with open("/proc/meminfo", encoding="ascii") as arquivo:
+            for linha in arquivo:
+                if linha.startswith("MemAvailable:"):
+                    return int(linha.split()[1]) // 1024
+        return -1
+
+    async def reportar_saude_ao_pi() -> None:
+        """Publica a RAM livre do Notebook para o Guardião de RAM no Pi
+        (EDR-0020) agir antes de um travamento por falta de memoria."""
+        intervalo = config.secao("behavior")["notebook_health_interval_s"]
+        while True:
+            try:
+                await comm.publish("diagnostic.notebook_health", {"ram_livre_mb": _ram_livre_mb()})
+            except Exception:
+                logger.debug("falha ao reportar saude ao Pi (link caiu?)", exc_info=True)
+            await asyncio.sleep(intervalo)
+
     planner = MissionPlanner(
         ia,
         enviar_comando_hardware=enviar_comando_hardware if comm is not None else None,
@@ -257,6 +277,10 @@ async def principal() -> None:
         detector_atividade=detector_atividade,
     )
 
+    tarefa_saude = None
+    if comm is not None:
+        tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
+
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
     logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')
 
@@ -264,6 +288,8 @@ async def principal() -> None:
         await voz.executar()
     finally:
         voz.parar()
+        if tarefa_saude is not None:
+            tarefa_saude.cancel()
         if heartbeat is not None:
             heartbeat.parar()
         if tarefa_heartbeat is not None:

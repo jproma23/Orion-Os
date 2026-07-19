@@ -161,3 +161,13 @@ security:
   authorized_users: []           # preenchido via interface
   restricted_actions: ["config.security", "database.restore"]
   child_safe_profile_on_detection: true
+
+behavior:                        # Behavior Core / maestro (EDR-0020)
+  # Guardião de RAM do Notebook: o Pi vigia a memória livre reportada pelo
+  # Notebook e pede alívio de carga antes do crash. Histerese: entra em
+  # alerta abaixo do crítico, só sai ao voltar à folga (Cap 16).
+  guardiao_ram:
+    limiar_critico_mb: 700
+    limiar_folga_mb: 1200
+  # de quanto em quanto tempo o Notebook reporta sua RAM livre ao Pi.
+  notebook_health_interval_s: 10
