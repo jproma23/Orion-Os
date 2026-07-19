@@ -1456,3 +1456,31 @@ servo). Primeira vez testando esses três com hardware real.
   183 passed, 7 skipped. Pendente: remover os flags DIAGNOSTICO
   TEMPORARIO (echo_*_ja_visto_alto) do firmware quando nao forem mais
   uteis.
+
+## 2026-07-19 (motores de passo giraram pela primeira vez)
+
+- Usuario chateado: motores de passo nao mexiam. Diagnostico guiado com
+  sketch descartavel (scratchpad/teste_motores): ciclo de 6 fases variando
+  ENABLE (pino 6) e pulsando cada motor (1600 passos @ 400Hz) para separar
+  polaridade de ENABLE x micropasso x fiacao.
+- Causa raiz: PUL-/DIR- dos TB6600 nunca foram ligados ao GND do Mega -
+  sem circuito de retorno, o optoacoplador nunca ve pulso. Na CNC antiga
+  do usuario "so iam dois fios" (PUL+/DIR+) porque a placa fechava o
+  retorno por baixo. ENA segue solto = sempre habilitado (igual CNC).
+  Fonte de potencia 12-24V isolada pelo opto - nao precisa de GND comum.
+- Apos ligar PUL-/DIR- ao GND do Mega: "GIROU" (usuario, ao vivo).
+  Pendente anotar: quais fases giraram, voltas por rajada (revela o
+  micropasso das chaves DIP) e se o ENABLE do firmware tem efeito real.
+- Usuario confirmou: "ficou otimo" - motores girando. Firmware oficial
+  regravado no Mega e validado (handshake ok, ultrassons medindo).
+  Pendencias para a proxima sessao de bancada: (1) contar voltas por
+  rajada para confirmar o micropasso das DIP e calibrar passos/metro no
+  config; (2) decidir o destino do ENABLE (pino 6): esta solto nos
+  drivers (= sempre habilitado), entao o firmware aciona um pino sem
+  efeito - ou ligar ENA de verdade (economia de energia/aquecimento em
+  idle) ou documentar que e ignorado; (3) teste de bancada completo do
+  Cap 10 (MOVE_DISTANCE, TURN, STOP via protocolo).
+- Decisao do usuario: ENA fica SOLTO (drivers sempre habilitados, como na
+  CNC dele). Documentado em pins.h (fiacao real dos TB6600: PUL+/DIR+ nos
+  pinos 2-5, PUL-/DIR- no GND do Mega, ENA nao conectado). Firmware
+  recompilado ok - sem mudanca de comportamento, so documentacao.

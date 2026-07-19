@@ -12,12 +12,19 @@
 
 namespace pinos {
 
-// --- Motores (CONFIRMADO) - 2x TB6600 -> 2x NEMA17 ---
+// --- Motores (CONFIRMADO 2026-07-19, girando em bancada) - 2x TB6600 ->
+// 2x NEMA17. Ligacao real: PUL+/DIR+ nos pinos abaixo e PUL-/DIR- no GND
+// do Mega (retorno do optoacoplador - sem ele o driver nao ve pulso
+// nenhum). Fonte 12-24V dos motores e isolada pelo opto: nao precisa de
+// GND comum com o Mega.
 constexpr uint8_t STEP_ESQUERDO = 2;
 constexpr uint8_t DIR_ESQUERDO = 3;
 constexpr uint8_t STEP_DIREITO = 4;
 constexpr uint8_t DIR_DIREITO = 5;
-constexpr uint8_t ENABLE_MOTORES = 6;  // compartilhado pelos dois drivers
+// ENA dos TB6600 esta SOLTO por decisao do usuario (2026-07-19) = drivers
+// sempre habilitados, como na CNC dele. O firmware ainda aciona este pino,
+// mas sem efeito fisico nesta montagem.
+constexpr uint8_t ENABLE_MOTORES = 6;  // compartilhado; NAO CONECTADO
 
 // --- Ultrassonico frontal (CONFIRMADO) - HC-SR04 fixo, sem servo ---
 constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 22;
