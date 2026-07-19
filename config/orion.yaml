@@ -176,3 +176,11 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
   # orienta-se para a origem, pede foto e notifica - antes de liberar.
   vigilia:
     duracao_alerta_s: 8
+  # Detector de rosto desconhecido (roda no Notebook, Cap 8): olha um frame
+  # a cada intervalo_s; rosto que nao casa com a familia -> sentinela.alerta
+  # + foto salva. cooldown_s evita repetir o alerta com o estranho no quadro.
+  sentinela_visao:
+    habilitado: true
+    intervalo_s: 3
+    cooldown_s: 30
+    pasta_fotos: "data/sentinela"

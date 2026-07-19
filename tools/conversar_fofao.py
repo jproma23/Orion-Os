@@ -46,6 +46,9 @@ from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
+from orion.vision.captura import CapturaCamera  # noqa: E402
+from orion.vision.reconhecimento_facial import ReconhecedorFacial  # noqa: E402
+from orion.vision.sentinela_visao import SentinelaVisao  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
@@ -239,6 +242,9 @@ async def principal() -> None:
 
     bus.subscribe("voice.wake_detected", _repassar_ao_pi)
     bus.subscribe("voice.response_finished", _repassar_ao_pi)
+    # alerta de rosto desconhecido nasce aqui (Sentinela de visão) e vai ao
+    # Pi, onde a Vigília (maestro) assume.
+    bus.subscribe("sentinela.alerta", _repassar_ao_pi)
 
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
@@ -318,6 +324,25 @@ async def principal() -> None:
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
 
+    # Sentinela de visão (Cap 8): vigia rostos desconhecidos e dispara
+    # sentinela.alerta -> Pi -> Vigília. Tolera câmera/link ausentes.
+    tarefa_sentinela = None
+    conf_sent = config.secao("behavior")["sentinela_visao"]
+    if conf_sent["habilitado"]:
+        sentinela = SentinelaVisao(
+            bus,
+            ReconhecedorFacial(),
+            CapturaCamera(
+                indice=secao_visao["camera_indice_principal"],
+                espelhado=secao_visao["camera_frontal_espelhada"],
+            ),
+            carregar_conhecidos=lambda: MemoryClient(comm).recall("pessoas"),
+            intervalo_s=conf_sent["intervalo_s"],
+            cooldown_s=conf_sent["cooldown_s"],
+            pasta_fotos=conf_sent["pasta_fotos"],
+        )
+        tarefa_sentinela = asyncio.create_task(sentinela.executar())
+
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
     logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')
 
@@ -326,6 +351,8 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
+        if tarefa_sentinela is not None:
+            tarefa_sentinela.cancel()
         tarefa_link.cancel()
         heartbeat.parar()
         tarefa_heartbeat.cancel()

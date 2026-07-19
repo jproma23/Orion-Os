@@ -189,3 +189,22 @@ async def test_comando_nao_memoria_e_ignorado_pela_ponte(tmp_path, par_conectado
     bus_motion.parar()
     await tarefa_mission
     await tarefa_motion
+
+
+def test_recall_embrulha_e_cliente_desembrulha_o_embedding():
+    """Recall de pessoas devolve embedding_face (BLOB). A ponte embrulha em
+    base64 (não cabe no JSON como bytes) e o MemoryClient desembrulha -
+    round-trip para o reconhecimento facial ler bytes de volta."""
+    import base64
+    from motion_core.memory.bridge import _codificar_binarios
+    from orion.mission.memory_client import _decodificar_binarios
+
+    emb = bytes(range(200)) * 5  # bytes binários arbitrários (com \x00)
+    resultado_api = [{"id": 1, "nome": "Ana", "embedding_face": emb}]
+
+    transportado = _codificar_binarios(resultado_api)  # lado do Pi (bridge)
+    assert transportado[0]["embedding_face"]["_bytes_b64"] == base64.b64encode(emb).decode()
+
+    recebido = _decodificar_binarios(transportado)  # lado do Notebook (client)
+    assert recebido[0]["embedding_face"] == emb
+    assert recebido[0]["nome"] == "Ana"
