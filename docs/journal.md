@@ -1650,3 +1650,17 @@ servo). Primeira vez testando esses três com hardware real.
 - Licao: verificar features de rede ao vivo exige o link resiliente
   primeiro; meus restarts do Pi orfanavam o Notebook e davam falso
   negativo no guardiao.
+
+## 2026-07-19 (primeiros comportamentos plugados no maestro)
+
+- Comportamento ganhou gancho _maestro/_reavaliar (o BehaviorCore o
+  preenche em registrar) para a subclasse acordar o maestro quando o
+  gatilho muda.
+- Dois comportamentos concretos (comportamentos.py): Repouso (prio 10,
+  base) e VigilanciaObstaculo (prio 100, dispara com motion.status ==
+  OBSTACLE_DETECTED, sinal real do Mega ja no Event Bus do Pi). 2 testes
+  (repouso assume sem obstaculo; obstaculo preempta e libera).
+- Maestro ligado no motion_core/__main__.py e ativo no robo: ao subir,
+  assumiu 'repouso' (hardware IDLE). Preempcao por obstaculo coberta por
+  teste; ao vivo reage quando o Mega reportar. Notebook reconectou
+  sozinho apos o restart do Pi (fix da reconexao confirmado de novo).

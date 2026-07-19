@@ -21,6 +21,8 @@ import logging
 import signal
 from pathlib import Path
 
+from motion_core.behavior.behavior_core import BehaviorCore
+from motion_core.behavior.comportamentos import Repouso, VigilanciaObstaculo
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
@@ -193,6 +195,15 @@ async def principal() -> None:
         limiar_folga_mb=conf_guardiao["limiar_folga_mb"],
     )
 
+    # Maestro (Behavior Core, EDR-0020): decide sozinho o que o robô faz.
+    # Comeco enxuto - Repouso (base) e Vigilancia de obstaculo (prio maxima,
+    # dispara com o OBSTACLE_DETECTED real do Mega).
+    maestro = BehaviorCore(event_bus)
+    maestro.registrar(Repouso(event_bus))
+    maestro.registrar(VigilanciaObstaculo(event_bus))
+    tarefa_maestro = asyncio.create_task(maestro.executar())
+    logger.info("Behavior Core (maestro) ativo - comportamentos: repouso, vigilancia_obstaculo")
+
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
     memory_api = _abrir_memoria(config, event_bus, logger)
     if memory_api is not None:
@@ -228,13 +239,15 @@ async def principal() -> None:
     logger.info("Motion Core: iniciando desligamento seguro")
     heartbeat.parar()
     tarefa_heartbeat.cancel()
+    maestro.parar()
+    tarefa_maestro.cancel()
     await webui.encerrar()
     await comm.encerrar()
     servidor_tcp.close()
     await servidor_tcp.wait_closed()
     event_bus.parar()
     tarefa_bus.cancel()
-    for tarefa in (tarefa_heartbeat, tarefa_bus):
+    for tarefa in (tarefa_heartbeat, tarefa_maestro, tarefa_bus):
         try:
             await tarefa
         except asyncio.CancelledError:

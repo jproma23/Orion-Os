@@ -32,6 +32,7 @@ class BehaviorCore:
 
     def registrar(self, comportamento: Comportamento) -> None:
         """Adiciona um comportamento e reordena do mais forte ao mais fraco."""
+        comportamento._maestro = self
         self._comportamentos.append(comportamento)
         self._comportamentos.sort(key=lambda c: c.prioridade, reverse=True)
 

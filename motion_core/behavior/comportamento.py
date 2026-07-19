@@ -21,6 +21,15 @@ class Comportamento:
 
     def __init__(self, event_bus: EventBus) -> None:
         self._event_bus = event_bus
+        #: preenchido pelo BehaviorCore ao registrar - permite a subclasse
+        #: acordar o maestro quando seu gatilho muda (self._reavaliar()).
+        self._maestro = None
+
+    def _reavaliar(self) -> None:
+        """Pede ao maestro para reavaliar quem deve estar no controle.
+        Chame quando `quer_rodar()` mudar (ex.: chegou um evento gatilho)."""
+        if self._maestro is not None:
+            self._maestro.pedir_reavaliacao()
 
     def quer_rodar(self) -> bool:
         """True quando este comportamento deseja o controle AGORA.
