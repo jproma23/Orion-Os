@@ -1549,3 +1549,15 @@ servo). Primeira vez testando esses três com hardware real.
   memory.recall (voltou identica) -> memory.stats (conhecimento: 1).
   A primeira memoria persistente da vida do Fofao.
 - pytest: 184 passed, 8 skipped. __main__.py sincronizado ao Notebook.
+- Motion Core virou servico permanente: tools/orion-motion.service
+  (systemd --user, Restart=always) + loginctl enable-linger -> sobe no
+  boot do Pi e renasce se cair; nao depende mais de sessao aberta.
+  Verificado apos a troca: WHO_ARE_YOU no motion_core e no hardware_core
+  (via serial) e memory.stats ok pelo TCP.
+- Pegadinha anotada para melhorar: _ao_conectar_notebook registra QUALQUER
+  cliente TCP como "mission_core" (nome fixo) - um cliente com outro
+  nome_local nunca recebe resposta (rota inexistente) e o heartbeat vaza
+  para ele. Melhorar junto com autenticacao de origem (Cap 14 s.9).
+- Pegadinha de shell que custou um restart: pkill -f "a\|b" NAO e
+  alternacao (ERE usa "|" sem escape) - o processo antigo sobreviveu
+  segurando as portas 5757/8080 e o servico novo crashava em loop.

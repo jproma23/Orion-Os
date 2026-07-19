@@ -1,0 +1,21 @@
+# Motion Core no Raspberry Pi (Fase 7): servidor TCP para o Notebook,
+# ponte serial com o Arduino, navegacao, banco no SSD e interface web -
+# python -m motion_core como servico de usuario do systemd.
+#
+# Instalacao (no Pi):
+#   cp tools/orion-motion.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now orion-motion.service
+#   loginctl enable-linger jproma23   # sobe no boot mesmo sem login
+[Unit]
+Description=Fofão - Motion Core (TCP + serial + navegação + banco + web)
+After=network.target
+
+[Service]
+WorkingDirectory=%h/orion-os
+ExecStart=%h/orion-os/.venv/bin/python -u -m motion_core
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
