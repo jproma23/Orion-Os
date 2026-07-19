@@ -70,9 +70,21 @@ rodar.
 
 ### Onde roda
 
-No **Notebook (Mission Core)**, junto do Mission Planner e do AI Manager —
-é decisão estratégica, precisa da visão e da IA que vivem ali. Publica
-missões ao Motion Core pela mesma cadeia TCP já validada.
+No **Raspberry Pi (Motion Core)** — `motion_core/behavior/`. Decisão
+revisada em 2026-07-19 (antes: Notebook): o Pi é o nó **sempre ligado e
+estável** (roda como serviço systemd; não caiu quando a sessão gráfica do
+Notebook morreu no mesmo dia). Pondo o maestro no Pi, a "consciência"
+**sobrevive a falhas do Notebook** e continua com os reflexos do Arduino.
+Os eventos de visão/voz (que nascem no Notebook) já chegam ao Pi pelo Event
+Bus/TCP; os comandos do maestro voltam pela mesma cadeia.
+
+### Guardião de RAM do Notebook
+
+O Notebook tem RAM apertada (gemma3 ~3,6 GB; já travou uma vez em teste de
+IA). Um comportamento/monitor do maestro **vigia a RAM livre do Notebook**
+(publicada como evento de saúde, Cap 16) e age **antes** do crash: alertar,
+pedir para descarregar o modelo de IA ocioso, ou reduzir carga. Assim o Pi
+protege o Notebook em vez de só reagir à queda.
 
 ## Consequências
 
