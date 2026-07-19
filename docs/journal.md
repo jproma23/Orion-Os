@@ -1368,3 +1368,37 @@ servo). Primeira vez testando esses três com hardware real.
   frontend ainda - candidato a melhoria no avatar_server/JS).
 - **RAM do notebook monitorada durante a farra toda: ~3,8GiB disponiveis**
   com 2x Whisper base + Ollama + Firefox kiosk + avatar - folga boa.
+
+## 2026-07-18 (fechamento - cerebro novo, wake word fuzzy e conversa validada pela familia)
+
+- **Cerebro trocado: llama3.2:3b -> gemma3:4b** (pedido do usuario: "a
+  outra IA estava melhor"). Portugues visivelmente superior, ~3,6GB
+  residentes no Ollama (RAM do notebook fica com ~1,6-1,7GiB disponiveis
+  - apertado mas estavel; alerta automatico armado em <700MiB durante a
+  sessao). Respostas do gemma3 vem com emoji/markdown - `limpar_para_fala`
+  em conversar_fofao.py tira antes do Piper. Commit e047c81.
+- **Wake word virou fuzzy** (DetectorFuzzy em conversar_fofao.py):
+  distancia de edicao <=2 de "fofao" (sem acentos) acorda o robo, alem
+  das variacoes exatas (japao entra por lista, distancia 3). Lista fixa
+  tinha virado enxugar gelo: cada teste ao vivo produzia grafia nova
+  (fafao, falfao, japao, vovao...). Falso positivo conhecido e aceito:
+  "botao". Commit 54067e9.
+- **Servico de boot agora e o modo conversa:** orion-avatar.service roda
+  conversar_fofao.py (nao mais o preview de eventos falsos), e o kiosk
+  espera o servidor responder (curl em loop) antes de abrir o Firefox -
+  fim da pagina de erro congelada quando o Firefox abria antes da hora.
+  Commit 2a84e59. Licao: o "sem conexao" persistente era isso; o
+  avatar.js sempre soube reconectar sozinho.
+- **Corrida boba que confundiu o teste:** um `systemctl restart` meu caiu
+  exatamente entre o "Voce disse" e a resposta - o usuario viu o robo
+  "nao pensar nem responder". Diagnostico: nenhum crash, so o meu
+  restart. Regra nova: nao reiniciar o servico com conversa em andamento.
+- **Validacao final pela familia:** wake fuzzy acordou, comando garbled
+  ("Quero que a presidenta camou!") e o gemma3 respondeu na hora
+  "Desculpe, nao entendi. Pode repetir?" - em segundos (keep_alive
+  pagando dividendos). Usuario: "excelente".
+- **Proximos passos naturais:** (1) headset/caixa USB com mic melhor
+  continua sendo o upgrade mais impactante para a transcricao dos
+  comandos; (2) modelo openWakeWord treinado para "Fofao" aposentaria o
+  fuzzy; (3) ligar o Mission Planner ao Motion Core para "acenda a
+  lanterna" fechar o criterio completo da Fase 6.
