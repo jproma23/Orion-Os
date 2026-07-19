@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from orion.communication.heartbeat import MonitorHeartbeat  # noqa: E402
 from orion.communication.service import ComunicacaoService  # noqa: E402
-from orion.communication.transport import ErroTransporte, TcpTransport  # noqa: E402
+from orion.communication.transport import TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
@@ -162,44 +162,70 @@ async def principal() -> None:
 
     # Link TCP com o Motion Core (Raspberry) - Cap 14 s.2. Tolerado ausente
     # (Cap 6 s.8): sem ele a conversa segue, mas comandos de hardware e a
-    # memoria persistente ficam desligados.
+    # memoria persistente ficam desligados. O supervisor abaixo conecta no
+    # inicio e RECONECTA sempre que o link cair - sem isso, um restart do Pi
+    # deixava o Notebook orfao para sempre (bug real, 2026-07-19).
     conf_comm = config.secao("communication")
     conf_raspberry = conf_comm["raspberry"]
-    comm = None
-    heartbeat = None
-    tarefa_heartbeat = None
-    transporte_pi = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
-    try:
-        await asyncio.wait_for(transporte_pi.conectar(), timeout=3.0)
-    except (ErroTransporte, asyncio.TimeoutError) as erro:
-        logger.warning(
-            "Motion Core inalcancavel em %s:%d (%s) - sem comandos de "
-            "hardware nem memoria persistente nesta sessao",
-            conf_raspberry["host"],
-            conf_raspberry["tcp_port"],
-            erro,
-        )
-    else:
-        comm = ComunicacaoService(
-            "mission_core",
-            bus,
-            max_retries=conf_comm["max_retries"],
-            ack_timeout_ms=conf_comm["ack_timeout_ms"],
-        )
-        comm.adicionar_link("motion_core", transporte_pi, alcancaveis_via=["hardware_core"])
-        heartbeat = MonitorHeartbeat(
-            comm,
-            bus,
-            intervalo_s=conf_comm["heartbeat_interval_s"],
-            heartbeats_perdidos_limite=conf_comm["heartbeats_lost_threshold"],
-        )
-        heartbeat.monitorar("motion_core")
-        tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
-        logger.info(
-            "Motion Core conectado (%s:%d) - comandos de hardware e memoria ATIVOS",
-            conf_raspberry["host"],
-            conf_raspberry["tcp_port"],
-        )
+    comm = ComunicacaoService(
+        "mission_core",
+        bus,
+        max_retries=conf_comm["max_retries"],
+        ack_timeout_ms=conf_comm["ack_timeout_ms"],
+    )
+    heartbeat = MonitorHeartbeat(
+        comm,
+        bus,
+        intervalo_s=conf_comm["heartbeat_interval_s"],
+        heartbeats_perdidos_limite=conf_comm["heartbeats_lost_threshold"],
+    )
+
+    async def _conectar_link_pi() -> None:
+        transporte = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
+        await asyncio.wait_for(transporte.conectar(), timeout=3.0)
+        # adicionar_link sobrescreve o link "motion_core" pelo novo transporte
+        # ao reconectar (o antigo, morto, e descartado).
+        comm.adicionar_link("motion_core", transporte, alcancaveis_via=["hardware_core"])
+
+    # o heartbeat publica comm.module_lost quando o link com o Pi cai.
+    link_caiu = asyncio.Event()
+
+    def _ao_perder_link(evento) -> None:
+        if evento.dados.get("modulo") == "motion_core":
+            link_caiu.set()
+
+    bus.subscribe("comm.module_lost", _ao_perder_link)
+
+    async def supervisor_link_pi() -> None:
+        avisou_ausencia = False
+        while True:
+            while True:  # tenta ate conectar (inicio ou reconexao)
+                try:
+                    await _conectar_link_pi()
+                    break
+                except Exception:
+                    if not avisou_ausencia:
+                        logger.warning(
+                            "Motion Core inalcancavel em %s:%d - tentando a cada 5s...",
+                            conf_raspberry["host"],
+                            conf_raspberry["tcp_port"],
+                        )
+                        avisou_ausencia = True
+                    await asyncio.sleep(5)
+            avisou_ausencia = False
+            logger.info(
+                "Motion Core conectado (%s:%d) - comandos de hardware e memoria ATIVOS",
+                conf_raspberry["host"],
+                conf_raspberry["tcp_port"],
+            )
+            link_caiu.clear()
+            await link_caiu.wait()  # dorme ate o link cair
+            logger.warning("Link com o Motion Core caiu - reconectando...")
+            await asyncio.sleep(2)
+
+    heartbeat.monitorar("motion_core")
+    tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
+    tarefa_link = asyncio.create_task(supervisor_link_pi())
 
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
@@ -229,8 +255,8 @@ async def principal() -> None:
 
     planner = MissionPlanner(
         ia,
-        enviar_comando_hardware=enviar_comando_hardware if comm is not None else None,
-        memory_client=MemoryClient(comm) if comm is not None else None,
+        enviar_comando_hardware=enviar_comando_hardware,
+        memory_client=MemoryClient(comm),
     )
 
     def limpar_para_fala(texto: str) -> str:
@@ -277,9 +303,7 @@ async def principal() -> None:
         detector_atividade=detector_atividade,
     )
 
-    tarefa_saude = None
-    if comm is not None:
-        tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
+    tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
     logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')
@@ -288,14 +312,11 @@ async def principal() -> None:
         await voz.executar()
     finally:
         voz.parar()
-        if tarefa_saude is not None:
-            tarefa_saude.cancel()
-        if heartbeat is not None:
-            heartbeat.parar()
-        if tarefa_heartbeat is not None:
-            tarefa_heartbeat.cancel()
-        if comm is not None:
-            await comm.encerrar()
+        tarefa_saude.cancel()
+        tarefa_link.cancel()
+        heartbeat.parar()
+        tarefa_heartbeat.cancel()
+        await comm.encerrar()
         await servidor.encerrar()
         bus.parar()
         tarefa_bus.cancel()
