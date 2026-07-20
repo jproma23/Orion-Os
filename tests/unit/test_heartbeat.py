@@ -5,6 +5,7 @@ import pytest
 
 from orion.communication.heartbeat import MonitorHeartbeat
 from orion.communication.service import ComunicacaoService
+from orion.communication.transport import ErroTransporte
 from orion.kernel.event_bus import EventBus
 
 from conftest import FakeTransporte
@@ -113,9 +114,33 @@ async def test_falha_ao_enviar_heartbeat_tambem_gera_comm_module_lost():
     bus.subscribe("comm.module_lost", lambda e: perdidos.append(e.dados["modulo"]))
 
     servico = ComunicacaoService("mission_core", bus)
-    # nunca chama adicionar_link("motion_core", ...) - enviar_heartbeat()
-    # vai levantar ErroComunicacao ("sem rota") a cada tentativa, simulando
-    # um link que morreu de vez.
+
+    # O link precisa ter EXISTIDO antes de morrer. Antes este teste apenas
+    # nao registrava o link ("sem rota" a cada envio) como atalho para
+    # "morreu" - mas esse atalho e ambiguo: "sem rota" e tambem o estado
+    # normal do boot, antes de o supervisor TCP abrir a conexao. Tratar os
+    # dois como iguais gerava um "Heartbeat perdido" falso em toda partida
+    # (2026-07-19). Aqui o transporte funciona uma vez e depois quebra -
+    # que e o cenario que o teste diz cobrir.
+    class _TransporteQueMorre:
+        conectado = True
+
+        def __init__(self) -> None:
+            self.envios = 0
+
+        async def enviar(self, dados: bytes) -> None:
+            self.envios += 1
+            if self.envios > 1:
+                raise ErroTransporte("conexao fechada pelo outro lado")
+
+        async def receber(self):
+            await asyncio.sleep(3600)
+            yield b""
+
+        async def fechar(self) -> None:
+            self.conectado = False
+
+    servico.adicionar_link("motion_core", _TransporteQueMorre())
 
     monitor = MonitorHeartbeat(servico, bus, intervalo_s=0.02, heartbeats_perdidos_limite=3)
     monitor.monitorar("motion_core")

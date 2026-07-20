@@ -31,6 +31,10 @@ class _EstadoModuloMonitorado:
     reconectar: CallbackRecuperacao | None = None
     reiniciar: CallbackRecuperacao | None = None
     tentativas_reconexao: int = 0
+    #: Limite proprio deste modulo; None = usa o limite global do monitor.
+    #: Existe porque nem todo enlace merece a mesma paciencia - ver
+    #: HealthMonitor.timeout_de.
+    limite_proprio: int | None = None
 
 
 class HealthMonitor:
@@ -47,8 +51,24 @@ class HealthMonitor:
 
     @property
     def timeout_s(self) -> float:
-        """Tempo sem heartbeat a partir do qual um modulo e considerado perdido."""
+        """Timeout PADRAO, usado por quem nao tem limite proprio."""
         return self._intervalo * self._limite
+
+    def timeout_de(self, nome: str) -> float:
+        """Timeout deste modulo especifico.
+
+        Enlaces diferentes merecem paciencia diferente. O link com o
+        Arduino precisa de deteccao rapida (e o caminho da seguranca
+        reativa); o link com o Notebook precisa TOLERAR pausas longas,
+        porque uma inferencia de IA local satura a CPU da maquina por
+        dezenas de segundos e atrasa os heartbeats sem que nada esteja
+        quebrado - com limite curto, o Pi declarava o link morto a cada
+        consulta a IA (medido em 2026-07-19).
+        """
+        estado = self._modulos.get(nome)
+        if estado is None or estado.limite_proprio is None:
+            return self.timeout_s
+        return self._intervalo * estado.limite_proprio
 
     def registrar_modulo(
         self,
@@ -56,11 +76,17 @@ class HealthMonitor:
         reconectar: CallbackRecuperacao | None = None,
         reiniciar: CallbackRecuperacao | None = None,
         agora: float | None = None,
+        heartbeats_perdidos_limite: int | None = None,
     ) -> None:
+        """`heartbeats_perdidos_limite` sobrescreve o limite global so para
+        este modulo (None = herda o global). Ver timeout_de."""
+        if heartbeats_perdidos_limite is not None and heartbeats_perdidos_limite <= 0:
+            raise ValueError("heartbeats_perdidos_limite deve ser positivo")
         self._modulos[nome] = _EstadoModuloMonitorado(
             ultimo_heartbeat=agora if agora is not None else time.monotonic(),
             reconectar=reconectar,
             reiniciar=reiniciar,
+            limite_proprio=heartbeats_perdidos_limite,
         )
 
     def receber_heartbeat(self, nome: str, agora: float | None = None) -> None:
@@ -75,7 +101,7 @@ class HealthMonitor:
         return [
             nome
             for nome, estado in self._modulos.items()
-            if instante - estado.ultimo_heartbeat > self.timeout_s
+            if instante - estado.ultimo_heartbeat > self.timeout_de(nome)
         ]
 
     def estado_de(self, nome: str) -> _EstadoModuloMonitorado:
