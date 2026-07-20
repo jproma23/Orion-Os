@@ -165,6 +165,8 @@ code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
 .voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+.capa{margin:0 0 2.5rem;border-radius:10px;overflow:hidden;line-height:0}
+.capa img{width:100%;height:auto;display:block}
 .hero{margin:0 0 2.5rem}
 .hero svg{width:100%;height:auto;color:var(--fg)}
 .hero figcaption{color:var(--suave);font-size:.85rem;text-align:center;margin-top:.6rem}
@@ -209,6 +211,8 @@ def abertura() -> str:
         for arq, nome, papel in pecas
     )
     return (
+        f'<div class="capa"><img src="assets/capa.webp" width="1600" height="638"'
+        f' alt="Joao Paulo e o robo Sentinela, do projeto ORION OS"></div>\n'
         f'<figure class="hero">{svg("corrente")}'
         f"<figcaption>Tres computadores em corrente: cada um so fala com o "
         f"vizinho.</figcaption></figure>\n"
