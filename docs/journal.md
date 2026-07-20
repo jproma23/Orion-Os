@@ -2400,3 +2400,27 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   do perfil e foto do proprio dono, em pagina dele - caso diferente.
 - **Proximo passo:** missao de audio (23/07). Journal como sempre, depois
   `python3 tools/build_blog.py` e push.
+
+---
+
+## 2026-07-20 (wake word "Fofão" - decisao adiada para o mic novo)
+
+- **Achado:** `src/orion/voice/wake_word.py` faz casamento EXATO da palavra
+  (`\b` sobre a transcricao). O Whisper erra fala curta com frequencia
+  ("fofao" -> "fofo", "fofa", etc.), entao match exato deixa passar quem
+  chamou. A memoria do projeto dizia "wake fuzzy", mas o codigo nunca teve
+  fuzzy - ficou so intencao.
+- **Descartado o fuzzy por similaridade** (difflib com limiar). Motivo: o
+  caso "fogao" da 0.80 de parecenca com "fofao", igual a mishears legitimas
+  como "fofau" - nao da pra separar por limiar sem ou perder acerto ou
+  acordar o robo toda vez que alguem fala em fogao (palavra de cozinha,
+  dita toda hora).
+- **Decisao (do dono):** manter match exato e apenas ACRESCENTAR a uma
+  lista as formas que o Whisper realmente cospe errado. Controle palavra a
+  palavra; "fogao"/"fulano" nunca entram na lista de proposito.
+- **Adiado para 24/07 (missao de audio):** a forma como o Whisper erra
+  depende da voz + mic + ambiente. Montar a lista OUVINDO de verdade com o
+  mic USB novo, nao no chute. Fluxo: robo erra ao vivo -> ver o que apareceu
+  na transcricao -> adicionar aquela forma.
+- **Aberto:** decidir se a lista fica em `config/orion.yaml` (editavel sem
+  mexer no codigo) ou fixa no codigo.
