@@ -98,27 +98,68 @@ def markdown_para_html(md: str) -> str:
             saida.append("</ul>")
             nivel_lista -= 1
 
-    for linha in linhas:
+    paragrafo: list[str] = []  # linhas de prosa ainda nao fechadas em <p>
+
+    def fechar_paragrafo() -> None:
+        if paragrafo:
+            saida.append(f"<p>{inline(' '.join(paragrafo))}</p>")
+            paragrafo.clear()
+
+    def eh_tabela(i: int) -> bool:
+        # Uma tabela e uma linha com | seguida da linha de tracos: |---|---|
+        return (
+            linhas[i].lstrip().startswith("|")
+            and i + 1 < len(linhas)
+            and re.match(r"^\s*\|[\s:|-]+\|\s*$", linhas[i + 1])
+        )
+
+    i = 0
+    while i < len(linhas):
+        linha = linhas[i]
+
         if linha.strip().startswith("```"):
+            fechar_paragrafo()
             fechar_listas()
             saida.append("</pre>" if em_codigo else "<pre>")
             em_codigo = not em_codigo
+            i += 1
             continue
         if em_codigo:
             saida.append(html.escape(linha))
+            i += 1
             continue
 
         if not linha.strip():
+            fechar_paragrafo()
             fechar_listas()
+            i += 1
             continue
 
-        if m := re.match(r"^(#{3,6})\s+(.*)$", linha):
+        if eh_tabela(i):
+            fechar_paragrafo()
             fechar_listas()
-            n = len(m.group(1))
+            celulas = lambda ln: [c.strip() for c in ln.strip().strip("|").split("|")]
+            cab = "".join(f"<th>{inline(c)}</th>" for c in celulas(linhas[i]))
+            saida.append(f"<table><thead><tr>{cab}</tr></thead><tbody>")
+            i += 2  # pula o cabecalho e a linha de tracos
+            while i < len(linhas) and linhas[i].lstrip().startswith("|"):
+                cols = "".join(f"<td>{inline(c)}</td>" for c in celulas(linhas[i]))
+                saida.append(f"<tr>{cols}</tr>")
+                i += 1
+            saida.append("</tbody></table>")
+            continue
+
+        # ## vira h3: o h2 ja e o titulo do post, entao a hierarquia continua certa.
+        if m := re.match(r"^(#{2,6})\s+(.*)$", linha):
+            fechar_paragrafo()
+            fechar_listas()
+            n = min(len(m.group(1)) + 1, 6)
             saida.append(f"<h{n}>{inline(m.group(2))}</h{n}>")
+            i += 1
             continue
 
         if m := re.match(r"^(\s*)[-*]\s+(.*)$", linha):
+            fechar_paragrafo()
             # Cada 2 espacos de indentacao = um nivel de aninhamento.
             alvo = len(m.group(1)) // 2 + 1
             while nivel_lista < alvo:
@@ -126,14 +167,18 @@ def markdown_para_html(md: str) -> str:
                 nivel_lista += 1
             fechar_listas(alvo)
             saida.append(f"<li>{inline(m.group(2))}</li>")
+            i += 1
             continue
 
         if nivel_lista:
             # Linha solta logo abaixo de um item: e continuacao dele.
             saida.append(f" {inline(linha.strip())}")
         else:
-            saida.append(f"<p>{inline(linha.strip())}</p>")
+            # Prosa: acumula ate a linha em branco, para virar um paragrafo so.
+            paragrafo.append(linha.strip())
+        i += 1
 
+    fechar_paragrafo()
     fechar_listas()
     if em_codigo:
         saida.append("</pre>")
@@ -161,6 +206,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -218,6 +268,21 @@ def abertura() -> str:
         f"vizinho.</figcaption></figure>\n"
         f'<div class="pecas">{cards}</div>'
     )
+
+
+def pagina_sobre() -> str:
+    """Gera docs/sobre.html a partir de docs/sobre.md. Devolve o link do indice."""
+    md = (SAIDA / "sobre.md").read_text(encoding="utf-8")
+    titulo, _, corpo = md.partition("\n")
+    miolo = (
+        '<a class="voltar" href="index.html">&larr; todos os posts</a>\n'
+        f'<article>\n<h2>{html.escape(titulo.lstrip("# "))}</h2>\n'
+        f"{markdown_para_html(corpo)}\n</article>"
+    )
+    (SAIDA / "sobre.html").write_text(
+        pagina(f"Sobre o {TITULO_SITE}", miolo), "utf-8"
+    )
+    return '<p class="secao"><a href="sobre.html">O que é o ORION OS →</a></p>'
 
 
 def galeria() -> str:
@@ -297,7 +362,7 @@ def main() -> None:
         for p in posts
     )
     indice = (
-        f'{abertura()}\n{galeria()}\n'
+        f'{abertura()}\n{pagina_sobre()}\n{galeria()}\n'
         f'<p class="secao">O diario, do mais novo ao mais antigo</p>\n'
         f'<ul class="indice">\n{itens}\n</ul>'
     )

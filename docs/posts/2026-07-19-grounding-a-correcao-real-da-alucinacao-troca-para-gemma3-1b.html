@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -69,14 +74,15 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
  &quot;nao sei (sem registro)&quot;, e lista de observacoes vazia vira &quot;nao tenho
  NENHUM registro hoje... devo dizer isso&quot;. Silencio convida invencao.
 <li><strong>Resultado medido - mesma pergunta que fez todos mentirem:</strong></li>
- | modelo | SEM contexto | COM contexto | tempo |
- |---|---|---|---|
- | gemma3:1b | &quot;Sim, vi! A Ana passou&quot; | &quot;Nao vi.&quot; | 16,5s |
- | llama3.2:3b | inventou registro &quot;as 14h30&quot; | &quot;Nao vi nada, Joao Paulo!&quot; | 41,6s |
- | qwen2.5:3b | (nao testado sem) | &quot;Nao vejo registros de ninguem hoje.&quot; | 43,2s |
- | gemma3:4b | &quot;nao tive noticia&quot; (ok) | &quot;Nao vi, Joao Paulo.&quot; | 48,8s |
- <strong>Os QUATRO pararam de inventar.</strong> Confirma: nunca foi problema de
- modelo, era falta de contexto (o usuario tinha razao).
+</ul>
+<table><thead><tr><th>modelo</th><th>SEM contexto</th><th>COM contexto</th><th>tempo</th></tr></thead><tbody>
+<tr><td>gemma3:1b</td><td>&quot;Sim, vi! A Ana passou&quot;</td><td>&quot;Nao vi.&quot;</td><td>16,5s</td></tr>
+<tr><td>llama3.2:3b</td><td>inventou registro &quot;as 14h30&quot;</td><td>&quot;Nao vi nada, Joao Paulo!&quot;</td><td>41,6s</td></tr>
+<tr><td>qwen2.5:3b</td><td>(nao testado sem)</td><td>&quot;Nao vejo registros de ninguem hoje.&quot;</td><td>43,2s</td></tr>
+<tr><td>gemma3:4b</td><td>&quot;nao tive noticia&quot; (ok)</td><td>&quot;Nao vi, Joao Paulo.&quot;</td><td>48,8s</td></tr>
+</tbody></table>
+<p><strong>Os QUATRO pararam de inventar.</strong> Confirma: nunca foi problema de modelo, era falta de contexto (o usuario tinha razao).</p>
+<ul>
 <li><strong>TROCA DE MODELO: gemma3:4b -&gt; gemma3:1b.</strong> So virou possivel por causa</li>
  do grounding: com os fatos prontos a IA nao deduz, so le e formula.
  Ganho: 880MB em vez de 2,9GB (RAM do notebook e apertada) e o mais

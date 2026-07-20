@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -67,11 +72,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
  o firmware definitivo. Antes da correcao do DHT: 1,5%. Causa raiz das
  respostas perdidas esta enterrada.
 <li><strong>Comparacao de modelos (bench com prompts reais do Fofao):</strong></li>
- | modelo | RAM | conversa | decisao | alucinou? |
- |---|---|---|---|---|
- | gemma3:1b | 880 MB | 10,5s | 10,6s | SIM - &quot;vi a Ana passar&quot; |
- | llama3.2:3b | 2,6 GB | 34,5s | 25,6s | SIM (pior) - inventou registro as 14h30 |
- | gemma3:4b | 2,9 GB | 20,2s | 51,5s | NAO - disse que nao teve noticia |
+</ul>
+<table><thead><tr><th>modelo</th><th>RAM</th><th>conversa</th><th>decisao</th><th>alucinou?</th></tr></thead><tbody>
+<tr><td>gemma3:1b</td><td>880 MB</td><td>10,5s</td><td>10,6s</td><td>SIM - &quot;vi a Ana passar&quot;</td></tr>
+<tr><td>llama3.2:3b</td><td>2,6 GB</td><td>34,5s</td><td>25,6s</td><td>SIM (pior) - inventou registro as 14h30</td></tr>
+<tr><td>gemma3:4b</td><td>2,9 GB</td><td>20,2s</td><td>51,5s</td><td>NAO - disse que nao teve noticia</td></tr>
+</tbody></table>
+<ul>
 <li><strong>Contraria a percepcao inicial:</strong> o gemma3:4b foi o mais RAPIDO na</li>
  conversa e o UNICO honesto. O llama3.2:3b (&quot;o que funcionava&quot;) foi o
  mais lento e o que mais inventou. O 1b tambem errou o nome do

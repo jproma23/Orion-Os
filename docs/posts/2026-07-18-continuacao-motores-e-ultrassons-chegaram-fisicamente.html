@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -62,10 +67,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
 <article>
 <p class="data">2026-07-18</p>
 <h2>continuação - motores e ultrassons chegaram fisicamente</h2>
-<p>Usuário conectou fisicamente hoje: os 2 motores de passo (NEMA17 via</p>
-<p>TB6600), o ultrassom traseiro (pinos 26/27, antes reservado) e o</p>
-<p>ultrassom frontal remontado no servo do radar (pino 9, antes fixo sem</p>
-<p>servo). Primeira vez testando esses três com hardware real.</p>
+<p>Usuário conectou fisicamente hoje: os 2 motores de passo (NEMA17 via TB6600), o ultrassom traseiro (pinos 26/27, antes reservado) e o ultrassom frontal remontado no servo do radar (pino 9, antes fixo sem servo). Primeira vez testando esses três com hardware real.</p>
 <ul>
 <li><strong><code>pins.h</code> atualizado:</strong> <code>ULTRASSOM_TRAS_TRIG/ECHO</code> e <code>SERVO_RADAR</code></li>
  movidos de RESERVADO para CONFIRMADO. Comentário desatualizado do

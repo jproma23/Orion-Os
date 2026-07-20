@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sobre o ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+.capa{margin:0 0 2.5rem;border-radius:10px;overflow:hidden;line-height:0}
+.capa img{width:100%;height:auto;display:block}
+.hero{margin:0 0 2.5rem}
+.hero svg{width:100%;height:auto;color:var(--fg)}
+.hero figcaption{color:var(--suave);font-size:.85rem;text-align:center;margin-top:.6rem}
+.pecas{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));
+  gap:1.5rem;margin:0 0 3rem;padding:1.5rem 0;border-block:1px solid var(--linha)}
+.peca{margin:0;text-align:center}
+.peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
+.peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
+.peca b{display:block;color:var(--fg);font-size:.9rem}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));
+  gap:1.25rem;margin:0 0 3rem}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:15rem;object-fit:cover;border-radius:8px;
+  background:var(--linha);display:block}
+.galeria figcaption{color:var(--suave);font-size:.82rem;margin-top:.5rem}
+.secao{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--suave);margin:0 0 1rem}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="index.html">&larr; todos os posts</a>
+<article>
+<h2>O que é o ORION OS</h2>
+<p>Um robô que percebe o ambiente, decide sozinho o que fazer e conversa com quem mora na casa. Tudo rodando <strong>no hardware que está na bancada</strong> — sem nuvem, sem API paga, sem depender de internet para funcionar.</p>
+<p>O primeiro robô da plataforma se chama <strong>Fofão</strong>.</p>
+<h3>Por que offline</h3>
+<p>A decisão de não usar nuvem não é ideologia, é engenharia. Um robô que depende de internet para desviar de um obstáculo tem um ponto único de falha do lado de fora da casa. Se a conexão cair, ele para.</p>
+<p>Então visão, voz e o modelo de linguagem rodam localmente. Custa mais trabalho — o hardware é modesto, e cada recurso precisa caber em 4 GB de RAM no Raspberry — mas o robô continua sendo robô com o roteador desligado.</p>
+<h3>A arquitetura: três computadores em corrente</h3>
+<p>Cada máquina faz o que sabe fazer melhor, e <strong>só conversa com a vizinha</strong>. O Notebook nunca acessa o Arduino direto.</p>
+<table><thead><tr><th>Unidade</th><th>Máquina</th><th>Do que cuida</th></tr></thead><tbody>
+<tr><td><strong>Mission Core</strong></td><td>Notebook 8 GB</td><td>Reconhecimento facial, conversa por voz, o rosto do robô, planejamento</td></tr>
+<tr><td><strong>Motion Core</strong></td><td>Raspberry Pi 4 + SSD</td><td>Kernel, decisão, navegação, memória, interface web</td></tr>
+<tr><td><strong>Hardware Core</strong></td><td>Arduino Mega 2560</td><td>Tempo real: motores, servos, ultrassom, IMU, parada de emergência</td></tr>
+</tbody></table>
+<p>Essa separação resolve um problema prático: tarefa de tempo real e tarefa pesada não convivem bem na mesma máquina. O Arduino garante que o motor para quando o ultrassom vê parede, em milissegundos, sem esperar decisão de ninguém. O Raspberry decide para onde ir. O Notebook pensa devagar, onde pensar devagar não faz mal.</p>
+<h3>O que já funciona</h3>
+<ul>
+<li><strong>Kernel próprio</strong> — event bus assíncrono com fila de prioridades,</li>
+ service registry, watchdog que escalona reconexão → reinício → alerta
+<li><strong>Behavior Core</strong> — a &quot;consciência&quot;: arbitra prioridade entre repouso,</li>
+ atender alguém, vigília e desvio de obstáculo
+<li><strong>Protocolo binário</strong> entre Pi e Arduino, com CRC, ACK, heartbeat e</li>
+ reconexão automática
+<li><strong>Visão</strong> — sabe quem é da casa, e dispara alerta para rosto desconhecido</li>
+<li><strong>Voz</strong> — palavra de ativação, detecção de fala e resposta falada</li>
+<li><strong>Memória</strong> — diário de observações em banco, com consulta determinística</li>
+ separada da conversa livre do modelo
+<li><strong>Interface web</strong> — mapa polar do radar, telemetria ao vivo, diagnóstico</li>
+</ul>
+<h3>Como este diário funciona</h3>
+<p>Cada entrada foi escrita <strong>no dia em que aconteceu</strong>, não em resumo de fim de projeto. Isso inclui os erros: o brownout que derrubava o Arduino, o ultrassom que media certo mas relatava errado, o modelo de linguagem que inventava resposta, o serviço que caía por causa de um HDMI ruim.</p>
+<p>A regra existe por um motivo prático — o projeto é grande demais para caber na memória entre uma sessão e outra. Mas o efeito colateral é que ficou um registro honesto de como um sistema desses realmente nasce: não em linha reta.</p>
+<p>O código está todo em <a href="https://github.com/jproma23/Orion-Os">github.com/jproma23/Orion-Os</a>.</p>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

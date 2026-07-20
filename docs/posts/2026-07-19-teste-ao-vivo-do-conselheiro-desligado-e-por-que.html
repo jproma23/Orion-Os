@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -63,26 +68,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
 <p class="data">2026-07-19</p>
 <h2>Teste ao vivo do conselheiro: DESLIGADO, e por que</h2>
 <p>Sequencia de falhas encontradas ao ligar o conselheiro ao vivo, na ordem:</p>
-<p>1. <strong>Bug meu:</strong> em conversar_fofao.py escrevi <code>event_bus</code> onde a variavel</p>
-<p>local se chama <code>bus</code>. O processo subia mudo e nunca conectava no Pi.</p>
-<p>2. <strong>Evento nao atravessa o link sozinho</strong> (Cap 14 s.7): quem quer mandar</p>
-<p>um evento ao outro no precisa reencaminhar com `comm.publish(...,</p>
-<p>local=False)`. Faltava nos dois lados - o Pi perguntava no vazio.</p>
-<p>Adicionado: Pi repassa TOPICO_PEDIDO, Notebook repassa TOPICO_RESPOSTA.</p>
-<p>3. <strong>Tempestade de requisicoes (causada por mim):</strong> o maestro repergunta a</p>
-<p>cada timeout (6s) e a inferencia levava &gt;8s. Pedidos empilhavam mais</p>
-<p>rapido que as respostas; o link TCP caia e reconectava em laco, com</p>
-<p><strong>37 conexoes vazadas</strong> na porta 5757. Corrigido com</p>
-<p><code>INTERVALO_CONSULTA_IA_S = 120</code> (ociosidade nao e urgencia).</p>
-<p>4. <strong>Timeouts invertidos:</strong> Pi esperava 6s, conselheiro do Notebook 8s - o</p>
-<p>Pi desistia antes de a resposta poder existir. Agora Pi 25s /</p>
-<p>conselheiro 20s (o de fora tem que ser maior que o de dentro).</p>
-<p>5. <strong>A causa que nao tem conserto por parametro:</strong> cada consulta derrubava</p>
-<p>o link. Padrao no log: heartbeat perdido -&gt; IA estoura o timeout -&gt;</p>
-<p>&quot;Link com o Motion Core caiu&quot;. A inferencia do gemma3:1b satura os</p>
-<p>nucleos do notebook por ~20s; o processo Python e preterido, os</p>
-<p>heartbeats atrasam e o Pi declara o link morto. **asyncio.to_thread</p>
-<p>protege o event loop de BLOQUEAR, mas nao de FALTA DE CPU.**</p>
+<p>1. <strong>Bug meu:</strong> em conversar_fofao.py escrevi <code>event_bus</code> onde a variavel local se chama <code>bus</code>. O processo subia mudo e nunca conectava no Pi. 2. <strong>Evento nao atravessa o link sozinho</strong> (Cap 14 s.7): quem quer mandar um evento ao outro no precisa reencaminhar com <code>comm.publish(..., local=False)</code>. Faltava nos dois lados - o Pi perguntava no vazio. Adicionado: Pi repassa TOPICO_PEDIDO, Notebook repassa TOPICO_RESPOSTA. 3. <strong>Tempestade de requisicoes (causada por mim):</strong> o maestro repergunta a cada timeout (6s) e a inferencia levava &gt;8s. Pedidos empilhavam mais rapido que as respostas; o link TCP caia e reconectava em laco, com <strong>37 conexoes vazadas</strong> na porta 5757. Corrigido com <code>INTERVALO_CONSULTA_IA_S = 120</code> (ociosidade nao e urgencia). 4. <strong>Timeouts invertidos:</strong> Pi esperava 6s, conselheiro do Notebook 8s - o Pi desistia antes de a resposta poder existir. Agora Pi 25s / conselheiro 20s (o de fora tem que ser maior que o de dentro). 5. <strong>A causa que nao tem conserto por parametro:</strong> cada consulta derrubava o link. Padrao no log: heartbeat perdido -&gt; IA estoura o timeout -&gt; &quot;Link com o Motion Core caiu&quot;. A inferencia do gemma3:1b satura os nucleos do notebook por ~20s; o processo Python e preterido, os heartbeats atrasam e o Pi declara o link morto. <strong>asyncio.to_thread protege o event loop de BLOQUEAR, mas nao de FALTA DE CPU.</strong></p>
 <ul>
 <li><strong>DECISAO: conselheiro DESLIGADO por padrao</strong> (`behavior.conselho_ia.</li>
  habilitado: false`). Entregava zero conselhos (a inferencia estourava o

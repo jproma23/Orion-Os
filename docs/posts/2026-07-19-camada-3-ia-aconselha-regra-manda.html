@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -69,13 +74,15 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
  valor fora da lista.
 <li><strong>MAS o teste revelou coisa pior: as ESCOLHAS estao erradas.</strong> O 1b</li>
  escolheu <code>repouso</code> em 3 de 4 situacoes:
- | situacao | escolheu | correto |
- |---|---|---|
- | obstaculo a 34cm | repouso | vigilancia_obstaculo |
- | rosto desconhecido 03:00 | vigilancia_obstaculo | vigilia |
- | Ana chamou &quot;Fofao&quot; | repouso | atender |
- | tudo calmo | repouso | ok |
- <strong>Schema garante resposta valida, nao resposta certa.</strong>
+</ul>
+<table><thead><tr><th>situacao</th><th>escolheu</th><th>correto</th></tr></thead><tbody>
+<tr><td>obstaculo a 34cm</td><td>repouso</td><td>vigilancia_obstaculo</td></tr>
+<tr><td>rosto desconhecido 03:00</td><td>vigilancia_obstaculo</td><td>vigilia</td></tr>
+<tr><td>Ana chamou &quot;Fofao&quot;</td><td>repouso</td><td>atender</td></tr>
+<tr><td>tudo calmo</td><td>repouso</td><td>ok</td></tr>
+</tbody></table>
+<p><strong>Schema garante resposta valida, nao resposta certa.</strong></p>
+<ul>
 <li><strong>Consequencia de projeto:</strong> a IA virou CONSELHEIRA, nao decisora</li>
  (<code>src/orion/mission/conselheiro_comportamento.py</code>):
 <ul>

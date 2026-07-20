@@ -25,6 +25,11 @@ ul.indice a:hover{text-decoration:underline}
 article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
 article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
 article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
 code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
@@ -77,13 +82,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
  observacoes no contexto pelo mesmo motivo.
 <li>16 testes (tests/unit/test_diario.py).</li>
 </ul>
-<h3>O achado que muda a conclusao de ontem</h3>
+<h4>O achado que muda a conclusao de ontem</h4>
 <p>Testei os DOIS lados (com registro e sem) e o 1b <strong>falhou</strong>:</p>
-<p>| caso | 1b (enfase em nao inventar) | 1b (enfase em usar fatos) | 4b |</p>
-<p>|---|---|---|---|</p>
-<p>| A) diario TEM a Ana | &quot;Nao vi&quot; ERRADO | &quot;Sim, as 14:30&quot; ok | ok |</p>
-<p>| B) diario VAZIO | &quot;Nao vi&quot; ok | &quot;Sim, a Ana passou&quot; ERRADO | ok |</p>
-<p>| C) diario so com BRUNO | &quot;Nao vi&quot; ok | &quot;Sim, as 09:12&quot; ERRADO | &quot;Sim, vi a Ana as 09:12&quot; <strong>ERRADO</strong> |</p>
+<table><thead><tr><th>caso</th><th>1b (enfase em nao inventar)</th><th>1b (enfase em usar fatos)</th><th>4b</th></tr></thead><tbody>
+<tr><td>A) diario TEM a Ana</td><td>&quot;Nao vi&quot; ERRADO</td><td>&quot;Sim, as 14:30&quot; ok</td><td>ok</td></tr>
+<tr><td>B) diario VAZIO</td><td>&quot;Nao vi&quot; ok</td><td>&quot;Sim, a Ana passou&quot; ERRADO</td><td>ok</td></tr>
+<tr><td>C) diario so com BRUNO</td><td>&quot;Nao vi&quot; ok</td><td>&quot;Sim, as 09:12&quot; ERRADO</td><td>&quot;Sim, vi a Ana as 09:12&quot; <strong>ERRADO</strong></td></tr>
+</tbody></table>
 <ul>
 <li><strong>Ontem eu validei o grounding com UM caso</strong> (o de recusa) e declarei</li>
  vitoria. Errado da minha parte: testando o caso oposto, o 1b so troca de
