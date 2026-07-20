@@ -54,7 +54,7 @@ def test_pessoa_conhecida_aparece_pelo_nome() -> None:
     texto = bloco_pessoas(
         {"pessoa_presente": True, "pessoa_nome": "João Paulo"}, ["João Paulo", "Ana"]
     )
-    assert "estou vendo agora: João Paulo" in texto
+    assert "estou vendo: João Paulo" in texto
     assert "Ana" in texto  # lista de conhecidos
 
 
@@ -68,19 +68,26 @@ def test_sem_observacoes_diz_que_nao_viu_nada() -> None:
     Este é o caso exato que fazia os modelos inventarem visitas.
     """
     texto = bloco_observacoes([])
-    assert "NENHUM registro" in texto
+    assert "VAZIO" in texto
     assert "devo dizer isso" in texto
 
 
 def test_observacoes_viram_linhas_datadas() -> None:
     texto = bloco_observacoes([{"quando": "14:30", "o_que": "Bruno chegou"}])
-    assert "14:30: Bruno chegou" in texto
+    assert "14:30" in texto and "Bruno chegou" in texto
+    # o bloco tem que INSTRUIR a usar o registro, nao so lista-lo: sem
+    # isso o gemma3:1b negava ter visto alguem que estava no diario
+    # (medido 2026-07-19).
+    assert "responda que SIM" in texto
 
 
 def test_contexto_completo_sempre_traz_a_regra_anti_invencao() -> None:
     texto = montar_contexto()
     assert REGRA_ANTI_INVENCAO in texto
-    assert "NUNCA invente" in texto
+    assert "Nunca invente" in texto
+    # a regra tem que valer nos DOIS sentidos - so proibir inventar fazia
+    # o modelo recusar ate o que estava escrito no diario.
+    assert "Negar o que está escrito no diário" in texto
 
 
 def test_contexto_inclui_conversa_recente() -> None:

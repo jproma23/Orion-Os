@@ -45,6 +45,7 @@ from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
 from orion.mission.alivio_carga import AlivioCarga  # noqa: E402
+from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.conselheiro_comportamento import (  # noqa: E402
     ConselheiroComportamento,
 )
@@ -304,10 +305,17 @@ async def principal() -> None:
                 logger.debug("falha ao reportar saude ao Pi (link caiu?)", exc_info=True)
             await asyncio.sleep(intervalo)
 
+    # Diario (camada 2 da cognicao): escuta o que a visao ve e grava; o
+    # planner le de volta para o grounding. Sem ele o bloco de observacoes
+    # chegava sempre vazio - o robo era honesto por nao ter memoria, nao
+    # por ter olhado.
+    diario = DiarioObservacoes(bus, MemoryClient(comm))
+
     planner = MissionPlanner(
         ia,
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),
+        diario=diario,
     )
 
     def limpar_para_fala(texto: str) -> str:

@@ -14,8 +14,6 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import ollama
-
 from orion.mission.grounding import montar_contexto
 
 
@@ -37,6 +35,11 @@ class AiManager:
         # Sem keep_alive o Ollama descarrega o modelo apos ~5min ocioso e a
         # proxima resposta paga o recarregamento inteiro (dezenas de segundos).
         self._keep_alive = f"{keep_alive_minutes}m" if keep_alive_minutes else None
+        # Import preguicoso: a lib `ollama` so existe no Notebook. Sem isto
+        # o mission_planner (que importa esta classe) nao era importavel no
+        # Raspberry nem nos testes - mesma armadilha do conselheiro.
+        import ollama
+
         self._cliente = ollama.Client()
 
     async def responder(self, texto_usuario: str, contexto: dict | None = None) -> str:

@@ -57,11 +57,20 @@ def bloco_pessoas(retrato: dict[str, Any] | None, familia: list[str] | None) -> 
     if r.get("pessoa_presente"):
         nome = r.get("pessoa_nome")
         if nome:
-            linhas.append(f"- estou vendo agora: {nome}")
+            linhas.append(f"- neste exato momento estou vendo: {nome}")
         else:
-            linhas.append("- estou vendo agora: alguém que NÃO reconheço")
+            linhas.append("- neste exato momento estou vendo: alguém que NÃO reconheço")
     else:
-        linhas.append("- não estou vendo ninguém agora")
+        # "neste exato momento" e nao so "agora": medido em 2026-07-19, o
+        # gemma3:1b lia "nao estou vendo ninguem agora" e respondia "nao vi"
+        # a perguntas sobre o DIA INTEIRO, ignorando os registros logo
+        # abaixo. Separar os dois tempos com clareza no proprio texto e o
+        # que faz um modelo pequeno nao confundir agora com hoje.
+        linhas.append(
+            "- neste exato momento não estou vendo ninguém "
+            "(isso NÃO diz nada sobre o resto do dia - para isso use os "
+            "registros abaixo)"
+        )
 
     if familia:
         linhas.append(f"- pessoas que eu conheço: {', '.join(familia)}")
@@ -77,24 +86,37 @@ def bloco_observacoes(observacoes: list[dict[str, Any]] | None) -> str:
     """
     if not observacoes:
         return (
-            "MEUS REGISTROS DE HOJE:\n"
-            "- não tenho NENHUM registro de pessoas ou eventos hoje\n"
-            "- se perguntarem sobre algo que aconteceu, eu não vi e devo dizer isso"
+            "TUDO O QUE EU VI HOJE (meu diário completo do dia):\n"
+            "- o diário está VAZIO: não vi ninguém e nada aconteceu hoje\n"
+            "- se perguntarem sobre algo de hoje, eu realmente não vi e devo "
+            "dizer isso"
         )
 
     linhas = [
-        f"- {o.get('quando', 'hora desconhecida')}: {o.get('o_que', '?')}"
+        f"- às {o.get('quando', 'hora desconhecida')} eu vi: {o.get('o_que', '?')}"
         for o in observacoes
     ]
-    return "MEUS REGISTROS DE HOJE:\n" + "\n".join(linhas)
+    return (
+        "TUDO O QUE EU VI HOJE (meu diário completo do dia):\n"
+        + "\n".join(linhas)
+        + "\n- estes são fatos que EU VI. Se a pergunta for sobre alguém "
+        "desta lista, responda que SIM, eu vi, e diga a hora."
+    )
 
 
-REGRA_ANTI_INVENCAO = """REGRA MAIS IMPORTANTE:
-Você só pode afirmar o que está escrito nos fatos acima. Se perguntarem
-algo que os fatos não cobrem, responda que não sabe ou não viu - com
-naturalidade, sem se desculpar demais. NUNCA invente uma observação, um
-horário ou um registro. Dizer "não sei" é a resposta certa e esperada;
-inventar é o erro mais grave que você pode cometer."""
+REGRA_ANTI_INVENCAO = """REGRA MAIS IMPORTANTE - vale nos DOIS sentidos:
+
+1. Se os fatos acima RESPONDEM a pergunta, use-os e responda com confiança.
+   Se o meu diário diz que eu vi alguém hoje, então eu VI - responda que
+   sim e diga a hora. Negar o que está escrito no diário é tão errado
+   quanto inventar.
+
+2. Se os fatos acima NÃO cobrem a pergunta, diga que não sabe ou não viu,
+   com naturalidade. Nunca invente uma observação, um horário ou uma
+   visita que não esteja escrita ali.
+
+Resumindo: o diário é a verdade. Não acrescente nada a ele, e não negue
+nada que esteja nele."""
 
 
 def montar_contexto(

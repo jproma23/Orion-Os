@@ -2268,3 +2268,58 @@ O MPU estava bom desde o início; o teste é que destravou o resto.
 alívio de carga) sobreviveram porque **publicar evento não falha**. O
 código logava que estava trabalhando e ninguém escutava do outro lado.
 Vale desconfiar de todo `publish` cujo consumidor não se consegue apontar.
+
+## 2026-07-20 (Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados)
+
+- **`src/orion/mission/diario.py`:** escuta `vision.person_detected` e
+  `sentinela.alerta`, grava na tabela `eventos` (categoria memoria
+  "eventos", origem "diario") e le de volta em
+  `observacoes_de_hoje()` no formato que o grounding espera. Plugado no
+  MissionPlanner (`contexto["observacoes"]`) e no conversar_fofao.
+  Ate aqui o bloco de observacoes chegava SEMPRE vazio - o robo era
+  honesto por nao ter memoria, nao por ter olhado.
+- **Cuidado principal - nao inundar:** `vision.person_detected` dispara a
+  cada verificacao. Sem janela de silencio (600s por pessoa) seriam
+  centenas de "vi o Joao Paulo" por hora, enchendo o prompt de repeticao -
+  a melhor forma de um modelo pequeno perder o que importa. Teto de 8
+  observacoes no contexto pelo mesmo motivo.
+- 16 testes (tests/unit/test_diario.py).
+
+### O achado que muda a conclusao de ontem
+
+Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
+
+| caso | 1b (enfase em nao inventar) | 1b (enfase em usar fatos) | 4b |
+|---|---|---|---|
+| A) diario TEM a Ana | "Nao vi" ERRADO | "Sim, as 14:30" ok | ok |
+| B) diario VAZIO | "Nao vi" ok | "Sim, a Ana passou" ERRADO | ok |
+| C) diario so com BRUNO | "Nao vi" ok | "Sim, as 09:12" ERRADO | "Sim, vi a Ana as 09:12" **ERRADO** |
+
+- **Ontem eu validei o grounding com UM caso** (o de recusa) e declarei
+  vitoria. Errado da minha parte: testando o caso oposto, o 1b so troca de
+  modo de falha conforme a enfase da instrucao - ele segue o TOM, nao os
+  dados. Reescrever o prompt nao conserta.
+- **O caso C e o pior e derruba os DOIS modelos:** existe um registro com
+  hora, entao respondem "sim, as tal hora" sem conferir DE QUEM e. Atribuir
+  a visita do Bruno a Ana e afirmacao falsa sobre a familia.
+- **Conclusao de projeto: isso nao e tarefa de modelo de linguagem, e
+  consulta a banco.** Perguntas "voce viu o fulano hoje?" passaram a ser
+  respondidas DETERMINISTICAMENTE no MissionPlanner
+  (`_responder_sobre_quem_viu`), por comparacao de nome, seguindo o padrao
+  que ja existia para "que horas sao". A IA fica com conversa livre, que e
+  o que ela faz bem. 18 testes (tests/unit/test_planner_diario.py),
+  incluindo o caso C que os dois modelos erraram.
+- Grounding tambem foi rebalanceado (a regra so punia inventar; agora
+  tambem diz que negar o que esta no diario e erro) e separa
+  "neste exato momento" de "hoje" - o 1b lia "nao estou vendo ninguem
+  agora" e respondia sobre o dia inteiro.
+- **Correcao lateral:** `ai_manager` importava `ollama` no topo, o que
+  tornava o `mission_planner` inimportavel no Pi e nos testes (nenhum teste
+  o importava, por isso ninguem viu). Import preguicoso, igual ao
+  conselheiro.
+- Suite: **295 passed, 8 skipped**.
+- **PENDENCIA:** o modelo continua sendo o gemma3:1b para conversa livre -
+  com o grounding ele nao inventa, e a parte factual agora nao passa por
+  ele. Mas a validacao "os quatro modelos pararam de inventar" do journal
+  de ontem vale so para o caso de RECUSA; nao repetir essa conclusao sem
+  testar os dois lados.
