@@ -110,9 +110,12 @@ class WebUIServer:
                 "estado": None,
                 "em_movimento": None,
                 "distancia_frontal_cm": None,
+                "distancia_traseira_cm": None,
                 "temperatura_c": None,
                 "umidade_percent": None,
                 "inclinacao_graus": None,
+                "aceleracao_g": None,
+                "impacto_detectado": None,
             },
             "posicao": None,
             "seguranca": {"safe_mode_ativo": False, "motivo": None},
@@ -270,9 +273,12 @@ class WebUIServer:
                 "estado",
                 "em_movimento",
                 "distancia_frontal_cm",
+                "distancia_traseira_cm",
                 "temperatura_c",
                 "umidade_percent",
                 "inclinacao_graus",
+                "aceleracao_g",
+                "impacto_detectado",
             ):
                 if campo in dados:
                     hardware[campo] = dados[campo]

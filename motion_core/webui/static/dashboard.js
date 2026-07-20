@@ -23,9 +23,13 @@ function renderizarEstado(estado) {
   $('seg-motivo').textContent = formatar(estado.seguranca.motivo);
 
   $('tel-distancia').textContent = formatar(estado.hardware.distancia_frontal_cm, ' cm');
+  $('tel-distancia-tras').textContent = formatar(estado.hardware.distancia_traseira_cm, ' cm');
   $('tel-temp').textContent = formatar(estado.hardware.temperatura_c, ' °C');
   $('tel-umidade').textContent = formatar(estado.hardware.umidade_percent, ' %');
   $('tel-inclinacao').textContent = formatar(estado.hardware.inclinacao_graus, '°');
+  $('tel-aceleracao').textContent = formatar(estado.hardware.aceleracao_g, ' G');
+  const imp = estado.hardware.impacto_detectado;
+  $('tel-impacto').textContent = imp === null ? '—' : (imp ? 'IMPACTO!' : 'ok');
 
   if (estado.posicao) {
     $('pos-x').textContent = formatar(estado.posicao.x_m, ' m');

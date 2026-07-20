@@ -257,3 +257,14 @@ async def test_comando_acao_desconhecida_publica_navigation_error(cenario):
     await cenario.bus.publish("navigation.comando", {"acao": "VOAR"})
     await cenario.bus.aguardar_fila_vazia()
     assert any(e.topico == "navigation.error" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_comando_scan_front_avulso_faz_varredura(cenario):
+    # SCAN_FRONT sozinho (Ronda e comando de voz "varredura") deve varrer,
+    # nao virar "acao desconhecida" como acontecia antes do conserto.
+    await cenario.bus.publish("navigation.comando", {"acao": "SCAN_FRONT"})
+    await cenario.bus.aguardar_fila_vazia()
+    await asyncio.sleep(0.05)  # o scan roda como task do handler do bus
+    assert "SCAN_FRONT" in cenario.comandos_enviados()
+    assert not any(e.topico == "navigation.error" for e in cenario.eventos)

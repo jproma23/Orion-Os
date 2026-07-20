@@ -5,9 +5,10 @@
 // binario.
 //
 // Fiacao confirmada nesta montagem (guia de ligacao eletrica, atualizado
-// 2026-07-18): motores (pinos 2-6), ultrassom frontal fixo (22/23),
-// ultrassom traseiro (26/27), IMU I2C (20/21), DHT (24), servo do radar
-// (9) e servos pan/tilt (10/11). Encoders e LED continuam RESERVADOS -
+// 2026-07-20): motores (pinos 2-6), ultrassom frontal (26/27) e traseiro
+// (22/23) - CORRIGIDO 2026-07-20: estavam trocados, tapar o traseiro mexia
+// na distancia frontal; ver nota em pins.h. IMU I2C (20/21), DHT (24),
+// servo do radar (9) e servos pan/tilt (10/11). Encoders e LED RESERVADOS -
 // ver pins.h - ainda nao ligados fisicamente.
 #include <Arduino.h>
 #include <ArduinoJson.h>

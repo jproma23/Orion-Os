@@ -26,9 +26,12 @@ constexpr uint8_t DIR_DIREITO = 5;
 // mas sem efeito fisico nesta montagem.
 constexpr uint8_t ENABLE_MOTORES = 6;  // compartilhado; NAO CONECTADO
 
-// --- Ultrassonico frontal (CONFIRMADO) - HC-SR04 fixo, sem servo ---
-constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 22;
-constexpr uint8_t ULTRASSOM_FRENTE_ECHO = 23;
+// --- Ultrassonico frontal - HC-SR04 fixo, sem servo ---
+// CORRIGIDO 2026-07-20: frente e tras estavam trocados no codigo. Tapar o
+// sensor traseiro mexia na distancia_frontal_cm (a navegacao desviava
+// olhando o sensor errado). O sensor fisico da FRENTE esta nos pinos 26/27.
+constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 26;
+constexpr uint8_t ULTRASSOM_FRENTE_ECHO = 27;
 
 // --- IMU (CONFIRMADO) - MPU6050/9250, pinos fixos de I2C do Mega ---
 constexpr uint8_t IMU_SDA = 20;
@@ -37,9 +40,11 @@ constexpr uint8_t IMU_SCL = 21;
 // --- Temperatura/umidade (CONFIRMADO) - DHT11/22 ---
 constexpr uint8_t DHT_DATA = 24;
 
-// --- Ultrassonico traseiro (CONFIRMADO 2026-07-18) - HC-SR04 fixo ---
-constexpr uint8_t ULTRASSOM_TRAS_TRIG = 26;
-constexpr uint8_t ULTRASSOM_TRAS_ECHO = 27;
+// --- Ultrassonico traseiro - HC-SR04 fixo ---
+// CORRIGIDO 2026-07-20: ver nota no frontal. O sensor fisico de TRAS esta
+// nos pinos 22/23.
+constexpr uint8_t ULTRASSOM_TRAS_TRIG = 22;
+constexpr uint8_t ULTRASSOM_TRAS_ECHO = 23;
 
 // --- Servo do radar (CONFIRMADO 2026-07-18) - varre o ultrassom frontal ---
 constexpr uint8_t SERVO_RADAR = 9;

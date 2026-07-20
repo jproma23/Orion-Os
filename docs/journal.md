@@ -2496,3 +2496,26 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   tilt=0, a cabeça no repouso JÁ fica nivelada agora que os fios estão
   certos. O "olhando pra cima" de antes era o efeito dos canais cruzados,
   não uma pose errada. Nada a mudar no código.
+
+---
+
+## 2026-07-20 (varredura por voz + ultrassom frente/trás trocado + telemetria na web)
+
+- **Comando de voz "varredura"** adicionado (`mission_planner.py`): padrão
+  varredura|varrer|escanear|scan → SCAN_FRONT, enviado ao Mega. O
+  motion.scan_complete resultante preenche o mapa polar da web.
+- **Bug real na navegação:** `_ao_receber_comando` não tratava SCAN_FRONT -
+  caía no else como "ação desconhecida". A Ronda pede exatamente isso, então
+  a varredura autônoma nunca funcionou. Adicionado o caso → `_escanear_a_frente()`.
+  Conserta a Ronda e habilita o comando de voz. +2 testes.
+- **Ultrassom frente↔trás estava trocado no código** (achado do dono: tapar
+  o sensor traseiro mexia na distancia_frontal_cm - a navegação desviava
+  olhando o sensor errado, que é segurança). Corrigido em `pins.h`: frontal
+  agora 26/27, traseiro 22/23. Comentário do main.cpp atualizado.
+  **Firmware recompilado e regravado no Mega** (pio, RAM 36%, flash 16,6%).
+- **Telemetria que o firmware já mandava mas a web ignorava**, agora exposta
+  na dashboard: distância traseira, aceleração (G) e impacto. Sanity check
+  ao vivo: aceleracao_g ≈ 1,01 parado (= gravidade), traseira lendo 33 cm.
+- **Aceleração:** confirmado que já é medida (MPU6050) - usada para detecção
+  de impacto (limiar 2,5 G, ajustável, EEPROM) e inclinação; agora também
+  visível na tela.

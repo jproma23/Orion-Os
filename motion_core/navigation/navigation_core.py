@@ -220,6 +220,11 @@ class NavigationCore:
                 await self.iniciar_follow()
             elif acao == "EXPLORE":
                 await self.executar_explore()
+            elif acao == "SCAN_FRONT":
+                # Varredura avulsa (sem andar): a Ronda e o comando de voz
+                # "varredura" pedem isto. O motion.scan_complete resultante
+                # alimenta o mapa da web. Antes caia no else e virava erro.
+                await self._escanear_a_frente()
             else:
                 raise ErroNavegacao(f"acao de navegacao desconhecida: {acao!r}")
         except (ErroNavegacao, ErroComunicacao, KeyError) as erro:

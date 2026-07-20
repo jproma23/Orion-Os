@@ -83,6 +83,22 @@ async def test_comando_stop():
 
 
 @pytest.mark.asyncio
+async def test_comando_varredura_manda_scan_e_nao_chama_ia():
+    ai = AiManagerFalso()
+    comandos_enviados = []
+
+    async def enviar(comando):
+        comandos_enviados.append(comando)
+
+    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
+    resposta = await planner.processar("Fofao, faz uma varredura")
+
+    assert comandos_enviados == ["SCAN_FRONT"]
+    assert "varr" in resposta.lower()
+    assert ai.chamadas == []  # comando reconhecido, nao cai na IA
+
+
+@pytest.mark.asyncio
 async def test_falha_ao_enviar_comando_retorna_mensagem_de_erro():
     async def enviar_com_erro(comando):
         raise RuntimeError("sem link com o hardware")
