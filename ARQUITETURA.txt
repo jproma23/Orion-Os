@@ -1,4 +1,4 @@
-# ARQUITETURA.md — ORION OS
+# ARQUITETURA — ORION OS
 
 Regras de arquitetura e convencoes do ORION OS. Todo modulo novo segue o que
 está aqui.

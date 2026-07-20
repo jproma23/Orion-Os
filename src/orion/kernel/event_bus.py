@@ -1,7 +1,7 @@
 """Event Bus assincrono do Kernel (Cap 6 secao 5).
 
 Toda comunicacao entre modulos passa por aqui - nenhum modulo chama outro
-diretamente (regra arquitetural #1 do ARQUITETURA.md). A entrega respeita
+diretamente (regra arquitetural #1 do ARQUITETURA.txt). A entrega respeita
 prioridade: eventos de prioridade mais alta sao despachados antes, mesmo que
 publicados depois de eventos de prioridade mais baixa ja estarem na fila.
 """
