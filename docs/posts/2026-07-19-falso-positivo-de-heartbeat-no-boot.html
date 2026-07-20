@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Falso positivo de heartbeat no boot — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Falso positivo de heartbeat no boot</h2>
+<ul>
+<li><strong>Causa (nao era o que eu supus):</strong> a perda aparecia IMEDIATAMENTE apos o</li>
+ registro, com 45s de tolerancia configurados - logo nao vinha do caminho
+ do timeout. Vinha do outro: <code>iniciar()</code> chama <code>enviar_heartbeat</code> desde a
+ primeira volta, mas no boot o laco comeca ANTES de o supervisor TCP abrir
+ o link. <code>_resolver_link</code> levanta &quot;sem rota&quot;, e o codigo tratava isso como
+ PERDA. **&quot;Ainda nao conectei&quot; e &quot;perdi a conexao&quot; sao estados
+ diferentes** - o codigo confundia os dois.
+<li><strong>Conserto:</strong> <code>_ja_estabelecidos</code> (peers com quem a comunicacao ja</li>
+ funcionou pelo menos uma vez, por envio OU por recebimento).
+ <code>_marcar_perdido</code> ignora quem nunca conectou; o nivel do log de falha ao
+ enviar acompanha (debug antes do primeiro sucesso, warning depois).
+ Efeito colateral bom: para de disparar reconexao para um link que ja
+ estava sendo aberto.
+<li><strong>Teste antigo precisou mudar</strong> (`test_falha_ao_enviar_heartbeat_tambem_</li>
+ gera_comm_module_lost`): ele simulava &quot;link que morreu&quot; simplesmente NAO
+ registrando o link - usando &quot;sem rota&quot; como atalho. O atalho virou
+ ambiguo, porque &quot;sem rota&quot; e tambem o estado do boot; era exatamente a
+ confusao sendo corrigida. Agora o teste usa um transporte que funciona
+ uma vez e depois quebra - o cenario que ele sempre disse cobrir. A
+ INTENCAO do teste foi preservada, so o setup mudou.
+<li>4 testes novos (tests/unit/test_heartbeat_boot.py), incluindo o inverso</li>
+ (a carencia acaba no primeiro sucesso - nao pode virar mordaca) e que
+ RECEBER heartbeat tambem estabelece o peer. Validados dos dois lados:
+ bug reintroduzido de proposito -&gt; 2 falharam; restaurado -&gt; passaram.
+<li>Suite: <strong>252 passed, 8 skipped</strong>.</li>
+<li><strong>Confirmado em campo:</strong> boot do Notebook agora vai direto de</li>
+ &quot;tolerancia propria de 45 perdidos (45s)&quot; para &quot;Motion Core conectado&quot;,
+ sem &quot;Heartbeat perdido&quot; no meio. Pi: zero falsos positivos.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

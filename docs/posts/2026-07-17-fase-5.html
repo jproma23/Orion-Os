@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 5 — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 5</h2>
+<ul>
+<li><strong>Fase 5 implementada e validada com webcam real.</strong> Criado</li>
+ <code>src/orion/vision/</code>: <code>captura.py</code> (CapturaCamera assíncrona sobre
+ cv2.VideoCapture, com descarte de frames de aquecimento — achado real: o
+ primeiro frame lido logo após abrir a porta vem quase preto, a câmera
+ ainda ajustando exposição/balanço de branco), <code>deteccao.py</code> (DetectorYolo,
+ YOLOv8n), <code>reconhecimento_facial.py</code> (ReconhecedorFacial via
+ <code>face_recognition</code>/dlib, embeddings comparados por distância euclidiana
+ contra <code>pessoas.embedding_face</code>), <code>rastreamento.py</code> (Rastreador de um
+ alvo único, com janela de tolerância antes de declarar &quot;perdido&quot;),
+ <code>pan_tilt.py</code> (CalculadoraPanTilt: controle proporcional simples com
+ limites de ângulo/velocidade, sem dependências pesadas), <code>vision_core.py</code>
+ (orquestrador completo, publica todos os eventos do Cap 8 s.5,
+ recuperação de câmera desconectada).
+<li><strong>Extensão justificada no firmware:</strong> adicionado o comando <code>SET_PAN_TILT</code></li>
+ ao Mega (não estava na lista original do Cap 10 s.5, mas os servos
+ pan/tilt já constavam no Cap 10 s.2 e o Cap 8 s.8 exige o comando) -
+ testado no Mega real (ACK ok), servos ainda não montados fisicamente.
+<li><strong>Dependências novas</strong> (<code>pyproject.toml</code>, extra <code>vision</code>): opencv-python,</li>
+ ultralytics, face-recognition. Instalado no Notebook (dlib/face_recognition
+ compilou por ~25min usando os 4 núcleos via LTO).
+<li><strong>Bug de ambiente real encontrado e corrigido:</strong> <code>face_recognition</code></li>
+ chama <code>quit()</code> internamente (não levanta <code>ImportError</code>) quando falta
+ <code>pkg_resources</code> - o <code>setuptools</code> mais recente (83.x) removeu esse módulo
+ (deprecado, remoção prevista para 2025-11-30). Como <code>quit()</code> gera
+ <code>SystemExit</code>, isso derrubava o processo <code>pytest</code> inteiro, não só pulava
+ o teste. Corrigido fixando <code>setuptools&lt;81</code> e instalando
+ <code>face-recognition-models</code> direto do GitHub (não vem sozinho via pip) -
+ ambos documentados em <code>pyproject.toml</code>.
+<li><strong>Padrão de teste:</strong> <code>pytest.importorskip</code> para cv2/ultralytics/</li>
+ face_recognition/numpy em todos os testes que precisam dessas libs -
+ no Raspberry Pi (que nunca roda Vision Core) esses testes pulam
+ graciosamente; no Notebook rodam de verdade. <code>VisionCore</code> ganhou
+ parâmetros de injeção (<code>captura</code>, <code>detector</code>, <code>reconhecedor</code>,
+ <code>timeout_alvo_perdido_s</code>) para testar a lógica de orquestração sem
+ precisar de câmera/modelos reais.
+<li><strong>Descoberta de hardware:</strong> o Notebook tem DUAS câmeras físicas - a</li>
+ integrada (&quot;PC Camera&quot;, índice 0/1) e, após o usuário conectar durante a
+ sessão, a webcam USB externa dedicada à visão (&quot;DV20 USB&quot;, índice 2/3).
+ Adicionado <code>camera_indice_principal</code>/<code>camera_indice_luminosidade</code> em
+ <code>config/orion.yaml</code> (Cap 17) para não fixar esses índices no código -
+ podem mudar se os cabos forem replugados em outra ordem. Dois
+ dispositivos de captura de áudio também presentes (mic da webcam +
+ USB Audio Device) - relevante para a Fase 6.
+<li><strong>Testado com a webcam real:</strong> pipeline completo (captura → YOLO →</li>
+ reconhecimento facial → rastreamento → Event Bus) rodou sem erros contra
+ <code>/dev/video2</code> de verdade; frame capturado e inspecionado (câmera
+ apontada para o canto do teto, sem pessoa no quadro - por isso zero
+ detecções, resultado correto para a cena, não um bug). Usuário optou por
+ não repetir o teste com uma pessoa em frente à câmera por ora.
+<li><strong>128 testes unitários passando no Notebook</strong> (118 + 2 pulados no</li>
+ Raspberry, onde as libs de visão não são instaladas de propósito).
+<li><strong>Pendência real, não é código:</strong> assim como a Fase 4, falta a montagem</li>
+ física dos servos pan/tilt para fechar o critério de &quot;pronto&quot; por
+ completo (SET_PAN_TILT já funciona no protocolo; falta o servo de
+ verdade responder). Um teste com pessoa real em frente à câmera também
+ fica para confirmar <code>vision.person_detected</code>/<code>person_recognized</code> de
+ ponta a ponta.
+<li><strong>Próximo passo:</strong> Fase 6 — Voz e IA (Caps 9, 7): wake word &quot;Fofão&quot; +</li>
+ Whisper + Piper (offline), AI Manager via Ollama (já instalado com
+ <code>llama3.2:3b</code> desde a Fase 2), Mission Planner. Dois microfones já
+ disponíveis no Notebook para essa fase.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camada 3: IA aconselha, regra manda — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Camada 3: IA aconselha, regra manda</h2>
+<ul>
+<li><strong>Saida estruturada testada no gemma3:1b</strong> (ollama 0.32.1 suporta schema</li>
+ JSON com <code>enum</code>): 4/4 respostas com nome de comportamento VALIDO. O erro
+ &quot;vigilancia&quot; (que nao existe) acabou - a gramatica nao permite gerar
+ valor fora da lista.
+<li><strong>MAS o teste revelou coisa pior: as ESCOLHAS estao erradas.</strong> O 1b</li>
+ escolheu <code>repouso</code> em 3 de 4 situacoes:
+ | situacao | escolheu | correto |
+ |---|---|---|
+ | obstaculo a 34cm | repouso | vigilancia_obstaculo |
+ | rosto desconhecido 03:00 | vigilancia_obstaculo | vigilia |
+ | Ana chamou &quot;Fofao&quot; | repouso | atender |
+ | tudo calmo | repouso | ok |
+ <strong>Schema garante resposta valida, nao resposta certa.</strong>
+<li><strong>Consequencia de projeto:</strong> a IA virou CONSELHEIRA, nao decisora</li>
+ (<code>src/orion/mission/conselheiro_comportamento.py</code>):
+<ul>
+<li>seguranca ativa -&gt; a IA NEM E CONSULTADA (regra determinística vence);</li>
+<li><code>COMPORTAMENTOS_DE_SEGURANCA</code> nunca entram na lista oferecida a ela -</li>
+ entrar em seguranca e condicao fisica medida, nao opiniao;
+<li>toda resposta e validada de novo em Python (cinto e suspensorio, caso</li>
+ o schema falhe);
+<li>timeout de 8s: conselho atrasado nao serve, o maestro nao espera.</li>
+ No pior caso (IA burra/lenta/fora do ar) o robo se comporta exatamente
+ como se comportava sem ela.
+</ul>
+<li>Import de <code>ollama</code> ficou preguicoso (dentro do __init__): a lib so existe</li>
+ no Notebook, e o modulo precisa ser importavel no Pi e nos testes.
+<li>8 testes novos, todos sobre &quot;a IA nao pode atrapalhar&quot;. Suite: 227 passed.</li>
+<li><strong>Modelos:</strong> removidos llama3.2:3b e qwen2.5:3b (superados). MANTIDO o</li>
+ gemma3:4b - com o julgamento fraco do 1b, ele e o candidato natural para
+ a camada de decisao. Disco tem 176GB livres, nao ha pressao.
+<li><strong>Quantizar o 4b: NAO.</strong> Ja e Q4_K_M. Descer para Q3/Q2 exige gerar com</li>
+ llama.cpp, economiza ~1GB de disco que sobra, e degrada justamente a
+ qualidade de julgamento que e o unico motivo de manter o 4b. Modelo
+ parado tambem nao ocupa RAM - so o carregado ocupa.
+<li><strong>PENDENCIA:</strong> conselheiro criado e testado, mas ainda NAO plugado no</li>
+ BehaviorCore. Falta a ponte Pi&lt;-&gt;Notebook (o maestro roda no Pi, a IA no
+ Notebook) e decidir em que situacoes vale consultar.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CAUSA RAIZ das respostas perdidas: o DHT fantasma — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>CAUSA RAIZ das respostas perdidas: o DHT fantasma</h2>
+<ul>
+<li>Investigada a pendencia da resposta perdida. **Causa raiz achada e</li>
+ corrigida** - e nao era o que o platformio.ini dizia.
+<li><strong>O mecanismo:</strong> a biblioteca Adafruit DHT faz bit-banging no pino COM</li>
+ AS INTERRUPCOES DESLIGADAS. Com elas desligadas a ISR que enche o buffer
+ serial nao roda; a 115200 baud chegam ~57 bytes em 5ms e o hardware do
+ ATmega so segura 2-3. O resto se perde e corrompe o quadro em transito.
+ <strong>Buffer maior nao ajuda</strong> - o problema e a ISR parada, nao o tamanho.
+ Isso explica por que SERIAL_*_BUFFER_SIZE=256 (18/07) reduziu mas nunca
+ eliminou o ACK perdido: tratamos sintoma, nao causa.
+<li><strong>Agravante:</strong> o DHT NAO ESTA INSTALADO (usuario confirmou). Sensor</li>
+ ausente e PIOR que presente - em vez de responder em ~5ms, a leitura
+ gasta o timeout inteiro esperando um pino que nunca muda.
+<li><strong>Como foi provado (metodo vale registrar):</strong> as falhas pareciam</li>
+ aleatorias. Script probe_dht.py rodou 200 requisicoes e imprimiu o
+ uptime de cada falha MODULO 5000ms (o intervalo do DHT). Deu 4757, 4763
+ e 4760 - 6ms de espalhamento. Aleatorio nao faz isso. Hipotese confirmada.
+<li><strong>Correcao:</strong> chave <code>ORION_DHT_INSTALADO</code> (dht_manager.h), em 0 enquanto</li>
+ o sensor nao existe - nao encosta no pino. Quando instalar, trocar para
+ 1 e regravar. Fica tambem uma auto-deteccao (3 falhas seguidas -&gt;
+ <code>_ausente</code>, retentativa a cada 60s) para o caso do sensor cair depois.
+<li><strong>Resultado medido:</strong> antes 3 falhas/200 (1,5%). Depois <strong>0 falhas/200</strong>.</li>
+ Teste longo de 3000 requisicoes em andamento.
+<li>Impacto real disso: ~1,5% de TODO comando se perdia silenciosamente,</li>
+ incluindo STOP. Nao era ruido estatistico, era o freio falhando 1 em 66.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

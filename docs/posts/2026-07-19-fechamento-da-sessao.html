@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fechamento da sessão — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Fechamento da sessão</h2>
+<p>Começou como &quot;testar o sensor MPU&quot; e virou uma caçada a bugs escondidos.</p>
+<p>O MPU estava bom desde o início; o teste é que destravou o resto.</p>
+<p><strong>Consertado (com teste de regressão e validação em campo):</strong></p>
+<p>1. Offset de 9,3° do MPU — vetor de referência na EEPROM (não subtração).</p>
+<p>2. Flag de impacto invisível — janela de 1s em vez de instantâneo.</p>
+<p>3. <strong>DHT fantasma corrompendo a serial</strong> — bit-banging com interrupções</p>
+<p>desligadas comia ~1,5% de TODO comando, silenciosamente. 3000/3000 ok</p>
+<p>depois. Era a causa real do &quot;ACK perdido&quot; de 18/07.</p>
+<p>4. Vazamento de conexões TCP — socket e tarefa não fechados na reconexão.</p>
+<p>5. Heartbeat único para todos os enlaces — agora por link.</p>
+<p>6. Falso positivo de heartbeat no boot — &quot;ainda não conectei&quot; ≠ &quot;perdi&quot;.</p>
+<p>7. <code>behavior.reduzir_carga_ia</code> que ninguém escutava — proteção contra</p>
+<p>travamento por memória existia só no papel. Libera ~1,1 GB medidos.</p>
+<p>8. Acelerômetro em ±4 G saturando em impactos reais — agora ±8 G.</p>
+<p><strong>Construído:</strong></p>
+<ul>
+<li>Integração cognitiva em 3 camadas: modelo de mundo (com prazo de</li>
+ validade em todo dado), grounding (fez 4 modelos pararem de inventar),
+ conselheiro de IA (opina, não manda).
+<li>Bateria no firmware (divisor 100k/27k, chave desligada até montar).</li>
+<li>Sensores térmicos de Pi e Notebook.</li>
+</ul>
+<p><strong>Testes: 261 passed, 8 skipped</strong> (eram 208 no início do dia).</p>
+<p><strong>PENDÊNCIAS ABERTAS — em ordem de bloqueio:</strong></p>
+<p>1. <strong>Divisor de tensão da bateria</strong> (físico): montar 100k/27k no A0 com</p>
+<p>GND comum, trocar <code>ORION_BATERIA_INSTALADA</code> para 1 e regravar.</p>
+<p>2. <strong>Limiar de impacto</strong> (físico): medir com o robô ANDANDO — piso de</p>
+<p>vibração, esbarrão leve, batida real — e gravar com <code>--limiar</code>.</p>
+<p>3. <strong>DHT</strong> (físico): quando instalar, <code>ORION_DHT_INSTALADO</code> para 1.</p>
+<p>4. <strong>Conselheiro de IA desligado</strong>: a inferência do gemma3:1b não cabe no</p>
+<p>orçamento de tempo (&gt;20s). Religar exige modelo/hardware mais rápido ou</p>
+<p>rodar a inferência com nice deixando um núcleo livre. Código pronto.</p>
+<p>5. <strong>Julgamento do gemma3:1b é fraco</strong> para decisão (escolheu repouso com</p>
+<p>obstáculo a 34cm). Se a camada 3 for religada, avaliar o 4b só para</p>
+<p>isso — foi por essa razão que ele não foi apagado.</p>
+<p>6. <strong>Camada 2 da cognição (memória na decisão) não foi construída</strong> — o</p>
+<p>grounding existe, mas quem o alimenta com observações reais ainda não.</p>
+<p><strong>Lição do dia que vale além deste projeto:</strong> dois bugs (o conselheiro e o</p>
+<p>alívio de carga) sobreviveram porque <strong>publicar evento não falha</strong>. O</p>
+<p>código logava que estava trabalhando e ninguém escutava do outro lado.</p>
+<p>Vale desconfiar de todo <code>publish</code> cujo consumidor não se consegue apontar.</p>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>primeiro teste do pan/tilt no hardware físico + bug real no firmware + investigação de brownout — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-18</p>
+<h2>primeiro teste do pan/tilt no hardware físico + bug real no firmware + investigação de brownout</h2>
+<ul>
+<li><strong>Renomeação:</strong> todo o texto do repositório que dizia &quot;ORION X&quot; (nome</li>
+ provisório do robô usado nos e-mails/specs até ontem) foi trocado para
+ <strong>Fofão</strong> - <code>README.md</code>, <code>CLAUDE.md</code>, <code>docs/ses/</code>, <code>docs/edr/</code>,
+ <code>config/orion.yaml</code> (<code>robot_name</code>), testes e <code>docs/hardware/</code>. Conferido
+ antes que <code>robot_name</code> só é usado como texto de exibição (logs, web UI),
+ sem validação de valor fixo - troca segura. 183 testes passando + 7
+ pulados, <code>ruff</code> limpo depois da troca.
+<li><strong>Hardware físico do pan/tilt chegou hoje</strong> (usuário tinha avisado</li>
+ ontem que chegaria &quot;amanhã&quot;) - primeira vez testando os dois servos
+ reais, ainda sem os motores de passo (esses ainda não foram montados).
+<li><strong>Bug real encontrado e corrigido no firmware:</strong> <code>CommandExecutor</code> é um</li>
+ objeto global (<code>comandos</code>, em <code>main.cpp</code>) e fazia <code>pinMode()</code> +
+ <code>Servo::attach()</code> + <code>Servo::write()</code> direto no construtor. Construtores
+ de objetos globais em C++/Arduino rodam <strong>antes</strong> de <code>main()</code> chamar
+ <code>init()</code> (que configura os timers usados pelo PWM) - então o <code>init()</code>
+ pisava a configuração do timer que o <code>Servo::attach()</code> tinha acabado de
+ fazer, e o servo nunca respondia fisicamente, mesmo com o firmware
+ respondendo ACK normalmente (o ACK só confirma que a mensagem chegou,
+ não que o comando teve efeito físico). Sintoma no usuário: &quot;girou nada&quot;
+ mesmo com todos os <code>SET_PAN_TILT</code> sendo confirmados via protocolo.
+ Corrigido movendo a inicialização pra um método <code>iniciar()</code> chamado
+ dentro de <code>setup()</code> (mesmo padrão já usado por <code>motores.iniciar()</code>,
+ <code>encoders.iniciar()</code>, <code>radar.iniciar()</code>, etc. - <code>CommandExecutor</code> era o
+ único que fugia desse padrão).
+<li><strong>Descoberta física no caminho:</strong> depois da correção de firmware, o</li>
+ servo ainda não girava - causa era energia mesmo (fonte dedicada dos
+ servos não estava ligada). Depois de conectada, confirmado visualmente
+ que pan (pino 10) e tilt (pino 11) giram fisicamente de verdade -
+ primeira validação física real do Cap 10 s.2 / Cap 8 s.8 nesse projeto.
+<li><strong>Achado aberto, não resolvido ainda - suspeita de brownout do Mega:</strong></li>
+ comandos <code>SET_PAN_TILT</code> falham em receber ACK de forma intermitente e
+ não-determinística (às vezes no 1º comando da sessão, às vezes no 5º),
+ e logo depois até <code>RETURN_STATUS</code> simples fica sem resposta por vários
+ segundos - padrão típico de o Mega resetar (bootloader + <code>setup()</code> de
+ novo) no meio da comunicação. Só acontece em comandos que de fato
+ chamam <code>Servo::write()</code> - nunca em <code>WHO_ARE_YOU</code>/<code>RETURN_STATUS</code>.
+ Descartado RAM (instrumentei <code>RETURN_STATUS</code> com <code>ram_livre_bytes</code> via
+ <code>__brkval</code>/<code>__heap_start</code> - ver <code>memoriaLivre()</code> em <code>main.cpp</code>, ainda
+ marcado como diagnóstico temporário; RAM livre estava em ~5.3KB de 8KB
+ no momento da falha, longe de esgotar). Descartado também tamanho do
+ buffer de quadro (<code>DecodificadorQuadro::CAPACIDADE = 320</code> bytes, folga
+ grande para o payload do <code>SET_PAN_TILT</code>). Descartado não ser
+ proporcional ao ângulo do movimento (pan=2°/5° passaram, pan=-5° logo
+ em seguida falhou). Usuário confirmou GND comum entre a fonte dos
+ servos e o Mega (descarta essa causa) e fonte de 3A (descarta
+ insuficiência de corrente em regime). Hipótese que sobra: pico de
+ corrente <strong>transiente</strong> (milissegundos) no instante em que o servo
+ começa a girar, rápido demais para a malha de regulação da fonte
+ reagir, mesmo numa fonte de 3A nominal - fix recomendado é um
+ capacitor eletrolítico (470-1000 µF, ≥10V) entre +5V e GND bem perto
+ dos servos, pra absorver esse pico localmente. Usuário vai instalar o
+ capacitor e retestar com <code>tools/testar_pan_tilt.py</code> (script novo,
+ criado hoje, fala direto com o Hardware Core pela serial sem precisar
+ subir o <code>motion_core</code> inteiro - mostra <code>uptime_ms</code> e <code>ram_livre_bytes</code>
+ a cada passo pra distinguir reset real de perda de pacote pontual).
+<li><strong>Confirmado nesta sessão:</strong> kiosk do avatar (Fofão) já sobe sozinho no</li>
+ Notebook depois de um reboot - autologin + autostart configurados
+ ontem (Fase 8) validados de verdade pela primeira vez.
+<li><strong>Causa raiz real encontrada (não era elétrica):</strong> capacitor instalado</li>
+ pelo usuário não mudou nada - falha idêntica, mesmo comando, mesmo
+ <code>uptime_ms</code>/<code>ram_livre_bytes</code>, o que já indicava algo determinístico no
+ firmware, não brownout. Testado desligando temporariamente o
+ <code>HEARTBEAT</code>/<code>TELEMETRY</code> periódico do <code>loop()</code> (comentados) - com isso,
+ os 10 comandos do teste passaram 100% das vezes, uptime subindo sem
+ interrupção. Causa confirmada: <code>Serial.write()</code> do <code>HEARTBEAT</code>
+ (a cada 1s) e do <code>TELEMETRY</code> (a cada 500ms) é <strong>bloqueante</strong> sempre que
+ a mensagem excede o buffer de transmissão padrão do core AVR (64
+ bytes) - enquanto bloqueado, o <code>loop()</code> não volta a checar
+ <code>Serial.available()</code>, e o buffer de <strong>recepção</strong> (também só 64 bytes
+ por padrão) pode estourar se um <code>COMMAND</code> estiver chegando ao mesmo
+ tempo, corrompendo/perdendo bytes do quadro (descartado silenciosamente
+ por CRC inválido - Cap 14 s.5) - dai o ACK nunca chegava.
+<li><strong>Fix aplicado:</strong> <code>firmware/hardware_core/platformio.ini</code> ganhou</li>
+ <code>build_flags</code> definindo <code>SERIAL_RX_BUFFER_SIZE=256</code> e
+ <code>SERIAL_TX_BUFFER_SIZE=256</code> (padrão do core é 64) - RAM do Mega (8KB)
+ tem sobra de sobra pros +384 bytes. <code>HEARTBEAT</code>/<code>TELEMETRY</code> religados
+ no <code>loop()</code>. Instrumentação temporária de RAM (<code>ram_livre_bytes</code> no
+ <code>RETURN_STATUS</code>, <code>memoriaLivre()</code>) removida do firmware depois de servir
+ pra descartar a hipótese de esgotamento de heap. **Reconfirmado com o
+ firmware final: 10/10 comandos do <code>tools/testar_pan_tilt.py</code> passando,
+ uptime contínuo sem nenhum reset.**
+<li>**Pan e tilt validados fisicamente de ponta a ponta, de forma</li>
+ confiável** - primeira vez no projeto. Fecha o critério de &quot;pronto&quot; do
+ <code>SET_PAN_TILT</code> (Cap 8 s.8) no nível de hardware, faltando só conectar
+ o Vision Core de verdade a esses comandos (hoje só testado
+ manualmente via <code>tools/testar_pan_tilt.py</code>).
+<li><strong>Renomeação incompleta corrigida:</strong> o sed de &quot;ORION X&quot; -&gt; &quot;Fofão&quot; de</li>
+ mais cedo hoje só cobriu <code>*.md</code>/<code>*.yaml</code>/<code>*.py</code> e deixou passar HTML/
+ JS/CSS da interface web e do avatar, <code>tools/orion-avatar.service</code>/
+ <code>.desktop</code>, e principalmente <code>config/prompt_sistema.txt</code> - o robô se
+ apresentaria como &quot;ORION X&quot; numa conversa de voz de verdade (Fase 6).
+ Corrigido e sincronizado também no Notebook via scp.
+<li><strong>Achado real no Notebook - gap na config de &quot;nunca dormir&quot; (Fase 6):</strong></li>
+ usuário reportou a tela do kiosk entrando em descanso sozinha.
+ Systemd sleep/suspend/hibernate seguiam mascarados, logind com
+ <code>HandleLidSwitch=ignore</code> etc., DPMS desligado - tudo isso conferido e
+ correto. O que faltava: o protetor de tela <strong>nativo do X11</strong> (`xset
+ s<code>), mecanismo separado do DPMS, seguia no padrão (</code>timeout: 600`,
+ <code>prefer blanking: yes</code>) - apagava a tela depois de 10min parado
+ mesmo com o resto certo. Corrigido com `xset s off; xset s noblank;
+ xset -dpms<code> embutido no </code>Exec=<code> do </code>.desktop` do kiosk, pra rodar
+ toda vez que o autostart sobe (sobrevive a reboot).
+<li><strong>Próximo passo:</strong> conectar o Vision Core (rastreamento de rosto) ao</li>
+ pan/tilt de verdade; motores de passo ainda não foram montados
+ fisicamente (fica para outra sessão).
+<li><strong>Commitado:</strong> histórico reconstruído em 11 commits (Fase 0 a 8 + 2</li>
+ commits de hoje) - ver <code>git log --oneline</code>.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

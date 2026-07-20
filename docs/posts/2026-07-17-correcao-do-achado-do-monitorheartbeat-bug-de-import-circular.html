@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>correção do achado do MonitorHeartbeat + bug de import circular — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>correção do achado do MonitorHeartbeat + bug de import circular</h2>
+<ul>
+<li><strong>Corrigido o achado de robustez do <code>MonitorHeartbeat</code></strong> registrado na</li>
+ entrada anterior: <code>enviar_heartbeat()</code> falhando (link fechado do outro
+ lado) agora também conta como perda - unificado com a detecção por
+ ausência de recebimento na mesma função <code>_marcar_perdido</code> (idempotente
+ via <code>_perdidos_atualmente</code>, publica <code>comm.module_lost</code> só uma vez).
+ Antes, um peer desconectado gerava aviso de log pra sempre e nunca
+ disparava <code>comm.module_lost</code>.
+<li><strong>Teste de regressão novo:</strong> <code>test_falha_ao_enviar_heartbeat_tambem_gera_comm_module_lost</code></li>
+ (<code>tests/unit/test_heartbeat.py</code>) - monitora um peer sem nunca registrar
+ o link (<code>enviar_heartbeat</code> sempre falha com &quot;sem rota&quot;), confirma que
+ <code>comm.module_lost</code> é publicado uma única vez, não repetido a cada
+ tentativa.
+<li><strong>Bug real encontrado e corrigido no caminho:</strong> ao adicionar os imports</li>
+ de <code>orion.communication.*</code> no topo de <code>src/orion/kernel/boot.py</code>
+ (entrada anterior), isso quebrou a importação do pacote inteiro
+ <code>orion.kernel</code> com um ciclo de import - <code>orion/kernel/__init__.py</code>
+ importa <code>boot.py</code> de cara, <code>boot.py</code> importava <code>orion.communication.*</code>,
+ que importa <code>orion.kernel.event_bus</code>, fechando o ciclo. Corrigido
+ movendo esses imports pra dentro das funções que os usam (import local,
+ com um comentário explicando o motivo) e usando
+ `if TYPE_CHECKING: from orion.communication.service import
+ ComunicacaoService` só para as anotações de tipo continuarem
+ funcionando sem re-introduzir o ciclo em tempo de execução.
+<li>**193 testes passando + 7 pulados no Raspberry, 231 passando no</li>
+ Notebook.** <code>ruff</code> limpo. Item do jornal anterior fechado - não é mais
+ pendência aberta.
+<li><strong>Não commitado ainda.</strong></li>
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

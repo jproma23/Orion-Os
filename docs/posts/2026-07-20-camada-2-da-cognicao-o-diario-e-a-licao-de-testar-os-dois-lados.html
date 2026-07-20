@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-20</p>
+<h2>Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados</h2>
+<ul>
+<li><strong><code>src/orion/mission/diario.py</code>:</strong> escuta <code>vision.person_detected</code> e</li>
+ <code>sentinela.alerta</code>, grava na tabela <code>eventos</code> (categoria memoria
+ &quot;eventos&quot;, origem &quot;diario&quot;) e le de volta em
+ <code>observacoes_de_hoje()</code> no formato que o grounding espera. Plugado no
+ MissionPlanner (<code>contexto[&quot;observacoes&quot;]</code>) e no conversar_fofao.
+ Ate aqui o bloco de observacoes chegava SEMPRE vazio - o robo era
+ honesto por nao ter memoria, nao por ter olhado.
+<li><strong>Cuidado principal - nao inundar:</strong> <code>vision.person_detected</code> dispara a</li>
+ cada verificacao. Sem janela de silencio (600s por pessoa) seriam
+ centenas de &quot;vi o Joao Paulo&quot; por hora, enchendo o prompt de repeticao -
+ a melhor forma de um modelo pequeno perder o que importa. Teto de 8
+ observacoes no contexto pelo mesmo motivo.
+<li>16 testes (tests/unit/test_diario.py).</li>
+</ul>
+<h3>O achado que muda a conclusao de ontem</h3>
+<p>Testei os DOIS lados (com registro e sem) e o 1b <strong>falhou</strong>:</p>
+<p>| caso | 1b (enfase em nao inventar) | 1b (enfase em usar fatos) | 4b |</p>
+<p>|---|---|---|---|</p>
+<p>| A) diario TEM a Ana | &quot;Nao vi&quot; ERRADO | &quot;Sim, as 14:30&quot; ok | ok |</p>
+<p>| B) diario VAZIO | &quot;Nao vi&quot; ok | &quot;Sim, a Ana passou&quot; ERRADO | ok |</p>
+<p>| C) diario so com BRUNO | &quot;Nao vi&quot; ok | &quot;Sim, as 09:12&quot; ERRADO | &quot;Sim, vi a Ana as 09:12&quot; <strong>ERRADO</strong> |</p>
+<ul>
+<li><strong>Ontem eu validei o grounding com UM caso</strong> (o de recusa) e declarei</li>
+ vitoria. Errado da minha parte: testando o caso oposto, o 1b so troca de
+ modo de falha conforme a enfase da instrucao - ele segue o TOM, nao os
+ dados. Reescrever o prompt nao conserta.
+<li><strong>O caso C e o pior e derruba os DOIS modelos:</strong> existe um registro com</li>
+ hora, entao respondem &quot;sim, as tal hora&quot; sem conferir DE QUEM e. Atribuir
+ a visita do Bruno a Ana e afirmacao falsa sobre a familia.
+<li>**Conclusao de projeto: isso nao e tarefa de modelo de linguagem, e</li>
+ consulta a banco.** Perguntas &quot;voce viu o fulano hoje?&quot; passaram a ser
+ respondidas DETERMINISTICAMENTE no MissionPlanner
+ (<code>_responder_sobre_quem_viu</code>), por comparacao de nome, seguindo o padrao
+ que ja existia para &quot;que horas sao&quot;. A IA fica com conversa livre, que e
+ o que ela faz bem. 18 testes (tests/unit/test_planner_diario.py),
+ incluindo o caso C que os dois modelos erraram.
+<li>Grounding tambem foi rebalanceado (a regra so punia inventar; agora</li>
+ tambem diz que negar o que esta no diario e erro) e separa
+ &quot;neste exato momento&quot; de &quot;hoje&quot; - o 1b lia &quot;nao estou vendo ninguem
+ agora&quot; e respondia sobre o dia inteiro.
+<li><strong>Correcao lateral:</strong> <code>ai_manager</code> importava <code>ollama</code> no topo, o que</li>
+ tornava o <code>mission_planner</code> inimportavel no Pi e nos testes (nenhum teste
+ o importava, por isso ninguem viu). Import preguicoso, igual ao
+ conselheiro.
+<li>Suite: <strong>295 passed, 8 skipped</strong>.</li>
+<li><strong>PENDENCIA:</strong> o modelo continua sendo o gemma3:1b para conversa livre -</li>
+ com o grounding ele nao inventa, e a parte factual agora nao passa por
+ ele. Mas a validacao &quot;os quatro modelos pararam de inventar&quot; do journal
+ de ontem vale so para o caso de RECUSA; nao repetir essa conclusao sem
+ testar os dois lados.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

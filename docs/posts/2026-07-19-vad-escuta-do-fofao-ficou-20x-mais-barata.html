@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VAD: escuta do Fofao ficou ~20x mais barata — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>VAD: escuta do Fofao ficou ~20x mais barata</h2>
+<ul>
+<li>Medicao no Notebook: load 4.0 cravado em 4 nucleos, conversar_fofao a</li>
+ 165% de CPU continuo - o Whisper de vigilancia transcrevia TODA janela
+ de 3s, 24h, mesmo silencio (e alucinava: &quot;E ai? E ai?&quot;). RAM ok
+ (gemma3 descarrega quando ocioso).
+<li>Implementado portao VAD por energia com piso de ruido adaptativo</li>
+ (src/orion/voice/vad.py, DetectorAtividadeSonora): percentil 20 do
+ historico de RMS = piso; som so passa se &gt; fator (2.5x) o piso, com
+ rms_minimo absoluto 0.003. Config em voice.vad no orion.yaml (Cap 17).
+ VoiceCore ganhou detector_atividade opcional; janela silenciosa nem
+ chega ao Whisper. Testes: test_voice_vad.py (4) + regressao de custo no
+ test_voice_core.py; 10/10 no Notebook.
+<li>Resultado apos restart: 8.3% de CPU instantanea (era 165%), zero</li>
+ transcricoes em silencio (eram ~26/80s), load caindo (4.0 -&gt; 2.9).
+ Ruido ambiente da sala: RMS ~0.02 - piso adaptativo aprendeu sozinho.
+<li>PENDENTE VALIDAR: usuario dizer &quot;Fofao&quot; ao vivo para confirmar que o</li>
+ portao nao deixou o robo surdo (se nao acordar: baixar
+ fator_acima_do_ruido para ~1.8 no orion.yaml, ou desabilitar).
+<li>Decisao de arquitetura mantida: nada migrou do Notebook para o Pi (IA</li>
+ nao cabe no Pi 4GB; mics/audio sao fisicos do Notebook; Cap 9/EDR-0019
+ preservados) - em vez de mudar ONDE roda, baixamos QUANTO custa.
+ openWakeWord treinado para &quot;Fofao&quot; segue como evolucao futura.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

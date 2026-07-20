@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>noite - diagnostico de software cravou a causa dos ultrassons: ECHO flutuando — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-18</p>
+<h2>noite - diagnostico de software cravou a causa dos ultrassons: ECHO flutuando</h2>
+<ul>
+<li><strong>Ferramenta nova:</strong> <code>tools/testar_ultrassom.py</code> - monitor ao vivo dos</li>
+ dois ultrassons via RETURN_STATUS (distancias, flags de validade e os
+ flags <code>echo_*_ja_visto_alto</code>), no estilo do <code>testar_pan_tilt.py</code>.
+ Primeira rodada: mesmo resultado da sessao anterior, nenhum ECHO
+ desde o boot em nenhum sensor.
+<li><strong>Sketch descartavel <code>ultra_diag</code></strong> (scratchpad, fora do repo), em 3</li>
+ versoes progressivas, todas com <code>pulseIn()</code> bloqueante puro (zero
+ codigo do protocolo):
+<ul>
+<li>v1: ECHO lia HIGH constante *mesmo sem pullup* nos dois sensores;</li>
+ <code>pulseIn</code> sempre 0. Primeira hipotese: clone do HC-SR04 travado
+ com ECHO preso em HIGH.
+<li>v2 (truque de destravamento - forcar ECHO LOW como OUTPUT por</li>
+ 10ms): depois disso o pino passou a ler LOW constante. O &quot;HIGH
+ constante&quot; da v1 era so a carga do pullup retida no fio - ou seja,
+ o pino segue o que a gente grava nele.
+<li>v3 (prova do fio flutuante): carrega o pino em HIGH -&gt; solta -&gt;</li>
+ ainda le 1 apos 50ms; descarrega em LOW -&gt; solta -&gt; le 0. Nos DOIS
+ sensores, em todos os ciclos. **Um pino conectado a um sensor vivo
+ forcaria o proprio nivel; segurar a carga gravada e assinatura de
+ pino eletricamente flutuando.**
+</ul>
+<li><strong>Conclusao:</strong> os pinos 23 (ECHO frontal) e 27 (ECHO traseiro) do Mega</li>
+ NAO tem conexao eletrica com uma saida ativa. Duas causas possiveis:
+ (a) os fios de ECHO nao chegam eletricamente ao Mega (jumper ruim/
+ trilha interrompida), ou (b) <strong>os sensores estao sem alimentacao</strong> -
+ HC-SR04 sem VCC fica com a saida em alta impedancia, que flutua
+ igualzinho. Como os DOIS sensores flutuam identico, a causa comum
+ mais provavel e alimentacao (ex.: trilho de 5V da protoboard
+ interrompido no meio - pegadinha classica - ou fio VCC/GND do trilho
+ solto).
+<li><strong>Nao e codigo, nem pinagem:</strong> confirmado em dois niveis (firmware</li>
+ completo + sketch cru) e com a pinagem ja conferida fio a fio na
+ sessao anterior.
+<li><strong>Atencao:</strong> o Mega esta com o sketch de diagnostico gravado agora -</li>
+ regravar o firmware real (<code>pio run -t upload</code> em
+ <code>firmware/hardware_core/</code>) depois do conserto fisico.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

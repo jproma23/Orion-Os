@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>motores de passo giraram pela primeira vez — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>motores de passo giraram pela primeira vez</h2>
+<ul>
+<li>Usuario chateado: motores de passo nao mexiam. Diagnostico guiado com</li>
+ sketch descartavel (scratchpad/teste_motores): ciclo de 6 fases variando
+ ENABLE (pino 6) e pulsando cada motor (1600 passos @ 400Hz) para separar
+ polaridade de ENABLE x micropasso x fiacao.
+<li>Causa raiz: PUL-/DIR- dos TB6600 nunca foram ligados ao GND do Mega -</li>
+ sem circuito de retorno, o optoacoplador nunca ve pulso. Na CNC antiga
+ do usuario &quot;so iam dois fios&quot; (PUL+/DIR+) porque a placa fechava o
+ retorno por baixo. ENA segue solto = sempre habilitado (igual CNC).
+ Fonte de potencia 12-24V isolada pelo opto - nao precisa de GND comum.
+<li>Apos ligar PUL-/DIR- ao GND do Mega: &quot;GIROU&quot; (usuario, ao vivo).</li>
+ Pendente anotar: quais fases giraram, voltas por rajada (revela o
+ micropasso das chaves DIP) e se o ENABLE do firmware tem efeito real.
+<li>Usuario confirmou: &quot;ficou otimo&quot; - motores girando. Firmware oficial</li>
+ regravado no Mega e validado (handshake ok, ultrassons medindo).
+ Pendencias para a proxima sessao de bancada: (1) contar voltas por
+ rajada para confirmar o micropasso das DIP e calibrar passos/metro no
+ config; (2) decidir o destino do ENABLE (pino 6): esta solto nos
+ drivers (= sempre habilitado), entao o firmware aciona um pino sem
+ efeito - ou ligar ENA de verdade (economia de energia/aquecimento em
+ idle) ou documentar que e ignorado; (3) teste de bancada completo do
+ Cap 10 (MOVE_DISTANCE, TURN, STOP via protocolo).
+<li>Decisao do usuario: ENA fica SOLTO (drivers sempre habilitados, como na</li>
+ CNC dele). Documentado em pins.h (fiacao real dos TB6600: PUL+/DIR+ nos
+ pinos 2-5, PUL-/DIR- no GND do Mega, ENA nao conectado). Firmware
+ recompilado ok - sem mudanca de comportamento, so documentacao.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

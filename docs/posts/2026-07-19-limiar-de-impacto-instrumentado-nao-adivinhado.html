@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Limiar de impacto: instrumentado, nao adivinhado — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Limiar de impacto: instrumentado, nao adivinhado</h2>
+<ul>
+<li><strong>Nao escolhi um numero novo.</strong> O usuario nao pode ir ate o robo agora, e</li>
+ sem medida trocar 2,5 G por outro valor seria so trocar de chute. O que
+ dava para fazer sem dado eu fiz - e e mais do que parecia.
+<li><strong>Instrumentacao (<code>aceleracao_g</code> e <code>pico_g</code> na TELEMETRY):</strong> antes o</li>
+ <code>impacto_detectado</code> era um booleano derivado de um limiar invisivel. Agora
+ da para VER a aceleracao. <code>pico_g</code> guarda o maior valor desde o quadro
+ anterior e zera na leitura - o instantaneo quase nunca pega o topo de um
+ tranco de 10-20ms (IMU lido a cada 50ms, telemetria a cada 500ms).
+<li><strong>Medido com o robo parado (93 amostras, 60s):</strong> min 1,01 / mediana 1,01 /</li>
+ max 1,02 G. Baseline exatamente na gravidade (confere com a fisica) e
+ <strong>ruido de +-0,01 G</strong>. Ou seja: o limiar nao precisa ser alto por causa de
+ ruido - 2,5 G esta ~150x acima da faixa de ruido parado. Falta medir o
+ piso com o robo ANDANDO (vibracao levanta) e o pico de uma batida real.
+<li><strong>BUG ENCONTRADO E CORRIGIDO - o acelerometro estava em ±4 G.</strong> Com teto</li>
+ de 4 G e limiar em 2,5 G sobrava quase nada de faixa util: uma batida de
+ verdade SATURAVA o sensor e o pico saia menor do que foi - esbarrao e
+ pancada forte viravam ambos &quot;4 G&quot;. **Isso tornava impossivel escolher
+ limiar por medida**, entao tinha que ser consertado antes de qualquer
+ ajuste. Trocado para ±8 G.
+<li>Custo da troca: ZERO na pratica. Medido depois: baseline 1,01 G e ruido</li>
+ +-0,01 G, identicos ao de ±4 G (ADC de 16 bits sobra). A inclinacao
+ tambem nao sofre - usa a DIRECAO do vetor normalizado, nao a magnitude.
+<li><strong>Limiar agora e ajustavel sem regravar firmware:</strong> comando</li>
+ <code>SET_IMPACT_THRESHOLD</code> + <code>tools/testar_imu.py --limiar 3.0</code>, gravado na
+ EEPROM em endereco SEPARADO da calibracao do vetor (32, magico 0x0111) -
+ ajustar o limiar nao pode apagar a calibracao feita na bancada. Faixa
+ aceita 1,05 a 7,5 G (abaixo dispararia com a gravidade parada, acima
+ satura). Testado: gravado 3,2 G, resetado o Mega, releu 3,2 G da EEPROM.
+ Restaurado ao default 2,5 G - mudar sem medida seria outro chute.
+<li><code>limite_impacto_g</code> tambem vai na telemetria (a interface mostra contra o</li>
+ que o pico esta sendo comparado).
+<li><strong>PENDENCIA (a que realmente fecha o assunto):</strong> com o robo ANDANDO,</li>
+ rodar <code>tools/testar_imu.py</code> e anotar (a) o pico de vibracao normal
+ trafegando, (b) o pico de um esbarrao leve, (c) o pico de uma batida
+ real. Escolher o limiar entre (a) e (b), e gravar com --limiar.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

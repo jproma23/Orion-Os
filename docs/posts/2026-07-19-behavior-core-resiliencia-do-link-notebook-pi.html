@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Behavior Core + resiliencia do link Notebook&lt;-&gt;Pi — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Behavior Core + resiliencia do link Notebook&lt;-&gt;Pi</h2>
+<ul>
+<li>EDR-0020: Behavior Core (&quot;maestro&quot;/consciencia) - arbitragem de</li>
+ prioridade sobre o Event Bus, roda no Pi (revisao: no estavel sobrevive
+ a crash do Notebook). NAO adota ROS (so multitarefa exige coordenacao,
+ nao middleware; ROS futuro so p/ SLAM). Esqueleto BehaviorCore +
+ Comportamento + 3 testes.
+<li>Guardiao de RAM do Notebook (behavior/guardiao_ram.py): Notebook publica</li>
+ diagnostic.notebook_health (/proc/meminfo) a cada 10s; guardiao no Pi
+ pede behavior.reduzir_carga_ia + alerta abaixo do limiar, com histerese.
+ 3 testes.
+<li>Arduino port-scan: CH340 re-enumerou p/ ttyUSB1 e o servico (so ttyUSB0)</li>
+ falhava; _conectar_arduino agora varre ttyUSB0/1/ACM0. Reconectou.
+<li>BUG FOUNDATIONAL consertado: o Notebook NAO reconectava ao Pi apos um</li>
+ restart do Pi - ficava orfao p/ sempre (reporter so imprimia &quot;Falha ao
+ propagar&quot;). Novo supervisor de link em conversar_fofao.py: conecta no
+ inicio e reconecta em comm.module_lost (retenta 5s). Comprovado ao vivo:
+ restart do Pi -&gt; &quot;Link caiu -&gt; reconectando&quot; -&gt; reconectado em 2s.
+<li>So DEPOIS disso o guardiao de RAM disparou ponta a ponta (&quot;RAM do</li>
+ Notebook critica: 5110 MB &lt; 5608&quot;). Era o link fragil que mascarava.
+<li>Licao: verificar features de rede ao vivo exige o link resiliente</li>
+ primeiro; meus restarts do Pi orfanavam o Notebook e davam falso
+ negativo no guardiao.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

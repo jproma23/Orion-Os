@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teste do MPU6050 - sensor ok, offset de 9.3 graus — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Teste do MPU6050 - sensor ok, offset de 9.3 graus</h2>
+<ul>
+<li><strong>Ferramenta nova:</strong> <code>tools/testar_imu.py</code> - monitor ao vivo do MPU6050,</li>
+ mesmo molde do testar_ultrassom.py: inclinacao/impacto vem da TELEMETRY
+ (<code>comm.mensagem.telemetry</code>), RETURN_STATUS so serve para o uptime (vigia
+ de reset). Firmware ja publicava tudo (telemetry_manager.h), nao precisou
+ mexer no Arduino.
+<li>Rodado no Mega real (motion.service parado): handshake ok</li>
+ (0.1.0-fase2), 37 leituras em 25s, <code>imu_conectado</code> true, zero reset,
+ zero falha de I2C. <strong>I2C nos pinos 20/21 confirmado funcionando.</strong>
+<li><strong>Achado:</strong> parado, a inclinacao le 9.3 graus constante com ruido de so</li>
+ +-0.5 grau. Ruido baixo = sensor saudavel; os 9.3 sao offset fixo
+ (chassi torto ou MPU colado torto). Como LIMITE_INCLINACAO_GRAUS = 20,
+ o robo trava com ~11 graus reais de um lado e aguenta ~29 do outro -
+ assimetria a corrigir (calibrar zero no iniciar() ou reposicionar o
+ modulo). Falta ainda validar o flag de impacto (tapinha no chassi).
+<li>Nota de execucao: rodar os tools com <code>.venv/bin/python -u</code> - sem o <code>-u</code></li>
+ o stdout fica preso no buffer quando a saida e canalizada.
+<li><strong>Correcao do offset (mesma sessao):</strong> decidido com o usuario que ele</li>
+ vai colar o MPU reto e o firmware zera os vetores em cima da posicao
+ boa. Implementado em <code>imu_manager.h</code>: em vez de subtrair um escalar
+ (errado - a inclinacao e um angulo sem direcao, subtrair furaria pro
+ lado contrario), guarda o VETOR de gravidade lido nivelado e mede o
+ angulo entre a leitura atual e essa referencia (produto escalar +
+ acos). Referencia default (0,0,1) = comportamento antigo.
+<li>Calibracao persiste na EEPROM (endereco 0, magico 0x0110, com sanidade</li>
+ de norma contra EEPROM corrompida), entao nao precisa regravar firmware
+ se o modulo sair do lugar. Comando novo <code>CALIBRATE_IMU</code> (main.cpp) e
+ flag <code>imu_calibrado</code> na TELEMETRY e no RETURN_STATUS.
+<li><code>tools/testar_imu.py --calibrar</code> dispara a calibracao e sai.</li>
+<li><strong>Efeito colateral util:</strong> depois de calibrado, leitura longe de 0 com o</li>
+ robo nivelado = o modulo se mexeu. Diagnostico de graca (ideia do usuario).
+<li>Compilado e GRAVADO no Mega: RAM 33.4%, flash 16.2%. Falta o usuario</li>
+ colar o modulo reto e rodar o --calibrar.
+<li>Nota de ambiente: o PlatformIO NAO esta no PATH nem no .venv - fica em</li>
+ <code>/home/jproma23/.platformio-venv/bin/pio</code>.
+<li><strong>CALIBRADO ao vivo:</strong> usuario colou o modulo, rodado <code>--calibrar</code>, EEPROM</li>
+ gravada. Verificacao logo depois: <strong>9.3 graus -&gt; 0.3 graus</strong>, ruido de
+ +-0.2 grau. Zero no lugar, limite de 20 graus agora simetrico nos dois
+ lados. Servico orion-motion religado.
+<li><strong>PENDENCIA aberta:</strong> durante a verificacao (20s, ~14 leituras) UMA</li>
+ resposta de RETURN_STATUS se perdeu (timeout de 3s). Nao foi reset - o
+ uptime seguiu subindo (4463ms -&gt; 8584ms), so a resposta sumiu. Suspeita:
+ mesmo ACK perdido de 2026-07-18 que motivou SERIAL_*_BUFFER_SIZE=256 no
+ platformio.ini - os buffers reduziram mas nao eliminaram. Investigar
+ antes da Fase 4 fechar; frequencia observada ~1 em 14.
+<li>Flag de impacto ainda NAO validado (precisa de tapinha no chassi).</li>
+<li><strong>Recalibrado:</strong> usuario mexeu no modulo durante o teste de tapa (era a</li>
+ explicacao dos 6.8 graus - o diagnostico &quot;de graca&quot; funcionou na
+ pratica, primeira vez que ele pegou um deslocamento real). Ajeitado e
+ recalibrado: de volta a 0.4 grau.
+<li><strong>Bug encontrado e corrigido - flag de impacto invisivel:</strong> o teste de</li>
+ tapa deu ZERO deteccoes. Causa nao era o tapa: <code>_impactoDetectado</code> era
+ INSTANTANEO. Tranco dura ~10-20ms, IMU e lido a cada 50ms e a TELEMETRY
+ so sai a cada 500ms - o evento quase sempre morria entre amostras.
+ Enfraquecia tambem o SafetyManager.
+<li>Correcao: janela de tempo (<code>JANELA_IMPACTO_MS = 1000</code>, maior que os</li>
+ 500ms da telemetria) em vez de &quot;zerar na leitura&quot;. Zerar-na-leitura foi
+ DESCARTADO de proposito: SafetyManager le todo loop e telemetria a cada
+ 500ms - quem lesse primeiro roubaria o evento do outro e a telemetria
+ voltaria a nao ver nada. A janela apaga sozinha, sem disputa.
+<li>Regravado e testado ao vivo: impacto apareceu como SIM em 2 quadros</li>
+ seguidos (a janela de 1s cobrindo dois quadros de 500ms, exatamente o
+ desenhado). <strong>Flag de impacto validado.</strong>
+<li>Confirmado tambem que a calibracao da EEPROM SOBREVIVE a regravacao do</li>
+ firmware (leituras seguiram em 0.3-0.6 grau depois do upload).
+<li><strong>PENDENCIA nova:</strong> so 1 evento detectado em ~3-4 tapas. O mecanismo</li>
+ agora funciona, mas o limiar de 2.5 G parece alto para tapa de mao.
+ Baixar exige cuidado: 2.5 G dispara parada de emergencia, e limiar baixo
+ demais gera falso positivo passando por soleira/desnivel. Calibrar com o
+ robo andando de verdade, nao na bancada.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

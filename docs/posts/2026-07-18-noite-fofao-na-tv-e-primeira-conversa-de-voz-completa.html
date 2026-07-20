@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>noite - Fofao na TV e PRIMEIRA CONVERSA DE VOZ COMPLETA! — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-18</p>
+<h2>noite - Fofao na TV e PRIMEIRA CONVERSA DE VOZ COMPLETA!</h2>
+<ul>
+<li><strong>Avatar na TV via HDMI do Notebook:</strong> TV detectada como segundo monitor</li>
+ (HDMI-2, 1920x1080). <code>xrandr --output HDMI-2 --primary</code> + relancamento
+ do Firefox kiosk (com <code>setsid -f</code>, senao o processo morre junto com a
+ sessao SSH) colocou o avatar em tela cheia na TV. Confirmado pelo usuario.
+<li><strong>Descoberta que destravou a Fase 6: a TV e a saida de audio!</strong> O chip</li>
+ HDA do notebook so expoe audio via HDMI (journal da Fase 6) - e agora ha
+ uma TV no HDMI (&quot;HDA Intel PCH: Android TV&quot;). Teste com Piper + aplay
+ confirmado pelo usuario: &quot;a voz saiu&quot;. O headset USB planejado deixou de
+ ser bloqueante para a saida.
+<li><strong>Ferramenta nova <code>tools/conversar_fofao.py</code>:</strong> substituto ao vivo do</li>
+ preview_avatar - AvatarServer + VoiceCore + AiManager (Ollama) +
+ Sintetizador num processo so, mesmo Event Bus: o avatar do kiosk reage
+ aos estados reais de voz. Sem Raspberry envolvido (EDR-0018).
+<li><strong>Indices de audio reconferidos e atualizados em config/orion.yaml</strong></li>
+ (mudam quando USB troca de porta!): saida agora e a TV (indice 2);
+ mics candidatos [0, 1, 5]. Seletor escolheu o mic da PC Camera (1).
+<li>**Bug real achado e corrigido - offset DC na captura</li>
+ (<code>captura_audio.py</code>):** em silencio absoluto o RMS media ~0,25 (quase
+ identico ao RMS falando!) - o mic entrega o sinal deslocado de um nivel
+ constante. Isso inflava o RMS, enganava a selecao por qualidade e
+ degradava o Whisper (janelas viravam &#x27;&#x27; ou alucinacao tipo &quot;e acalpa-lo
+ no inside&quot;). Fix: subtrair a media do trecho gravado. Depois do fix,
+ silencio mede rms 0,02-0,03 e fala ~0,16-0,23 - separacao limpa.
+<li><strong>Wake word na pratica:</strong> o Whisper ouve &quot;Fofao&quot; mas escreve &quot;Fafao&quot; ou</li>
+ &quot;furacao&quot; (e ate completa &quot;carreta furacao&quot; sozinho, contexto dos
+ palhacos). <code>conversar_fofao.py</code> passa um DetectorPalavraAtivacao com as
+ variacoes (fofao/fafao/fufao/furacao, com e sem til) - paliativo ate um
+ modelo openWakeWord treinado para &quot;Fofao&quot; existir (decisao ja documentada
+ em wake_word.py).
+<li>**PRIMEIRA CONVERSA COMPLETA (criterio de pronto da Fase 6 - PARCIAL,</li>
+ ver abaixo):** usuario disse &quot;Oi, fofao!&quot; -&gt; wake detectado -&gt; comando
+ transcrito -&gt; Ollama respondeu -&gt; Piper falou pela TV, avatar reagindo:
+ &quot;Ahah, sim! Sou um robo da marca Carreta Foracao, modelo Fofao...&quot;
+ (o proprio llama3.2 entrou na brincadeira da carreta).
+<li><strong>183 testes passando</strong> (6 de voz revalidados apos o fix do DC).</li>
+<li><strong>Pendencias:</strong> (1) o criterio completo da Fase 6 inclui &quot;acenda a</li>
+ lanterna&quot; acionando LIGHT_ON - precisa do link Notebook-&gt;Raspberry-&gt;Mega
+ de pe (Mission Planner completo); (2) trocar o orion-avatar.service para
+ apontar para conversar_fofao.py se o usuario quiser a conversa no boot;
+ (3) armadilha aprendida: pkill -f com padrao que aparece no proprio
+ comando ssh mata a propria sessao (aconteceu 3x) - padrao seguro e
+ &quot;[c]olchete&quot; no inicio E nenhuma ocorrencia literal no resto do comando.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

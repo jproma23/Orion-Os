@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 8, continuação — Dashboard web do Raspberry — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 8, continuação — Dashboard web do Raspberry</h2>
+<ul>
+<li><strong>Criado <code>motion_core/webui/</code></strong> (<code>WebUIServer</code>, Cap 13 s.4-5): servidor</li>
+ aiohttp rodando <strong>no Raspberry</strong> (diferente do avatar, que é
+ Notebook-only) - primeira parte da interface web, o painel DASHBOARD.
+ Diferente do avatar (repassador puro sem estado), este módulo mantém um
+ pequeno cache em memória do último valor de cada coisa relevante
+ (<code>_estado</code>), porque quem abre a página precisa ver o estado ATUAL na
+ hora, não só esperar o próximo evento - ainda assim nenhuma lógica de
+ DECISÃO mora aqui (Cap 13 s.2), só agregação pra exibição.
+<li><strong>Rotas:</strong> <code>GET /</code> (HTML), <code>GET /estado</code> (snapshot JSON agregado + últimos</li>
+ 30 eventos, pra quem acabou de conectar), <code>GET /eventos</code> (SSE, mesmo
+ padrão do avatar). Consome <code>system.*</code>, <code>motion.*</code>, <code>navigation.*</code>,
+ <code>vision.*</code>, <code>voice.*</code>, <code>diagnostic.*</code> (Cap 13 s.7) **e <code>safety.*</code>**
+ (evento novo que a Fusão de Sensores passou a publicar hoje mesmo) e
+ <code>comm.mensagem.telemetry</code>.
+<li><strong>Painéis implementados (Cap 13 s.5):</strong> Sistema (modo/estado), Segurança</li>
+ (SAFE_MODE ativo/motivo), Telemetria (distância/temperatura/umidade/
+ inclinação - bateria/energia mostrada como &quot;não disponível nesta
+ versão&quot;, honesto em vez de inventar), Posição estimada (x/y/orientação/
+ velocidade, direto do <code>motion.position</code> da Fusão de Sensores),
+ Missão/Voz/Visão, e um log dos últimos eventos.
+<li><strong><code>aiohttp</code> instalado de verdade neste Raspberry</strong> (extra <code>display</code> do</li>
+ <code>pyproject.toml</code>) - diferente do avatar, que roda só no Notebook, o
+ dashboard roda aqui, então os testes rodam de verdade aqui também (não
+ pulam mais).
+<li><strong>9 testes novos</strong> em <code>tests/unit/test_webui_server.py</code>, mesmo padrão do</li>
+ <code>test_avatar_server.py</code> (<code>TestClient</code>/<code>TestServer</code>, sem mock solto).
+ Acertei o fixture assíncrono (<code>@pytest_asyncio.fixture</code>) de primeira
+ desta vez - já tinha caído nesse erro duas vezes antes nesta sessão.
+<li><strong>168 testes passando + 7 pulados no Raspberry</strong> (os 4 do avatar saíram</li>
+ da lista de pulados agora que <code>aiohttp</code> está instalado aqui; sobrou só
+ Vision/Voice/IA, que continuam Notebook-only de propósito) - **206
+ passando no Notebook** (0 pulados lá).
+<li><strong>Limpeza:</strong> removido <code>motion_core/src/</code> (scaffold morto do zip</li>
+ original - diretórios vazios <code>bridge/memory/navigation/webui</code> sem
+ nenhum arquivo, nunca referenciados em lugar nenhum) - o código de
+ verdade sempre esteve em <code>motion_core/memory/</code>, <code>motion_core/navigation/</code>
+ e agora <code>motion_core/webui/</code>, direto, sem esse <code>src/</code> a mais.
+<li><strong>Novo <code>tools/preview_webui.py</code></strong> (mesmo espírito do</li>
+ <code>preview_avatar.py</code>): sobe o servidor com telemetria/posição/missão/
+ SAFE_MODE de mentirinha em ciclo, pra ver o dashboard funcionando sem
+ precisar do robô inteiro.
+<li><strong>Validado ao vivo de verdade:</strong> aberto num Firefox separado no</li>
+ Notebook (mesma rede, <code>http://10.20.20.185:8080</code> - o Raspberry
+ respondendo por IP, não só localhost, confirmando &quot;acessível de
+ qualquer dispositivo da rede local&quot; do Cap 13 s.4) e depois colocado
+ em modo kiosk <strong>na tela principal do Notebook, no lugar do Fofão</strong>
+ (a pedido do usuário, temporariamente) - screenshots confirmam os
+ painéis atualizando ao vivo via SSE.
+<li><strong>Ajuste de CSS no caminho:</strong> o layout inicial de rótulo/valor</li>
+ (<code>grid-template-columns: auto 1fr</code>) quebrava palavras longas de forma
+ feia (<code>overflow-wrap: anywhere</code> cortando no meio da palavra); trocado
+ por uma coluna de rótulo mais larga (<code>minmax(auto, 42%)</code>) e
+ <code>word-break: break-word</code>, que quebra em pontos melhores.
+<li><strong>Não implementado ainda (Cap 13 s.4):</strong> as páginas CONVERSA, MAPA</li>
+ (radar polar), DIAGNÓSTICO e CONFIGURAÇÃO - só o DASHBOARD existe por
+ ora. <code>PLANO_IMPLEMENTACAO.md</code> não alterado (o item da Fase 8 cobre as
+ 5 páginas + mapa do radar, nenhum dos dois checkboxes está totalmente
+ atendido ainda).
+<li><strong>Não commitado ainda.</strong></li>
+<li><strong>Próximo passo:</strong> CONVERSA (histórico de conversa via <code>memory_client</code>/</li>
+ Fase 3), MAPA (radar polar - já dá pra usar <code>motion.scan_complete</code>),
+ DIAGNÓSTICO (heartbeats/últimos erros/log, Cap 16), CONFIGURAÇÃO
+ (acesso restrito) - ou trocar o Notebook de volta pro avatar quando o
+ usuário quiser.
+<li><strong>Simplificado a pedido do usuário logo em seguida:</strong> removido o painel</li>
+ &quot;Missão/Voz/Visão&quot; (Voz e Visão sempre vazios nesta fase - Voice/Vision
+ Core não rodam no Raspberry) e a linha &quot;Bateria/energia&quot; (sempre &quot;não
+ disponível&quot;) - &quot;último passo da missão&quot; foi pro painel Sistema. Ficou
+ em 4 painéis (Sistema, Segurança, Telemetria, Posição) + o log de
+ eventos, em vez de 5 + log. O servidor (<code>server.py</code>, <code>/estado</code>) continua
+ expondo <code>voz</code>/<code>visao</code> no JSON - só a página não mostra mais, caso uma
+ futura página (CONVERSA) queira usar. Testes do servidor inalterados (9
+ passando) - só HTML/JS mudaram. Recarregado no kiosk do Notebook,
+ confirmado por screenshot.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

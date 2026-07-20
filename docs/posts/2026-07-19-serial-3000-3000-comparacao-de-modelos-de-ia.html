@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Serial 3000/3000; comparacao de modelos de IA — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Serial 3000/3000; comparacao de modelos de IA</h2>
+<ul>
+<li><strong>Teste longo concluido: 3000 requisicoes, 3000 ok, ZERO falhas</strong>, sobre</li>
+ o firmware definitivo. Antes da correcao do DHT: 1,5%. Causa raiz das
+ respostas perdidas esta enterrada.
+<li><strong>Comparacao de modelos (bench com prompts reais do Fofao):</strong></li>
+ | modelo | RAM | conversa | decisao | alucinou? |
+ |---|---|---|---|---|
+ | gemma3:1b | 880 MB | 10,5s | 10,6s | SIM - &quot;vi a Ana passar&quot; |
+ | llama3.2:3b | 2,6 GB | 34,5s | 25,6s | SIM (pior) - inventou registro as 14h30 |
+ | gemma3:4b | 2,9 GB | 20,2s | 51,5s | NAO - disse que nao teve noticia |
+<li><strong>Contraria a percepcao inicial:</strong> o gemma3:4b foi o mais RAPIDO na</li>
+ conversa e o UNICO honesto. O llama3.2:3b (&quot;o que funcionava&quot;) foi o
+ mais lento e o que mais inventou. O 1b tambem errou o nome do
+ comportamento (&quot;vigilancia&quot; em vez de &quot;vigilia&quot;).
+<li><strong>Quantizacao: nao ha ganho a buscar.</strong> Os tres ja sao Q4_K_M (padrao do</li>
+ ollama). Ja estamos em 4-bit.
+<li><strong>Diagnostico de fundo:</strong> a alucinacao NAO e problema de modelo. O prompt</li>
+ do bench perguntava da Ana sem dar dado nenhum sobre ela - sem
+ informacao qualquer modelo chuta. Conserto e grounding (entregar os
+ fatos + instruir a dizer &quot;nao sei&quot;), nao troca de modelo.
+<li>Decisao com o usuario: construir o CONTEXTO primeiro, remedir os modelos</li>
+ depois - com os fatos na mao a tarefa muda e os numeros de hoje (feitos
+ sem contexto) deixam de valer. qwen2.5:3b baixado para entrar no
+ proximo comparativo.
+<li><strong>PENDENCIA (achado lateral):</strong> ninguem assina <code>behavior.reduzir_carga_ia</code>.</li>
+ O GuardiaoRamNotebook publica o pedido de alivio e o evento morre - so
+ os testes escutam. O guardiao nao protege nada hoje.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>continuação — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>continuação</h2>
+<ul>
+<li>**Fase 4 implementada (código completo), validação física ainda</li>
+ pendente.** Encontrado o guia de ligação elétrica do Sentinela X
+ (<code>~/Downloads/Sentinela X — Guia de Ligação Elétrica.pdf</code>) com pinos
+ reais para motores/ultrassom/IMU/DHT do mesmo Mega físico. Usado como
+ base para <code>firmware/hardware_core/include/pins.h</code>.
+<li>Implementado em <code>firmware/hardware_core/</code>:</li>
+<ul>
+<li><code>pins.h</code> — pinos confirmados (motores 2-6, HC-SR04 22/23, MPU6050 I2C</li>
+ 20/21, DHT 24) e reservados (encoders 18/19, ultrassom traseiro 26/27,
+ servo radar 9, pan/tilt 10/11, LED 25).
+<li><code>estado.h</code> — máquina de estados completa do Cap 10 s.4 (BOOT→READY→</li>
+ IDLE→EXECUTING_MISSION→OBSTACLE_DETECTED→MISSION_PAUSED→ERROR→
+ SAFE_MODE→SHUTDOWN), com notificação de transição ao Motion Core
+ (EVENT <code>motion.status</code>).
+<li><code>motor_manager.h</code> — 2 steppers via STEP/DIR/ENABLE, pulsos gerados por</li>
+ temporização com <code>micros()</code> (sem <code>delay()</code>), odometria aproximada por
+ contagem de passos. <code>PASSOS_POR_METRO</code>/<code>PASSOS_POR_GRAU</code> são
+ constantes de bancada (sem calibração real ainda — isso é a
+ autocalibração da Fase 12).
+<li><code>encoder_manager.cpp</code> — contagem de pulsos via interrupt (zero</li>
+ gracioso, sem hardware ligado ainda).
+<li><code>sensor_ultrassonico.h</code> — driver HC-SR04 <strong>não bloqueante</strong> (maquina de</li>
+ estados; <code>pulseIn()</code> bloquearia até 1s por leitura, inaceitável no
+ loop principal).
+<li><code>radar_manager.h</code> — varredura do servo frontal (SCAN_FRONT) + leitura</li>
+ fixa usada pelo Safety Manager.
+<li><code>imu_manager.h</code> / <code>dht_manager.h</code> — MPU6050 (Adafruit) e DHT11</li>
+ (Adafruit DHT); DHT só lê quando o robô está parado (a biblioteca
+ bloqueia ~20-25ms por leitura).
+<li><code>safety_manager.h</code> — parada reativa por obstáculo frontal, inclinação,</li>
+ impacto ou timeout de comando, <strong>independente do Raspberry/Notebook</strong>
+ (Cap 6 regra 7).
+<li><code>command_executor.h</code> — despacha MOVE_FORWARD/MOVE_DISTANCE/</li>
+ MOVE_CONTINUOUS/TURN_LEFT/TURN_RIGHT/STOP/DOCK/SCAN_FRONT/LIGHT_ON/OFF.
+<li><code>telemetry_manager.h</code> — pacote Radar Inteligente (Cap 5 s.7) a cada</li>
+ 500ms via TELEMETRY.
+<li><code>main.cpp</code> reescrito integrando tudo sobre o protocolo/enquadramento</li>
+ da Fase 2. Compilado com PlatformIO: RAM 26,2% (2149/8192 bytes),
+ Flash 15,0% (38160/253952 bytes) — bastante folga.
+</ul>
+<li><strong>Descoberta importante (correção de contexto):</strong> o guia de fiação</li>
+ descreve uma montagem <strong>passada/planejada</strong>, não o estado físico atual —
+ o usuário confirmou &quot;não temos hardware ainda&quot;. Só o Mega + cabo USB
+ existem de verdade agora. Isso foi confirmado na prática: telemetria do
+ Mega real mostra <code>imu_conectado=false</code>, <code>distancia_frontal_valida=false</code>,
+ <code>dht_valido=false</code> de forma consistente (ausência real de hardware, não
+ bug do firmware).
+<li><strong>Validado no Mega real</strong> (nível de protocolo/lógica, sem periféricos</li>
+ físicos): firmware gravado via PlatformIO; WHO_ARE_YOU, RETURN_STATUS e
+ HEARTBEAT respondendo; MOVE_FORWARD/TURN_LEFT/STOP fazem a máquina de
+ estados transicionar corretamente (IDLE↔EXECUTING_MISSION) com ACK e
+ evento <code>motion.status</code>; LIGHT_ON/LIGHT_OFF ACKados; SCAN_FRONT completa
+ e publica <code>motion.scan_complete</code> com as 7 leituras (todas inválidas,
+ como esperado sem sensor real). Nenhum teste moveu nada fisicamente
+ (nada de motor está conectado) - seguro de rodar sem risco.
+<li><strong>Enviado para o usuário:</strong> rascunho de e-mail (Gmail) com o guia de</li>
+ ligação elétrica completo, e o mesmo conteúdo salvo em
+ <code>docs/hardware/wiring_arduino.md</code> (esse caminho era citado no PDF do
+ Sentinela mas nunca tinha sido criado de fato).
+<li><strong>Pendência real, não é código:</strong> o critério de &quot;pronto&quot; da Fase 4</li>
+ (&quot;bancada executa cada comando com rodas suspensas; obstáculo para o
+ robô&quot;) exige motores/sensores fisicamente montados. Isso é responsabilidade
+ do usuário montar o hardware (guia em mãos) - o firmware já está pronto
+ para quando isso acontecer.
+<li><strong>Próximo passo:</strong> ou (a) aguardar a montagem física para validar o</li>
+ Cap 10 por completo, ou (b) adiantar a Fase 5 (Vision Core no Notebook,
+ Cap 8) e Fase 6 (Voz + IA, Caps 9/7) em paralelo, já que essas rodam no
+ Notebook e não dependem de hardware do Arduino estar montado.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sessao de 2026-07-17 — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Sessao de 2026-07-17</h2>
+<ul>
+<li><strong>Fase 1 concluída.</strong> Implementado em <code>src/orion/kernel/</code>:</li>
+<ul>
+<li><code>config.py</code> — Configuration Manager: carrega <code>config/orion.yaml</code>, valida</li>
+ esquema mínimo (tipos e obrigatoriedade dos campos usados nesta fase),
+ aborta com <code>ErroConfiguracaoInvalida</code> em config inválida (Cap 17 s.2).
+<li><code>logger.py</code> — Logger estruturado: console legível + arquivo JSON, nível</li>
+ via <code>system.log_level</code>.
+<li><code>event_bus.py</code> — Event Bus assíncrono: publish/subscribe por tópico com</li>
+ fila de prioridades (<code>Prioridade.CRITICA..BAIXA</code>), handler com erro é
+ isolado (log, não derruba o bus).
+<li><code>registry.py</code> — Service Registry: registro de módulos com nome, versão,</li>
+ dependências, estado (STARTING/RUNNING/DEGRADED/STOPPED), checagem de
+ dependências satisfeitas.
+<li><code>watchdog.py</code> — Health Monitor (rastreia heartbeats) + Watchdog (escalona</li>
+ reconectar → reiniciar → log → publica <code>diagnostic.error</code>), cada módulo
+ tratado isoladamente.
+<li><code>boot.py</code> — Boot Manager: executa a sequência do Cap 6 s.4 até publicar</li>
+ <code>system.ready</code>; etapas de fases futuras (Raspberry, Arduino, banco, IA,
+ Vision, Motion Core) ainda não existem e são toleradas (log +
+ <code>diagnostic.error</code> informativo, sem abortar o boot).
+<li><code>__main__.py</code> atualizado para rodar o boot real via <code>asyncio</code>.</li>
+</ul>
+<li><strong>Testes:</strong> 32 testes unitários novos em <code>tests/unit/</code> (event bus, registry,</li>
+ watchdog, config, boot). <code>tools/check.sh</code> passa limpo (ruff + pytest).
+<li><strong>Verificado manualmente:</strong> <code>python -m orion --sim</code> chega a <code>system.ready</code></li>
+ e encerra de forma limpa (desligamento seguro para watchdog e event bus).
+<li><strong>Contexto físico confirmado:</strong> esta sessão roda no próprio Raspberry Pi</li>
+ (Motion Core) — Mega no CH340 <code>/dev/ttyUSB0</code>. O Notebook (Mission Core)
+ está ligado a ele por <strong>USB</strong> neste momento, não pela Ethernet que o
+ EDR-0018 prevê para produção; isso cai dentro do <code>maintenance_usb: &quot;auto&quot;</code>
+ já existente na config, não é violação de arquitetura, só o link de
+ desenvolvimento atual.
+<li><strong>Próximo passo:</strong> iniciar Fase 2 — Comunicação + firmware mínimo (Caps 5,</li>
+ 14, 10): camada de transporte (TCP Notebook↔Raspberry, Serial
+ Raspberry↔Arduino), enquadramento com CRC16, mensagens
+ COMMAND/ACK/NACK/EVENT/TELEMETRY/RESPONSE/HEARTBEAT, APIs
+ comm.send/publish/request, descoberta (WHO_ARE_YOU), simuladores e
+ firmware mínimo no Mega.
+</ul>
+<ul>
+<li><strong>Fase 2 concluída.</strong> Implementado em <code>src/orion/communication/</code>:</li>
+<ul>
+<li><code>crc.py</code> / <code>protocol.py</code> — CRC16 (CCITT-FALSE) e <code>Mensagem</code> (Cap 5 s.5):</li>
+ protocolo, origem, destino, tipo (COMMAND/ACK/NACK/EVENT/TELEMETRY/
+ RESPONSE/HEARTBEAT), id, timestamp, payload, checksum, id_referencia.
+<li><code>framing.py</code> — serial: STX/ETX + byte-stuffing + CRC16 (<code>DecodificadorSerial</code></li>
+ stateful, ressincroniza após ruído, descarta quadro com CRC inválido);
+ TCP: prefixo de tamanho de 4 bytes (<code>DecodificadorTcp</code>).
+<li><code>transport.py</code> — <code>TcpTransport</code> (cliente), <code>ConexaoTcp</code> (lado servidor),</li>
+ <code>iniciar_servidor_tcp</code>, <code>SerialTransport</code> (pyserial via executor
+ dedicado de 1 thread).
+<li><code>service.py</code> — <code>ComunicacaoService</code>: comm.send (ACK + até 3</li>
+ retransmissões → <code>comm.link_degraded</code>), comm.publish (EVENT difundido +
+ Event Bus local), comm.request/responder (RESPONSE correlacionada por
+ id_referencia), comm.status, roteamento transparente pelo campo destino,
+ CRC inválido → NACK, responde WHO_ARE_YOU automaticamente.
+<li><code>discovery.py</code> — <code>descobrir()</code>: WHO_ARE_YOU + verificação de versão de</li>
+ protocolo, publica <code>comm.protocol_mismatch</code> se incompatível.
+<li><code>heartbeat.py</code> — <code>MonitorHeartbeat</code>: heartbeat periódico, <code>comm.module_lost</code></li>
+ / <code>comm.module_recovered</code>, reutiliza o <code>HealthMonitor</code> do Kernel (Fase 1).
+<li><code>tools/sim_raspberry.py</code> e <code>tools/sim_arduino.py</code> — simuladores completos</li>
+ (TCP e pty) para desenvolver sem hardware.
+<li><code>firmware/hardware_core/</code> — firmware mínimo em C++ (PlatformIO,</li>
+ ArduinoJson): responde WHO_ARE_YOU e RETURN_STATUS, ACKa todo COMMAND,
+ envia HEARTBEAT periódico sem bloquear o loop.
+</ul>
+<li><strong>Decisão de design:</strong> o checksum de mensagem (campo JSON) não é validado</li>
+ no link serial (<code>exigir_checksum_mensagem=False</code> para o link com o
+ Arduino) — reproduzir a serialização JSON canônica do Python em C++ seria
+ frágil (especialmente floats); a integridade do link serial já é garantida
+ pelo CRC16 da camada de enquadramento, que é idêntico nas duas linguagens
+ (validado byte a byte, ver testes de interoperabilidade abaixo).
+<li><strong>Testes:</strong> 68 testes unitários + 3 de integração (<code>tests/integration/</code>,</li>
+ marcador <code>sim</code>) usando transportes reais (TCP de loopback, pty). Validação
+ cruzada C++/Python do CRC16 e do enquadramento completo (byte-stuffing)
+ feita com um pequeno harness nativo (g++) — compatibilidade confirmada nos
+ dois sentidos, inclusive com bytes especiais (STX/ETX/ESC) no payload.
+<li><strong>Bugs reais encontrados e corrigidos durante o desenvolvimento</strong> (não</li>
+ eram só do teste, eram da lib):
+ 1. <code>EventBus</code>: se <code>parar()</code> fosse chamado antes da task de <code>iniciar()</code>
+ rodar sua primeira iteração, <code>iniciar()</code> sobrescrevia <code>_executando</code> de
+ volta para <code>True</code> (corrida de inicialização). Corrigido movendo o
+ <code>True</code> inicial para <code>__init__</code>.
+ 2. <code>SerialTransport</code>: leitura e escrita concorrentes na mesma porta via o
+ executor padrão (multi-thread) do asyncio corrompiam o estado interno
+ do pyserial (<code>self.fd</code> virava <code>None</code> em pleno <code>read()</code>). Corrigido com
+ um <code>ThreadPoolExecutor(max_workers=1)</code> dedicado por transporte,
+ serializando todo acesso à porta.
+ 3. <code>SerialTransport.conectar()</code> não esperava o Arduino terminar de
+ reiniciar (abrir a porta ativa o DTR e reseta o Mega via CH340/bootloader
+ — comportamento padrão da maioria dos adaptadores USB-serial): comandos
+ enviados logo após conectar se perdiam. Corrigido com <code>atraso_reset_s</code>
+ (padrão 2s, configurável, 0 para portas que não resetam como um pty).
+ 4. <code>ComunicacaoService._loop_recepcao</code>: uma exceção de transporte (ex.:
+ <code>ConnectionResetError</code> num TCP derrubado sem aviso) subia sem tratamento
+ e derrubava a task de recepção por completo. Corrigido isolando por
+ link (Cap 6 s.8: falha de um módulo/link não derruba o resto).
+<li><strong>Validado com hardware físico real</strong> (não só simulado):</li>
+<ul>
+<li>Firmware compilado e gravado no Mega real (<code>/dev/ttyUSB0</code>, CH340) via</li>
+ PlatformIO; WHO_ARE_YOU, ACK, RETURN_STATUS e HEARTBEAT confirmados
+ funcionando ponta a ponta com o <code>ComunicacaoService</code> real.
+<li>Notebook real (10.20.20.195, Debian 13) conversando pela rede Wi-Fi</li>
+ (10.20.20.0/24) com este Raspberry rodando <code>sim_raspberry.py</code>: descoberta,
+ comando com ACK e heartbeat recebidos com sucesso.
+</ul>
+<li><strong>Notebook provisionado:</strong> apt atualizado, toolchain de build/áudio</li>
+ instalado (ffmpeg, portaudio19-dev, build-essential, etc.), venv do projeto
+ criado e testado (Fase 1 completa rodando lá também), Ollama instalado com
+ o modelo <code>llama3.2:3b</code> já baixado (2 GB, CPU-only — sem GPU dedicada).
+ <code>jproma23</code> adicionado ao grupo <code>sudo</code> no notebook (não tinha nenhum
+ privilégio antes). PlatformIO instalado neste Pi em venv própria
+ (<code>~/.platformio-venv</code>) para compilar/gravar o firmware.
+<li><strong>Próximo passo:</strong> iniciar Fase 3 — Banco de dados e memória no Raspberry</li>
+ (Caps 15, 11): Database Manager (SQLite WAL no SSD), migrações
+ versionadas, API de memória (remember/recall/update/forget/context/stats)
+ exposta ao Notebook via comm.request, backup diário + réplica cruzada no
+ Notebook.
+</ul>
+<ul>
+<li><strong>Fase 3 concluída.</strong> Implementado em <code>motion_core/memory/</code> (novo pacote</li>
+ Python — código do Raspberry, deploy separado do <code>src/orion/</code> do
+ Notebook; <code>pyproject.toml</code> ganhou <code>&quot;.&quot;</code> no <code>pythonpath</code> de teste para
+ importar <code>motion_core.*</code>):
+<ul>
+<li><code>schema.py</code> — todas as tabelas do Cap 15 s.3 e Cap 11 s.5 (pessoas,</li>
+ ambientes, objetos, conhecimento, conversas, configuracao_memoria,
+ missoes, eventos, telemetria, logs, diagnosticos, configuracao,
+ schema_version) + os índices mínimos do Cap 15 s.4, como migração
+ versionada (<code>MIGRACOES</code>).
+<li><code>database.py</code> — <code>DatabaseManager</code>: WAL, <code>PRAGMA foreign_keys</code>,</li>
+ <code>integrity_check</code>, recuperação em cascata (Cap 15 s.7: checkpoint do
+ WAL → restaurar backup mais recente → recriar do zero em modo
+ degradado), backup via API nativa do SQLite com rotação (7 diários + 4
+ semanais), retenção (telemetria 30d, eventos 90d, logs 30d/erros 180d)
+ com <code>VACUUM</code>. Deliberadamente síncrono (mais simples de testar) —
+ quem chama em contexto assíncrono delega para <code>asyncio.to_thread</code>.
+<li><code>manutencao.py</code> — ponte assíncrona com o Event Bus: <code>iniciar_banco()</code></li>
+ publica <code>database.ready</code>/<code>database.rebuilt</code>; <code>TarefaManutencao</code> roda
+ backup + retenção uma vez por dia no horário configurado
+ (<code>database.backup_hour</code>), publicando <code>database.backup_completed</code> /
+ <code>database.backup_failed</code>.
+<li><code>api.py</code> — <code>MemoryAPI</code>: remember/recall/update/forget/context/stats</li>
+ (Cap 11 s.6), publicando <code>memory.updated</code>/<code>memory.recall_executed</code>.
+ Toda exclusão vira log (Cap 11 s.8). <code>context()</code> monta pessoa +
+ conversas recentes + conhecimento relevante (o resto do contexto de
+ curto prazo — missão em execução, sensores — é RAM do Mission Core,
+ não vem do banco).
+<li><code>bridge.py</code> — <code>PonteMemoria</code>: liga comandos <code>memory.*</code> recebidos via</li>
+ <code>comm.mensagem.command</code> (Fase 2) à <code>MemoryAPI</code>, respondendo com
+ RESPONSE — é assim que <code>memory.context()</code> chamado do Notebook chega
+ até aqui.
+<li><code>replica.py</code> — réplica cruzada do backup para o Notebook em blocos via</li>
+ <code>comm.send</code> (ACK + retransmissão, reusa o protocolo da Fase 2 em vez de
+ um transporte de arquivos à parte); <code>ReceptorReplica</code> reconstrói por
+ índice (não por ordem de chegada, já que retransmissão pode reordenar).
+</ul>
+<li><strong>Bug de segurança encontrado e corrigido antes de ir para produção:</strong></li>
+ <code>MemoryAPI</code> interpolava nomes de coluna de <code>dados</code>/<code>filtro</code> direto na SQL
+<ul>
+<li>como esses dicts podem vir de uma requisição remota (<code>comm.request</code>),</li>
+ isso era brecha de SQL injection via nome de campo malicioso. Corrigido
+ validando toda coluna contra <code>PRAGMA table_info</code> antes de montar a query
+ (<code>ErroColunaInvalida</code>), com teste de regressão usando um nome de coluna
+ contendo <code>; DROP TABLE ...</code>.
+</ul>
+<li><strong>Bug real encontrado ao ligar <code>asyncio.to_thread</code> ao sqlite3:</strong> conexões</li>
+ SQLite são presas à thread que as criou por padrão; como cada chamada
+ assíncrona pode rodar em uma thread diferente do executor (mesma classe
+ de problema já visto no pyserial da Fase 2), foi preciso abrir a conexão
+ com <code>check_same_thread=False</code> — seguro aqui porque o acesso é sempre
+ sequencial (nunca duas chamadas concorrentes na mesma conexão).
+<li><strong>Testes:</strong> 106 testes unitários + 5 de integração (<code>tests/integration/</code>).</li>
+ <code>conftest.py</code> (com <code>FakeTransporte</code>) subiu de <code>tests/unit/</code> para
+ <code>tests/</code> para poder ser compartilhado com <code>tests/integration/</code>. Cenário
+ ponta a ponta cobrindo backup → réplica → corrupção → recuperação, e
+ benchmark confirmando <code>memory.context()</code> via <code>comm.request</code> abaixo de
+ 100 ms com massa de teste (500 conversas + 50 fatos).
+<li><strong>Limitação conhecida, documentada no código:</strong> a ponte de memória ainda</li>
+ não valida a origem da solicitação contra o Service Registry (Cap 14 s.9
+ / Cap 11 s.8 exigem isso) — o Communication Core da Fase 2 ainda não
+ implementa esse controle de acesso. Revisitar mais adiante.
+<li><strong>Nota:</strong> os testes usam <code>tmp_path</code> para o banco/backups, não os caminhos</li>
+ reais de <code>config/orion.yaml</code> (<code>/mnt/ssd/orion/...</code>) — isso será ligado de
+ verdade quando o processo do Motion Core existir (Fase 7); por enquanto
+ <code>motion_core/memory/</code> é uma biblioteca testável, ainda sem um daemon
+ próprio rodando no boot.
+<li><strong>Próximo passo:</strong> iniciar Fase 4 — Hardware Core completo (Cap 10):</li>
+ firmware modular (Motor/Sensor/Radar/IMU/Encoder/Command Executor/
+ Telemetry/Safety Manager), máquina de estados completa (BOOT→...→
+ SAFE_MODE), todos os comandos de movimento com ACK e progresso, pacote
+ periódico Radar Inteligente, segurança reativa (parada por distância
+ mínima, inclinação, timeout) sem depender do Raspberry nem do Notebook.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

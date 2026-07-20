@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teste ao vivo do conselheiro: DESLIGADO, e por que — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Teste ao vivo do conselheiro: DESLIGADO, e por que</h2>
+<p>Sequencia de falhas encontradas ao ligar o conselheiro ao vivo, na ordem:</p>
+<p>1. <strong>Bug meu:</strong> em conversar_fofao.py escrevi <code>event_bus</code> onde a variavel</p>
+<p>local se chama <code>bus</code>. O processo subia mudo e nunca conectava no Pi.</p>
+<p>2. <strong>Evento nao atravessa o link sozinho</strong> (Cap 14 s.7): quem quer mandar</p>
+<p>um evento ao outro no precisa reencaminhar com `comm.publish(...,</p>
+<p>local=False)`. Faltava nos dois lados - o Pi perguntava no vazio.</p>
+<p>Adicionado: Pi repassa TOPICO_PEDIDO, Notebook repassa TOPICO_RESPOSTA.</p>
+<p>3. <strong>Tempestade de requisicoes (causada por mim):</strong> o maestro repergunta a</p>
+<p>cada timeout (6s) e a inferencia levava &gt;8s. Pedidos empilhavam mais</p>
+<p>rapido que as respostas; o link TCP caia e reconectava em laco, com</p>
+<p><strong>37 conexoes vazadas</strong> na porta 5757. Corrigido com</p>
+<p><code>INTERVALO_CONSULTA_IA_S = 120</code> (ociosidade nao e urgencia).</p>
+<p>4. <strong>Timeouts invertidos:</strong> Pi esperava 6s, conselheiro do Notebook 8s - o</p>
+<p>Pi desistia antes de a resposta poder existir. Agora Pi 25s /</p>
+<p>conselheiro 20s (o de fora tem que ser maior que o de dentro).</p>
+<p>5. <strong>A causa que nao tem conserto por parametro:</strong> cada consulta derrubava</p>
+<p>o link. Padrao no log: heartbeat perdido -&gt; IA estoura o timeout -&gt;</p>
+<p>&quot;Link com o Motion Core caiu&quot;. A inferencia do gemma3:1b satura os</p>
+<p>nucleos do notebook por ~20s; o processo Python e preterido, os</p>
+<p>heartbeats atrasam e o Pi declara o link morto. **asyncio.to_thread</p>
+<p>protege o event loop de BLOQUEAR, mas nao de FALTA DE CPU.**</p>
+<ul>
+<li><strong>DECISAO: conselheiro DESLIGADO por padrao</strong> (`behavior.conselho_ia.</li>
+ habilitado: false`). Entregava zero conselhos (a inferencia estourava o
+ timeout) e custava uma queda de link a cada 2 minutos - pior que nao ter.
+ Codigo pronto e testado (236 passed); religar e trocar a flag, depois de
+ resolver a causa. Verificado apos desligar: log em silencio, link estavel.
+<li><strong>Heartbeat e o no do problema:</strong> intervalo 1s, limite 3 perdidos = link</li>
+ morto em 3s. Tolerancia curta demais para uma maquina que roda inferencia
+ local. Subir exige config POR LINK - tolerante com o Notebook, rigida com
+ o Mega (onde detectar falha rapido importa de verdade). Trabalho real,
+ nao troca de numero.
+<li>**Proposta do usuario (mover visao e voz para o Pi, notebook so com IA):</li>
+ NAO recomendada.** O problema nao e onde as coisas rodam, e CPU saturada
+ convivendo com laco sensivel a atraso. Mover para o Pi faz saturar a
+ maquina MAIS FRACA (4GB vs 8GB) e MAIS CRITICA - a que fala com o Arduino
+ e roda a seguranca tatica. Notebook engasgado e chato; Pi engasgado e o
+ robo perdendo o corpo. O caminho e o inverso: o forte fica com o peso, o
+ Pi passa a TOLERAR o notebook engasgar.
+<li><strong>PENDENCIA (achado lateral, importante):</strong> vazamento de conexoes TCP -</li>
+ a reconexao do Notebook abre socket novo sem fechar o antigo (37 vivas no
+ pico, 4 depois de estabilizar). Investigar o supervisor de link.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

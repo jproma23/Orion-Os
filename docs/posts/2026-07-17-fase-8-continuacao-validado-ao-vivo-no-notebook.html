@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 8, continuação — validado ao vivo no Notebook — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 8, continuação — validado ao vivo no Notebook</h2>
+<ul>
+<li><strong>Acesso SSH do Raspberry para o Notebook estabelecido e confirmado</strong></li>
+ (<code>ssh jproma23@10.20.20.195</code>, sem senha - chave deste Pi já estava
+ autorizada lá). Não existe git remote ligando os dois <code>~/orion-os</code>
+ (cada máquina tem seu próprio histórico local) - sincronização de
+ arquivos feita via <code>scp</code> direto. Detalhes salvos na memória do Claude
+ (<code>reference_orion_os_notebook_ssh</code>) para não precisar redescobrir isso
+ numa sessão futura.
+<li><strong>2 bugs reais corrigidos em <code>tests/unit/test_avatar_server.py</code></strong> ao</li>
+ rodar de verdade no Notebook (aqui no Pi o teste só compila, não
+ executa - falta <code>aiohttp</code> de propósito):
+ 1. Fixture assíncrona (<code>cliente</code>) precisava do decorator
+ <code>@pytest_asyncio.fixture</code>, não <code>@pytest.fixture</code> puro - modo
+ <code>asyncio_mode=strict</code> do projeto exige isso, senão dá
+ <code>AssertionError</code> genérico no setup.
+ 2. O teste publicava um evento no bus sem o loop de despacho
+ (<code>bus.iniciar()</code>) rodando - <code>publish()</code> só enfileira, quem entrega
+ de fato ao assinante é a task de <code>iniciar()</code>. Sem ela, o teste só
+ via o ping de keepalive 15s depois, nunca o evento. Corrigido
+ criando a task no fixture e cancelando/aguardando no teardown.
+<li><strong>170 testes passando no Notebook</strong> (com <code>aiohttp</code> de verdade instalado</li>
+<ul>
+<li>nenhum pulado lá, todas as libs de Vision/Voice/Display presentes).</li>
+</ul>
+<li><strong>Achado e encerrado um processo órfão de antes da sessão cair:</strong></li>
+ <code>/tmp/rodar_avatar.py</code> (script solto, fora do repositório) ainda estava
+ rodando na porta 8090 com o avatar antigo (a cabeça tática 2D). Matado
+ e substituído pelo <code>tools/preview_avatar.py</code> novo, versionado.
+<li><strong>Validação visual real, pela primeira vez:</strong> aberto Firefox em modo</li>
+ kiosk (<code>--kiosk</code>) na tela física do Notebook (<code>DISPLAY=:0</code>, sessão
+ XFCE), apontado para <code>http://127.0.0.1:8090</code> - screenshots confirmam
+ o Fofão renderizando de verdade: cabeça 3D girando com o pan/tilt
+ simulado, antena pulsando, pill de status trocando de texto
+ (ouvindo/entendendo/falando) em sincronia com o ciclo de estados do
+ <code>preview_avatar.py</code>.
+<li><strong>Renomeado de &quot;Sentinelinha&quot; para &quot;Fofão&quot;</strong> (nome/título/fala de boas-</li>
+ vindas em <code>index.html</code> e <code>avatar.js</code>) - a pedido do usuário, para bater
+ com a wake word já implementada na Fase 6 (Cap 9). Ressincronizado com
+ o Notebook e Firefox reiniciado para pegar a mudança.
+<li><strong>Efeito colateral resolvido, não era bug do avatar:</strong> dois popups do</li>
+ painel do XFCE (<code>xfce4-panel</code>, tipo <code>_NET_WM_WINDOW_TYPE_POPUP_MENU</code>)
+ ficaram travados abertos por cima da tela, sobrando de alguma interação
+ anterior à sessão - descoberto via <code>xprop</code>/<code>xwininfo -tree</code> (não eram
+ janelas do Firefox nem do avatar). Resolvido reiniciando o processo
+ <code>xfce4-panel</code> no Notebook.
+<li><strong>Estado atual:</strong> avatar rodando ao vivo no Notebook, validado</li>
+ visualmente, mas ainda com dados simulados (<code>preview_avatar.py</code>) - não
+ com Voice/Vision Core reais. Nada commitado ainda em nenhuma das duas
+ máquinas.
+<li><strong>Próximo passo:</strong> decidir com o usuário se continua a Fase 8 (interface</li>
+ web do Raspberry - dashboard/conversa/mapa/diagnóstico, Cap 13 s.5-6 -
+ e mapa polar do radar, nenhum dos dois começado ainda) ou se valida
+ primeiro o avatar com a Voice Core real (Fase 6, pendente de headset
+ USB) antes de seguir.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 8, continuação — Configuração: as 5 páginas completas — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 8, continuação — Configuração: as 5 páginas completas</h2>
+<ul>
+<li><strong>Página CONFIGURAÇÃO</strong> (Cap 13 s.4: &quot;parâmetros do sistema, acesso</li>
+ restrito&quot;): <code>GET /configuracao</code> + <code>GET /api/configuracao</code>. Perguntei ao
+ usuário como deveria funcionar o &quot;acesso restrito&quot; (projeto não tem
+ autenticação em lugar nenhum) - escolheu **restringir por IP: só
+ responde a pedidos vindos do próprio Raspberry** (<code>127.0.0.1</code>/<code>::1</code>),
+ não do resto da rede local (diferente das outras 4 páginas). Fora do
+ Raspberry, devolve HTTP 403. Somente leitura por ora - editar
+ configuração ao vivo (com validação/reinício) fica pra uma iteração
+ futura, mesmo espírito de escopo mínimo já usado em FOLLOW/EXPLORE e no
+ log do DIAGNÓSTICO.
+<li>**<code>WebUIServer</code> ganhou parâmetro opcional `config: ConfigurationManager</li>
+ | None<code>** - quando presente, </code>/api/configuracao` devolve
+ <code>config.bruto()</code> (todo o <code>config/orion.yaml</code> parseado); quando <code>None</code>,
+ mostra aviso em vez de quebrar (mesmo padrão de <code>memory_api</code>).
+<li><strong>7 testes novos</strong>: checagem de acesso local isolada (aceita</li>
+ <code>127.0.0.1</code>/<code>::1</code>, rejeita IP de rede), acesso via <code>TestClient</code> (que
+ conecta por loopback de verdade, prova o caminho &quot;permitido&quot; ponta a
+ ponta), API sem/com <code>ConfigurationManager</code> real carregado do
+ <code>config/orion.yaml</code> de verdade. **182 passando + 7 pulados no
+ Raspberry, 220 passando no Notebook.** <code>ruff</code> limpo.
+<li><strong>As 5 páginas do Cap 13 s.4 existem agora</strong>: DASHBOARD, MAPA,</li>
+ DIAGNÓSTICO, CONVERSA, CONFIGURAÇÃO, com navegação cruzada entre todas.
+<li><strong><code>PLANO_IMPLEMENTACAO.md</code> não alterado</strong> - o &quot;pronto quando&quot; da Fase 8</li>
+ (&quot;interface reflete eventos em &lt; 500ms acessada do celular na rede
+ local&quot;) foi demonstrado com SSE (latência bem abaixo de 500ms) e acesso
+ de outro dispositivo na rede (o Notebook, via IP), mas **não com um
+ celular de verdade** ainda - e o item &quot;Acesso remoto via Raspberry Pi
+ Connect documentado&quot; nem foi começado. Nenhum checkbox da Fase 8
+ marcado ainda, por essas duas razões.
+<li><strong>Não commitado ainda.</strong></li>
+<li><strong>Próximo passo:</strong> o usuário pediu pra fazer uma revisão visual de</li>
+ tudo (colocar cada página na tela) antes de continuar - isso vem antes
+ de qualquer trabalho novo.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conselheiro plugado no maestro - a IA opina, a regra manda — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Conselheiro plugado no maestro - a IA opina, a regra manda</h2>
+<ul>
+<li><strong>Problema descoberto ao plugar:</strong> os 4 comportamentos existentes sao</li>
+ todos disparados por condicao concreta (voz, alerta, obstaculo). Quando
+ nenhum quer rodar sobra so <code>repouso</code> - pedir conselho com UMA opcao e
+ decoracao. Conselho so significa algo se houver escolha real.
+<li><strong><code>Ronda</code> (prio 20), primeiro comportamento DISCRICIONARIO:</strong> dar uma</li>
+ olhada em volta quando nao ha nada acontecendo. So olha (pan/tilt +
+ SCAN_FRONT), <strong>NAO anda</strong> - movimento de rodas por iniciativa da IA seria
+ arriscado demais no primeiro passo; olhar e reversivel.
+<li><strong>Ponte Pi&lt;-&gt;Notebook</strong> (<code>motion_core/behavior/ponte_conselho.py</code> +</li>
+ <code>src/orion/mission/conselho_protocolo.py</code>): pedido e resposta casados por
+ <code>id</code>, senao resposta atrasada de pedido antigo seria confundida com a
+ atual. Timeout de 6s; None significa &quot;decida pela regra&quot;, nao erro.
+<li><strong>Correcao de arquitetura no meio do caminho:</strong> eu tinha posto o</li>
+ atendente em <code>motion_core/</code> e feito o Notebook importar de la. Errado -
+ eles tem deploy separado e a dependencia so anda num sentido
+ (<code>motion_core</code> importa <code>orion</code>). Protocolo + atendente mudaram para
+ <code>src/orion/mission/conselho_protocolo.py</code>.
+<li><strong>Gancho no maestro</strong> (<code>_pode_consultar_ia</code>): a IA so e consultada na</li>
+ AMBIGUIDADE - ninguem de gatilho concreto no controle e nenhum
+ discricionario ja querendo rodar. Resposta que nao seja o nome exato de
+ um discricionario registrado e ignorada (inclui &quot;repouso&quot;, que e um
+ conselho legitimo de nao fazer nada).
+<li>9 testes novos, todos sobre &quot;a IA nao pode atrapalhar&quot;: Notebook mudo,</li>
+ lento, explodindo, resposta invalida, resposta atrasada de pedido velho,
+ e maestro sem ponte nenhuma. Suite: <strong>236 passed, 8 skipped</strong>.
+<li><strong>VALIDADO NO SERVICO REAL:</strong> orion-motion reiniciado, log mostra</li>
+ <code>comportamentos: vigilancia_obstaculo, atender, vigilia, ronda, repouso</code>
+ e depois <code>sem conselho em 6.0s - seguindo pela regra</code> (o Notebook nao
+ esta rodando conversar_fofao). Degradacao graciosa confirmada em campo,
+ nao so em teste.
+<li>Limpeza: a lista de comportamentos no log era escrita a mao e ja estava</li>
+ desatualizada; agora vem de <code>maestro.nomes_registrados</code>.
+<li><strong>PENDENCIA:</strong> falta ver o conselho ACEITO ao vivo - precisa do</li>
+ conversar_fofao rodando no Notebook ao mesmo tempo. E o julgamento do
+ gemma3:1b e fraco (escolheu repouso com obstaculo a 34cm), entao vale
+ medir se ele acerta a escolha ronda-vs-repouso ou se o 4b e necessario
+ aqui.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

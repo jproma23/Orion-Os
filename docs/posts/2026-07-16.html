@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sessao de 2026-07-16 — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-16</p>
+<h2>Sessao de 2026-07-16</h2>
+<ul>
+<li>Recebido o scaffold inicial do projeto (<code>orion-os-tcc.zip</code>) via e-mail,</li>
+ transferido do celular para o Raspberry Pi por servidor de upload
+ temporário (encerrado após uso) e extraído em <code>~/orion-os</code>.
+<li>Repositório git inicializado em <code>~/orion-os</code> (ainda sem commits).</li>
+<li>Decisão: desenvolvimento vai seguir <code>PLANO_IMPLEMENTACAO.md</code> fase por</li>
+ fase, sem pular etapas, sempre com os testes da fase passando antes de
+ avançar (regra já definida no próprio plano).
+<li>Estado do código: apenas scaffold. Único código funcional é</li>
+ <code>src/orion/__main__.py</code> (Fase 0, imprime versão) e o teste de fumaça
+ <code>tests/unit/test_smoke.py</code>. Nenhuma fase concluída ainda.
+<li><strong>Fase 0 concluída.</strong> Criado <code>.venv</code>, <code>pip install -e &quot;.[dev]&quot;</code> sem erros,</li>
+ <code>tools/check.sh</code> passa limpo (ruff OK, 1 teste de fumaça OK).
+ <code>python -m orion</code> e <code>python -m orion --sim</code> funcionam (só imprimem versão,
+ boot real ainda não existe — é da Fase 1).
+<li><strong>Próximo passo:</strong> iniciar Fase 1 — Kernel (Cap 6): Configuration Manager</li>
+ lendo <code>config/orion.yaml</code>, Logger estruturado, Event Bus assíncrono,
+ Service Registry, Health Monitor + Watchdog, Boot Manager. Ler
+ <code>docs/ses/ORION_OS_SES_Capitulo_06_Kernel_ORION_OS.md</code> antes de começar.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

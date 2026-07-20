@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<ul class="indice">
+<li><span class="data">2026-07-20</span><br><a href="posts/2026-07-20-camada-2-da-cognicao-o-diario-e-a-licao-de-testar-os-dois-lados.html">Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-fechamento-da-sessao.html">Fechamento da sessão</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-limiar-de-impacto-instrumentado-nao-adivinhado.html">Limiar de impacto: instrumentado, nao adivinhado</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-behavior-reduzir-carga-ia-alguem-finalmente-escuta.html">behavior.reduzir_carga_ia: alguem finalmente escuta</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-falso-positivo-de-heartbeat-no-boot.html">Falso positivo de heartbeat no boot</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-heartbeat-por-enlace-paciencia-com-o-notebook-rigor-com-o-mega.html">Heartbeat por enlace: paciencia com o Notebook, rigor com o Mega</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-vazamento-de-conexoes-tcp-causa-e-conserto.html">Vazamento de conexoes TCP: causa e conserto</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-teste-ao-vivo-do-conselheiro-desligado-e-por-que.html">Teste ao vivo do conselheiro: DESLIGADO, e por que</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-conselheiro-plugado-no-maestro-a-ia-opina-a-regra-manda.html">Conselheiro plugado no maestro - a IA opina, a regra manda</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-camada-3-ia-aconselha-regra-manda.html">Camada 3: IA aconselha, regra manda</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-grounding-a-correcao-real-da-alucinacao-troca-para-gemma3-1b.html">Grounding: a correcao real da alucinacao + troca para gemma3:1b</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-serial-3000-3000-comparacao-de-modelos-de-ia.html">Serial 3000/3000; comparacao de modelos de IA</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-bateria-integracao-cognitiva-modelo-de-mundo.html">Bateria + integracao cognitiva: modelo de mundo</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-causa-raiz-das-respostas-perdidas-o-dht-fantasma.html">CAUSA RAIZ das respostas perdidas: o DHT fantasma</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-teste-do-mpu6050-sensor-ok-offset-de-9-3-graus.html">Teste do MPU6050 - sensor ok, offset de 9.3 graus</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-sentinela-de-visao-rosto-desconhecido-dispara-alerta.html">Sentinela de visão - rosto desconhecido dispara alerta</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-familia-cadastrada-fofao-conhece-os-donos.html">família cadastrada - Fofão conhece os donos</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-atender-plugado-maestro-reage-ao-fofao.html">Atender plugado - maestro reage ao &quot;Fofão&quot;</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-primeiros-comportamentos-plugados-no-maestro.html">primeiros comportamentos plugados no maestro</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-behavior-core-resiliencia-do-link-notebook-pi.html">Behavior Core + resiliencia do link Notebook&lt;-&gt;Pi</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-fase-7-conferida-e-validada-navegacao-pronta-menos-autocalibracao.html">Fase 7 conferida e validada - navegacao pronta menos autocalibracao</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-faxina-do-firmware-flags-de-diagnostico-removidos.html">faxina do firmware - flags de diagnostico removidos</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-git-remote-pi-notebook-fim-do-scp-artesanal.html">git remote Pi-&gt;Notebook - fim do scp artesanal</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-mission-planner-ligado-fase-6-fechada-na-integracao.html">Mission Planner ligado - Fase 6 fechada na integracao</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-banco-de-dados-vivo-no-ssd-primeira-memoria-do-fofao.html">banco de dados vivo no SSD + primeira memoria do Fofao</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-vad-escuta-do-fofao-ficou-20x-mais-barata.html">VAD: escuta do Fofao ficou ~20x mais barata</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-marco-cadeia-completa-viva-notebook-pi-arduino.html">MARCO: cadeia completa viva - Notebook -&gt; Pi -&gt; Arduino</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-motores-de-passo-giraram-pela-primeira-vez.html">motores de passo giraram pela primeira vez</a></li>
+<li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-teste-ultrassom-apos-religar-no-5v-do-arduino.html">teste ultrassom apos religar no 5V do Arduino</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-fechamento-cerebro-novo-wake-word-fuzzy-e-conversa-validada-pela-familia.html">fechamento - cerebro novo, wake word fuzzy e conversa validada pela familia</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-madrugada-ajustes-de-conversa-ao-vivo-com-a-familia-testando.html">madrugada - ajustes de conversa ao vivo com a familia testando</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-noite-fofao-na-tv-e-primeira-conversa-de-voz-completa.html">noite - Fofao na TV e PRIMEIRA CONVERSA DE VOZ COMPLETA!</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-noite-diagnostico-de-software-cravou-a-causa-dos-ultrassons-echo-flutuando.html">noite - diagnostico de software cravou a causa dos ultrassons: ECHO flutuando</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-fechamento-da-sessao-pinagem-dos-ultrassons-confirmada-correta-ainda-sem-sinal.html">fechamento da sessão - pinagem dos ultrassons confirmada correta, ainda sem sinal</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-continuacao-motores-e-ultrassons-chegaram-fisicamente.html">continuação - motores e ultrassons chegaram fisicamente</a></li>
+<li><span class="data">2026-07-18</span><br><a href="posts/2026-07-18-primeiro-teste-do-pan-tilt-no-hardware-fisico-bug-real-no-firmware-investigacao-de-brownout.html">primeiro teste do pan/tilt no hardware físico + bug real no firmware + investigação de brownout</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-correcao-do-achado-do-monitorheartbeat-bug-de-import-circular.html">correção do achado do MonitorHeartbeat + bug de import circular</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-marco-sistema-inteiro-rodando-de-ponta-a-ponta-pela-primeira-vez.html">marco — sistema inteiro rodando de ponta a ponta pela primeira vez</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-continuacao-configuracao-as-5-paginas-completas.html">Fase 8, continuação — Configuração: as 5 páginas completas</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-continuacao-diagnostico-e-conversa.html">Fase 8, continuação — Diagnóstico e Conversa</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-continuacao-mapa-polar-do-radar.html">Fase 8, continuação — Mapa polar do radar</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-continuacao-dashboard-web-do-raspberry.html">Fase 8, continuação — Dashboard web do Raspberry</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-cap-12-s-8-fusao-de-sensores-motion-position.html">Cap 12 s.8 - Fusão de Sensores / motion.position</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fechando-o-item-3-da-fase-7-flakiness-do-ack.html">fechando o item 3 da Fase 7 - flakiness do ACK</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-aparte-pi-connect-caindo-nao-e-do-orion-os.html">aparte — Pi Connect caindo, não é do ORION OS</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-7-inicio-motion-core-navegacao.html">Fase 7, início — Motion Core / Navegação</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-continuacao-validado-ao-vivo-no-notebook.html">Fase 8, continuação — validado ao vivo no Notebook</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-8-inicio-avatar-sentinelinha.html">Fase 8, início — Avatar/Sentinelinha</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-6.html">Fase 6</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-fase-5.html">Fase 5</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17-continuacao.html">continuação</a></li>
+<li><span class="data">2026-07-17</span><br><a href="posts/2026-07-17.html">Sessao de 2026-07-17</a></li>
+<li><span class="data">2026-07-16</span><br><a href="posts/2026-07-16.html">Sessao de 2026-07-16</a></li>
+</ul>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

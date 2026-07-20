@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 8, início — Avatar/Sentinelinha — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 8, início — Avatar/Sentinelinha</h2>
+<ul>
+<li><strong>Sessão anterior caiu no meio da Fase 8</strong> antes de logar aqui - esta</li>
+ entrada reconstrói o que ficou em disco (arquivos criados mas não
+ commitados) e o que foi feito na retomada.
+<li>**Primeira versão (perdida em decisão, mantida em código até o usuário</li>
+ mudar de ideia):** <code>avatar_server.py</code> (aiohttp) servindo uma &quot;cabeça
+ cibernética&quot; 2D em canvas/CSS - visor tático/holográfico, sóbrio.
+ Consumidor puro do Event Bus via SSE (<code>/eventos</code>), repassando
+ <code>voice.status</code>, <code>motion.pan_tilt</code>, <code>motion.status</code>,
+ <code>motion.obstacle_front</code>, <code>diagnostic.error</code>, <code>system.ready</code>.
+<li><strong>Mudança de direção do usuário:</strong> ele tinha, num rascunho de e-mail</li>
+ separado (assunto &quot;Avatar robo&quot;), um modelo próprio já pronto - a
+ <strong>Sentinelinha</strong>, um mascote 3D (Three.js) fofo/flutuante (cabeça
+ esférica, viseira, olhos com brilho, bochechas, antena pulsante,
+ &quot;orelhas&quot; com anel ciano, corpo flutuante com anel propulsor),
+ originalmente com rastreamento de rosto via webcam (diff de frames).
+ Usuário decidiu: descartar a cabeça tática 2D e adotar a Sentinelinha
+ como avatar oficial do Fofão, trocando o rastreamento por webcam pelos
+ eventos reais do robô.
+<li><strong>Bug real encontrado no modelo do usuário:</strong> o HTML original carregava</li>
+ <code>three.min.js</code> via CDN (<code>cdnjs.cloudflare.com</code>) - quebra a regra
+ &quot;100% offline&quot; do projeto (funciona só com internet). Corrigido: Three.js
+ r128 baixado uma vez e vendorizado em
+ <code>src/orion/display/static/vendor/three.min.js</code>, servido localmente pelo
+ <code>AvatarServer</code> (que já serve todo <code>static/</code> como estático).
+<li><strong>Reescrita de <code>static/index.html</code>, <code>avatar.css</code>, <code>avatar.js</code>:</strong></li>
+ geometria 3D da Sentinelinha mantida como o usuário desenhou; removida a
+ parte de webcam/<code>getUserMedia</code>/detecção de movimento por diff de frame.
+ No lugar:
+<ul>
+<li><code>motion.pan_tilt</code> (evento real, publicado por <code>vision_core.py</code>) move a</li>
+ cabeça e os olhos, normalizado pelos limites reais dos servos
+ (<code>config/orion.yaml</code>, seção <code>vision</code>: <code>pan_limits_degrees: [-80, 80]</code>,
+ <code>tilt_limits_degrees: [-30, 45]</code>) - <strong>não fixado no JS</strong>: o avatar
+ busca <code>/config</code> no servidor, que devolve esses limites lidos do YAML
+ (rota nova em <code>avatar_server.py</code>), respeitando a regra arquitetural
+ #6 (nenhum valor fixo fora de <code>config/orion.yaml</code>).
+<li><code>voice.status</code> (estados reais de <code>voice_core.py</code>: IDLE, LISTENING,</li>
+ WAKE_DETECTED, TRANSCRIBING, THINKING, SPEAKING, ERROR) controla
+ &quot;energia&quot;/animação e o texto do status; boca anima de verdade (abre e
+ fecha) só durante SPEAKING.
+<li><code>motion.obstacle_front</code> e <code>diagnostic.error</code> disparam um estado de</li>
+ alerta visual (olhos/antena ficam vermelhos) em vez do vermelho ser só
+ decorativo.
+</ul>
+<li><strong><code>AvatarServer.__init__</code> ganhou o parâmetro <code>limites_pan_tilt</code></strong> (dict</li>
+ com os dois limites) e a rota <code>GET /config</code> que os expõe como JSON.
+<li><strong>Teste novo:</strong> <code>tests/unit/test_avatar_server.py</code>, com</li>
+ <code>pytest.importorskip(&quot;aiohttp&quot;)</code> (mesmo padrão de Vision/Voice - Display
+ também é Notebook-only, EDR-0018). Cobre: <code>/</code> serve o HTML, <code>/config</code>
+ devolve os limites certos, um evento publicado no bus chega de verdade
+ no cliente SSE, e um tópico fora da lista repassada não gera assinatura
+ no bus. <strong>Não roda neste Raspberry</strong> (sem <code>aiohttp</code> instalado de
+ propósito aqui) - 128 testes passando + 8 pulados no Pi (contando os 4
+ novos deste arquivo).
+<li><strong>Novo <code>tools/preview_avatar.py</code>:</strong> sobe o <code>AvatarServer</code> num Event Bus</li>
+ real e fica publicando uma sequência de eventos de mentirinha (pan/tilt
+ varrendo em seno, estados de voz em ciclo IDLE→...→SPEAKING) - permite
+ ver o avatar reagindo na tela sem precisar da Voice/Vision Core rodando
+ de verdade. Mesmo padrão dos simuladores da Fase 2
+ (<code>tools/sim_arduino.py</code>, <code>tools/sim_raspberry.py</code>).
+<li><strong>Decisão consciente, não é pendência esquecida:</strong> o avatar <strong>não</strong> foi</li>
+ ligado no <code>python -m orion</code> (<code>kernel/boot.py</code>/<code>__main__.py</code>) ainda.
+ Motivo: <code>__main__.py</code> hoje faz o boot e encerra na hora (não existe
+ ainda um loop principal de longa duração), e nem Vision nem Voice Core
+ estão plugadas nesse boot apesar de já implementadas nas Fases 5/6 -
+ ligar só o avatar sozinho nesse meio-termo ficaria pela metade. Revisitar
+ quando o loop principal de execução for construído.
+<li><strong>Pendência real:</strong> tudo isso foi escrito e testado (onde dá) no</li>
+ Raspberry, mas Display é código do <strong>Notebook</strong> (Mission Core,
+ EDR-0018) - nada disso rodou de fato num navegador ainda. Falta: no
+ Notebook, <code>pip install -e &quot;.[display]&quot;</code> e <code>python tools/preview_avatar.py</code>,
+ depois abrir <code>http://127.0.0.1:8090</code>.
+<li><strong>Nada commitado ainda</strong> - <code>avatar_server.py</code>, <code>static/</code>,</li>
+ <code>tools/preview_avatar.py</code> e <code>tests/unit/test_avatar_server.py</code> seguem
+ como arquivos novos não versionados.
+<li><strong>Próximo passo:</strong> rodar <code>preview_avatar.py</code> no Notebook de verdade e</li>
+ validar visualmente; depois decidir com o usuário se a Sentinelinha
+ também deve reagir a mais eventos (ex.: <code>motion.status</code> para
+ IDLE/EXECUTING_MISSION), e revisitar a integração no boot quando o loop
+ principal existir.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

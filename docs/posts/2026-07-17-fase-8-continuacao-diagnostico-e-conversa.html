@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 8, continuação — Diagnóstico e Conversa — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 8, continuação — Diagnóstico e Conversa</h2>
+<ul>
+<li><strong>Página DIAGNÓSTICO</strong> (Cap 13 s.4-5): <code>GET /diagnostico</code> +</li>
+ <code>GET /log</code>. Passou a consumir <code>diagnostic.error</code>, <code>comm.link_degraded</code>
+ (últimos erros), <code>comm.module_lost</code>/<code>comm.module_recovered</code> (saúde dos
+ módulos - &quot;ok&quot;/&quot;perdido&quot; por nome, com timestamp). <code>GET /log</code> expõe as
+ últimas N linhas (padrão 200, máx. 2000) de <code>data/logs/orion.log</code>
+ <strong>somente leitura</strong> (Cap 13 s.4) - se o arquivo não existir ainda,
+ devolve aviso em vez de erro.
+<li><strong>Página CONVERSA</strong> (Cap 13 s.4: &quot;transcrição da interação por voz&quot;):</li>
+ <code>GET /conversa</code> + <code>GET /api/conversas</code>. Diferente das outras páginas,
+ não guarda o histórico em memória - consulta a **Fase 3 (Memory Core)
+ direto** via <code>MemoryAPI.recall(&quot;conversas&quot;, ...)</code>, porque como o
+ servidor roda no próprio Raspberry, dá pra ler o banco local sem
+ precisar de rede (Cap 13 s.4: &quot;consultas de histórico... locais ao
+ SSD&quot;). <code>WebUIServer</code> ganhou um parâmetro opcional <code>memory_api</code> -
+ quando <code>None</code> (banco não montado, como agora nesta máquina de dev, sem
+ SSD em <code>/mnt/ssd/orion/</code>), a página mostra aviso em vez de quebrar.
+ Novos balões de conversa chegam via <code>memory.updated</code> (evento que
+ <code>MemoryAPI.remember()</code> já publicava desde a Fase 3) - o evento só avisa
+ &quot;recarregue&quot;, o dado de verdade sempre vem da API, nunca duplicado.
+<li><strong>9 testes novos</strong> (diagnóstico: erro registrado, saúde de módulo</li>
+ atualizada, <code>/log</code> bem formado; conversa: HTML serve, aviso sem
+ <code>memory_api</code>, histórico real com um <code>DatabaseManager</code>/<code>MemoryAPI</code> de
+ teste em <code>tmp_path</code> - mesmo padrão do <code>test_memory_database.py</code>).
+ <strong>177 passando + 7 pulados no Raspberry, 215 passando no Notebook.</strong>
+ <code>ruff</code> limpo.
+<li><strong>Todas as 4 páginas</strong> (Dashboard/Mapa/Diagnóstico/Conversa) com</li>
+ navegação cruzada no cabeçalho agora.
+<li><strong>Não commitado ainda.</strong></li>
+<li><strong>Falta só CONFIGURAÇÃO</strong> (Cap 13 s.4: &quot;acesso restrito&quot;) pra fechar a</li>
+ Fase 8 por completo - decisão de design pendente (que tipo de
+ restrição de acesso, já que o projeto não tem autenticação em lugar
+ nenhum ainda). Usuário pediu pra deixar a revisão visual de tudo
+ (colocar cada página na tela) pra depois de terminar de construir.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

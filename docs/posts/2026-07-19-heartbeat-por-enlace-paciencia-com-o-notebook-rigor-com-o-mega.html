@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Heartbeat por enlace: paciencia com o Notebook, rigor com o Mega — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Heartbeat por enlace: paciencia com o Notebook, rigor com o Mega</h2>
+<ul>
+<li><strong>Problema:</strong> um unico <code>heartbeats_lost_threshold: 3</code> governava TODOS os</li>
+ enlaces = link morto apos 3s sem heartbeat. Curto demais para o Notebook
+ (que trava a CPU dezenas de segundos rodando IA local sem estar
+ quebrado), mas afrouxar o global afrouxaria tambem o enlace com o
+ Arduino, que e o caminho da seguranca reativa.
+<li><strong>Conserto:</strong> limite POR MODULO.</li>
+<ul>
+<li><code>_EstadoModuloMonitorado.limite_proprio</code> (None = herda o global);</li>
+<li><code>HealthMonitor.timeout_de(nome)</code> substitui o <code>timeout_s</code> fixo em</li>
+ <code>modulos_com_heartbeat_perdido</code>;
+<li><code>MonitorHeartbeat.monitorar(..., heartbeats_perdidos_limite=...)</code>;</li>
+<li>config <code>communication.heartbeats_lost_threshold_por_link</code>.</li>
+</ul>
+<li><strong>Valores:</strong> mission_core 45 / motion_core 45 / hardware_core no padrao 3.</li>
+ O Arduino fica curto DE PROPOSITO - descobrir tarde que o Mega sumiu e
+ pior que um falso alarme (Cap 18).
+<li><strong>Descoberta durante o teste ao vivo (a parte nao obvia):</strong> com apenas</li>
+ <code>mission_core: 45</code>, o PI parou de derrubar o link - mas o NOTEBOOK
+ continuava derrubando o dele. Motivo: a maquina afogada nao so ATRASA os
+ proprios heartbeats, ela tambem deixa de LER os que chegam. O Notebook
+ concluia que o Pi tinha morrido sendo que o culpado era ele mesmo.
+ <strong>Tolerancia precisa valer nos DOIS lados</strong> - dai <code>motion_core: 45</code>.
+<li>8 testes novos (tests/unit/test_heartbeat_por_link.py), incluindo o</li>
+ cenario exato do bug (pausa de 20s: o rigido cai, o tolerante nao), que
+ tolerancia nao e imortalidade (46s derruba o tolerante tambem), e que dar
+ paciencia a um enlace NAO afrouxa os outros. Suite: <strong>248 passed</strong>.
+<li><strong>Validado ao vivo, em duas etapas:</strong></li>
+ 1. CPU do notebook travada 15s -&gt; link sobreviveu (antes, 3s matavam);
+ 2. conselheiro religado temporariamente: a consulta estourou o timeout de
+ 25s e <strong>o link NAO caiu</strong> - a cascata original (consulta -&gt; heartbeat
+ perdido -&gt; link morto -&gt; reconexao) esta eliminada. Log do notebook
+ confirma: &quot;Heartbeat de &#x27;motion_core&#x27;: tolerancia propria de 45
+ perdidos (45s)&quot;.
+ 3. Conselheiro desligado de volta; 2 minutos de observacao: ZERO perdas
+ de heartbeat nos dois lados, 1 conexao estavel.
+<li><strong>O conselheiro continua desligado e sem entregar conselho</strong> - a</li>
+ inferencia ainda estoura o timeout de 20s. Mas agora o custo dele e zero
+ em vez de derrubar o link. As duas coisas eram problemas separados.
+<li><strong>PENDENCIA (pequena):</strong> no boot do Notebook aparece um &quot;Heartbeat</li>
+ perdido: modulo=&#x27;motion_core&#x27;&quot; antes do primeiro heartbeat chegar -
+ falso positivo de partida, seguido de reconexao imediata. Inofensivo,
+ mas sujo: o monitor devia dar carencia inicial ao modulo recem-registrado.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bateria + integracao cognitiva: modelo de mundo — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-19</p>
+<h2>Bateria + integracao cognitiva: modelo de mundo</h2>
+<ul>
+<li><strong>Sensores termicos aproveitados (<code>src/orion/diagnostics/sensores_termicos.py</code>):</strong></li>
+ le /sys/class/thermal, existe no Pi e no Notebook, sem dependencia nova.
+ Medido: Pi cpu-thermal 66,7 C | Notebook x86_pkg_temp 50,0 / pch 46,0 /
+ acpitz 27,8 C. Cobre o item &quot;temperatura da CPU/SoC&quot; do Cap 16.
+ <strong>NAO substitui o DHT</strong> - esses sensores medem o proprio chip, nao o
+ ambiente, e nenhum mede umidade. Sao complementares.
+<li><strong>Notebook NAO TEM BATERIA:</strong> /sys/class/power_supply so lista ADP1 (a</li>
+ fonte, online=1); upower nao enumera nenhum device de bateria. O plano
+ de ler saude da bateria pelo notebook nao tinha como funcionar.
+<li><strong>Alimentacao definida pelo usuario:</strong> pack de parafusadeira 18V (max)</li>
+ alimenta motores e notebook; buck reduz para 5V para Pi e sensores. Ele
+ ja tem os modulos buck e buck-booster. (Alertei sobre o notebook em
+ barramento nao regulado; ele disse que os modulos resolvem.)
+<li><strong>Bateria no firmware (<code>bateria_manager.h</code>):</strong> divisor 100k/27k em A0.</li>
+ 18V -&gt; 3,83V no pino; 21V -&gt; 4,46V (ainda seguro); consumo 0,14mA.
+ Limiares 5S Li-ion: aviso 16,5V (3,3V/celula), critica 15,0V (3,0V).
+ Media de 8 amostras. analogRead NAO desliga interrupcoes (ao contrario
+ do DHT), entao pode rodar no loop sem risco para a serial.
+ Chave <code>ORION_BATERIA_INSTALADA = 0</code> enquanto o divisor nao existe -
+ mesma licao do DHT: pino solto flutua e reportaria tensao inventada.
+ <strong>ATENCAO na montagem:</strong> exige GND comum Mega&lt;-&gt;bateria (os motores sao
+ opto-isolados e nao precisavam; a medicao de tensao precisa).
+<li>Campos novos na TELEMETRY: bateria_lida / bateria_tensao_v /</li>
+ bateria_percent / bateria_nivel. Firmware gravado no Mega.
+<li><strong>Integracao cognitiva - usuario quer as 3 camadas</strong> (modelo de mundo,</li>
+ memoria na decisao, IA decidindo). Elas se empilham; comecei pela base.
+<li><strong>Modelo de mundo (<code>motion_core/behavior/estado_do_mundo.py</code>):</strong> funde</li>
+ telemetria, estado do hardware, visao, sentinela e voz num RetratoDoMundo
+ unico que os comportamentos consultam, em vez de cada um assinar seus
+ proprios eventos e ver so um pedaco.
+ <strong>Decisao de projeto central:</strong> todo dado tem PRAZO DE VALIDADE. Vencido
+ vira None (&quot;nao sei&quot;), nunca continua sendo servido como atual - senao,
+ com o cabo solto, o quadro diria &quot;obstaculo a 34cm, tudo ok&quot; com dado de
+ 5 minutos atras e o maestro decidiria em cima de ficcao. Respeita tambem
+ os flags *_valida do firmware.
+<li>12 testes novos (tests/unit/test_estado_do_mundo.py), com foco no</li>
+ envelhecimento. Suite completa: 208 passed, 8 skipped.
+<li><strong>PENDENCIA:</strong> teste longo anterior (3000 req) nao concluiu - o timeout</li>
+ cortou antes do resumo. Zero falhas impressas em ~15min, mas sem numero
+ final. Refazendo sobre o firmware definitivo com progresso visivel.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

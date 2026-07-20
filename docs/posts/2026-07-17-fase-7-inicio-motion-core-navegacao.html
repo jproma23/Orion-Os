@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fase 7, início — Motion Core / Navegação — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>Fase 7, início — Motion Core / Navegação</h2>
+<ul>
+<li><strong>Decisão de sequenciamento com o usuário:</strong> ao pedir pra continuar o</li>
+ projeto, verifiquei o <code>PLANO_IMPLEMENTACAO.md</code> e achei que a Fase 7
+ (Motion Core/Navegação, Cap 12) está 0% feita, e que o painel MAPA da
+ Fase 8 depende justamente dos dados dela (posição, radar). Perguntei ao
+ usuário e ele confirmou: Fase 7 primeiro. Também confirmou que **não há
+ motor físico montado ainda** - toda validação aqui é em nível de
+ protocolo, igual às Fases 4/5.
+<li><strong>Criado <code>motion_core/navigation/navigation_core.py</code></strong> (<code>NavigationCore</code>):</li>
+ máquina de estados dos 6 modos do Cap 12 s.3 (HOLD, MANUAL, GOTO,
+ PATROL, FOLLOW, EXPLORE), publicando todos os eventos do Cap 12 s.11
+ (`navigation.plan_created/segment_started/segment_completed/
+ obstacle_avoided/target_lost/mode_changed/error`). Nunca fala com o
+ Arduino direto - só via <code>ComunicacaoService</code> (<code>comm.send</code>/<code>request</code>),
+ igual a regra arquitetural #1 exige.
+<ul>
+<li><strong>HOLD, MANUAL, GOTO, PATROL: implementação completa.</strong> GOTO/PATROL</li>
+ fazem SCAN_FRONT antes de cada segmento (Cap 12 s.4) e abortam com
+ <code>navigation.obstacle_avoided</code> se a leitura (varredura OU telemetria)
+ indicar obstáculo abaixo de <code>motion.min_front_distance_cm</code>. PATROL
+ tenta cada segmento até <code>navigation.obstacle_retry_max</code> vezes antes de
+ desistir da rota.
+<li><strong>FOLLOW e EXPLORE: versão mínima deliberada</strong>, documentada no</li>
+ docstring do módulo - FOLLOW só reage a <code>vision.person_detected</code> com
+ uma correção proporcional simples e detecta perda por timeout (falta a
+ rotação de busca do Cap 12 s.5 passo 5, que depende do Vision Core
+ rodando de ponta a ponta); EXPLORE é só &quot;escaneia e anda se livre&quot;, não
+ um algoritmo de mapeamento de verdade (isso fica pro SLAM do Cap 12
+ s.12, ORION OS 2.0+).
+</ul>
+<li><strong>Entrada de missão via Event Bus:</strong> <code>NavigationCore</code> assina</li>
+ <code>navigation.comando</code> (<code>{&quot;acao&quot;: &quot;GOTO&quot;, &quot;graus&quot;:..., ...}</code>) - ainda não
+ ligado ao recebimento real de COMMAND vindo do Notebook via TCP (isso é
+ fiação da Fase 2/Communication Core, não desta fase); por ora a entrada é
+ só esse tópico do Event Bus, testável e já correta arquiteturalmente.
+<li><strong>19 testes novos</strong> em <code>tests/unit/test_navigation_core.py</code>, usando</li>
+ <code>ComunicacaoService</code> real + <code>FakeTransporte</code> (mesmo padrão de
+ <code>test_service.py</code>) com um auto-respondedor de ACK/scan em background -
+ não um mock solto, testa o protocolo de verdade. 2 bugs reais de teste
+ corrigidos no caminho (mesma classe de erro já visto antes: fixture
+ assíncrona sem <code>@pytest_asyncio.fixture</code>, e checar eventos sem esperar
+ <code>bus.aguardar_fila_vazia()</code> primeiro).
+<li><strong>3 bugs reais encontrados testando contra o Mega físico</strong> (script</li>
+ descartável, removido depois de validar) - nenhum aparece em teste
+ unitário porque só se manifestam com timing real de hardware:
+ 1. <code>_executar_segmento</code> mandava <code>MOVE_DISTANCE</code> logo após o ACK do
+ <code>SCAN_FRONT</code> - mas esse ACK só confirma que a varredura *começou*, não
+ que terminou (leva ~2.1s: 7 ângulos × 300ms de assentamento do servo,
+ <code>radar_manager.h</code>). <strong>Corrigido:</strong> <code>NavigationCore</code> agora espera o
+ evento <code>motion.scan_complete</code> de verdade (com timeout de 3s e
+ fallback pra lista vazia) antes de prosseguir - e além de corrigir o
+ timing, isso também fecha um gap de spec real: antes a leitura do
+ radar nunca era usada pra decidir nada, só o <code>SCAN_FRONT</code> era
+ disparado e esquecido.
+ 2. Comandos de movimento (<code>TURN_*</code>, <code>MOVE_DISTANCE</code>) às vezes não eram
+ ACKados quando enviados logo após o ACK de um comando de movimento
+ anterior - o ACK confirma só que o comando foi *recebido*, o firmware
+ ACKa na hora e executa de forma assíncrona (<code>Estado::EXECUTING_MISSION</code>
+ → <code>Estado::IDLE</code>). <strong>Corrigido:</strong> <code>NavigationCore</code> agora assina
+ <code>motion.status</code> e espera <code>Estado::IDLE</code> antes de encadear o próximo
+ comando de movimento (<code>_aguardar_ocioso</code>, timeout de 10s).
+ 3. <strong>Pendência real, não resolvida:</strong> mesmo com os dois fixes acima,
+ ainda observei (não sempre, parece intermitente) falha de ACK logo
+ após um <code>SCAN_FRONT</code> completar - às vezes no comando seguinte
+ (<code>MOVE_DISTANCE</code>), às vezes no próprio <code>SCAN_FRONT</code> de um segmento
+ posterior. Adicionei uma folga fixa de 0.3s após <code>motion.scan_complete</code>
+ (<code>PAUSA_APOS_SCAN_S</code>) como mitigação pragmática, mas isso **não
+ eliminou o problema por completo** - parece uma flakiness real de
+ baixo nível (buffer serial/CH340, ou o firmware sob timing de carga),
+ não mais um bug determinístico de ordenação que dá pra resolver só no
+ lado Python. Fica como item aberto: investigar o lado firmware
+ (<code>main.cpp</code>/<code>radar_manager.h</code>) numa sessão dedicada, ou considerar
+ aumentar <code>max_retries</code>/<code>ack_timeout_ms</code> especificamente pro link
+ Raspberry↔Arduino.
+<li><strong>185 testes passando no Notebook</strong> (170 + 15 novos), **143 passando + 8</li>
+ pulados no Raspberry** (os pulados continuam sendo só os de
+ Vision/Voice, de propósito).
+<li><strong>Não commitado ainda.</strong></li>
+<li><strong>Próximo passo:</strong> decidir entre (a) investigar a flakiness do item 3</li>
+ acima com mais tempo/instrumentação no firmware, (b) seguir pra Fase 8
+ de verdade (interface web do Raspberry) usando o que já existe de Fase 7,
+ ou (c) fundir sensores pra <code>motion.position</code> (Cap 12 s.8), que nenhuma
+ das duas fases anteriores cobre ainda.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

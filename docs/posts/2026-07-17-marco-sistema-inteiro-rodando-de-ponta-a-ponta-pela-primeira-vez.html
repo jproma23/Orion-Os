@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>marco — sistema inteiro rodando de ponta a ponta pela primeira vez — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-17</p>
+<h2>marco — sistema inteiro rodando de ponta a ponta pela primeira vez</h2>
+<ul>
+<li><strong>Usuário autorizou trabalho autônomo</strong> (&quot;continue sozinho, sem</li>
+ perguntar&quot;) e retomou a decisão adiada mais cedo hoje: WiFi como link
+ principal Notebook↔Raspberry, com o Motion Core rodando de verdade.
+ Guardado em memória (<code>feedback_orion_os_dont_ask_proceed</code>): não usar
+ mais <code>AskUserQuestion</code> neste projeto para decisões de implementação,
+ só para bloqueios reais (acesso físico, credenciais, ações destrutivas
+ irreversíveis como reiniciar o Raspberry).
+<li><strong>Criado <code>motion_core/__main__.py</code></strong> - processo principal do Raspberry</li>
+ (equivalente ao <code>python -m orion</code> do Notebook), rodando com
+ <code>python -m motion_core</code>: sobe o servidor TCP (Cap 14 s.2), a ponte
+ serial com o Arduino (com fallback tolerante se a porta não abrir ou o
+ Arduino não responder WHO_ARE_YOU), <code>NavigationCore</code> + <code>FusaoSensores</code>
+ (Fase 7), o banco de dados se o SSD estiver montado, e o <code>WebUIServer</code>
+ (Fase 8) - tudo num único Event Bus. Roda até Ctrl+C/SIGTERM, com
+ desligamento limpo de tudo.
+<li><strong><code>config/orion.yaml</code>:</strong> <code>communication.raspberry.host</code> trocado de</li>
+ <code>192.168.50.2</code> (sub-rede Ethernet de produção, EDR-0018, ainda não
+ existe fisicamente) para <code>10.20.20.185</code> (IP real do Raspberry na rede
+ WiFi atual) - comentário no YAML deixa claro que isso é o link de
+ desenvolvimento, não uma mudança de arquitetura.
+<li><strong><code>src/orion/kernel/boot.py</code>:</strong> a etapa &quot;Detecção do Raspberry Pi&quot;</li>
+ (Fase 2), que desde a Fase 1 só logava &quot;não implementado&quot;, agora tenta
+ de verdade conectar via TCP + <code>WHO_ARE_YOU</code> (<code>_conectar_raspberry</code>),
+ com timeout de 3s e tolerância a ausência (Cap 6 s.8) - Raspberry
+ desligado ou fora da rede não trava nem aborta o boot do Notebook.
+ <code>SistemaOrion</code> ganhou os campos <code>comm</code> e <code>raspberry_conectado</code>.
+<li><strong>VALIDADO DE VERDADE, PELA PRIMEIRA VEZ NO PROJETO:</strong> `python -m</li>
+ motion_core` rodando aqui no Raspberry (com o Arduino real conectado
+ via WHO_ARE_YOU) + <code>python -m orion</code> rodando no Notebook real, ao
+ mesmo tempo, por WiFi de verdade - log do Notebook:
+ <code>Descoberta OK: destino=motion_core nome=motion_core versao_modulo=0.1.0</code>
+ /  <code>Raspberry (Motion Core) conectado: motion_core v0.1.0</code>. As três
+ pontas do Fofão (Notebook, Raspberry, Arduino) nunca tinham
+ conversado ao mesmo tempo antes de hoje.
+<li><strong>Achado real, não corrigido ainda:</strong> como <code>python -m orion</code> hoje ainda</li>
+ é um boot único que conecta e encerra na hora (não é um processo de
+ longa duração - decisão registrada anteriormente no jornal), o
+ <code>MonitorHeartbeat</code> do Raspberry continua tentando mandar heartbeat pro
+ Notebook depois que ele já desconectou, gerando avisos repetidos
+ (<code>Falha ao enviar heartbeat</code> / <code>socket.send() raised exception</code>) em vez
+ de detectar o link morto e desistir. Não bloqueia nada hoje (o processo
+ encerra limpo do mesmo jeito quando eu mando SIGTERM), mas é uma
+ robustez real faltando em <code>MonitorHeartbeat</code> (Fase 2,
+ <code>src/orion/communication/heartbeat.py</code>) - ele só detecta perda pela
+ ausência de heartbeats *recebidos*, não por falha ao *enviar*. Fica
+ como pendência aberta.
+<li><strong>5 testes novos</strong> de integração (<code>tests/integration/test_motion_core_main.py</code>,</li>
+ marcador <code>sim</code>): conectar no Arduino com sucesso (pty simulando o
+ firmware, mesmo padrão da Fase 2), tolerar porta inexistente, tolerar
+ porta existente mas sem resposta WHO_ARE_YOU, abrir memória com/sem SSD
+ disponível. **192 passando + 7 pulados no Raspberry, 230 passando no
+ Notebook.** <code>ruff</code> limpo.
+<li><strong>Não commitado ainda.</strong></li>
+<li><strong>Próximo passo:</strong> corrigir o <code>MonitorHeartbeat</code> pra detectar falha de</li>
+ envio como perda de link (achado acima); ou fazer <code>python -m orion</code>
+ virar um processo de longa duração de verdade, pra a conexão com o
+ Raspberry durar mais que alguns segundos; ou seguir para a Fase 9
+ (Diagnóstico e Segurança, Caps 16/18).
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

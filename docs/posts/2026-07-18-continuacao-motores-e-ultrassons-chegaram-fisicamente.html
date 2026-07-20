@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>continuação - motores e ultrassons chegaram fisicamente — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-18</p>
+<h2>continuação - motores e ultrassons chegaram fisicamente</h2>
+<p>Usuário conectou fisicamente hoje: os 2 motores de passo (NEMA17 via</p>
+<p>TB6600), o ultrassom traseiro (pinos 26/27, antes reservado) e o</p>
+<p>ultrassom frontal remontado no servo do radar (pino 9, antes fixo sem</p>
+<p>servo). Primeira vez testando esses três com hardware real.</p>
+<ul>
+<li><strong><code>pins.h</code> atualizado:</strong> <code>ULTRASSOM_TRAS_TRIG/ECHO</code> e <code>SERVO_RADAR</code></li>
+ movidos de RESERVADO para CONFIRMADO. Comentário desatualizado do
+ <code>RadarManager</code> (dizia &quot;ultrassom fixo, sem servo&quot;) corrigido.
+<li><strong>Ultrassom traseiro ganhou código de verdade:</strong> antes só tinha os</li>
+ pinos reservados em <code>pins.h</code>, nenhum manager lia eles. Adicionado
+ <code>SensorUltrassonico ultrassomTraseiro</code> global em <code>main.cpp</code>,
+ <code>TelemetryManager</code> ganhou o campo <code>distancia_traseira_cm</code>/<code>_valida</code>
+ (novo parametro no construtor).
+<li><strong>Servo do radar (pino 9):</strong> confirmado fisicamente girando (o</li>
+ <code>RadarManager::iniciar()</code> ja chamava <code>_servo.attach()</code> dentro de um
+ metodo proprio chamado do <code>setup()</code>, entao nao tinha o mesmo bug de
+ construtor global do pan/tilt de mais cedo).
+<li><strong>Bug real corrigido - <code>ENABLE_ATIVO_EM_BAIXO</code>:</strong> motores completamente</li>
+ mudos/parados (nem vibravam) com o valor original (<code>true</code>, ativo em
+ baixo). Invertido para <code>false</code> - os TB6600 desta montagem só habilitam
+ com o pino em HIGH. Comentário do código ja antecipava essa
+ possibilidade (<code>motor_manager.h</code>).
+<li><strong>Achado NÃO resolvido - ultrassons sem eco:</strong> mesmo com energia e</li>
+ GND comum confirmados pelo usuário, <code>echo_frontal_ja_visto_alto</code> e
+ <code>echo_traseiro_ja_visto_alto</code> (flag nova em <code>SensorUltrassonico</code>,
+ fica <code>true</code> para sempre no primeiro ECHO valido desde o boot -
+ substituiu um diagnostico anterior por amostragem via
+ <code>RETURN_STATUS</code> que era pouco confiavel, dado o pulso de ECHO poder
+ ser mais curto que o intervalo de amostragem) continuam <code>false</code>
+ depois de mais de 8s (100+ tentativas de trigger) em ambos os
+ sensores. TRIG/ECHO conferidos contra os pinos certos (22/23
+ frontal, 26/27 traseiro) pelo usuário. Causa raiz não encontrada -
+ precisa de multímetro (medir se o TRIG realmente pulsa no pino certo,
+ se ECHO tem 5V quando deveria, GND de verdade comum).
+<li><strong>Achado NÃO resolvido - motores não giram, apesar de tudo checado:</strong></li>
+ depois do fix do <code>ENABLE_ATIVO_EM_BAIXO</code>, motor chegou a &quot;quase girar&quot;
+ uma vez (zumbido, sem completar o giro - padrão de corrente
+ insuficiente), mas depois de ajustar a corrente (usuário mexeu de
+ 0.5A nominal do motor até 1.2A, depois para ~0.7A) parou de fazer até
+ isso. Checklist completo tentado sem sucesso: ENABLE nas duas
+ polaridades E flutuando (pino sem <code>pinMode(OUTPUT)</code>), corrente em
+ varios valores, STEP/DIR reencostados, fios da bobina invertidos,
+ GND comum de PUL-/DIR-/EN- confirmado, testado inclusive com um
+ motor+cabo de uma CNC (conhecido bom) no lugar do NEMA17 - mesmo
+ resultado. <strong>Prova definitiva de que não é código:</strong> com
+ <code>tools/testar_pan_tilt.py</code>-style telemetria, confirmado que o
+ firmware gera e conta os 200 passos certos (<code>passos_esquerda</code>/
+ <code>passos_direita</code> = 200 para um <code>MOVE_DISTANCE</code> de 5cm). Escrito
+ tambem um sketch minimo (<code>/tmp/.../motor_diag/</code>, fora do repo,
+ descartavel) que pulsa STEP/DIR/ENABLE via <code>digitalWrite()</code> puro, sem
+ nenhum codigo do protocolo, alternando a polaridade do ENABLE
+ sozinho a cada 10s - motor tambem nao reagiu. Ou seja: testado em
+ dois niveis de software (protocolo completo + GPIO cru) e varias
+ frentes de hardware, sem sucesso. Suspeita mais forte agora: driver
+ TB6600 com defeito, ou rompimento fisico de fiacao entre Mega e
+ driver nao visivel sem multimetro (continuidade fio a fio). Pausado
+ aqui - precisa de instrumento de medicao pra continuar.
+<li><strong>Susto a parte:</strong> o servo de tilt teve um episodio de movimento</li>
+ erratico (&quot;ficou maluco&quot;) no meio da sessão, provavelmente ruído
+ induzido pelo manuseio da fiação dos motores por perto. Mega
+ confirmado vivo e saudável durante o episódio (RETURN_STATUS normal).
+ Retestado depois com <code>tools/testar_pan_tilt.py</code> e voltou ao normal
+ (10/10 comandos ok) - não reaconteceu, mas fica registrado caso volte.
+<li><strong>Pendências físicas para retomar:</strong> (1) multímetro para depurar os</li>
+ ultrassons (TRIG pulsando? ECHO com 5V?) e os motores (continuidade
+ Mega→driver→motor, tensão real no driver); (2) considerar testar os
+ TB6600 isolados (sem o Mega, com um gerador de pulso simples ou
+ outro microcontrolador) para confirmar se o defeito é mesmo no
+ driver.
+<li><strong>Não commitado ainda</strong> (mudanças de hoje: <code>pins.h</code>, <code>radar_manager.h</code>,</li>
+ <code>telemetry_manager.h</code>, <code>main.cpp</code>, <code>motor_manager.h</code>,
+ <code>sensor_ultrassonico.h</code>).
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>
