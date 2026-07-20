@@ -2481,3 +2481,18 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   webcam (`select() timeout` quando o USB é esbarrado).
 - **Privacidade:** os frames/panorâmicas pegaram o dono e o cômodo -
   mantidos SÓ local (Pi + Notebook), nada publicado no blog.
+
+---
+
+## 2026-07-20 (pins.h corrigido + nível do tilt medido)
+
+- **pins.h:** comentário dos servos pan/tilt atualizado - explicava
+  "CONFIRMADO 2026-07-18", mas naquela data os fios estavam cruzados.
+  Agora registra: pinos certos, fios de sinal invertidos em 2026-07-20,
+  pino 10 = pan (horizontal) e pino 11 = tilt (vertical), validado.
+- **Nível do tilt medido** (`tools/diag_nivel.py`, pan=0 em tilt 0/-10/-20):
+  tilt=0 olha reto (porta e interruptor no centro, bancada abaixo); valores
+  negativos apontam pra cima (o -20 pega o teto). Como o repouso já manda
+  tilt=0, a cabeça no repouso JÁ fica nivelada agora que os fios estão
+  certos. O "olhando pra cima" de antes era o efeito dos canais cruzados,
+  não uma pose errada. Nada a mudar no código.

@@ -44,7 +44,12 @@ constexpr uint8_t ULTRASSOM_TRAS_ECHO = 27;
 // --- Servo do radar (CONFIRMADO 2026-07-18) - varre o ultrassom frontal ---
 constexpr uint8_t SERVO_RADAR = 9;
 
-// --- Servos pan/tilt (CONFIRMADO 2026-07-18) ---
+// --- Servos pan/tilt ---
+// Os pinos estavam certos, mas os fios de SINAL estavam cruzados na montagem:
+// ate 2026-07-20 o pino 10 acionava o servo vertical e o 11 o horizontal, o
+// que so aparece movendo UM eixo isolado (teste em tools/testar_so_pan.py).
+// Corrigido invertendo os dois fios de sinal (nao o firmware). Agora bate:
+// pino 10 = pan (horizontal), pino 11 = tilt (vertical). VALIDADO 2026-07-20.
 constexpr uint8_t SERVO_PAN = 10;
 constexpr uint8_t SERVO_TILT = 11;
 
