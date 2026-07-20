@@ -13,6 +13,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 
+#include "bateria_manager.h"
 #include "command_executor.h"
 #include "dht_manager.h"
 #include "encoder_manager.h"
@@ -41,10 +42,12 @@ orion::EncoderManager encoders;
 orion::RadarManager radar;
 orion::ImuManager imu;
 orion::DhtManager dht;
+orion::BateriaManager bateria;
 orion::SafetyManager safety;
 orion::SensorUltrassonico ultrassomTraseiro;
 orion::CommandExecutor comandos(motores, radar, estados);
-orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro);
+orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
+                                  bateria);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 constexpr unsigned long INTERVALO_TELEMETRIA_MS = 500;
@@ -103,6 +106,20 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
   payload["uptime_ms"] = millis();
   payload["em_movimento"] = motores.emMovimento();
   payload["imu_conectado"] = imu.conectado();
+  payload["imu_calibrado"] = imu.calibrado();
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
+// Congela a orientacao atual como "nivelado" (grava na EEPROM). O robo
+// precisa estar parado e nivelado na hora - ver imu_manager.h.
+void responderCalibrarImu(const char* origem, const char* idMsg) {
+  JsonDocument payload;
+  bool ok = imu.calibrar();
+  payload["ok"] = ok;
+  payload["inclinacao_graus"] = imu.inclinacaoGraus();
+  if (!ok) {
+    payload["erro"] = imu.conectado() ? "leitura_invalida" : "imu_desconectado";
+  }
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
@@ -115,6 +132,20 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   }
   if (strcmp(comando, "RETURN_STATUS") == 0) {
     responderReturnStatus(origem, idMsg);
+    return;
+  }
+  if (strcmp(comando, "SET_IMPACT_THRESHOLD") == 0) {
+    JsonDocument payload;
+    float limite = msg["payload"]["limite_g"] | 0.0f;
+    bool ok = imu.definirLimiteImpacto(limite);
+    payload["ok"] = ok;
+    payload["limite_g"] = imu.limiteImpactoG();
+    if (!ok) payload["erro"] = "fora_da_faixa_valida_1.05_a_7.5";
+    orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+    return;
+  }
+  if (strcmp(comando, "CALIBRATE_IMU") == 0) {
+    responderCalibrarImu(origem, idMsg);
     return;
   }
 
@@ -155,6 +186,7 @@ void setup() {
   radar.iniciar();
   imu.iniciar();
   dht.iniciar();
+  bateria.iniciar(pinos::BATERIA_SENSE);
   ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
   comandos.iniciar();
   g_payloadVazio.to<JsonObject>();  // forca virar {} em vez de null ao serializar
@@ -176,6 +208,7 @@ void loop() {
   radar.atualizar();
   ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
+  bateria.atualizar();
 
   unsigned long agora = millis();
 

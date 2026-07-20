@@ -48,6 +48,11 @@ constexpr uint8_t SERVO_RADAR = 9;
 constexpr uint8_t SERVO_PAN = 10;
 constexpr uint8_t SERVO_TILT = 11;
 
+// --- Tensao da bateria (RESERVADO - divisor ainda nao montado) ---
+// Pack de parafusadeira 18V lido por divisor 100k/27k. Ver bateria_manager.h
+// para o esquema de ligacao e a exigencia de GND comum.
+constexpr uint8_t BATERIA_SENSE = A0;
+
 // --- RESERVADO: nao fisicamente conectado nesta montagem ---
 constexpr uint8_t ENCODER_ESQUERDO = 18;  // interrupt externo do Mega
 constexpr uint8_t ENCODER_DIREITO = 19;   // interrupt externo do Mega
