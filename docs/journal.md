@@ -2453,3 +2453,31 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
     comportamento seguem passando.
 - **Aberto:** panorâmica bonita pede mirar o lado da bancada (textura) ou
   passos de 10° com mais overlap. Fica para quando quiser.
+
+---
+
+## 2026-07-20 (bug do pan/tilt trocado: diagnóstico limpo + conserto por fio)
+
+- **Sintoma:** ao rodar a panorâmica, o dono viu a cabeça mexer "cima e pra
+  baixo" quando o comando era de pan (lado). Suspeita: pan/tilt trocados.
+- **Diagnóstico controlado, um eixo por vez** (`tools/testar_so_pan.py`,
+  agora aceita `pan|tilt`): SÓ pan → cabeça subia/descia; SÓ tilt → cabeça
+  virava pro lado. Confirmado: os dois canais estavam cruzados.
+- **Confirmação que EU consigo ler** (`tools/diag_pan.py`): captura a vista
+  em pan=-60 e pan=+60. Antes do conserto a vista mudava na vertical;
+  depois, na horizontal (dois pedaços diferentes da sala, mesma altura).
+- **Correção (decisão do dono):** inverter os fios de SINAL dos servos nos
+  pinos 10 e 11 do Mega (`SERVO_PAN=10`, `SERVO_TILT=11` em pins.h). O
+  firmware NÃO mudou; a troca física fez a realidade bater com o código -
+  agora pino 10 aciona o servo horizontal e o 11 o vertical, como o nome diz.
+  Ou seja: o "CONFIRMADO 2026-07-18" do pins.h estava na verdade cruzado;
+  só apareceu agora porque exige mover um eixo isolado pra notar.
+  IMPORTANTE: como foi conserto por fio, NÃO inverter também no firmware -
+  seria dupla inversão, voltaria ao errado.
+- **Panorâmica boa validada** após o conserto: varredura de pan -50°..+20°
+  com tilt -15° mirando a bancada, 8 frames, costurados nos dois modos
+  (`montar_panorama.py` agora gera cilíndrica E plana). Cilíndrica é a certa
+  pra câmera que gira. Captura ganhou 2ª tentativa contra travamento da
+  webcam (`select() timeout` quando o USB é esbarrado).
+- **Privacidade:** os frames/panorâmicas pegaram o dono e o cômodo -
+  mantidos SÓ local (Pi + Notebook), nada publicado no blog.

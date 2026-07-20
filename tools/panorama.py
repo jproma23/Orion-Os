@@ -26,16 +26,19 @@ PASTA_NB = "/tmp/orion_pano"          # onde os frames ficam no Notebook
 PYTHON_NB = "~/orion-os/.venv/bin/python"   # o cv2 esta no venv, nao no python do sistema
 HELPER_NB = "~/orion-os/tools/capturar_frame.py"
 
-# esquerda -> direita; 20 graus por passo da bom overlap para a webcam casar
-ANGULOS_PAN = [-60, -40, -20, 0, 20, 40, 60]
-TILT = 0
+# esquerda -> direita; passos de 10 graus dao bastante overlap para casar.
+# a bancada fica a esquerda e abaixo, entao viesa o pan para a esquerda e
+# inclina o tilt para baixo.
+ANGULOS_PAN = [-50, -40, -30, -20, -10, 0, 10, 20]
+TILT = -15
 ASSENTAR_S = 1.6                       # servo lento + tremor da torre
+FLIP = "1"                             # desfaz o espelhamento selfie na captura
 
 
 def capturar_no_notebook(indice: int) -> None:
     destino = f"{PASTA_NB}/frame_{indice:02d}.jpg"
     r = subprocess.run(
-        ["ssh", NOTEBOOK, f"{PYTHON_NB} {HELPER_NB} {destino}"],
+        ["ssh", NOTEBOOK, f"{PYTHON_NB} {HELPER_NB} {destino} 0 {FLIP}"],
         capture_output=True, text=True, timeout=30,
     )
     print(f"  cam[{indice}]: {(r.stdout or r.stderr).strip()}")
@@ -76,10 +79,10 @@ async def main() -> int:
     print("Varredura concluida, servos centralizados. Montando panoramica no Notebook...")
     subprocess.run(
         ["ssh", NOTEBOOK,
-         f"cd ~/orion-os && .venv/bin/python tools/montar_panorama.py {PASTA_NB} {PASTA_NB}/panorama.jpg"],
+         f"cd ~/orion-os && .venv/bin/python tools/montar_panorama.py {PASTA_NB} {PASTA_NB}/panorama"],
         check=False, timeout=120,
     )
-    print(f"Pronto. Panoramica em {NOTEBOOK}:{PASTA_NB}/panorama.jpg")
+    print(f"Pronto. Panoramicas em {NOTEBOOK}:{PASTA_NB}/panorama_*.jpg")
     return 0
 
 
