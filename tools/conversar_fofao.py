@@ -44,6 +44,14 @@ from orion.display.avatar_server import AvatarServer  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
+from orion.mission.alivio_carga import AlivioCarga  # noqa: E402
+from orion.mission.conselheiro_comportamento import (  # noqa: E402
+    ConselheiroComportamento,
+)
+from orion.mission.conselho_protocolo import (  # noqa: E402
+    TOPICO_RESPOSTA,
+    AtendenteConselhoIA,
+)
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.captura import CapturaCamera  # noqa: E402
@@ -163,6 +171,14 @@ async def principal() -> None:
         keep_alive_minutes=secao_ia["keep_alive_minutes"],
     )
 
+    # Conselheiro do maestro: o Pi pergunta "o que faco agora?" pelo Event
+    # Bus e este atendente responde usando o mesmo Ollama local. A resposta
+    # e limitada por schema JSON (nao da para inventar nome de
+    # comportamento) e o Pi ainda revalida antes de acionar qualquer coisa.
+    # Se isto falhar ou demorar, o maestro simplesmente segue pela regra.
+    conselheiro = ConselheiroComportamento(modelo=secao_ia["ollama_model"])
+    AtendenteConselhoIA(bus, conselheiro.aconselhar)
+
     # Link TCP com o Motion Core (Raspberry) - Cap 14 s.2. Tolerado ausente
     # (Cap 6 s.8): sem ele a conversa segue, mas comandos de hardware e a
     # memoria persistente ficam desligados. O supervisor abaixo conecta no
@@ -186,8 +202,11 @@ async def principal() -> None:
     async def _conectar_link_pi() -> None:
         transporte = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
         await asyncio.wait_for(transporte.conectar(), timeout=3.0)
-        # adicionar_link sobrescreve o link "motion_core" pelo novo transporte
-        # ao reconectar (o antigo, morto, e descartado).
+        # adicionar_link substitui o link "motion_core" pelo novo transporte
+        # e FECHA o anterior (socket + tarefa de recepcao) - ver
+        # _descartar_link_anterior em communication/service.py. Antes de
+        # 2026-07-19 ele so sobrescrevia a entrada do dicionario e o socket
+        # velho ficava vivo: 37 conexoes vazadas num pico de reconexoes.
         comm.adicionar_link("motion_core", transporte, alcancaveis_via=["hardware_core"])
 
     # o heartbeat publica comm.module_lost quando o link com o Pi cai.
@@ -226,7 +245,14 @@ async def principal() -> None:
             logger.warning("Link com o Motion Core caiu - reconectando...")
             await asyncio.sleep(2)
 
-    heartbeat.monitorar("motion_core")
+    # O Pi e leve e estavel; o padrao curto serve. Mas le da config para
+    # ficar ajustavel sem mexer no codigo (regra #6 do CLAUDE.md).
+    heartbeat.monitorar(
+        "motion_core",
+        heartbeats_perdidos_limite=(
+            conf_comm.get("heartbeats_lost_threshold_por_link") or {}
+        ).get("motion_core"),
+    )
     tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
     tarefa_link = asyncio.create_task(supervisor_link_pi())
 
@@ -239,6 +265,12 @@ async def principal() -> None:
             await comm.publish(evento.topico, dict(evento.dados), local=False)
         except Exception:
             logger.debug("falha ao repassar '%s' ao Pi", evento.topico, exc_info=True)
+
+    # Resposta do conselheiro de comportamento: nasce aqui (o Ollama roda
+    # no Notebook) e precisa CHEGAR ao maestro, que roda no Pi. Sem este
+    # repasse o Pi pergunta e nunca ouve resposta - evento nao atravessa o
+    # link sozinho, alguem tem que encaminhar (Cap 14 s.7).
+    bus.subscribe(TOPICO_RESPOSTA, _repassar_ao_pi)
 
     bus.subscribe("voice.wake_detected", _repassar_ao_pi)
     bus.subscribe("voice.response_finished", _repassar_ao_pi)
@@ -327,6 +359,8 @@ async def principal() -> None:
     # Sentinela de visão (Cap 8): vigia rostos desconhecidos e dispara
     # sentinela.alerta -> Pi -> Vigília. Tolera câmera/link ausentes.
     tarefa_sentinela = None
+    sentinela = None  # pode nao existir (visao desabilitada) - o alivio de
+    # carga abaixo checa antes de usar.
     conf_sent = config.secao("behavior")["sentinela_visao"]
     if conf_sent["habilitado"]:
         sentinela = SentinelaVisao(
@@ -342,6 +376,18 @@ async def principal() -> None:
             pasta_fotos=conf_sent["pasta_fotos"],
         )
         tarefa_sentinela = asyncio.create_task(sentinela.executar())
+
+    # Atende os pedidos de alivio do Guardiao de RAM que roda no Pi. Ate
+    # 2026-07-19 esse pedido era publicado e ninguem escutava - a protecao
+    # contra travamento por falta de memoria existia so no papel.
+    # A visao entra como sacrificavel; a VOZ nao: se o dono chamar "Fofao"
+    # durante um aperto de memoria, o robo tem que responder.
+    AlivioCarga(
+        bus,
+        descarregar_modelo=ia.descarregar,
+        pausar_visao=sentinela.pausar if sentinela is not None else None,
+        retomar_visao=sentinela.retomar if sentinela is not None else None,
+    )
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
     logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')

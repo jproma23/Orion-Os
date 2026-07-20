@@ -33,6 +33,56 @@ class Repouso(Comportamento):
             await asyncio.sleep(1.0)
 
 
+class Ronda(Comportamento):
+    """Iniciativa própria (prio 20): dar uma olhada em volta quando não há
+    nada acontecendo.
+
+    É o primeiro comportamento DISCRICIONÁRIO do Fofão - os outros são
+    disparados por condição concreta (voz, alerta, obstáculo), este é uma
+    escolha. Existe justamente para o conselheiro de IA ter o que escolher:
+    parado (repouso) ou dar uma olhada (ronda). Com uma opção só não há
+    conselho a dar.
+
+    Só olha, NÃO anda: varre o radar e mexe o pan/tilt. Movimento de rodas
+    por iniciativa da IA seria arriscado demais para o primeiro passo -
+    uma olhada em volta é reversível e não machuca ninguém.
+    """
+
+    nome = "ronda"
+    prioridade = 20  # acima de repouso (10), abaixo de tudo que é gatilho
+
+    def __init__(self, event_bus: EventBus, intervalo_s: float = 60.0) -> None:
+        super().__init__(event_bus)
+        self._intervalo_s = intervalo_s
+        self._pedida = False
+
+    def pedir(self) -> None:
+        """Chamado quando o conselheiro sugere `ronda`."""
+        if not self._pedida:
+            self._pedida = True
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._pedida
+
+    async def executar(self) -> None:
+        await self._event_bus.publish("behavior.status", {"estado": "ronda"})
+        logger.info("maestro: ronda - dando uma olhada em volta")
+        try:
+            await self._event_bus.publish("motion.pan_tilt", {"pan": -60, "tilt": 0})
+            await asyncio.sleep(1.5)
+            await self._event_bus.publish("motion.pan_tilt", {"pan": 60, "tilt": 0})
+            await asyncio.sleep(1.5)
+            await self._event_bus.publish("motion.pan_tilt", {"pan": 0, "tilt": 0})
+            await self._event_bus.publish("navigation.comando", {"acao": "SCAN_FRONT"})
+            await asyncio.sleep(2.0)
+        finally:
+            # Terminou (ou foi preemptada): a ronda não fica pendurada
+            # querendo o controle de novo.
+            self._pedida = False
+            self._reavaliar()
+
+
 class Atender(Comportamento):
     """Atender o dono (prio 80): quando alguém chama "Fofão", o robô para o
     que estava fazendo e fica à disposição até a resposta terminar. A

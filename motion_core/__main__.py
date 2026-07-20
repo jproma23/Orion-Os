@@ -25,10 +25,16 @@ from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     Atender,
     Repouso,
+    Ronda,
     Vigilia,
     VigilanciaObstaculo,
 )
+from motion_core.behavior.estado_do_mundo import EstadoDoMundo
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
+from motion_core.behavior.ponte_conselho import PonteConselhoIA
+from orion.mission.alivio_carga import TOPICO_PEDIDO_ALIVIO, TOPICO_RECUPERADO
+from orion.mission.conselho_protocolo import TOPICO_PEDIDO
+from orion.mission.grounding import montar_contexto
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
@@ -163,9 +169,16 @@ async def principal() -> None:
     # 1. Servidor TCP para o Notebook (Mission Core) conectar (Cap 14 s.2).
     conf_raspberry = conf_comm["raspberry"]
 
+    # Tolerancia propria do link com o Notebook (ver config): ele roda IA
+    # local e trava a CPU por dezenas de segundos sem estar quebrado.
+    limites_por_link = conf_comm.get("heartbeats_lost_threshold_por_link") or {}
+
     async def _ao_conectar_notebook(conexao: ConexaoTcp) -> None:
         comm.adicionar_link("mission_core", conexao)
-        heartbeat.monitorar("mission_core")
+        heartbeat.monitorar(
+            "mission_core",
+            heartbeats_perdidos_limite=limites_por_link.get("mission_core"),
+        )
         logger.info("Notebook (Mission Core) conectado via TCP")
 
     servidor_tcp = await iniciar_servidor_tcp(
@@ -179,7 +192,13 @@ async def principal() -> None:
     # 2. Ponte serial com o Arduino (Cap 14 s.2) - tolera ausencia.
     arduino_conectado = await _conectar_arduino(comm, conf_comm["arduino"], event_bus, logger)
     if arduino_conectado:
-        heartbeat.monitorar("hardware_core")
+        # Sem tolerancia extra DE PROPOSITO: este e o caminho da seguranca
+        # reativa - descobrir tarde que o Mega sumiu e pior que um falso
+        # alarme (Cap 18).
+        heartbeat.monitorar(
+            "hardware_core",
+            heartbeats_perdidos_limite=limites_por_link.get("hardware_core"),
+        )
 
     tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
 
@@ -203,15 +222,68 @@ async def principal() -> None:
     # Maestro (Behavior Core, EDR-0020): decide sozinho o que o robô faz.
     # Comeco enxuto - Repouso (base) e Vigilancia de obstaculo (prio maxima,
     # dispara com o OBSTACLE_DETECTED real do Mega).
-    maestro = BehaviorCore(event_bus)
+    # Modelo de mundo: um retrato unico que o conselheiro de IA le para
+    # opinar com o quadro inteiro em vez de sinais soltos.
+    mundo = EstadoDoMundo(event_bus)
+
+    # Conselheiro de IA: desligado por padrao (ver config/orion.yaml,
+    # behavior.conselho_ia) - a inferencia local saturava a CPU do Notebook
+    # e derrubava o link TCP a cada consulta. `None` faz o maestro decidir
+    # so pela regra, exatamente como antes de existir conselheiro.
+    conf_conselho = config.secao("behavior").get("conselho_ia") or {}
+    ponte_conselho = PonteConselhoIA(event_bus) if conf_conselho.get("habilitado") else None
+
+    def _contexto_para_ia() -> str:
+        r = mundo.retrato()
+        return montar_contexto(
+            retrato={
+                "obstaculo_frente_cm": r.obstaculo_frente_cm,
+                "inclinacao_graus": r.inclinacao_graus,
+                "bateria_nivel": r.bateria_nivel,
+                "estado_hardware": r.estado_hardware,
+                "telemetria_viva": r.telemetria_viva,
+                "pessoa_presente": r.pessoa_presente,
+                "pessoa_nome": r.pessoa_nome,
+            },
+        )
+
+    # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde
+    # a IA roda). Evento nao atravessa o link sozinho - alguem tem que
+    # encaminhar com local=False (Cap 14 s.7); sem isto o maestro pergunta
+    # no vazio e cai no timeout para sempre.
+    async def _repassar_ao_notebook(evento) -> None:
+        try:
+            await comm.publish(evento.topico, dict(evento.dados), local=False)
+        except Exception:
+            logger.debug("falha ao repassar '%s' ao Notebook", evento.topico, exc_info=True)
+
+    if ponte_conselho is not None:
+        event_bus.subscribe(TOPICO_PEDIDO, _repassar_ao_notebook)
+
+    # Alivio de carga: o pedido nasce no guardiao (aqui) e quem ATENDE e o
+    # Notebook. Sem este repasse o evento morre no barramento do Pi - foi
+    # exatamente o estado ate 2026-07-19, com o guardiao publicando no vazio
+    # e a protecao contra travamento por memoria desligada sem ninguem
+    # perceber (publicar evento nao falha).
+    event_bus.subscribe(TOPICO_PEDIDO_ALIVIO, _repassar_ao_notebook)
+    event_bus.subscribe(TOPICO_RECUPERADO, _repassar_ao_notebook)
+
+    maestro = BehaviorCore(
+        event_bus,
+        ponte_conselho=ponte_conselho,
+        montar_contexto=_contexto_para_ia,
+        intervalo_consulta_ia_s=conf_conselho.get("intervalo_consulta_s", 120),
+    )
     maestro.registrar(Repouso(event_bus))
+    # Discricionario: e entre este e o repouso que a IA opina (EDR-0020).
+    maestro.registrar(Ronda(event_bus), discricionario=True)
     maestro.registrar(Atender(event_bus))
     maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
     maestro.registrar(VigilanciaObstaculo(event_bus))
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(
-        "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilia, "
-        "vigilancia_obstaculo"
+        "Behavior Core (maestro) ativo - comportamentos: %s",
+        ", ".join(maestro.nomes_registrados),
     )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.

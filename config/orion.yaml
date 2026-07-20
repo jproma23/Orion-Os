@@ -27,7 +27,29 @@ communication:
   ack_timeout_ms: 500
   max_retries: 3
   heartbeat_interval_s: 1.0
-  heartbeats_lost_threshold: 3
+  heartbeats_lost_threshold: 3   # padrao: link morto apos 3s sem heartbeat
+  # Tolerancia POR ENLACE (sobrescreve o padrao acima). Nem todo link
+  # merece a mesma paciencia:
+  #
+  #   hardware_core (Arduino) - fica no PADRAO curto de proposito: e o
+  #     caminho da seguranca reativa, detectar falha rapido importa.
+  #
+  #   mission_core (Notebook) - tolerante. Inferencia de IA local satura a
+  #     CPU da maquina por dezenas de segundos e atrasa os heartbeats sem
+  #     que nada esteja quebrado. Com 3s o Pi declarava o link morto a cada
+  #     consulta a IA e reconectava em laco (medido 2026-07-19). O link
+  #     com o Notebook NAO esta no caminho da seguranca - perder alguns
+  #     segundos para detectar sua queda e aceitavel; derrubar o link a
+  #     cada pico de CPU nao e.
+  #   motion_core (visto DO Notebook) - tambem tolerante, e o motivo e
+  #     menos obvio: a maquina afogada nao so ATRASA os proprios heartbeats,
+  #     ela tambem deixa de LER os que chegam. Sem isto o Notebook conclui
+  #     que o Pi morreu enquanto o culpado e ele mesmo (medido 2026-07-19:
+  #     o Pi parou de derrubar o link, mas o Notebook continuava
+  #     derrubando o dele). Tolerancia tem que valer nos DOIS lados.
+  heartbeats_lost_threshold_por_link:
+    mission_core: 45
+    motion_core: 45
 
 motion:
   max_speed_percent: 60
@@ -104,9 +126,24 @@ voice:
     janelas_de_historico: 30
 
 ai:
-  # gemma3:4b desde 2026-07-18: portugues muito melhor que o llama3.2:3b
-  # que estreou aqui, ocupando quase o mesmo (~3,3GB; 8b so com mais RAM)
-  ollama_model: "gemma3:4b"
+  # gemma3:1b desde 2026-07-19. Historico: llama3.2:3b -> gemma3:4b -> 1b.
+  #
+  # A troca para o modelo PEQUENO so foi possivel depois do grounding
+  # (src/orion/mission/grounding.py). Medido no mesmo prompt real:
+  #
+  #   SEM contexto: gemma3:1b INVENTOU ("Sim, vi a Ana passar!") e o
+  #                 llama3.2:3b inventou ate horario ("as 14h30").
+  #   COM contexto: os quatro modelos testados (1b, 3b, qwen2.5:3b, 4b)
+  #                 responderam "nao vi" corretamente.
+  #
+  # Com os fatos entregues prontos, a IA nao precisa deduzir - so ler e
+  # formular - e o modelo pequeno da conta. Ganho: 880MB em vez de 2,9GB
+  # (folga real na RAM apertada do notebook) e o mais rapido dos quatro
+  # (16,5s contra 48,8s do 4b no mesmo prompt com contexto).
+  #
+  # SE VOLTAR A INVENTAR: o suspeito e o grounding ter parado de entregar
+  # os fatos, NAO o modelo. Cheque o bloco de contexto antes de trocar.
+  ollama_model: "gemma3:1b"
   temperature: 0.6
   context_window: 4096
   keep_alive_minutes: 30         # numa conversa ao vivo, manter o modelo na RAM
@@ -163,6 +200,28 @@ security:
   child_safe_profile_on_detection: true
 
 behavior:                        # Behavior Core / maestro (EDR-0020)
+  # Conselheiro de IA: o maestro pergunta ao Notebook o que fazer quando
+  # esta ocioso. DESLIGADO por padrao desde 2026-07-19, e o motivo importa.
+  #
+  # Medido ao vivo: cada consulta custava uma QUEDA DO LINK TCP. A
+  # inferencia do gemma3:1b satura os nucleos do notebook por ~20s; o
+  # processo Python e preterido, os heartbeats atrasam e o Motion Core
+  # declara o link morto. O asyncio.to_thread protege o event loop de
+  # bloquear, mas nao protege de falta de CPU.
+  #
+  # Resultado: nenhum conselho entregue (a inferencia estourava ate o
+  # timeout de 20s) e o link caindo a cada 2 minutos. Pior que nao ter.
+  #
+  # O codigo esta pronto e testado (236 testes). Para religar, basta
+  # habilitado: true - mas antes resolva UMA das causas:
+  #   - modelo/hardware mais rapido para a inferencia caber com folga;
+  #   - ou tolerancia de heartbeat maior (communication.heartbeats_lost_
+  #     threshold) para o link sobreviver a um pico de CPU;
+  #   - ou rodar a inferencia com nice/cpulimit, deixando um nucleo livre
+  #     para o loop de comunicacao.
+  conselho_ia:
+    habilitado: false
+    intervalo_consulta_s: 120
   # Guardião de RAM do Notebook: o Pi vigia a memória livre reportada pelo
   # Notebook e pede alívio de carga antes do crash. Histerese: entra em
   # alerta abaixo do crítico, só sai ao voltar à folga (Cap 16).
