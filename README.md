@@ -3,7 +3,7 @@
 Plataforma de robótica modular e **offline-first** (Internet apenas habilita extras). Primeiro robô: **Fofão**.
 
 - **Especificação oficial:** `docs/ses/` (Capítulos 01–20)
-- **Guia para o Claude Code:** `CLAUDE.md`
+- **Regras de arquitetura:** `ARQUITETURA.md`
 - **Plano de desenvolvimento:** `PLANO_IMPLEMENTACAO.md`
 - **Configuração:** `config/orion.yaml`
 - **Arquitetura vigente:** `docs/edr/EDR-0018-arquitetura-tcc.md` + `docs/edr/EDR-0019-divisao-final-e-ssd.md`
@@ -16,4 +16,4 @@ Plataforma de robótica modular e **offline-first** (Internet apenas habilita ex
             │  USB Serial
     Arduino Mega (Hardware Core: motores/servos/sensores)
 
-Comece pelo `CLAUDE.md`.
+Comece pelo `ARQUITETURA.md`.

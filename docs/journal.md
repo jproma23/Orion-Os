@@ -689,7 +689,7 @@ passo.
 - Implementado `motion_core/navigation/fusao_sensores.py` (classe
   `FusaoSensores`), retomando a opção (c) deixada em aberto na entrada
   anterior desta mesma data. Módulo separado do `NavigationCore` (regra
-  #9 do CLAUDE.md - uma responsabilidade cada), mas seguindo o mesmo
+  #9 do ARQUITETURA.md - uma responsabilidade cada), mas seguindo o mesmo
   padrão de construtor/assinatura de eventos: recebe `event_bus` e a
   fatia `config.secao("motion")`, assina `comm.mensagem.telemetry`.
 - **O que faz:**
@@ -717,7 +717,7 @@ passo.
   explicitamente como **PLACEHOLDER** no comentário do YAML: nenhuma
   roda/encoder físico está montado ainda, então é só um valor plausível
   para um chassi pequeno - medir e ajustar quando o chassi for montado
-  de verdade (regra #6 do CLAUDE.md: nada de valor físico fixo no
+  de verdade (regra #6 do ARQUITETURA.md: nada de valor físico fixo no
   código - pelo menos agora está no YAML, não hardcoded).
 - **Decisão de escopo (documentada no docstring do módulo):** o Cap 12
   s.8 fala em combinar "orientação... da MPU6050" na fusão, mas a
@@ -1038,7 +1038,7 @@ passo.
 
 - **Renomeação:** todo o texto do repositório que dizia "ORION X" (nome
   provisório do robô usado nos e-mails/specs até ontem) foi trocado para
-  **Fofão** - `README.md`, `CLAUDE.md`, `docs/ses/`, `docs/edr/`,
+  **Fofão** - `README.md`, `ARQUITETURA.md`, `docs/ses/`, `docs/edr/`,
   `config/orion.yaml` (`robot_name`), testes e `docs/hardware/`. Conferido
   antes que `robot_name` só é usado como texto de exibição (logs, web UI),
   sem validação de valor fixo - troca segura. 183 testes passando + 7

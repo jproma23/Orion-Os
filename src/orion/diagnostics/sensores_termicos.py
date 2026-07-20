@@ -115,7 +115,7 @@ def ler_estado(
 
     Os limiares default espelham `diagnostics.thresholds` do orion.yaml
     (cpu_temp_warning_c / cpu_temp_critical_c); quem chama deve passar os
-    valores da config em vez de confiar no default (regra #6 do CLAUDE.md).
+    valores da config em vez de confiar no default (regra #6 do ARQUITETURA.md).
     """
     zonas = ler_zonas(raiz)
     cpu_c = _escolher_cpu(zonas)

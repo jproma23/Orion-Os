@@ -42,7 +42,7 @@ Event Bus, que decide qual comportamento está no controle a cada momento.
 2. **Segurança nunca é arbitrada.** A camada reativa do Arduino (Cap 18
    camada 1) permanece independente e sempre vence. O Behavior Core opera
    nas camadas tática/estratégica, acima dela.
-3. **Um comportamento = uma responsabilidade** (regra 9 do CLAUDE.md).
+3. **Um comportamento = uma responsabilidade** (regra 9 do ARQUITETURA.md).
    Cada comportamento é uma unidade plugável com: nome, prioridade,
    gatilho (que evento o desperta) e uma corrotina de execução
    preemptível.

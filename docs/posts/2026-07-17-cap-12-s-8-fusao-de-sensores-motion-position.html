@@ -66,7 +66,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
 <li>Implementado <code>motion_core/navigation/fusao_sensores.py</code> (classe</li>
  <code>FusaoSensores</code>), retomando a opção (c) deixada em aberto na entrada
  anterior desta mesma data. Módulo separado do <code>NavigationCore</code> (regra
- #9 do CLAUDE.md - uma responsabilidade cada), mas seguindo o mesmo
+ #9 do ARQUITETURA.md - uma responsabilidade cada), mas seguindo o mesmo
  padrão de construtor/assinatura de eventos: recebe <code>event_bus</code> e a
  fatia <code>config.secao(&quot;motion&quot;)</code>, assina <code>comm.mensagem.telemetry</code>.
 <li><strong>O que faz:</strong></li>
@@ -94,7 +94,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
  explicitamente como <strong>PLACEHOLDER</strong> no comentário do YAML: nenhuma
  roda/encoder físico está montado ainda, então é só um valor plausível
  para um chassi pequeno - medir e ajustar quando o chassi for montado
- de verdade (regra #6 do CLAUDE.md: nada de valor físico fixo no
+ de verdade (regra #6 do ARQUITETURA.md: nada de valor físico fixo no
  código - pelo menos agora está no YAML, não hardcoded).
 <li><strong>Decisão de escopo (documentada no docstring do módulo):</strong> o Cap 12</li>
  s.8 fala em combinar &quot;orientação... da MPU6050&quot; na fusão, mas a

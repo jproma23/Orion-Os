@@ -247,7 +247,7 @@ async def principal() -> None:
             await asyncio.sleep(2)
 
     # O Pi e leve e estavel; o padrao curto serve. Mas le da config para
-    # ficar ajustavel sem mexer no codigo (regra #6 do CLAUDE.md).
+    # ficar ajustavel sem mexer no codigo (regra #6 do ARQUITETURA.md).
     heartbeat.monitorar(
         "motion_core",
         heartbeats_perdidos_limite=(

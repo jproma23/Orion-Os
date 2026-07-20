@@ -9,7 +9,7 @@ A cada pacote TELEMETRY recebido do Hardware Core (Arduino), este modulo:
 
 Este e um modulo separado do `NavigationCore` (que ja assina
 `comm.mensagem.telemetry` para a checagem tatica de obstaculo frontal) -
-"um modulo = uma responsabilidade" (CLAUDE.md regra #9): odometria/IMU e
+"um modulo = uma responsabilidade" (ARQUITETURA.md regra #9): odometria/IMU e
 uma responsabilidade distinta de planejamento de movimento. Os dois
 assinam o mesmo topico de telemetria de forma independente pelo Event Bus,
 sem se conhecerem (regra #1).

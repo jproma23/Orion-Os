@@ -1,6 +1,7 @@
-# CLAUDE.md — ORION OS
+# ARQUITETURA.md — ORION OS
 
-Este arquivo orienta o Claude Code no desenvolvimento do ORION OS.
+Regras de arquitetura e convencoes do ORION OS. Todo modulo novo segue o que
+está aqui.
 **Leia este arquivo antes de qualquer implementação.**
 
 ## O que é o projeto
@@ -60,7 +61,7 @@ Cap 17 = Configuração | Cap 18 = Segurança | Cap 19 = Testes | Cap 20 = Roadm
 
 ```
 orion-os/
-├── CLAUDE.md                  ← este arquivo
+├── ARQUITETURA.md                  ← este arquivo
 ├── PLANO_IMPLEMENTACAO.md     ← fases de desenvolvimento (siga a ordem)
 ├── config/orion.yaml          ← configuração única (Cap 17)
 ├── docs/

@@ -2,7 +2,7 @@
 
 Vive em `orion` (e nao em `motion_core`) porque as duas pontas precisam
 dele e a dependencia so pode andar num sentido: `motion_core` importa
-`orion`, nunca o contrario - eles tem deploy separado (CLAUDE.md).
+`orion`, nunca o contrario - eles tem deploy separado (ARQUITETURA.md).
 
     Pi  --->  behavior.pedir_conselho  --->  Notebook
     Pi  <---  behavior.conselho        <---  Notebook
