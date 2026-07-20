@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>behavior.reduzir_carga_ia: alguem finalmente escuta — ORION OS</title>
+<title>blog: ilustracoes e as primeiras fotos do hardware — ORION OS</title>
 <style>
 :root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
 @media(prefers-color-scheme:dark){
@@ -58,50 +58,29 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
 </header>
 <a class="voltar" href="../index.html">&larr; todos os posts</a>
 <article>
-<p class="data">2026-07-19</p>
-<h2>behavior.reduzir_carga_ia: alguem finalmente escuta</h2>
+<p class="data">2026-07-20</p>
+<h2>blog: ilustracoes e as primeiras fotos do hardware</h2>
 <ul>
-<li><strong>O buraco:</strong> o GuardiaoRamNotebook (no Pi) publicava</li>
- <code>behavior.reduzir_carga_ia</code> desde que foi escrito, mas NINGUEM assinava -
- so os testes. A protecao contra travamento por falta de memoria existia
- so no papel. Passou despercebido porque <strong>publicar evento nao falha</strong>: o
- guardiao logava &quot;pedindo alivio de carga&quot; e parecia estar funcionando.
-<li><strong>Faltavam DUAS pecas, nao uma:</strong></li>
- 1. o evento nao atravessava o link (mesma armadilha do conselheiro) -
- Pi agora repassa <code>behavior.reduzir_carga_ia</code> e <code>diagnostic.recuperado</code>
- ao Notebook com <code>local=False</code>;
- 2. ninguem sabia COMO aliviar - criado <code>src/orion/mission/alivio_carga.py</code>.
-<li><strong>O que se sacrifica, nessa ordem:</strong></li>
- 1. modelo de IA sai da RAM (<code>AiManager.descarregar</code>, keep_alive=0) - maior
- ganho pelo menor prejuizo: a proxima pergunta recarrega sozinha;
- 2. Sentinela de visao pausa (<code>SentinelaVisao.pausar/retomar</code>, novo) -
- reconhecimento facial e a parte mais cara; ficar cego alguns minutos e
- melhor que travar a maquina (travada, fica cego do mesmo jeito).
- <strong>A VOZ nao se desliga</strong>: se o dono chamar &quot;Fofao&quot; durante o aperto, o
- robo tem que responder - e a funcao mais basica dele.
-<li>Cada acao e isolada: falha ao descarregar o modelo NAO impede pausar a</li>
- visao (alivio parcial &gt; nenhum). Idempotente: pedido repetido pelo link
- nao alivia duas vezes.
-<li>9 testes novos (tests/unit/test_alivio_carga.py), incluindo o ciclo</li>
- repetido, recuperacao de outra origem sendo ignorada, e o caso de visao
- desabilitada. Suite: <strong>261 passed, 8 skipped</strong>.
-<li><strong>VALIDADO AO VIVO</strong> (limiar critico elevado a 5000MB temporariamente</li>
- para forcar o disparo, depois restaurado a 700):
-</ul>
-<pre>
-  PI:   RAM do Notebook critica: 4152 MB livres (&lt; 5000) - pedindo alivio
-  NOTE: ALIVIO DE CARGA acionado (RAM livre: 4152 MB)
-  NOTE: modelo de IA descarregado da RAM
-  NOTE: Sentinela de visao PAUSADA (alivio de carga)
-  NOTE: RAM do Notebook recuperada (5237 MB) - retomando carga normal
-  NOTE: Sentinela de visao retomada
-</pre>
-<p><strong>O alivio liberou ~1,1 GB</strong> (4152 -&gt; 5237 MB). O efeito e mensuravel,</p>
-<p>nao simbolico. Ciclo completo (aliviar + recuperar) confirmado.</p>
-<ul>
-<li>Cuidado que quase repeti: <code>sentinela</code> so existe dentro do <code>if</code> de visao</li>
- habilitada - inicializada como None antes, senao NameError com visao
- desligada (mesmo tipo de erro do <code>event_bus</code>/<code>bus</code> de mais cedo).
+<li><strong>Ilustracoes SVG</strong> dos tres computadores (<code>docs/assets/</code>): notebook com o</li>
+ rosto do Fofao na tela, Pi 4B com a barra de 40 pinos, Mega com o canto
+ chanfrado, mais o diagrama <code>corrente.svg</code> mostrando quem fala com quem.
+ Sao embutidos no HTML (nao via <code>&lt;img&gt;</code>) de proposito: assim herdam
+ <code>currentColor</code> e acompanham o tema claro/escuro sozinhos.
+<li><strong>Fotos reais do hardware</strong> publicadas em <code>docs/assets/fotos/</code>: a torre</li>
+ (webcam no pan/tilt + HC-SR04), o chassi por dentro (Mega, servos,
+ driver) e o avatar rodando no notebook.
+<li><strong>Tratamento das fotos antes de subir</strong> (o script esta no journal porque</li>
+ vale repetir): <code>ImageOps.exif_transpose</code> para respeitar a orientacao,
+ depois copiar para uma imagem nova - assim nenhum metadado e herdado -
+ redimensionar para 1400px e salvar em WebP q=82. As originais do celular
+ tinham <strong>EXIF com GPS</strong>; o repo e publico, entao isso sai antes do
+ commit. 9,8 MB viraram 286 KB.
+<li><strong>Nao publicar rosto.</strong> As fotos de cadastro facial da familia</li>
+ (<code>~/Downloads/joao paulo|marah|kamall.*</code>) ficaram de fora por decisao
+ explicita: repo publico, e o que entra no git nao sai do historico.
+ Regra para as proximas sessoes: foto so do projeto.
+<li><strong>Proximo passo:</strong> missao de audio (mic USB + caixinhas, 23/07). As fotos</li>
+ do resultado entram na galeria do blog.
 </ul>
 </article>
 <footer>Gerado a partir de <code>docs/journal.md</code> por

@@ -38,6 +38,14 @@ pre code{background:none;padding:0}
 .peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
 .peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
 .peca b{display:block;color:var(--fg);font-size:.9rem}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));
+  gap:1.25rem;margin:0 0 3rem}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:15rem;object-fit:cover;border-radius:8px;
+  background:var(--linha);display:block}
+.galeria figcaption{color:var(--suave);font-size:.82rem;margin-top:.5rem}
+.secao{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--suave);margin:0 0 1rem}
 footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
   color:var(--suave);font-size:.85rem}
 </style>
@@ -246,7 +254,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
   <circle cx="120" cy="66" r="2.6" fill="currentColor" stroke="none" opacity=".35"/>
 </svg>
 <figcaption><b>Arduino Mega</b>Firmware — motores e sensores</figcaption></figure></div>
+<p class="secao">O bicho montado</p>
+<div class="galeria"><figure><img src="assets/fotos/torre-camera-ultrassom.webp" alt="A torre: webcam sobre o pan/tilt de dois servos e o HC-SR04 frontal logo abaixo." loading="lazy" width="1400" height="1050"><figcaption>A torre: webcam sobre o pan/tilt de dois servos e o HC-SR04 frontal logo abaixo.</figcaption></figure>
+<figure><img src="assets/fotos/chassi-mega-servos.webp" alt="Por dentro: o Mega no chassi de acrilico, servos, ultrassom e o driver dos motores." loading="lazy" width="1400" height="1050"><figcaption>Por dentro: o Mega no chassi de acrilico, servos, ultrassom e o driver dos motores.</figcaption></figure>
+<figure><img src="assets/fotos/notebook-avatar-fofao.webp" alt="O rosto do Fofao rodando no notebook - a mesma tela que vai montada no robo." loading="lazy" width="1400" height="1050"><figcaption>O rosto do Fofao rodando no notebook - a mesma tela que vai montada no robo.</figcaption></figure></div>
+<p class="secao">O diario, do mais novo ao mais antigo</p>
 <ul class="indice">
+<li><span class="data">2026-07-20</span><br><a href="posts/2026-07-20-blog-ilustracoes-e-as-primeiras-fotos-do-hardware.html">blog: ilustracoes e as primeiras fotos do hardware</a></li>
 <li><span class="data">2026-07-20</span><br><a href="posts/2026-07-20-blog-publico-do-projeto-no-github-pages.html">blog publico do projeto no GitHub Pages</a></li>
 <li><span class="data">2026-07-20</span><br><a href="posts/2026-07-20-camada-2-da-cognicao-o-diario-e-a-licao-de-testar-os-dois-lados.html">Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados</a></li>
 <li><span class="data">2026-07-19</span><br><a href="posts/2026-07-19-fechamento-da-sessao.html">Fechamento da sessão</a></li>

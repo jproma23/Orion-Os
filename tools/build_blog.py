@@ -174,6 +174,14 @@ pre code{background:none;padding:0}
 .peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
 .peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
 .peca b{display:block;color:var(--fg);font-size:.9rem}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));
+  gap:1.25rem;margin:0 0 3rem}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:15rem;object-fit:cover;border-radius:8px;
+  background:var(--linha);display:block}
+.galeria figcaption{color:var(--suave);font-size:.82rem;margin-top:.5rem}
+.secao{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--suave);margin:0 0 1rem}
 footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
   color:var(--suave);font-size:.85rem}
 """
@@ -206,6 +214,38 @@ def abertura() -> str:
         f"vizinho.</figcaption></figure>\n"
         f'<div class="pecas">{cards}</div>'
     )
+
+
+def galeria() -> str:
+    """Fotos do hardware real. So do projeto - nada de rosto de ninguem.
+
+    As imagens em docs/assets/fotos passaram por tools/build_blog.py apenas
+    depois de terem o EXIF removido (as originais tinham GPS).
+    """
+    fotos = [
+        (
+            "torre-camera-ultrassom",
+            "A torre: webcam sobre o pan/tilt de dois servos e o HC-SR04 "
+            "frontal logo abaixo.",
+        ),
+        (
+            "chassi-mega-servos",
+            "Por dentro: o Mega no chassi de acrilico, servos, ultrassom e "
+            "o driver dos motores.",
+        ),
+        (
+            "notebook-avatar-fofao",
+            "O rosto do Fofao rodando no notebook - a mesma tela que vai "
+            "montada no robo.",
+        ),
+    ]
+    cards = "\n".join(
+        f'<figure><img src="assets/fotos/{arq}.webp" alt="{html.escape(legenda)}"'
+        f' loading="lazy" width="1400" height="1050">'
+        f"<figcaption>{html.escape(legenda)}</figcaption></figure>"
+        for arq, legenda in fotos
+    )
+    return f'<p class="secao">O bicho montado</p>\n<div class="galeria">{cards}</div>'
 
 
 def pagina(titulo: str, miolo: str, prefixo: str = "") -> str:
@@ -252,7 +292,11 @@ def main() -> None:
         f'<a href="posts/{p.slug}.html">{html.escape(p.titulo)}</a></li>'
         for p in posts
     )
-    indice = f'{abertura()}\n<ul class="indice">\n{itens}\n</ul>'
+    indice = (
+        f'{abertura()}\n{galeria()}\n'
+        f'<p class="secao">O diario, do mais novo ao mais antigo</p>\n'
+        f'<ul class="indice">\n{itens}\n</ul>'
+    )
     (SAIDA / "index.html").write_text(pagina(TITULO_SITE, indice), "utf-8")
 
     # Sem isso o GitHub Pages tenta processar tudo com Jekyll e ignora _pastas.

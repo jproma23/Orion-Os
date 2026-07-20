@@ -2355,3 +2355,28 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   no `git push`, que nao diz qual permissao falta.
 - **Proximo passo:** seguir na missao de audio (mic USB + caixinhas
   chegando dia 23/07); o blog atualiza junto com o journal.
+
+---
+
+## 2026-07-20 (blog: ilustracoes e as primeiras fotos do hardware)
+
+- **Ilustracoes SVG** dos tres computadores (`docs/assets/`): notebook com o
+  rosto do Fofao na tela, Pi 4B com a barra de 40 pinos, Mega com o canto
+  chanfrado, mais o diagrama `corrente.svg` mostrando quem fala com quem.
+  Sao embutidos no HTML (nao via `<img>`) de proposito: assim herdam
+  `currentColor` e acompanham o tema claro/escuro sozinhos.
+- **Fotos reais do hardware** publicadas em `docs/assets/fotos/`: a torre
+  (webcam no pan/tilt + HC-SR04), o chassi por dentro (Mega, servos,
+  driver) e o avatar rodando no notebook.
+- **Tratamento das fotos antes de subir** (o script esta no journal porque
+  vale repetir): `ImageOps.exif_transpose` para respeitar a orientacao,
+  depois copiar para uma imagem nova - assim nenhum metadado e herdado -
+  redimensionar para 1400px e salvar em WebP q=82. As originais do celular
+  tinham **EXIF com GPS**; o repo e publico, entao isso sai antes do
+  commit. 9,8 MB viraram 286 KB.
+- **Nao publicar rosto.** As fotos de cadastro facial da familia
+  (`~/Downloads/joao paulo|marah|kamall.*`) ficaram de fora por decisao
+  explicita: repo publico, e o que entra no git nao sai do historico.
+  Regra para as proximas sessoes: foto so do projeto.
+- **Proximo passo:** missao de audio (mic USB + caixinhas, 23/07). As fotos
+  do resultado entram na galeria do blog.
