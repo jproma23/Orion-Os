@@ -2323,3 +2323,35 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   ele. Mas a validacao "os quatro modelos pararam de inventar" do journal
   de ontem vale so para o caso de RECUSA; nao repetir essa conclusao sem
   testar os dois lados.
+
+---
+
+## 2026-07-20 (blog publico do projeto no GitHub Pages)
+
+- **Repositorio publicado.** Ate hoje o `~/orion-os` so tinha o remote
+  `notebook` (via ssh) e o `origin` do GitHub estava vazio, sem nenhum
+  branch. Primeiro push do `master` feito hoje: todo o historico foi para
+  https://github.com/jproma23/Orion-Os (repo publico).
+- **Blog criado.** `tools/build_blog.py` gera um site estatico a partir
+  deste proprio journal: quebra o arquivo nas entradas `## <data>`, uma
+  entrada = um post, e escreve `docs/index.html` + `docs/posts/*.html`.
+  53 posts na primeira geracao.
+  - Sem dependencia externa (o conversor de Markdown cobre so o que o
+    journal usa: titulos, listas aninhadas, negrito, codigo inline e
+    blocos). Nada de Jekyll - por isso o `docs/.nojekyll`.
+  - Tema claro/escuro automatico, layout de leitura em coluna unica.
+  - O cabecalho das entradas aparece em dois formatos no journal
+    (`## data (assunto)` e `## data - assunto`); o parser aceita os dois.
+    Sem isso, uma entrada some silenciosamente do indice.
+- **GitHub Pages ligado** em `master` + pasta `/docs`. Site no ar:
+  https://jproma23.github.io/Orion-Os/
+- **Fluxo daqui pra frente:** escrever no journal como sempre, rodar
+  `python3 tools/build_blog.py` e commitar. O blog nao e escrito a mao -
+  ele e uma projecao do journal, entao nao ha dois lugares para manter.
+- **Nota de credencial:** o push exigiu um Personal Access Token
+  *fine-grained* com `Contents: Read and write` de fato marcado em
+  "Permissions" - marcar so "All repositories" em "Repository access"
+  deixa o token somente-leitura, e o erro que aparece e um 403 generico
+  no `git push`, que nao diz qual permissao falta.
+- **Proximo passo:** seguir na missao de audio (mic USB + caixinhas
+  chegando dia 23/07); o blog atualiza junto com o journal.
