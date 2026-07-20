@@ -2424,3 +2424,32 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   na transcricao -> adicionar aquela forma.
 - **Aberto:** decidir se a lista fica em `config/orion.yaml` (editavel sem
   mexer no codigo) ou fixa no codigo.
+
+---
+
+## 2026-07-20 (panorâmica por pan/tilt + conserto: repouso agora nivela a cabeça)
+
+- **Modo visão validado no hardware, de ponta a ponta.** Montei uma
+  panorâmica por varredura: o Pi gira o pan de -60° a +60° (a webcam está
+  montada em cima do pan/tilt, então gira junto) e o Notebook fotografa em
+  cada ângulo; o OpenCV costura. Três scripts novos: `tools/panorama.py`
+  (Pi, orquestra), `tools/capturar_frame.py` e `tools/montar_panorama.py`
+  (Notebook). Serial é exclusiva: parar `orion-motion.service` antes,
+  religar depois.
+  - Pegadinha 1: chamei `python3` do sistema no Notebook para capturar;
+    o cv2 está no `.venv`. Corrigido para `~/orion-os/.venv/bin/python`.
+  - A costura funcionou (não caiu no fallback), mas saiu torta: metade da
+    varredura é parede lisa, sem textura para casar bordas. Os frames
+    individuais estão ótimos e nivelados. Fiação do servo está CORRETA -
+    tilt=0 dá visão nivelada, pan varre no sentido certo. NÃO inverter fios.
+- **Bug real encontrado no maestro:** o `Repouso` (comportamentos.py) só
+  publicava status e dormia - nunca comandava pan/tilt. Como toda
+  reconexão serial reseta o Mega, e no reset os servos vão para o padrão do
+  firmware (cabeça baixa), depois de qualquer restart a cabeça ficava
+  apontada para baixo até algo mandá-la subir - e nada mandava.
+  - **Correção:** `Repouso.executar` agora publica `motion.pan_tilt {0,0}`
+    ao assumir. Prontidão é com a cabeça no nível. Sobrevive a resets.
+    Confirmado ao vivo: frame após o restart voltou nivelado. 5 testes de
+    comportamento seguem passando.
+- **Aberto:** panorâmica bonita pede mirar o lado da bancada (textura) ou
+  passos de 10° com mais overlap. Fica para quando quiser.

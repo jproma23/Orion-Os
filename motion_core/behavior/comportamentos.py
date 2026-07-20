@@ -28,7 +28,12 @@ class Repouso(Comportamento):
 
     async def executar(self) -> None:
         await self._event_bus.publish("behavior.status", {"estado": "repouso"})
-        logger.info("maestro: em repouso (prontidão)")
+        # Nivela a cabeça ao assumir. Sem isto, depois de um reset do Mega
+        # (que acontece a cada reconexão serial) os servos ficam no padrão do
+        # firmware - apontando para baixo - e nada os traz de volta, porque
+        # o repouso não comandava pan/tilt. Prontidão é com a cabeça no nível.
+        await self._event_bus.publish("motion.pan_tilt", {"pan": 0, "tilt": 0})
+        logger.info("maestro: em repouso (prontidão), cabeça nivelada")
         while True:
             await asyncio.sleep(1.0)
 
