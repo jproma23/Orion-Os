@@ -2519,3 +2519,16 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
 - **Aceleração:** confirmado que já é medida (MPU6050) - usada para detecção
   de impacto (limiar 2,5 G, ajustável, EEPROM) e inclinação; agora também
   visível na tela.
+
+---
+
+## 2026-07-20 (distâncias frente/trás no mapa + cache-bust da web)
+
+- **Mapa da web** agora mostra distância frontal e traseira ao vivo, ao lado
+  do radar polar (o dono fica mais nessa página). `mapa.js` passou a escutar
+  o evento SSE `comm.mensagem.telemetry` (payload direto do Mega) além de
+  motion.position/scan_complete.
+- **Cache-bust** (`?v=20260720`) nos includes de `dashboard.js` e `mapa.js`:
+  o navegador guardava o JS antigo e os campos novos (traseira, aceleração,
+  impacto) não apareciam mesmo com o servidor entregando certo. Agora troca
+  sozinho sem precisar limpar cache.
