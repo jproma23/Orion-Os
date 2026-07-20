@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>perfil do GitHub e capas — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+.capa{margin:0 0 2.5rem;border-radius:10px;overflow:hidden;line-height:0}
+.capa img{width:100%;height:auto;display:block}
+.hero{margin:0 0 2.5rem}
+.hero svg{width:100%;height:auto;color:var(--fg)}
+.hero figcaption{color:var(--suave);font-size:.85rem;text-align:center;margin-top:.6rem}
+.pecas{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));
+  gap:1.5rem;margin:0 0 3rem;padding:1.5rem 0;border-block:1px solid var(--linha)}
+.peca{margin:0;text-align:center}
+.peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
+.peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
+.peca b{display:block;color:var(--fg);font-size:.9rem}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));
+  gap:1.25rem;margin:0 0 3rem}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:15rem;object-fit:cover;border-radius:8px;
+  background:var(--linha);display:block}
+.galeria figcaption{color:var(--suave);font-size:.82rem;margin-top:.5rem}
+.secao{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--suave);margin:0 0 1rem}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-20</p>
+<h2>perfil do GitHub e capas</h2>
+<ul>
+<li><strong>Perfil do GitHub montado.</strong> Criado o repo <code>jproma23/jproma23</code> (branch</li>
+ <code>main</code>) - o README dele e o que aparece em github.com/jproma23. Texto do
+ &quot;sobre mim&quot; escrito pelo proprio Joao Paulo; o README so organizou em
+ secoes, tabela do ORION OS e badges.
+<li><strong>Capa</strong> (o poster do projeto) no topo do perfil e tambem no topo do</li>
+ blog, em <code>docs/assets/capa.webp</code>.
+<li><strong>Limite da API, para nao perder tempo numa proxima vez:</strong> um PAT</li>
+ consegue criar repo e dar push, mas <strong>nao</strong> troca a foto de perfil (o
+ GitHub nao tem endpoint para isso, em nenhum nivel de permissao) nem a
+ bio/status (precisa de permissao de perfil, que o token nao tinha).
+ Essas tres coisas sao manuais em github.com/settings/profile.
+<li><strong>Fotos de rosto da familia continuam fora</strong> do repo publico. O poster</li>
+ do perfil e foto do proprio dono, em pagina dele - caso diferente.
+<li><strong>Proximo passo:</strong> missao de audio (23/07). Journal como sempre, depois</li>
+ <code>python3 tools/build_blog.py</code> e push.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

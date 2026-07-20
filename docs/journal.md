@@ -2380,3 +2380,23 @@ Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
   Regra para as proximas sessoes: foto so do projeto.
 - **Proximo passo:** missao de audio (mic USB + caixinhas, 23/07). As fotos
   do resultado entram na galeria do blog.
+
+---
+
+## 2026-07-20 (perfil do GitHub e capas)
+
+- **Perfil do GitHub montado.** Criado o repo `jproma23/jproma23` (branch
+  `main`) - o README dele e o que aparece em github.com/jproma23. Texto do
+  "sobre mim" escrito pelo proprio Joao Paulo; o README so organizou em
+  secoes, tabela do ORION OS e badges.
+- **Capa** (o poster do projeto) no topo do perfil e tambem no topo do
+  blog, em `docs/assets/capa.webp`.
+- **Limite da API, para nao perder tempo numa proxima vez:** um PAT
+  consegue criar repo e dar push, mas **nao** troca a foto de perfil (o
+  GitHub nao tem endpoint para isso, em nenhum nivel de permissao) nem a
+  bio/status (precisa de permissao de perfil, que o token nao tinha).
+  Essas tres coisas sao manuais em github.com/settings/profile.
+- **Fotos de rosto da familia continuam fora** do repo publico. O poster
+  do perfil e foto do proprio dono, em pagina dele - caso diferente.
+- **Proximo passo:** missao de audio (23/07). Journal como sempre, depois
+  `python3 tools/build_blog.py` e push.
