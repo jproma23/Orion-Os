@@ -165,9 +165,47 @@ code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88
 pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
 pre code{background:none;padding:0}
 .voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+.hero{margin:0 0 2.5rem}
+.hero svg{width:100%;height:auto;color:var(--fg)}
+.hero figcaption{color:var(--suave);font-size:.85rem;text-align:center;margin-top:.6rem}
+.pecas{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));
+  gap:1.5rem;margin:0 0 3rem;padding:1.5rem 0;border-block:1px solid var(--linha)}
+.peca{margin:0;text-align:center}
+.peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
+.peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
+.peca b{display:block;color:var(--fg);font-size:.9rem}
 footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
   color:var(--suave);font-size:.85rem}
 """
+
+
+def svg(nome: str) -> str:
+    """Le um SVG de docs/assets e devolve pra ser embutido direto no HTML.
+
+    Embutido (e nao via <img>) de proposito: assim o desenho herda a cor do
+    texto pelo `currentColor` e acompanha o tema claro/escuro sozinho.
+    """
+    return (SAIDA / "assets" / f"{nome}.svg").read_text(encoding="utf-8")
+
+
+def abertura() -> str:
+    """Diagrama da corrente + as tres pecas, no topo do indice."""
+    pecas = [
+        ("notebook", "Notebook", "Mission Core — visao, voz, o rosto"),
+        ("raspberry-pi", "Raspberry Pi 4B", "Motion Core — kernel e decisao"),
+        ("arduino-mega", "Arduino Mega", "Firmware — motores e sensores"),
+    ]
+    cards = "\n".join(
+        f'<figure class="peca">{svg(arq)}'
+        f"<figcaption><b>{nome}</b>{papel}</figcaption></figure>"
+        for arq, nome, papel in pecas
+    )
+    return (
+        f'<figure class="hero">{svg("corrente")}'
+        f"<figcaption>Tres computadores em corrente: cada um so fala com o "
+        f"vizinho.</figcaption></figure>\n"
+        f'<div class="pecas">{cards}</div>'
+    )
 
 
 def pagina(titulo: str, miolo: str, prefixo: str = "") -> str:
@@ -214,7 +252,7 @@ def main() -> None:
         f'<a href="posts/{p.slug}.html">{html.escape(p.titulo)}</a></li>'
         for p in posts
     )
-    indice = f'<ul class="indice">\n{itens}\n</ul>'
+    indice = f'{abertura()}\n<ul class="indice">\n{itens}\n</ul>'
     (SAIDA / "index.html").write_text(pagina(TITULO_SITE, indice), "utf-8")
 
     # Sem isso o GitHub Pages tenta processar tudo com Jekyll e ignora _pastas.
