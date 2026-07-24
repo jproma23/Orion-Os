@@ -8,6 +8,11 @@ After=graphical-session.target sound.target
 
 [Service]
 WorkingDirectory=%h/orion-os
+# OPENAI_API_KEY (EDR-0021) vive so nesse arquivo, fora do git
+# (config/secrets.env, listado no .gitignore) - nunca fixo aqui nem no
+# orion.yaml. EnvironmentFile tolera o arquivo nao existir ainda (o "-" na
+# frente), cai pro Ollama local sozinho (ver ai_manager.py).
+EnvironmentFile=-%h/orion-os/config/secrets.env
 ExecStart=%h/orion-os/.venv/bin/python -u tools/conversar_fofao.py
 Restart=always
 RestartSec=5

@@ -18,6 +18,7 @@ import logging
 from typing import Any
 
 from motion_core.memory.api import ErroCategoriaInvalida, ErroColunaInvalida, MemoryAPI
+from motion_core.memory.vault import VaultConhecimento
 from orion.communication.protocol import Mensagem
 from orion.communication.service import ComunicacaoService
 from orion.kernel.event_bus import EventBus, Evento
@@ -63,9 +64,17 @@ def _codificar_binarios(valor: Any) -> Any:
 class PonteMemoria:
     """Liga comandos `memory.*` recebidos via comm.request a MemoryAPI."""
 
-    def __init__(self, memory_api: MemoryAPI, servico: ComunicacaoService) -> None:
+    def __init__(
+        self,
+        memory_api: MemoryAPI,
+        servico: ComunicacaoService,
+        vault: VaultConhecimento | None = None,
+    ) -> None:
         self._memory_api = memory_api
         self._servico = servico
+        # Vault e opcional (EDR-0021): tolera SSD ausente igual o banco -
+        # comandos memory.nota_* falham com erro claro em vez de crashar.
+        self._vault = vault
 
     def registrar(self, event_bus: EventBus) -> None:
         event_bus.subscribe("comm.mensagem.command", self._ao_receber_comando)
@@ -107,4 +116,14 @@ class PonteMemoria:
             )
         if operacao == "stats":
             return await self._memory_api.stats()
+        if operacao == "nota_escrever":
+            if self._vault is None:
+                raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")
+            return self._vault.escrever_nota(
+                payload["titulo"], payload["conteudo"], payload.get("links")
+            )
+        if operacao == "nota_buscar":
+            if self._vault is None:
+                raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")
+            return self._vault.buscar(payload["consulta"], payload.get("limite", 5))
         raise KeyError(f"Operacao de memoria desconhecida: '{operacao}'")

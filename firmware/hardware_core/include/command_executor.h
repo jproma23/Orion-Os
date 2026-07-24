@@ -36,6 +36,14 @@ class CommandExecutor {
   // existirem em vez de fazer isso no construtor deles).
   void iniciar() {
     pinMode(pinos::LED_LANTERNA, OUTPUT);
+
+    // Rele do ventilador (pins.h): fail-safe LIGADO (LOW, ativo em baixo) -
+    // escreve antes do pinMode(OUTPUT) pelo mesmo motivo do rele dos
+    // motores (motor_manager.h), evita glitch no pino durante o boot.
+    digitalWrite(pinos::RELE_VENTILADOR, LOW);
+    pinMode(pinos::RELE_VENTILADOR, OUTPUT);
+    digitalWrite(pinos::RELE_VENTILADOR, LOW);
+
     _servoPan.attach(pinos::SERVO_PAN);
     _servoTilt.attach(pinos::SERVO_TILT);
     _servoPan.write(SERVO_CENTRO_GRAUS);
@@ -98,6 +106,20 @@ class CommandExecutor {
 
     if (strcmp(comando, "LIGHT_OFF") == 0) {
       digitalWrite(pinos::LED_LANTERNA, LOW);
+      return true;
+    }
+
+    // Rele do ventilador (ativo em LOW) - o Raspberry decide o limiar de
+    // temperatura (Cap 17: config/orion.yaml) e manda so o comando ja
+    // resolvido; o Arduino nunca decide isso sozinho (Cap 10: so comandos
+    // simples, nada de logica/decisao aqui).
+    if (strcmp(comando, "FAN_ON") == 0) {
+      digitalWrite(pinos::RELE_VENTILADOR, LOW);
+      return true;
+    }
+
+    if (strcmp(comando, "FAN_OFF") == 0) {
+      digitalWrite(pinos::RELE_VENTILADOR, HIGH);
       return true;
     }
 

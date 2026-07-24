@@ -66,7 +66,7 @@ class MissionPlanner:
         self._memory_client = memory_client
 
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
-        contexto = await self._consultar_contexto(pessoa_id)
+        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
 
         comando_detectado = self._detectar_comando(texto_usuario)
         if comando_detectado is not None:
@@ -79,14 +79,23 @@ class MissionPlanner:
         await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
         return resposta
 
-    async def _consultar_contexto(self, pessoa_id: int | None) -> dict | None:
+    async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
         if self._memory_client is None:
             return None
         try:
-            return await self._memory_client.context(pessoa_id)
+            contexto = await self._memory_client.context(pessoa_id)
         except Exception:
             logger.exception("Falha ao consultar contexto da memoria")
             return None
+
+        # Vault de conhecimento (EDR-0021) - opcional, tolera SSD ausente:
+        # so enriquece o prompt, nunca impede a conversa de continuar.
+        try:
+            contexto["notas_relevantes"] = await self._memory_client.nota_buscar(texto_usuario)
+        except Exception:
+            logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
+
+        return contexto
 
     @staticmethod
     def _detectar_comando(texto: str) -> str | None:
