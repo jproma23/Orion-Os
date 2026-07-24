@@ -12,7 +12,10 @@ import os
 
 import pytest
 
-from motion_core.__main__ import _abrir_memoria, _conectar_arduino
+from conftest import FakeTransporte
+
+from motion_core.__main__ import _abrir_memoria, _conectar_arduino, _iniciar_manutencao
+from motion_core.memory.replica import ReceptorReplica
 from orion.communication.framing import DecodificadorSerial, codificar_serial
 from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService
@@ -171,9 +174,11 @@ def test_abrir_memoria_sem_ssd_retorna_none(tmp_path):
     config = ConfigurationManager(caminho_config).carregar()
     bus = EventBus()
 
-    resultado = _abrir_memoria(config, bus, _LOGGER_TESTE)
+    memory_api, db, vault = _abrir_memoria(config, bus, _LOGGER_TESTE)
 
-    assert resultado is None
+    assert memory_api is None
+    assert db is None
+    assert vault is None
 
 
 def test_abrir_memoria_com_ssd_disponivel_retorna_memory_api(tmp_path):
@@ -189,6 +194,28 @@ def test_abrir_memoria_com_ssd_disponivel_retorna_memory_api(tmp_path):
     config = ConfigurationManager(caminho_config).carregar()
     bus = EventBus()
 
-    resultado = _abrir_memoria(config, bus, _LOGGER_TESTE)
+    memory_api, db, vault = _abrir_memoria(config, bus, _LOGGER_TESTE)
 
-    assert resultado is not None
+    assert memory_api is not None
+    assert db is not None
+    assert vault is None  # _CONFIG_BASE nao define obsidian_vault_dir
+
+
+def test_abrir_memoria_com_vault_configurado_retorna_vault(tmp_path):
+    diretorio_ssd = tmp_path / "ssd" / "orion"
+    diretorio_ssd.mkdir(parents=True)
+    caminho_config = tmp_path / "config.yaml"
+    caminho_config.write_text(
+        _CONFIG_BASE.format(
+            caminho_db=str(diretorio_ssd / "orion.db"),
+            caminho_backup=str(diretorio_ssd / "backups"),
+        )
+        + f'  obsidian_vault_dir: "{diretorio_ssd / "obsidian_vault"}"\n'
+    )
+    config = ConfigurationManager(caminho_config).carregar()
+    bus = EventBus()
+
+    memory_api, db, vault = _abrir_memoria(config, bus, _LOGGER_TESTE)
+
+    assert vault is not None
+    assert (diretorio_ssd / "obsidian_vault").is_dir()

@@ -48,6 +48,20 @@ constexpr uint8_t SERVO_RADAR = 9;
 constexpr uint8_t SERVO_PAN = 10;
 constexpr uint8_t SERVO_TILT = 11;
 
+// --- Reles de energia (CONFIRMADO 2026-07-23) - cortam alimentacao de
+// verdade, ao contrario do ENABLE_MOTORES acima (so logica, e nem esta
+// fisicamente ligado nesta montagem). Ambos os modulos de rele usados sao
+// ativos em LOW (testado pelo usuario).
+//
+// RELE_MOTORES: alimenta os TB6600. Comeca e fica em HIGH (motores SEM
+// energia) sempre que parado - so vai a LOW enquanto o robo anda de
+// verdade (Cap 18: em duvida, motores desligados).
+constexpr uint8_t RELE_MOTORES = 13;
+// RELE_VENTILADOR: alimenta o cooler do Raspberry. Comeca em LOW
+// (ventilador LIGADO - fail-safe, resfria por padrao) e so desliga (HIGH)
+// quando o Raspberry confirmar temperatura confortavel via FAN_OFF.
+constexpr uint8_t RELE_VENTILADOR = 12;
+
 // --- RESERVADO: nao fisicamente conectado nesta montagem ---
 constexpr uint8_t ENCODER_ESQUERDO = 18;  // interrupt externo do Mega
 constexpr uint8_t ENCODER_DIREITO = 19;   // interrupt externo do Mega

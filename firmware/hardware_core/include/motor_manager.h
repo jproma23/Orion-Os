@@ -41,6 +41,15 @@ struct EstadoRoda {
 class MotorManager {
  public:
   void iniciar() {
+    // Rele dos motores (pinos.h): escreve o nivel seguro (motores SEM
+    // energia) ANTES do pinMode(OUTPUT) - evita um pulso LOW transitorio
+    // (que ligaria o rele) no instante em que o pino vira saida. Mesmo
+    // valor escrito duas vezes de proposito: uma enquanto ainda e INPUT
+    // (pre-carrega o registrador), outra logo apos virar OUTPUT.
+    digitalWrite(pinos::RELE_MOTORES, HIGH);
+    pinMode(pinos::RELE_MOTORES, OUTPUT);
+    digitalWrite(pinos::RELE_MOTORES, HIGH);
+
     pinMode(pinos::STEP_ESQUERDO, OUTPUT);
     pinMode(pinos::DIR_ESQUERDO, OUTPUT);
     pinMode(pinos::STEP_DIREITO, OUTPUT);
@@ -71,11 +80,13 @@ class MotorManager {
   }
 
   void andarFrente(float velocidadePercent) {
+    _ligarRele();
     _configurarRoda(_esquerda, true, velocidadePercent, -1);
     _configurarRoda(_direita, true, velocidadePercent, -1);
   }
 
   void andarDistancia(float distanciaCm, float velocidadePercent) {
+    _ligarRele();
     long passos = static_cast<long>(fabs(distanciaCm) * (PASSOS_POR_METRO / 100.0f));
     bool frente = distanciaCm >= 0;
     _configurarRoda(_esquerda, frente, velocidadePercent, passos);
@@ -83,11 +94,13 @@ class MotorManager {
   }
 
   void girarContinuo(bool sentidoHorario, float velocidadePercent) {
+    _ligarRele();
     _configurarRoda(_esquerda, sentidoHorario, velocidadePercent, -1);
     _configurarRoda(_direita, !sentidoHorario, velocidadePercent, -1);
   }
 
   void girarGraus(float graus, bool sentidoHorario, float velocidadePercent) {
+    _ligarRele();
     long passos = static_cast<long>(fabs(graus) * PASSOS_POR_GRAU);
     _configurarRoda(_esquerda, sentidoHorario, velocidadePercent, passos);
     _configurarRoda(_direita, !sentidoHorario, velocidadePercent, passos);
@@ -98,6 +111,7 @@ class MotorManager {
     _esquerda.passosRestantes = 0;
     _direita.intervaloUs = 0;
     _direita.passosRestantes = 0;
+    _desligarRele();
   }
 
   bool emMovimento() const {
@@ -110,6 +124,10 @@ class MotorManager {
  private:
   EstadoRoda _esquerda;
   EstadoRoda _direita;
+
+  // Rele ativo em LOW (pins.h) - liga/desliga a energia real dos TB6600.
+  static void _ligarRele() { digitalWrite(pinos::RELE_MOTORES, LOW); }
+  static void _desligarRele() { digitalWrite(pinos::RELE_MOTORES, HIGH); }
 
   static long _intervaloParaVelocidade(float velocidadePercent) {
     velocidadePercent = constrain(velocidadePercent, 1.0f, 100.0f);

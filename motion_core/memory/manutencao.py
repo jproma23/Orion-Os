@@ -72,6 +72,10 @@ class TarefaManutencao:
 
     async def iniciar(self) -> None:
         self._executando = True
+        # Espera um intervalo antes da primeira checagem: evita rodar o
+        # backup no mesmo instante do boot, antes de links como o do
+        # Notebook (replica) terem tido chance de reconectar (Cap 6 s.8).
+        await asyncio.sleep(self._intervalo_verificacao_s)
         while self._executando:
             agora = datetime.now()
             hoje = agora.date()

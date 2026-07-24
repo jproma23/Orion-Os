@@ -10,7 +10,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "pytest-asyncio>=0.23"]
-mission = ["ollama", "faster-whisper", "sounddevice", "numpy", "piper-tts", "openwakeword"]
+mission = [
+    "ollama",
+    "faster-whisper",
+    "sounddevice",
+    "numpy",
+    "piper-tts",
+    "openwakeword",
+    "google-generativeai>=0.8",  # IA remota (EDR-0021), provider padrao
+]
 vision = [
     "opencv-python>=4.9",
     "ultralytics>=8.2",

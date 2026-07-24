@@ -6,6 +6,7 @@ import pytest
 from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     Atender,
+    IaEstrategica,
     Repouso,
     Vigilia,
     VigilanciaObstaculo,
@@ -29,6 +30,118 @@ async def test_repouso_assume_quando_ninguem_mais_quer():
 
     await _passo(maestro)
     assert maestro.ativo_nome == "repouso"  # sem obstáculo -> base assume
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+class _RespostaFalsa:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+
+class _ComunicacaoFalsa:
+    """Fake de ComunicacaoService so para IaEstrategica.request() (EDR-0022)
+    - nao abre link nenhum de verdade."""
+
+    def __init__(self, acao: str | None = "observar_ambiente", falha: bool = False) -> None:
+        self._acao = acao
+        self._falha = falha
+        self.pedidos: list[dict] = []
+
+    async def request(self, destino, payload, timeout_s=None):
+        self.pedidos.append(payload)
+        if self._falha:
+            raise TimeoutError("Notebook inalcancavel (simulado)")
+        return _RespostaFalsa({"ok": True, "acao": self._acao})
+
+
+@pytest.mark.asyncio
+async def test_ia_estrategica_assume_com_acao_valida():
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia_estrategica = IaEstrategica(bus, _ComunicacaoFalsa(acao="observar_ambiente"))
+    maestro.registrar(ia_estrategica)
+    laco = asyncio.create_task(maestro.executar())
+
+    await _passo(maestro)
+    assert maestro.ativo_nome == "repouso"  # ainda sem decisao da IA
+
+    await ia_estrategica._consultar()
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "ia_estrategica"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_ia_estrategica_descansar_nao_disputa_o_controle():
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia_estrategica = IaEstrategica(bus, _ComunicacaoFalsa(acao="descansar"))
+    maestro.registrar(ia_estrategica)
+    laco = asyncio.create_task(maestro.executar())
+
+    await ia_estrategica._consultar()
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "repouso"  # "descansar" = nao assume o controle
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_ia_estrategica_sem_notebook_nao_derruba_o_maestro():
+    """Sem internet/Notebook, a IA simplesmente nao tem opiniao - Repouso
+    segue no controle normalmente (Cap 6 s.8)."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia_estrategica = IaEstrategica(bus, _ComunicacaoFalsa(falha=True))
+    maestro.registrar(ia_estrategica)
+    laco = asyncio.create_task(maestro.executar())
+
+    await ia_estrategica._consultar()
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "repouso"
+    assert ia_estrategica.quer_rodar() is False
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_obstaculo_preempta_ia_estrategica():
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia_estrategica = IaEstrategica(bus, _ComunicacaoFalsa(acao="observar_ambiente"))
+    maestro.registrar(ia_estrategica)
+    maestro.registrar(VigilanciaObstaculo(bus))
+    laco = asyncio.create_task(maestro.executar())
+
+    await ia_estrategica._consultar()
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "ia_estrategica"
+
+    await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "vigilancia_obstaculo"  # 100 > 40, sempre
 
     maestro.parar()
     await laco

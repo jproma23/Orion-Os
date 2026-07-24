@@ -24,6 +24,7 @@ from pathlib import Path
 from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     Atender,
+    IaEstrategica,
     Repouso,
     Vigilia,
     VigilanciaObstaculo,
@@ -32,6 +33,9 @@ from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
+from motion_core.memory.manutencao import TarefaManutencao
+from motion_core.memory.replica import replicar_backup
+from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
 from motion_core.webui.server import WebUIServer
@@ -45,7 +49,7 @@ from orion.communication.transport import (
     iniciar_servidor_tcp,
 )
 from orion.kernel.config import ConfigurationManager
-from orion.kernel.event_bus import EventBus, Prioridade
+from orion.kernel.event_bus import EventBus, Evento, Prioridade
 from orion.kernel.logger import configurar_logger
 from orion.kernel.registry import EstadoModulo, ServiceRegistry
 
@@ -121,15 +125,64 @@ def _abrir_memoria(config: ConfigurationManager, event_bus: EventBus, logger: lo
             "pagina CONVERSA da interface web ficara so com o aviso",
             caminho_db.parent,
         )
-        return None
+        return None, None, None
     try:
         db = DatabaseManager(conf_db["path"], conf_db["backup_dir"])
         db.iniciar()
     except Exception:
         logger.exception("Falha ao abrir o banco de dados em %s", conf_db["path"])
-        return None
+        return None, None, None
     logger.info("Banco de dados conectado em %s", conf_db["path"])
-    return MemoryAPI(db, event_bus)
+
+    vault = None
+    if conf_db.get("obsidian_vault_dir"):
+        vault = VaultConhecimento(conf_db["obsidian_vault_dir"])
+        logger.info("Vault de conhecimento aberto em %s", conf_db["obsidian_vault_dir"])
+
+    return MemoryAPI(db, event_bus), db, vault
+
+
+def _iniciar_manutencao(
+    db: DatabaseManager,
+    event_bus: EventBus,
+    comm: ComunicacaoService,
+    conf_db: dict,
+    logger: logging.Logger,
+) -> TarefaManutencao:
+    """Agenda o backup diario (Cap 15 s.5) e, se configurado, replica o
+    backup para o Notebook (Cap 15 s.6) assim que ele terminar. A replica
+    tolera o Notebook estar desconectado no momento - tenta de novo no
+    proximo backup (Cap 6 s.8)."""
+    conf_retencao = conf_db["retention"]
+    tarefa = TarefaManutencao(
+        db,
+        event_bus,
+        hora_backup=conf_db["backup_hour"],
+        retencao_kwargs={
+            "telemetria_dias": conf_retencao["telemetria_days"],
+            "eventos_dias": conf_retencao["eventos_days"],
+            "logs_dias": conf_retencao["logs_days"],
+            "logs_erro_dias": conf_retencao["logs_error_days"],
+        },
+    )
+
+    if conf_db.get("replica_to_notebook"):
+
+        async def _ao_backup_completar(evento: Evento) -> None:
+            caminho = Path(evento.dados["arquivo"])
+            try:
+                await replicar_backup(caminho, comm, destino="mission_core")
+                logger.info("Backup replicado para o Notebook: %s", caminho.name)
+            except ErroComunicacao as erro:
+                logger.warning(
+                    "Notebook indisponivel para replica do backup (%s) - tenta de novo "
+                    "no proximo backup diario",
+                    erro,
+                )
+
+        event_bus.subscribe("database.backup_completed", _ao_backup_completar)
+
+    return tarefa
 
 
 async def principal() -> None:
@@ -208,20 +261,46 @@ async def principal() -> None:
     maestro.registrar(Atender(event_bus))
     maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
     maestro.registrar(VigilanciaObstaculo(event_bus))
+
+    conf_ia_estrategica = config.secao("behavior")["ia_estrategica"]
+    tarefa_ia_estrategica = None
+    if conf_ia_estrategica.get("habilitado"):
+        ia_estrategica = IaEstrategica(
+            event_bus,
+            comm,
+            intervalo_s=conf_ia_estrategica["intervalo_s"],
+            acoes_validas=tuple(conf_ia_estrategica["acoes_validas"]),
+        )
+        ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
+        maestro.registrar(ia_estrategica)
+        tarefa_ia_estrategica = ia_estrategica.iniciar()
+
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(
         "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilia, "
-        "vigilancia_obstaculo"
+        "vigilancia_obstaculo%s",
+        ", ia_estrategica" if tarefa_ia_estrategica is not None else "",
     )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
-    memory_api = _abrir_memoria(config, event_bus, logger)
+    conf_db = config.secao("database")
+    memory_api, db, vault = _abrir_memoria(config, event_bus, logger)
+    tarefa_manutencao = None
+    tarefa_manutencao_task = None
     if memory_api is not None:
         # Sem esta ponte o banco ate abre, mas os comandos memory.* vindos
         # do Notebook via comm.request nunca chegam na MemoryAPI (fio solto
         # achado na primeira integracao completa, 2026-07-19).
-        PonteMemoria(memory_api, comm).registrar(event_bus)
+        PonteMemoria(memory_api, comm, vault).registrar(event_bus)
         logger.info("Ponte de memoria registrada - comandos memory.* ativos via TCP")
+
+        tarefa_manutencao = _iniciar_manutencao(db, event_bus, comm, conf_db, logger)
+        tarefa_manutencao_task = asyncio.create_task(tarefa_manutencao.iniciar())
+        logger.info(
+            "Backup diario agendado para %02d:00 (replica para o Notebook: %s)",
+            conf_db["backup_hour"],
+            "ativada" if conf_db.get("replica_to_notebook") else "desativada",
+        )
 
     # 5. Interface web (Cap 13 s.4).
     conf_web = config.secao("display")["web"]
@@ -251,13 +330,24 @@ async def principal() -> None:
     tarefa_heartbeat.cancel()
     maestro.parar()
     tarefa_maestro.cancel()
+    if tarefa_ia_estrategica is not None:
+        ia_estrategica.parar()
+        tarefa_ia_estrategica.cancel()
+    if tarefa_manutencao is not None:
+        tarefa_manutencao.parar()
+        tarefa_manutencao_task.cancel()
     await webui.encerrar()
     await comm.encerrar()
     servidor_tcp.close()
     await servidor_tcp.wait_closed()
     event_bus.parar()
     tarefa_bus.cancel()
-    for tarefa in (tarefa_heartbeat, tarefa_maestro, tarefa_bus):
+    tarefas_para_aguardar = [tarefa_heartbeat, tarefa_maestro, tarefa_bus]
+    if tarefa_ia_estrategica is not None:
+        tarefas_para_aguardar.append(tarefa_ia_estrategica)
+    if tarefa_manutencao_task is not None:
+        tarefas_para_aguardar.append(tarefa_manutencao_task)
+    for tarefa in tarefas_para_aguardar:
         try:
             await tarefa
         except asyncio.CancelledError:

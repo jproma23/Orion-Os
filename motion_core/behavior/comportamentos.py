@@ -127,6 +127,95 @@ class Vigilia(Comportamento):
         self._reavaliar()
 
 
+ACOES_VALIDAS_PADRAO = ("descansar", "observar_ambiente")
+
+
+class IaEstrategica(Comportamento):
+    """IA estrategica (prio 40, EDR-0022) - ocupa a vaga da antiga
+    "Patrulha agendada" (EDR-0020, nunca implementada) com uma decisao
+    informada em vez de so horario fixo.
+
+    Consulta a IA (AiManager no Notebook, via comm.request ao "mission_core")
+    em ritmo proprio (`iniciar()` roda um laco de fundo a cada
+    `intervalo_s`) - NUNCA no tick de 200ms do maestro (behavior_core.py),
+    uma chamada de API leva segundos. Escolhe entre um vocabulario FECHADO
+    de acoes: a IA nunca aciona hardware direto, so escolhe entre opcoes
+    que o robo ja sabe executar com seguranca (Cap 18). Sem
+    internet/Notebook, simplesmente nao tem opiniao neste ciclo - o
+    maestro segue pro proximo da escada (Repouso) normalmente (Cap 6 s.8).
+    """
+
+    nome = "ia_estrategica"
+    prioridade = 40
+
+    def __init__(
+        self,
+        event_bus: EventBus,
+        comm,
+        intervalo_s: float = 30.0,
+        acoes_validas: tuple[str, ...] = ACOES_VALIDAS_PADRAO,
+    ) -> None:
+        super().__init__(event_bus)
+        self._comm = comm
+        self._intervalo_s = intervalo_s
+        self._acoes_validas = acoes_validas
+        self._acao_atual: str | None = None
+        self._executando = False
+
+    def iniciar(self) -> asyncio.Task:
+        """Inicia o laco de consulta em segundo plano - chamar uma vez no
+        boot do Motion Core, fora do tick do maestro."""
+        self._executando = True
+        return asyncio.create_task(self._loop_consulta())
+
+    def parar(self) -> None:
+        self._executando = False
+
+    async def _loop_consulta(self) -> None:
+        while self._executando:
+            await self._consultar()
+            await asyncio.sleep(self._intervalo_s)
+
+    async def _consultar(self) -> None:
+        estado = {"comportamento_ativo": self._maestro.ativo_nome if self._maestro else None}
+        try:
+            resposta = await self._comm.request(
+                "mission_core",
+                {
+                    "comando": "mission.decidir",
+                    "estado": estado,
+                    "acoes_validas": list(self._acoes_validas),
+                },
+                timeout_s=15.0,
+            )
+            acao = resposta.payload.get("acao") if resposta.payload.get("ok") else None
+        except Exception:
+            logger.debug("IA estrategica indisponivel (sem internet/Notebook?)", exc_info=True)
+            acao = None
+
+        if acao == "descansar":
+            acao = None  # "descansar" = nao disputa o controle, Repouso assume
+
+        mudou = acao != self._acao_atual
+        self._acao_atual = acao
+        if mudou:
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._acao_atual is not None
+
+    async def executar(self) -> None:
+        acao = self._acao_atual
+        await self._event_bus.publish("behavior.status", {"estado": "ia_estrategica", "acao": acao})
+        logger.info("maestro: IA estrategica decidiu '%s'", acao)
+        try:
+            while True:
+                await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            logger.info("maestro: IA estrategica preemptada")
+            raise
+
+
 class VigilanciaObstaculo(Comportamento):
     """Segurança tática (prio 100): assume o controle quando o Hardware Core
     reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus
