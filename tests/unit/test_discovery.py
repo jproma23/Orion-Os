@@ -92,3 +92,50 @@ async def test_descobrir_versao_incompativel_publica_evento_e_falha():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_descobrir_payload_incompleto_nao_levanta_keyerror():
+    """Achado real da vistoria de 2026-07-24: descobrir() acessava
+    resposta.payload["nome"]/["versao_modulo"]/["versao_protocolo"] sem
+    default - um peer com formato de payload diferente (ex.: versao de
+    protocolo antiga que mudou os campos) derrubava com KeyError cru,
+    ANTES da checagem de versao que deveria tratar exatamente esse tipo
+    de incompatibilidade com ErroVersaoIncompativel."""
+    from orion.communication.service import ComunicacaoService
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    mismatches = []
+    bus.subscribe("comm.protocol_mismatch", lambda e: mismatches.append(e.dados))
+
+    servico = ComunicacaoService("mission_core", bus)
+    transporte = FakeTransporte()
+    servico.adicionar_link("motion_core", transporte)
+
+    async def responder_com_payload_vazio():
+        while not transporte.enviados:
+            await asyncio.sleep(0.01)
+        from orion.communication.protocol import Mensagem, TipoMensagem
+
+        pedido = Mensagem.from_bytes(transporte.enviados[0])
+        resposta = Mensagem.nova(
+            TipoMensagem.RESPONSE,
+            "motion_core",
+            "mission_core",
+            {},  # payload incompleto/vazio - nenhum dos 3 campos esperados
+            id_referencia=pedido.id,
+        )
+        await transporte.injetar(resposta.to_bytes())
+
+    asyncio.create_task(responder_com_payload_vazio())
+
+    with pytest.raises(ErroVersaoIncompativel):
+        await descobrir(servico, "motion_core", bus, timeout_s=2)
+
+    await bus.aguardar_fila_vazia()
+    assert len(mismatches) == 1
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus

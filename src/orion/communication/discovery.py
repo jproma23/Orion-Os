@@ -41,10 +41,19 @@ async def descobrir(
     degradado em vez do Communication Core decidir isso sozinho.
     """
     resposta = await servico.request(destino, {"comando": "WHO_ARE_YOU"}, timeout_s=timeout_s)
+    # .get() com default em vez de acesso direto (achado real da vistoria
+    # de 2026-07-24): um peer com protocolo incompativel podia responder
+    # num formato de payload diferente, faltando algum destes campos - o
+    # KeyError cru acontecia ANTES da checagem de versao abaixo, que e
+    # justamente o mecanismo pensado pra tratar essa incompatibilidade com
+    # elegancia (ErroVersaoIncompativel). Payload vazio/incompleto agora
+    # cai naturalmente no caminho de "versao incompativel" (string vazia
+    # nunca bate com VERSAO_PROTOCOLO), em vez de derrubar quem chamou com
+    # uma excecao que ninguem espera.
     info = InformacaoDescoberta(
-        nome=resposta.payload["nome"],
-        versao_modulo=resposta.payload["versao_modulo"],
-        versao_protocolo=resposta.payload["versao_protocolo"],
+        nome=resposta.payload.get("nome", ""),
+        versao_modulo=resposta.payload.get("versao_modulo", ""),
+        versao_protocolo=resposta.payload.get("versao_protocolo", ""),
     )
 
     if info.versao_protocolo != VERSAO_PROTOCOLO:
