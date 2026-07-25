@@ -154,11 +154,18 @@ class IaEstrategica(Comportamento):
         comm,
         intervalo_s: float = 30.0,
         acoes_validas: tuple[str, ...] = ACOES_VALIDAS_PADRAO,
+        distancia_avanco_cm: float = 30.0,
+        velocidade_avanco_percent: float = 40.0,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
         self._acoes_validas = acoes_validas
+        # Curto e devagar de proposito: e a PRIMEIRA vez que o robo decide
+        # se mover sozinho, e ele nao tem encoder nem sensor de precipicio.
+        # Valores vem do orion.yaml (regra 6) - ver behavior.ia_estrategica.
+        self._distancia_avanco_cm = distancia_avanco_cm
+        self._velocidade_avanco_percent = velocidade_avanco_percent
         self._acao_atual: str | None = None
         self._executando = False
 
@@ -204,10 +211,46 @@ class IaEstrategica(Comportamento):
     def quer_rodar(self) -> bool:
         return self._acao_atual is not None
 
+    async def _avancar(self) -> None:
+        """Primeiro verbo de MOVIMENTO do maestro (2026-07-25).
+
+        Ate aqui o vocabulario da IA era ["descansar", "observar_ambiente"] -
+        nenhum dos dois movia nada, entao o maestro podia decidir o dia
+        inteiro sem que uma roda girasse.
+
+        Usa MOVE_DISTANCE e nao MOVE_FORWARD de proposito: a distancia e
+        limitada e o proprio firmware para ao completa-la. Comando continuo
+        dependeria de alguem lembrar de mandar STOP - e o robo NAO tem
+        encoders, entao nao sabe quanto andou nem onde esta.
+
+        Enviado UMA vez por ativacao, nunca em laco: repetir empurraria o
+        robo indefinidamente enquanto a IA mantivesse a mesma decisao.
+
+        A seguranca reativa do Mega continua por cima - se houver obstaculo
+        ou o sensor nao for confiavel, o comando e recusado no firmware
+        (Cap 18). Este metodo PEDE para andar; quem autoriza e o Arduino.
+        """
+        try:
+            await self._comm.send(
+                "hardware_core",
+                {
+                    "comando": "MOVE_DISTANCE",
+                    "distancia_cm": self._distancia_avanco_cm,
+                    "velocidade_percent": self._velocidade_avanco_percent,
+                },
+            )
+            logger.info("maestro: avancando %.0f cm", self._distancia_avanco_cm)
+        except Exception:
+            # Cap 6 s.8: Arduino ausente ou recusa por seguranca nao pode
+            # derrubar o maestro - ele so nao anda desta vez.
+            logger.warning("maestro: falha ao comandar avanco", exc_info=True)
+
     async def executar(self) -> None:
         acao = self._acao_atual
         await self._event_bus.publish("behavior.status", {"estado": "ia_estrategica", "acao": acao})
         logger.info("maestro: IA estrategica decidiu '%s'", acao)
+        if acao == "avancar":
+            await self._avancar()
         try:
             while True:
                 await asyncio.sleep(1.0)

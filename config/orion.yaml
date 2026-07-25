@@ -209,7 +209,12 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     habilitado: true
     prioridade: 40
     intervalo_s: 30
-    acoes_validas: ["descansar", "observar_ambiente"]
+    acoes_validas: ["descansar", "observar_ambiente", "avancar"]
+    # Primeiro verbo de MOVIMENTO do maestro (2026-07-25). Curto e
+    # devagar de proposito: e a primeira vez que o robo decide se mover
+    # sozinho, e ele nao tem encoder nem sensor de precipicio.
+    distancia_avanco_cm: 30
+    velocidade_avanco_percent: 40
     pasta_fotos: "data/sentinela"
   # Mentor de comportamento (ligado em 2026-07-24) - camada de reflexao
   # mais profunda e mais lenta que a ia_estrategica acima, complementar a

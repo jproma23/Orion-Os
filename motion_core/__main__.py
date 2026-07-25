@@ -271,6 +271,8 @@ async def principal() -> None:
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
             acoes_validas=tuple(conf_ia_estrategica["acoes_validas"]),
+            distancia_avanco_cm=conf_ia_estrategica.get("distancia_avanco_cm", 30.0),
+            velocidade_avanco_percent=conf_ia_estrategica.get("velocidade_avanco_percent", 40.0),
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
