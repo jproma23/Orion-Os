@@ -184,6 +184,7 @@ def _montar_modulos(
             # os rostos da familia moram no banco, no SSD do Raspberry - o
             # Notebook os consulta pelo enlace (regra 5 do CLAUDE.md).
             carregar_conhecidos=lambda: _MemoryClient(comm).recall("pessoas"),
+            comm=comm,
         ),
     ]
 

@@ -391,6 +391,7 @@ async def principal() -> None:
         secao_visao,
         conf_sentinela=config.secao("behavior")["sentinela_visao"],
         carregar_conhecidos=lambda: MemoryClient(comm).recall("pessoas"),
+        comm=comm,
     )
     try:
         await modulo_visao.iniciar()

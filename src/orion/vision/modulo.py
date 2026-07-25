@@ -35,6 +35,7 @@ class ModuloVisao:
         nucleo: Any | None = None,
         conf_sentinela: dict[str, Any] | None = None,
         carregar_conhecidos: Any | None = None,
+        comm: Any | None = None,
     ) -> None:
         # `nucleo` injetavel: os testes passam um dublê e nao precisam de
         # camera, YOLO nem face_recognition instalados.
@@ -44,6 +45,10 @@ class ModuloVisao:
         self._nucleo = nucleo
         self._conf_sentinela = conf_sentinela
         self._carregar_conhecidos = carregar_conhecidos
+        self._comm = comm
+        self._ultimo_pan_tilt_ts = 0.0
+        self._ultimo_pan = 0.0
+        self._ultimo_tilt = 0.0
         self._sentinela: Any | None = None
         self._tarefa: asyncio.Task | None = None
 
@@ -118,6 +123,39 @@ class ModuloVisao:
     def esta_saudavel(self) -> bool:
         return self._tarefa is not None and not self._tarefa.done()
 
+    async def _mover_servos(self, pan: float, tilt: float) -> None:
+        """Manda o Vision Core mover os servos FISICOS da camera.
+
+        Ate 2026-07-25 o VisionCore calculava o pan/tilt, publicava
+        motion.pan_tilt - e ninguem escutava do lado do hardware. So o avatar
+        do Notebook consumia, entao a camera se mexia na TELA e ficava parada
+        no mundo real. O fio final nunca tinha sido ligado.
+
+        LIMITADOR DE TAXA: a visao roda a ate 15 quadros/s; mandar um comando
+        por quadro pela serial afogaria o enlace e atrasaria os heartbeats,
+        que e justamente como o sistema detecta falha. Envia no maximo a cada
+        150 ms, e so quando o angulo mudou o suficiente para valer - servo
+        nao resolve fracao de grau mesmo.
+        """
+        import time
+
+        agora = time.monotonic()
+        if agora - self._ultimo_pan_tilt_ts < 0.15:
+            return
+        if abs(pan - self._ultimo_pan) < 1.0 and abs(tilt - self._ultimo_tilt) < 1.0:
+            return
+        self._ultimo_pan_tilt_ts = agora
+        self._ultimo_pan, self._ultimo_tilt = pan, tilt
+        try:
+            await self._comm.send(
+                "hardware_core",
+                {"comando": "SET_PAN_TILT", "pan_graus": pan, "tilt_graus": tilt},
+            )
+        except Exception:
+            # Cap 6 s.8: Arduino ausente nao pode derrubar a visao - ela
+            # continua detectando e publicando, so nao move o servo.
+            logger.debug("falha ao mover pan/tilt", exc_info=True)
+
     def _construir(self) -> Any:
         # import local: puxa cv2/ultralytics/face_recognition, que sao
         # pesados e podem faltar numa maquina de desenvolvimento. Assim o
@@ -140,7 +178,7 @@ class ModuloVisao:
                 tilt_max_graus=tilt_max,
                 velocidade_max_graus_s=self._conf["servo_max_speed_deg_s"],
             ),
-            publicar_pan_tilt=self._publicar_pan_tilt,
+            publicar_pan_tilt=self._publicar_pan_tilt or self._mover_servos,
             fps=self._conf["fps"],
         )
 
