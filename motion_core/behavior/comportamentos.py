@@ -216,6 +216,103 @@ class IaEstrategica(Comportamento):
             raise
 
 
+class Mentor(Comportamento):
+    """Mentor de comportamento (prio 35, ligado em 2026-07-24) - camada de
+    reflexao mais profunda, complementar a IaEstrategica (prio 40), nao
+    substituta: IaEstrategica e a resposta rapida/ambiente (Ollama via
+    OpenRouter na nuvem, a cada 30s por padrao); o Mentor consulta
+    `ConselheiroComportamento` (Ollama LOCAL no Notebook, gemma3:1b, sem
+    depender de internet) num ritmo mais lento e deliberado - decisao
+    do usuario, nao pedido tecnico. Prioridade abaixo da IaEstrategica de
+    proposito: quando as duas tem opiniao, a mais rapida/atual vence; o
+    Mentor so assume quando a IaEstrategica esta em 'descansar' (sem
+    opiniao) e o Repouso venceria por padrao.
+
+    Mesmo padrao arquitetural de IaEstrategica: nunca aciona hardware
+    direto (Cap 18), vocabulario FECHADO, consulta feita em laco proprio
+    (`iniciar()`), nunca no tick de 200ms do maestro.
+    """
+
+    nome = "mentor"
+    prioridade = 35
+
+    def __init__(
+        self,
+        event_bus: EventBus,
+        comm,
+        intervalo_s: float = 90.0,
+        acoes_validas: tuple[str, ...] = ACOES_VALIDAS_PADRAO,
+    ) -> None:
+        super().__init__(event_bus)
+        self._comm = comm
+        self._intervalo_s = intervalo_s
+        self._acoes_validas = acoes_validas
+        self._acao_atual: str | None = None
+        self._motivo_atual: str = ""
+        self._executando = False
+
+    def iniciar(self) -> asyncio.Task:
+        """Inicia o laco de consulta em segundo plano - chamar uma vez no
+        boot do Motion Core, fora do tick do maestro."""
+        self._executando = True
+        return asyncio.create_task(self._loop_consulta())
+
+    def parar(self) -> None:
+        self._executando = False
+
+    async def _loop_consulta(self) -> None:
+        while self._executando:
+            await self._consultar()
+            await asyncio.sleep(self._intervalo_s)
+
+    async def _consultar(self) -> None:
+        nome_ativo = self._maestro.ativo_nome if self._maestro else None
+        seguranca_ativa = nome_ativo == "vigilancia_obstaculo"
+        estado = {"comportamento_ativo": nome_ativo}
+        try:
+            resposta = await self._comm.request(
+                "mission_core",
+                {
+                    "comando": "behavior.aconselhar",
+                    "contexto": str(estado),
+                    "opcoes": list(self._acoes_validas),
+                    "seguranca_ativa": seguranca_ativa,
+                },
+                timeout_s=25.0,  # inferencia local (gemma3:1b) leva 10-20s
+            )
+            acao = resposta.payload.get("comportamento") if resposta.payload.get("ok") else None
+            motivo = resposta.payload.get("motivo", "") if resposta.payload.get("ok") else ""
+        except Exception:
+            logger.debug("Mentor indisponivel (sem Notebook/Ollama local?)", exc_info=True)
+            acao = None
+            motivo = ""
+
+        if acao == "descansar":
+            acao = None  # "descansar" = nao disputa o controle, Repouso assume
+
+        mudou = acao != self._acao_atual
+        self._acao_atual = acao
+        self._motivo_atual = motivo
+        if mudou:
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._acao_atual is not None
+
+    async def executar(self) -> None:
+        acao = self._acao_atual
+        await self._event_bus.publish(
+            "behavior.status", {"estado": "mentor", "acao": acao, "motivo": self._motivo_atual}
+        )
+        logger.info("maestro: Mentor aconselhou '%s' (%s)", acao, self._motivo_atual)
+        try:
+            while True:
+                await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            logger.info("maestro: Mentor preemptado")
+            raise
+
+
 class VigilanciaObstaculo(Comportamento):
     """Segurança tática (prio 100): assume o controle quando o Hardware Core
     reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus
