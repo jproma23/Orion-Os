@@ -32,18 +32,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+_RAIZ_PROJETO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_RAIZ_PROJETO / "src"))
+sys.path.insert(0, str(_RAIZ_PROJETO))  # expoe motion_core/ (replica do backup)
 
 from orion.communication.heartbeat import MonitorHeartbeat  # noqa: E402
 from orion.communication.service import ComunicacaoService  # noqa: E402
 from orion.communication.transport import TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
+from motion_core.memory.replica import ReceptorReplica  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
+from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.captura import CapturaCamera  # noqa: E402
@@ -161,7 +166,15 @@ async def principal() -> None:
         caminho_prompt_sistema=secao_ia["system_prompt_file"],
         max_tokens_resposta=secao_ia["resposta_max_tokens"],
         keep_alive_minutes=secao_ia["keep_alive_minutes"],
+        provider=secao_ia.get("provider", "ollama"),
+        openai_model=secao_ia.get("openai_model", "gpt-4o-mini"),
+        openai_base_url=secao_ia.get("openai_base_url"),
     )
+    if secao_ia.get("provider") == "openai" and not os.environ.get("OPENAI_API_KEY"):
+        logger.warning(
+            "provider=openai configurado mas OPENAI_API_KEY nao esta no ambiente - "
+            "toda resposta vai cair direto pro Ollama local (EDR-0021)"
+        )
 
     # Link TCP com o Motion Core (Raspberry) - Cap 14 s.2. Tolerado ausente
     # (Cap 6 s.8): sem ele a conversa segue, mas comandos de hardware e a
@@ -182,6 +195,23 @@ async def principal() -> None:
         intervalo_s=conf_comm["heartbeat_interval_s"],
         heartbeats_perdidos_limite=conf_comm["heartbeats_lost_threshold"],
     )
+
+    # Receptor da replica cruzada do backup (Cap 15 s.6): o Pi manda os
+    # blocos do backup diario por este mesmo link "motion_core" - registra
+    # so uma vez (independe de reconexao, o event bus e o mesmo).
+    conf_db = config.secao("database")
+    if conf_db.get("replica_to_notebook"):
+        receptor_replica = ReceptorReplica(conf_db["notebook_replica_dir"])
+        receptor_replica.registrar(bus)
+        logger.info(
+            "Receptor de replica do backup ativo (destino: %s)",
+            conf_db["notebook_replica_dir"],
+        )
+
+    # Ponte de decisao estrategica (EDR-0022): o comportamento IaEstrategica
+    # no Pi manda "mission.decidir" por este mesmo link "motion_core" -
+    # mesmo padrao do receptor de replica acima.
+    PonteDecisao(ia, comm).registrar(bus)
 
     async def _conectar_link_pi() -> None:
         transporte = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
