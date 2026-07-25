@@ -119,6 +119,17 @@ class CommandExecutor {
       return true;
     }
 
+    if (strcmp(comando, "RADAR_SET_ANGLE") == 0) {
+      // Comando de calibracao (fora da lista original do Cap 10 s.5) -
+      // move so o servo do radar pra um angulo especifico, sem varredura.
+      // Usado pra achar/conferir o arco de rotacao livre na montagem
+      // fisica (achado real: colisao com o suporte da webcam ao lado,
+      // vistoria de 2026-07-24).
+      float angulo = payload["angulo_graus"] | 90.0f;
+      _radar.moverServoTeste(static_cast<uint8_t>(constrain(angulo, 0, 180)));
+      return true;
+    }
+
     if (strcmp(comando, "LIGHT_ON") == 0) {
       digitalWrite(pinos::LED_LANTERNA, HIGH);
       return true;
@@ -146,11 +157,24 @@ class CommandExecutor {
     if (strcmp(comando, "SET_PAN_TILT") == 0) {
       // pan_graus/tilt_graus chegam relativos ao centro (-limite..+limite,
       // calculados pelo Vision Core - Cap 8 s.8); o servo fisico espera
-      // 0-180 com centro em 90.
+      // 0-180 com centro em 90. Reanexa se tiver sido solto por
+      // PAN_TILT_SOLTAR (Servo::write() nao reanexa sozinho).
+      if (!_servoPan.attached()) _servoPan.attach(pinos::SERVO_PAN);
+      if (!_servoTilt.attached()) _servoTilt.attach(pinos::SERVO_TILT);
       float panGraus = payload["pan_graus"] | 0.0f;
       float tiltGraus = payload["tilt_graus"] | 0.0f;
       _servoPan.write(constrain(SERVO_CENTRO_GRAUS + panGraus, 0, 180));
       _servoTilt.write(constrain(SERVO_CENTRO_GRAUS + tiltGraus, 0, 180));
+      return true;
+    }
+
+    if (strcmp(comando, "PAN_TILT_SOLTAR") == 0) {
+      // Desliga o torque dos servos pan/tilt (Servo::detach) pra dar pra
+      // girar a webcam na mao, sem forcar contra o motor - pedido do
+      // usuario durante calibracao fisica, 2026-07-24. SET_PAN_TILT
+      // reanexa sozinho na proxima vez que for chamado.
+      _servoPan.detach();
+      _servoTilt.detach();
       return true;
     }
 
