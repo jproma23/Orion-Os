@@ -18,7 +18,7 @@ communication:
                                # desenvolvimento, nao a subrede Ethernet fixa
                                # de producao (192.168.50.x) que ainda nao
                                # existe fisicamente.
-    host: "10.20.20.185"      # IP da Raspberry na rede WiFi atual (dev)
+    host: "10.20.20.188"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
   arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
@@ -104,6 +104,16 @@ voice:
     janelas_de_historico: 30
 
 ai:
+  # IA remota como principal (EDR-0021, 2026-07-23): Ollama local travava
+  # muito e exige maquina cara pra rodar bem. Via OpenRouter (API
+  # compativel com a da OpenAI, so troca o servidor) - cai pro Ollama
+  # sozinho sem internet/erro de API (nunca fica sem IA nenhuma).
+  provider: "openai"              # "openai" | "ollama" (usa API compativel c/ OpenAI)
+  openai_model: "openai/gpt-4o-mini"
+  openai_base_url: "https://openrouter.ai/api/v1"
+  # OPENAI_API_KEY vem de variavel de ambiente - nunca fixa aqui (regra 6).
+  # Com openai_base_url apontando pro OpenRouter, essa chave e a do
+  # OpenRouter (formato sk-or-v1-...), nao a da OpenAI direto.
   # gemma3:4b desde 2026-07-18: portugues muito melhor que o llama3.2:3b
   # que estreou aqui, ocupando quase o mesmo (~3,3GB; 8b so com mais RAM)
   ollama_model: "gemma3:4b"
@@ -139,6 +149,10 @@ database:                        # roda no Raspberry, SSD 500 GB (EDR-0019)
   backup_dir: "/mnt/ssd/orion/backups"
   replica_to_notebook: true      # replica cruzada diaria via Ethernet
   notebook_replica_dir: "data/backups_replica"
+  # Vault Obsidian - memoria de longo prazo em texto livre (EDR-0021).
+  # Mesmo disco do orion.db de proposito: ainda nao entra no backup/replica
+  # diario (so cobre o .db por enquanto - pendente ver docs/edr/EDR-0021).
+  obsidian_vault_dir: "/mnt/ssd/orion/obsidian_vault"
   backup_hour: 3                 # 03:00 diário
   retention:
     telemetria_days: 30
@@ -183,4 +197,13 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     habilitado: true
     intervalo_s: 3
     cooldown_s: 30
+  # IA estrategica (EDR-0022) - ocupa a vaga da antiga "Patrulha agendada"
+  # (EDR-0020, nunca implementada). Consulta a IA em ritmo proprio (nunca
+  # no tick de 200ms do maestro) e escolhe entre um vocabulario FECHADO -
+  # a IA nunca aciona hardware direto (Cap 18).
+  ia_estrategica:
+    habilitado: true
+    prioridade: 40
+    intervalo_s: 30
+    acoes_validas: ["descansar", "observar_ambiente"]
     pasta_fotos: "data/sentinela"
