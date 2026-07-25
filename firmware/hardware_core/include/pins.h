@@ -56,11 +56,20 @@ constexpr uint8_t SERVO_TILT = 11;
 // RELE_MOTORES: alimenta os TB6600. Comeca e fica em HIGH (motores SEM
 // energia) sempre que parado - so vai a LOW enquanto o robo anda de
 // verdade (Cap 18: em duvida, motores desligados).
-constexpr uint8_t RELE_MOTORES = 13;
+// MUDOU de 13 para 12 em 2026-07-24 (achado real da vistoria): pino 13 e
+// o mesmo do LED embutido do Mega, que o bootloader pisca em TODO reset
+// (upload de firmware, watchdog, power-on) antes do setup() rodar -
+// causava o rele "tremelicar" fora do controle do codigo nesses
+// instantes. Pino 12 nao tem essa funcao especial.
+constexpr uint8_t RELE_MOTORES = 12;
 // RELE_VENTILADOR: alimenta o cooler do Raspberry. Comeca em LOW
 // (ventilador LIGADO - fail-safe, resfria por padrao) e so desliga (HIGH)
 // quando o Raspberry confirmar temperatura confortavel via FAN_OFF.
-constexpr uint8_t RELE_VENTILADOR = 12;
+// Fisicamente DESCONECTADO em 2026-07-24 (usuario liberou o pino 12 pro
+// rele dos motores, por causa do consumo de energia) - realocado pro
+// pino 7 aqui so pra nao colidir com RELE_MOTORES; FAN_ON/FAN_OFF
+// continuam existindo no protocolo, sem efeito fisico ate reconectar.
+constexpr uint8_t RELE_VENTILADOR = 7;
 
 // --- RESERVADO: nao fisicamente conectado nesta montagem ---
 constexpr uint8_t ENCODER_ESQUERDO = 18;  // interrupt externo do Mega

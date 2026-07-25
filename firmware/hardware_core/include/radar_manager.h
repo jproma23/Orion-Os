@@ -27,7 +27,7 @@ class RadarManager {
   void iniciar() {
     _ultrassom.iniciar(pinos::ULTRASSOM_FRENTE_TRIG, pinos::ULTRASSOM_FRENTE_ECHO);
     _servo.attach(pinos::SERVO_RADAR);
-    _servo.write(90);
+    _servo.write(_paraFisico(90));
     _anguloAtual = 90;
   }
 
@@ -41,6 +41,13 @@ class RadarManager {
     _indiceAtual = 0;
     _comandarServo(_angulos[0]);
   }
+
+  // Comando de calibracao manual (fora do fluxo de SCAN_FRONT): move so o
+  // servo do radar pra um angulo especifico, sem ativar _varrendo (nao
+  // produz motion.scan_complete). Usado so pra achar o arco de rotacao
+  // livre na montagem fisica - achado real: colisao com o suporte da
+  // webcam ao lado, vistoria de 2026-07-24.
+  void moverServoTeste(uint8_t angulo) { _comandarServo(angulo); }
 
   bool varrendo() const { return _varrendo; }
   const LeituraRadar* leituras() const { return _leituras; }
@@ -59,8 +66,23 @@ class RadarManager {
   // membro de instancia normal (nao static) - evita a exigencia de uma
   // definicao fora da classe que um array "static constexpr" teria no
   // padrao C++ usado por este toolchain AVR.
-  uint8_t _angulos[RADAR_QUANTIDADE_ANGULOS] = {0, 30, 60, 90, 120, 150, 180};
+  // Arco de 120 graus (30..150), centrado na frente - confirmado ao vivo
+  // com o usuario apos a calibracao do offset abaixo como suficiente pra
+  // enxergar o mundo a frente sem colidir com o suporte da webcam ao lado
+  // (vistoria de 2026-07-24). Ajustar aqui se o suporte for reposicionado.
+  uint8_t _angulos[RADAR_QUANTIDADE_ANGULOS] = {30, 50, 70, 90, 110, 130, 150};
   static constexpr unsigned long TEMPO_ASSENTAMENTO_SERVO_MS = 300;
+  // Offset de calibracao fisica (Cap 10 s.6, achado real 2026-07-24): o
+  // parafuso do horn deste servo esta colado torto e nao da pra reencaixar
+  // fisicamente - calibrado ao vivo com o usuario (camera apontada pro
+  // sensor): mandar o servo pro angulo LOGICO 90 (frente) so fica reto de
+  // verdade escrevendo 45 de verdade no servo. Esse offset e aplicado so
+  // na hora de escrever no servo (_paraFisico) - toda a logica interna
+  // (safety, indices de varredura, _anguloAtual, RADAR_SET_ANGLE) continua
+  // trabalhando 100% em angulo LOGICO (0-180, 90=frente), sem precisar
+  // saber do desalinhamento fisico. Se o horn for descolado/refeito um
+  // dia, zerar este valor.
+  static constexpr int RADAR_OFFSET_GRAUS = -45;
 
   SensorUltrassonico _ultrassom;
   Servo _servo;
@@ -71,8 +93,12 @@ class RadarManager {
   uint8_t _anguloAtual = 90;
   LeituraRadar _leituras[RADAR_QUANTIDADE_ANGULOS];
 
+  static uint8_t _paraFisico(uint8_t anguloLogico) {
+    return static_cast<uint8_t>(constrain((int)anguloLogico + RADAR_OFFSET_GRAUS, 0, 180));
+  }
+
   void _comandarServo(uint8_t angulo) {
-    _servo.write(angulo);
+    _servo.write(_paraFisico(angulo));
     _anguloAtual = angulo;
     _momentoComandoServo = millis();
     _aguardandoServo = true;
@@ -90,8 +116,7 @@ class RadarManager {
     _indiceAtual++;
     if (_indiceAtual >= RADAR_QUANTIDADE_ANGULOS) {
       _varrendo = false;
-      _servo.write(90);
-      _anguloAtual = 90;
+      _comandarServo(90);
       return;
     }
     _comandarServo(_angulos[_indiceAtual]);
