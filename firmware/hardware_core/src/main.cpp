@@ -192,6 +192,22 @@ void setup() {
   imu.iniciar();
   dht.iniciar();
   ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
+
+  // AUTOTESTE DE PRESENCA DO ULTRASSOM (2026-07-25).
+  //
+  // O latch de presenca (sensor_ultrassonico.h) so fecha quando um eco de
+  // verdade chega, e ate fechar a seguranca trata o sensor como ausente e
+  // impede o robo de andar. Com o radar parado apontando para um vao livre,
+  // esse eco nunca vinha - e alguem precisava passar a mao na frente do
+  // sensor apos CADA reinicio para destravar o robo. Inviavel para um robo
+  // que deve patrulhar sozinho.
+  //
+  // A varredura resolve sozinha: o arco de 30..150 graus cobre o ambiente,
+  // e basta UM angulo encontrar superficie para o latch fechar. Numa sala
+  // qualquer isso acontece em segundos. Se nao houver NADA em nenhum
+  // angulo, o latch fica aberto - e ai a recusa em andar esta correta,
+  // porque nao ha como distinguir isso de um sensor desligado.
+  radar.iniciarVarredura();
   comandos.iniciar();
   g_payloadVazio.to<JsonObject>();  // forca virar {} em vez de null ao serializar
 
