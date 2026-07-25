@@ -60,6 +60,13 @@ TOPICOS_REPASSADOS = (
     "comm.module_lost",
     "comm.module_recovered",
     "memory.updated",
+    # O maestro (EDR-0020) publica aqui qual comportamento esta no comando:
+    # repouso, atendendo, vigilia, ia_estrategica, mentor. Ficou de fora da
+    # lista ate 2026-07-25, entao as DECISOES do robo - a informacao mais
+    # interessante que ele produz - nunca chegavam na interface. Dava a
+    # impressao de maestro morto quando ele so era invisivel.
+    "behavior.status",
+    "sentinela.alerta",
 )
 
 #: quantas conversas mostrar na pagina CONVERSA por padrao (Cap 13 s.4)
