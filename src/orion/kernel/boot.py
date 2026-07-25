@@ -139,17 +139,38 @@ async def _iniciar_modulos(
     return ativos
 
 
-def _montar_modulos(config: ConfigurationManager, event_bus: EventBus, simulado: bool) -> list[Any]:
-    """Lista de modulos do Mission Core, na ordem de inicializacao.
+def _montar_modulos(
+    config: ConfigurationManager,
+    event_bus: EventBus,
+    comm: ComunicacaoService,
+    simulado: bool,
+) -> list[Any]:
+    """Modulos do Mission Core, NA ORDEM DE INICIALIZACAO (EDR-0023 s.4).
 
-    Em modo simulado nada de hardware real e aberto (EDR-0023 s.5), entao a
-    lista sai vazia por enquanto - simuladores entram aqui quando existirem.
+    A ordem importa e nao e arbitraria:
+      1. display - sobe em milissegundos, entao o usuario ve o avatar no ar
+         enquanto o resto ainda carrega, em vez de encarar uma tela morta;
+      2. mission - a IA precisa estar de pe antes de qualquer modulo comecar
+         a fazer perguntas a ela;
+      3. vision  - por ultimo porque carrega o modelo YOLO do disco, de longe
+         o passo mais lento do boot.
+    O desligamento percorre esta lista ao contrario (SistemaOrion.encerrar).
+
+    Em modo simulado nada de hardware real e aberto (EDR-0023 s.5): a lista
+    sai vazia ate existirem simuladores de verdade.
     """
     if simulado:
         return []
+    from orion.display.modulo import ModuloDisplay
+    from orion.mission.modulo import ModuloMissao
     from orion.vision.modulo import ModuloVisao
 
-    return [ModuloVisao(event_bus, config.secao("vision"))]
+    conf_visao = config.secao("vision")
+    return [
+        ModuloDisplay(event_bus, conf_visao),
+        ModuloMissao(event_bus, comm, config.secao("ai")),
+        ModuloVisao(event_bus, conf_visao),
+    ]
 
 
 class SistemaOrion:
@@ -265,7 +286,7 @@ class BootManager:
         # Mission/IA e Display entram aqui conforme forem migrados de
         # tools/conversar_fofao.py.
         modulos = await _iniciar_modulos(
-            _montar_modulos(config, event_bus, self._simulado), registry, event_bus, logger
+            _montar_modulos(config, event_bus, comm, self._simulado), registry, event_bus, logger
         )
 
         # 6-10. Arduino (via Raspberry), banco, IA, Vision, Motion Core +
