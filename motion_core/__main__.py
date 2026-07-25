@@ -331,7 +331,13 @@ async def principal() -> None:
 
     # 5. Interface web (Cap 13 s.4).
     conf_web = config.secao("display")["web"]
-    webui = WebUIServer(event_bus, port=conf_web["port"], memory_api=memory_api, config=config)
+    webui = WebUIServer(
+        event_bus,
+        port=conf_web["port"],
+        memory_api=memory_api,
+        config=config,
+        comm=comm,
+    )
     await webui.iniciar()
 
     registry.atualizar_estado(NOME_MODULO, EstadoModulo.RUNNING)

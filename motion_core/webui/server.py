@@ -69,6 +69,24 @@ TOPICOS_REPASSADOS = (
     "sentinela.alerta",
 )
 
+#: Vocabulario FECHADO do controle manual. A interface nunca inventa
+#: comando: o que nao estiver aqui e recusado antes de chegar ao Mega.
+#: Movimento continua sujeito a seguranca reativa do firmware (Cap 18) -
+#: este endpoint PEDE, nao manda.
+COMANDOS_PERMITIDOS = frozenset(
+    {
+        "MOVE_FORWARD",
+        "MOVE_CONTINUOUS",
+        "TURN_LEFT",
+        "TURN_RIGHT",
+        "STOP",
+        "LIGHT_ON",
+        "LIGHT_OFF",
+        "FAN_ON",
+        "FAN_OFF",
+    }
+)
+
 #: quantas conversas mostrar na pagina CONVERSA por padrao (Cap 13 s.4)
 CONVERSAS_PADRAO = 30
 
@@ -93,6 +111,7 @@ class WebUIServer:
         port: int = 8080,
         memory_api: MemoryAPI | None = None,
         config: ConfigurationManager | None = None,
+        comm: object | None = None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -105,6 +124,9 @@ class WebUIServer:
         self._port = port
         self._memory_api = memory_api
         self._config = config
+        # enlace com o Hardware Core, usado so pelo controle manual.
+        # Opcional: sem ele o endpoint responde 503 em vez de quebrar.
+        self._comm = comm
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
 
@@ -133,6 +155,7 @@ class WebUIServer:
         self._app = web.Application()
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
+        self._app.router.add_post("/comando", self._handler_comando)
         self._app.router.add_get("/", self._handler_index)
         self._app.router.add_get("/mapa", self._handler_mapa)
         self._app.router.add_get("/diagnostico", self._handler_diagnostico)
@@ -145,6 +168,42 @@ class WebUIServer:
 
         for topico in TOPICOS_REPASSADOS:
             event_bus.subscribe(topico, self._fazer_manipulador(topico))
+
+    async def _handler_comando(self, request: web.Request) -> web.Response:
+        """Controle manual: pede um comando ao Hardware Core.
+
+        Existe porque ate 2026-07-25 a UNICA forma de comandar o robo era a
+        voz. Uma transcricao errada deixava o operador sem NENHUM caminho
+        para dar uma ordem - nem para mandar PARAR. Isso e falha de
+        seguranca, nao so de conveniencia.
+
+        Nao enfraquece nada: a seguranca reativa do Mega continua vetando
+        movimento enquanto houver perigo, e o vocabulario e fechado.
+        """
+        if self._comm is None:
+            return web.json_response(
+                {"erro": "sem enlace com o Hardware Core"}, status=503
+            )
+        try:
+            corpo = await request.json()
+        except Exception:
+            return web.json_response({"erro": "corpo precisa ser JSON"}, status=400)
+
+        comando = str(corpo.get("comando", "")).strip().upper()
+        if comando not in COMANDOS_PERMITIDOS:
+            return web.json_response(
+                {
+                    "erro": "comando nao permitido",
+                    "permitidos": sorted(COMANDOS_PERMITIDOS),
+                },
+                status=400,
+            )
+        try:
+            await self._comm.send("hardware_core", {"comando": comando})
+        except Exception as erro:  # noqa: BLE001
+            # o Arduino pode estar ausente (Cap 6 s.8) ou recusar por seguranca
+            return web.json_response({"erro": str(erro)}, status=502)
+        return web.json_response({"ok": True, "comando": comando})
 
     async def _handler_index(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "index.html")

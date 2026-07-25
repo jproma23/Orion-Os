@@ -50,6 +50,11 @@ class SensorUltrassonico {
           unsigned long duracao = agora - _inicioEchoUs;
           _distanciaCm = duracao / 58.0f;  // formula padrao do HC-SR04
           _leituraValida = true;
+          // LATCH DE PRESENCA: um eco de verdade so acontece se existe um
+          // modulo ligado e funcionando. A partir daqui sabemos que ele
+          // ESTA la, e o silencio dele passa a significar "nada refletindo"
+          // em vez de "sensor ausente" - ver _semResposta.
+          _jaRespondeu = true;
           _ultimaLeituraUs = agora;
           _estagio = Estagio::OCIOSO;
         } else if (agora - _inicioEchoUs > TIMEOUT_US) {
@@ -96,6 +101,9 @@ class SensorUltrassonico {
   // sensor ligado, e o conservador e assumir que nao (o robo fica parado
   // ate o primeiro eco confirmar que o modulo existe).
   bool _sensorRespondeu = false;
+  //: fecha no primeiro eco de verdade e nunca mais abre - e a prova de que
+  //: existe um modulo ligado nestes pinos. Ver _semResposta.
+  bool _jaRespondeu = false;
 
   //: distancia reportada quando nada reflete dentro do alcance. Derivada do
   //: proprio TIMEOUT_US (30 ms / 58 = ~517 cm) para os dois nunca saírem de
@@ -103,6 +111,25 @@ class SensorUltrassonico {
   static constexpr float ALCANCE_MAXIMO_CM = TIMEOUT_US / 58.0f;
 
   void _semResposta(unsigned long agora) {
+    // O pino ECHO nem subiu. Isso tem DOIS significados possiveis, e o latch
+    // de presenca e o que os separa:
+    //
+    //  - modulo nunca respondeu desde o boot -> assumimos ausente. Leitura
+    //    invalida, o SafetyManager para o robo (Cap 18: em duvida, para).
+    //  - modulo JA respondeu antes -> ele existe e funciona; este silencio e
+    //    "nada refletindo dentro do alcance", ou seja, caminho livre.
+    //
+    // Sem essa distincao o robo ficava num beco sem saida: o sensor so
+    // produz leitura com algo na frente, e o robo so pode andar sem nada na
+    // frente - entao ele nunca andava (medido em 2026-07-25, 0 leituras
+    // validas em 10 amostras com o caminho livre).
+    //
+    // Seguro porque um sensor de verdade ausente NUNCA fecha o latch: nao ha
+    // como forjar um eco sem modulo ligado.
+    if (_jaRespondeu) {
+      _foraDeAlcance(agora);
+      return;
+    }
     _leituraValida = false;
     _sensorRespondeu = false;
     _ultimaLeituraUs = agora;

@@ -150,6 +150,7 @@ system:
   profile: "HOME"
 communication:
   raspberry:
+    host: "10.20.20.195"
     tcp_port: 5757
   arduino:
     baud_rate: 115200
