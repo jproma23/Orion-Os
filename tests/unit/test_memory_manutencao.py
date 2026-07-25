@@ -1,9 +1,11 @@
 """Testes da orquestracao assincrona do banco (Cap 15 s.6, s.9)."""
 import asyncio
+import time
 from datetime import datetime
 
 import pytest
 
+from motion_core.memory.api import MemoryAPI
 from motion_core.memory.database import DatabaseManager
 from motion_core.memory.manutencao import TarefaManutencao, iniciar_banco
 from orion.kernel.event_bus import EventBus
@@ -189,6 +191,81 @@ async def test_loop_sobrevive_a_falha_de_backup_e_tenta_de_novo(tmp_path, monkey
     assert len(falhas) >= 1  # primeira tentativa falhou e foi publicada
     assert len(completos) >= 1  # loop nao morreu - tentou de novo e completou
     assert chamadas["n"] >= 2  # de fato tentou mais de uma vez
+
+    db.fechar()
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_backup_segura_o_lock_compartilhado_com_memory_api(tmp_path, monkeypatch):
+    """Achado real da vistoria de 2026-07-24: WebUIServer chama
+    MemoryAPI direto de um handler HTTP, e TarefaManutencao roda como
+    task independente - os dois usando asyncio.to_thread na mesma
+    conexao sqlite3, sem lock nenhum antes deste fix. Aqui provamos que
+    executar_backup_agora() de fato segura db.lock enquanto roda (nao so
+    "deveria")."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+
+    db = _criar_gerenciador(tmp_path)
+    db.iniciar()
+    tarefa = TarefaManutencao(db, bus)
+
+    lock_estava_ocupado = asyncio.Event()
+    fazer_backup_original = db.fazer_backup
+
+    def _fazer_backup_devagar():
+        time.sleep(0.1)  # janela generosa pra checagem abaixo conseguir ver
+        return fazer_backup_original()
+
+    monkeypatch.setattr(db, "fazer_backup", _fazer_backup_devagar)
+
+    async def _checar_lock_no_meio_do_backup():
+        await asyncio.sleep(0.03)  # da tempo do backup ja ter pego o lock
+        if db.lock.locked():
+            lock_estava_ocupado.set()
+
+    await asyncio.gather(tarefa.executar_backup_agora(), _checar_lock_no_meio_do_backup())
+
+    assert lock_estava_ocupado.is_set()
+
+    db.fechar()
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_memory_api_tambem_segura_o_mesmo_lock(tmp_path, monkeypatch):
+    """Mesmo achado do teste acima, do lado do MemoryAPI (o caminho que o
+    WebUIServer usa de verdade em motion_core/webui/server.py)."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+
+    db = _criar_gerenciador(tmp_path)
+    db.iniciar()
+    memory_api = MemoryAPI(db, bus)
+
+    lock_estava_ocupado = asyncio.Event()
+    validar_original = memory_api._validar_colunas
+
+    def _validar_devagar(tabela, colunas):
+        time.sleep(0.1)
+        return validar_original(tabela, colunas)
+
+    monkeypatch.setattr(memory_api, "_validar_colunas", _validar_devagar)
+
+    async def _checar_lock_no_meio_do_remember():
+        await asyncio.sleep(0.03)
+        if db.lock.locked():
+            lock_estava_ocupado.set()
+
+    await asyncio.gather(
+        memory_api.remember("pessoas", {"nome": "teste"}),
+        _checar_lock_no_meio_do_remember(),
+    )
+
+    assert lock_estava_ocupado.is_set()
 
     db.fechar()
     bus.parar()

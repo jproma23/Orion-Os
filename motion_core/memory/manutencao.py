@@ -56,8 +56,16 @@ class TarefaManutencao:
         """Roda backup + retencao imediatamente - usado pelo loop agendado
         e disponivel para acionamento manual/testes."""
         try:
-            caminho = await asyncio.to_thread(self._db.fazer_backup)
-            removidos = await asyncio.to_thread(self._db.limpar_retencao, **self._retencao_kwargs)
+            # Lock compartilhado com MemoryAPI (achado real da vistoria de
+            # 2026-07-24): sem isso, o backup as 3h podia coincidir com uma
+            # consulta pelo dashboard ou um memory.remember chegando do
+            # Notebook, duas threads mexendo na mesma conexao sqlite3 ao
+            # mesmo tempo.
+            async with self._db.lock:
+                caminho = await asyncio.to_thread(self._db.fazer_backup)
+                removidos = await asyncio.to_thread(
+                    self._db.limpar_retencao, **self._retencao_kwargs
+                )
         except Exception as erro:
             logger.exception("Falha ao executar backup diario")
             await self._event_bus.publish(
