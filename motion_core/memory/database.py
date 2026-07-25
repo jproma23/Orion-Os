@@ -11,6 +11,7 @@ padrao ja usado para pyserial em `orion.communication.transport`.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import sqlite3
@@ -40,6 +41,16 @@ class DatabaseManager:
         self._diretorio_backup = Path(diretorio_backup)
         self._conexao: sqlite3.Connection | None = None
         self.foi_reconstruido = False
+        # Achado real da vistoria de 2026-07-24: a suposicao de "acesso
+        # sempre sequencial" (comentario de _abrir() abaixo) so vale pra
+        # quem chama via Event Bus - MemoryAPI tambem e chamada direto de
+        # handlers HTTP concorrentes (motion_core/webui/server.py) e
+        # TarefaManutencao roda como task independente (backup as 3h pode
+        # cair bem na hora de uma consulta pelo dashboard). Este lock e
+        # compartilhado por quem quer que chame asyncio.to_thread(...)
+        # numa operacao deste banco (ver MemoryAPI e manutencao.py) -
+        # serializa de verdade, em vez de so torcer pra nunca coincidir.
+        self.lock = asyncio.Lock()
 
     @property
     def conexao(self) -> sqlite3.Connection:
@@ -83,11 +94,12 @@ class DatabaseManager:
 
     def _abrir(self) -> sqlite3.Connection:
         # check_same_thread=False: quem chama em contexto assincrono
-        # (motion_core.memory.manutencao) delega cada operacao a
+        # (MemoryAPI, motion_core.memory.manutencao) delega cada operacao a
         # `asyncio.to_thread`, que pode escalar em threads diferentes do
-        # executor padrao. Seguro aqui porque o acesso e sempre sequencial -
-        # cada chamada e aguardada (await) antes da proxima comecar, nunca
-        # duas threads mexendo na mesma conexao ao mesmo tempo.
+        # executor padrao. O acesso concorrente de verdade e evitado por
+        # `self.lock` (ver __init__) - sem ele, chamadas concorrentes
+        # (dashboard web + backup as 3h, por exemplo) podiam mexer na mesma
+        # conexao ao mesmo tempo (achado real, vistoria de 2026-07-24).
         conexao = sqlite3.connect(
             str(self._caminho_db), isolation_level=None, check_same_thread=False
         )

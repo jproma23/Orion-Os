@@ -90,7 +90,8 @@ class MemoryAPI:
             )
             return cursor.lastrowid
 
-        novo_id = await asyncio.to_thread(_inserir)
+        async with self._db.lock:
+            novo_id = await asyncio.to_thread(_inserir)
         await self._event_bus.publish(
             "memory.updated", {"categoria": categoria, "operacao": "remember", "id": novo_id}
         )
@@ -111,7 +112,8 @@ class MemoryAPI:
             linhas = self._db.conexao.execute(sql, (*filtro.values(), limite)).fetchall()
             return [dict(linha) for linha in linhas]
 
-        resultado = await asyncio.to_thread(_buscar)
+        async with self._db.lock:
+            resultado = await asyncio.to_thread(_buscar)
         await self._event_bus.publish(
             "memory.recall_executed",
             {"categoria": categoria, "filtro": filtro, "quantidade": len(resultado)},
@@ -135,7 +137,8 @@ class MemoryAPI:
             )
             return cursor.rowcount > 0
 
-        atualizado = await asyncio.to_thread(_atualizar)
+        async with self._db.lock:
+            atualizado = await asyncio.to_thread(_atualizar)
         await self._event_bus.publish(
             "memory.updated",
             {"categoria": categoria, "operacao": "update", "id": id, "aplicado": atualizado},
@@ -164,7 +167,8 @@ class MemoryAPI:
                 )
             return removido
 
-        removido = await asyncio.to_thread(_remover)
+        async with self._db.lock:
+            removido = await asyncio.to_thread(_remover)
         await self._event_bus.publish(
             "memory.updated",
             {"categoria": categoria, "operacao": "forget", "id": id, "aplicado": removido},
@@ -205,7 +209,8 @@ class MemoryAPI:
                 "conhecimento_relevante": conhecimento,
             }
 
-        contexto = await asyncio.to_thread(_montar)
+        async with self._db.lock:
+            contexto = await asyncio.to_thread(_montar)
         await self._event_bus.publish(
             "memory.recall_executed", {"categoria": "context", "pessoa_id": pessoa_id}
         )
@@ -225,6 +230,7 @@ class MemoryAPI:
                     contagens[categoria] = 0
             return contagens
 
-        estatisticas = await asyncio.to_thread(_contar)
+        async with self._db.lock:
+            estatisticas = await asyncio.to_thread(_contar)
         await self._event_bus.publish("memory.recall_executed", {"categoria": "stats"})
         return estatisticas
