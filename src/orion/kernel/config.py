@@ -23,6 +23,7 @@ _ESQUEMA: tuple[tuple[str, type], ...] = (
     ("system.robot_name", str),
     ("system.log_level", str),
     ("system.profile", str),
+    ("communication.raspberry.host", str),
     ("communication.raspberry.tcp_port", int),
     ("communication.arduino.baud_rate", int),
     ("communication.ack_timeout_ms", int),
