@@ -58,7 +58,19 @@ class Cenario:
 
     async def iniciar(self) -> None:
         self._tarefas.append(asyncio.create_task(self.bus.iniciar()))
-        self._tarefas.append(asyncio.create_task(self._auto_ack()))
+        self._tarefa_auto_ack = asyncio.create_task(self._auto_ack())
+        self._tarefas.append(self._tarefa_auto_ack)
+
+    async def parar_auto_ack(self) -> None:
+        """Para de ACKar comandos - usado pra simular o link com o Arduino
+        falhando de verdade (comm.send esgota as retransmissoes e levanta
+        ErroComunicacao), sem precisar mexer no FakeTransporte
+        compartilhado com outros arquivos de teste."""
+        self._tarefa_auto_ack.cancel()
+        try:
+            await self._tarefa_auto_ack
+        except asyncio.CancelledError:
+            pass
 
     async def _auto_ack(self) -> None:
         # simula o firmware: ACKa todo COMMAND e, para SCAN_FRONT, publica o
@@ -240,6 +252,24 @@ async def test_follow_perde_alvo_apos_timeout(cenario):
     await cenario.nav.iniciar_follow()
     await asyncio.sleep(CONFIG_NAVIGATION["follow_lost_timeout_s"] + 0.5)
     await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav.modo is ModoNavegacao.HOLD
+    assert any(e.topico == "navigation.target_lost" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_follow_sai_do_modo_mesmo_se_comm_falhar_ao_avisar(cenario):
+    """Achado real da vistoria de 2026-07-24: _monitorar_perda_de_alvo
+    roda solta (asyncio.create_task), fora do unico ponto que tratava
+    ErroComunicacao. Se o comm.send do STOP/SCAN_FRONT falhasse (ex.:
+    serial com o Arduino caida bem na hora), a excecao subia sem
+    tratamento e matava a task silenciosamente - o modo ficava travado em
+    FOLLOW pra sempre e navigation.target_lost nunca era publicado."""
+    await cenario.nav.iniciar_follow()
+    await cenario.parar_auto_ack()  # simula o link com o Arduino caido
+
+    await asyncio.sleep(CONFIG_NAVIGATION["follow_lost_timeout_s"] + 0.6)
+    await cenario.bus.aguardar_fila_vazia()
+
     assert cenario.nav.modo is ModoNavegacao.HOLD
     assert any(e.topico == "navigation.target_lost" for e in cenario.eventos)
 

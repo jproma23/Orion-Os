@@ -378,8 +378,28 @@ class NavigationCore:
             while True:
                 await asyncio.sleep(intervalo_checagem_s)
                 if time.monotonic() - self._ultima_deteccao_follow_s > self._follow_lost_timeout_s:
-                    await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
-                    await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
+                    # Achado real da vistoria de 2026-07-24: esta task roda
+                    # solta (asyncio.create_task em iniciar_follow), fora do
+                    # unico lugar que tratava ErroComunicacao
+                    # (_ao_receber_comando). Se a serial com o Arduino
+                    # falhasse bem aqui, a excecao subia sem tratamento e
+                    # matava a task silenciosamente - o modo ficava travado
+                    # em FOLLOW para sempre e navigation.target_lost nunca
+                    # era publicado. Agora tratamos a falha de envio: o
+                    # Arduino tem seu proprio timeout reativo de comando
+                    # (Cap 18 - para sozinho sem novo comando em 5s) que
+                    # cobre o STOP nao ter chegado, mas o estado do
+                    # NavigationCore precisa sair de FOLLOW de qualquer
+                    # jeito, senao nada aqui tenta de novo.
+                    try:
+                        await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+                        await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
+                    except ErroComunicacao:
+                        logger.exception(
+                            "Falha ao enviar STOP/SCAN_FRONT ao perder o alvo do FOLLOW - "
+                            "saindo do modo mesmo assim (o Arduino tem seu proprio timeout "
+                            "reativo de comando)"
+                        )
                     await self._event_bus.publish("navigation.target_lost", {})
                     await self._mudar_modo(ModoNavegacao.HOLD)
                     return
