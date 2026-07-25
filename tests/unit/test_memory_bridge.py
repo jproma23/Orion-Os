@@ -7,6 +7,7 @@ from conftest import FakeTransporte
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
+from motion_core.memory.vault import VaultConhecimento
 from orion.communication.service import ComunicacaoService
 from orion.kernel.event_bus import EventBus
 
@@ -181,6 +182,90 @@ async def test_comando_nao_memoria_e_ignorado_pela_ponte(tmp_path, par_conectado
         await servico_mission.request(
             "motion_core", {"comando": "MOVE_FORWARD"}, timeout_s=0.3
         )
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion
+
+
+@pytest.mark.asyncio
+async def test_memory_nota_escrever_e_buscar_via_comm_request(tmp_path, par_conectado):
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    api = MemoryAPI(db, bus_motion)
+    vault = VaultConhecimento(tmp_path / "vault")
+    ponte = PonteMemoria(api, servico_motion, vault)
+    ponte.registrar(bus_motion)
+
+    resposta_escrita = await servico_mission.request(
+        "motion_core",
+        {
+            "comando": "memory.nota_escrever",
+            "titulo": "Cor favorita do Kamal",
+            "conteudo": "Kamal gosta de azul.",
+        },
+        timeout_s=2,
+    )
+    assert resposta_escrita.payload["ok"] is True
+
+    resposta_busca = await servico_mission.request(
+        "motion_core", {"comando": "memory.nota_buscar", "consulta": "kamal"}, timeout_s=2
+    )
+    assert resposta_busca.payload["ok"] is True
+    assert resposta_busca.payload["resultado"][0]["titulo"] == "Cor favorita do Kamal"
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion
+
+
+@pytest.mark.asyncio
+async def test_memory_nota_sem_vault_responde_ok_falso(tmp_path, par_conectado):
+    """Sem SSD/vault disponivel, os comandos de nota falham com erro claro
+    em vez de derrubar a ponte (Cap 6 s.8 - mesma tolerancia do banco)."""
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    api = MemoryAPI(db, bus_motion)
+    ponte = PonteMemoria(api, servico_motion)  # sem vault
+    ponte.registrar(bus_motion)
+
+    resposta = await servico_mission.request(
+        "motion_core",
+        {"comando": "memory.nota_buscar", "consulta": "kamal"},
+        timeout_s=2,
+    )
+    assert resposta.payload["ok"] is False
+    assert "indisponivel" in resposta.payload["erro"]
 
     await servico_mission.encerrar()
     await servico_motion.encerrar()

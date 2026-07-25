@@ -68,3 +68,9 @@ class MemoryClient:
 
     async def stats(self) -> dict:
         return await self._chamar("stats")
+
+    async def nota_escrever(self, titulo: str, conteudo: str, links: list[str] | None = None) -> str:
+        return await self._chamar("nota_escrever", titulo=titulo, conteudo=conteudo, links=links)
+
+    async def nota_buscar(self, consulta: str, limite: int = 5) -> list[dict]:
+        return await self._chamar("nota_buscar", consulta=consulta, limite=limite)

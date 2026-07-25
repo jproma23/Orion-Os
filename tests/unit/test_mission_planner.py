@@ -18,9 +18,11 @@ class AiManagerFalso:
 
 
 class MemoryClientFalso:
-    def __init__(self, contexto: dict | None = None) -> None:
+    def __init__(self, contexto: dict | None = None, notas: list[dict] | None = None) -> None:
         self._contexto = contexto or {}
+        self._notas = notas
         self.lembrancas: list[tuple[str, dict]] = []
+        self.consultas_de_nota: list[str] = []
 
     async def context(self, pessoa_id=None, limite_conversas=10):
         return self._contexto
@@ -28,6 +30,12 @@ class MemoryClientFalso:
     async def remember(self, categoria, dados):
         self.lembrancas.append((categoria, dados))
         return len(self.lembrancas)
+
+    async def nota_buscar(self, consulta, limite=5):
+        self.consultas_de_nota.append(consulta)
+        if self._notas is None:
+            raise RuntimeError("vault indisponivel (SSD ausente)")
+        return self._notas
 
 
 @pytest.mark.asyncio
@@ -117,6 +125,33 @@ async def test_interacao_e_registrada_na_memoria():
     assert dados_usuario["papel"] == "usuario"
     assert dados_usuario["texto"] == "ola"
     assert memoria.lembrancas[1][1]["papel"] == "robo"
+
+
+@pytest.mark.asyncio
+async def test_notas_do_vault_sao_adicionadas_ao_contexto():
+    ai = AiManagerFalso()
+    notas = [{"titulo": "Aniversario da Marah", "trecho": "12 de marco"}]
+    memoria = MemoryClientFalso(contexto={"pessoa": {"nome": "Joao"}}, notas=notas)
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+
+    await planner.processar("quando e o aniversario da Marah")
+
+    assert ai.chamadas[0][1]["notas_relevantes"] == notas
+    assert memoria.consultas_de_nota == ["quando e o aniversario da Marah"]
+
+
+@pytest.mark.asyncio
+async def test_vault_indisponivel_nao_impede_resposta_da_ia():
+    """Sem vault (SSD ausente), a conversa segue normalmente - so sem as
+    notas de longo prazo no contexto (Cap 6 s.8, EDR-0021)."""
+    ai = AiManagerFalso(resposta="tudo bem")
+    memoria = MemoryClientFalso(contexto={"pessoa": {"nome": "Joao"}})  # notas=None
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+
+    resposta = await planner.processar("oi")
+
+    assert resposta == "tudo bem"
+    assert "notas_relevantes" not in ai.chamadas[0][1]
 
 
 @pytest.mark.asyncio

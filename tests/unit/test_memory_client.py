@@ -10,6 +10,7 @@ from conftest import FakeTransporte
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
+from motion_core.memory.vault import VaultConhecimento
 from orion.communication.service import ComunicacaoService
 from orion.kernel.event_bus import EventBus
 from orion.mission.memory_client import ErroMemoriaRemota, MemoryClient
@@ -102,3 +103,47 @@ async def test_erro_remoto_levanta_excecao(montagem):
     cliente, _api = montagem
     with pytest.raises(ErroMemoriaRemota):
         await cliente.recall("categoria_fantasma")
+
+
+@pytest_asyncio.fixture
+async def montagem_com_vault(tmp_path):
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = _par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    api = MemoryAPI(db, bus_motion)
+    vault = VaultConhecimento(tmp_path / "vault")
+    ponte = PonteMemoria(api, servico_motion, vault)
+    ponte.registrar(bus_motion)
+
+    cliente = MemoryClient(servico_mission)
+
+    yield cliente
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion
+
+
+@pytest.mark.asyncio
+async def test_nota_escrever_e_buscar_via_cliente(montagem_com_vault):
+    cliente = montagem_com_vault
+
+    nome_arquivo = await cliente.nota_escrever("Cor favorita do Kamal", "Kamal gosta de azul.")
+    assert nome_arquivo == "Cor favorita do Kamal.md"
+
+    resultado = await cliente.nota_buscar("kamal")
+    assert resultado[0]["titulo"] == "Cor favorita do Kamal"
