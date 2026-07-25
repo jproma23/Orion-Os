@@ -76,8 +76,22 @@ class TarefaManutencao:
             agora = datetime.now()
             hoje = agora.date()
             if agora.hour == self._hora_backup and self._ultimo_backup_data != hoje:
-                await self.executar_backup_agora()
-                self._ultimo_backup_data = hoje
+                try:
+                    await self.executar_backup_agora()
+                except Exception:
+                    # executar_backup_agora() ja loga e publica
+                    # database.backup_failed antes de relancar (Cap 15 s.9) -
+                    # aqui so garantimos que uma falha de UMA noite (SSD
+                    # cheio, backup_dir sem permissao momentaneamente) nao
+                    # mata a task para sempre. Sem isso, nenhum backup nem
+                    # limpeza de retencao rodava de novo ate reiniciar o
+                    # processo (achado real da vistoria de 2026-07-24). Nao
+                    # marca _ultimo_backup_data, entao tenta de novo no
+                    # proximo ciclo de verificacao, ainda dentro da mesma
+                    # hora configurada.
+                    pass
+                else:
+                    self._ultimo_backup_data = hoje
             await asyncio.sleep(self._intervalo_verificacao_s)
 
     def parar(self) -> None:
