@@ -99,3 +99,61 @@ async def test_serial_transport_falha_ao_abrir_porta_inexistente():
     transporte = SerialTransport("/dev/nao_existe_xyz", baud_rate=115200)
     with pytest.raises(ErroTransporte):
         await transporte.conectar()
+
+
+@pytest.mark.asyncio
+async def test_tcp_transport_enviar_converte_oserror_em_erro_transporte():
+    """Achado real da vistoria de 2026-07-24: uma queda de rede no MEIO do
+    envio (ConnectionResetError/BrokenPipeError, ambas OSError) subia crua
+    antes deste fix - nenhum chamador em service.py espera OSError, so
+    ErroTransporte/asyncio.TimeoutError."""
+    from orion.communication.transport import ErroTransporte
+
+    async def ao_conectar(_conexao: ConexaoTcp) -> None:
+        pass
+
+    servidor = await iniciar_servidor_tcp("127.0.0.1", 0, ao_conectar)
+    porta = servidor.sockets[0].getsockname()[1]
+
+    cliente = TcpTransport("127.0.0.1", porta)
+    await cliente.conectar()
+
+    async def _drain_com_falha() -> None:
+        raise ConnectionResetError("conexao resetada pelo outro lado (simulado)")
+
+    cliente._writer.drain = _drain_com_falha  # type: ignore[method-assign]
+
+    with pytest.raises(ErroTransporte):
+        await cliente.enviar(b"vai falhar no meio do envio")
+
+    await cliente.fechar()
+    servidor.close()
+    await servidor.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_serial_transport_enviar_converte_serial_exception_em_erro_transporte():
+    """Mesmo achado do teste TCP acima, mas para o link com o Arduino: o
+    Mega pode ser desconectado/resetado no meio do envio."""
+    import serial as pyserial
+
+    from orion.communication.transport import ErroTransporte
+
+    mestre_fd, escravo_fd = os.openpty()
+    caminho_escravo = os.ttyname(escravo_fd)
+
+    transporte = SerialTransport(
+        caminho_escravo, baud_rate=115200, timeout_leitura_s=0.05, atraso_reset_s=0
+    )
+    await transporte.conectar()
+
+    def _write_com_falha(_dados: bytes) -> int:
+        raise pyserial.SerialException("porta desconectada (simulado)")
+
+    transporte._serial.write = _write_com_falha  # type: ignore[method-assign]
+
+    with pytest.raises(ErroTransporte):
+        await transporte.enviar(b'{"tipo":"HEARTBEAT"}')
+
+    await transporte.fechar()
+    os.close(mestre_fd)

@@ -68,8 +68,19 @@ class TcpTransport:
         if not self.conectado:
             raise ErroTransporte("Transporte TCP nao conectado")
         assert self._writer is not None
-        self._writer.write(codificar_tcp(payload))
-        await self._writer.drain()
+        try:
+            self._writer.write(codificar_tcp(payload))
+            await self._writer.drain()
+        except OSError as erro:
+            # Diferente de conectar(), isso nao tinha tratamento - uma queda
+            # de rede no meio do envio (ConnectionResetError, BrokenPipeError,
+            # ambos OSError) subia cru, e nenhum chamador em service.py espera
+            # isso (so ErroComunicacao/asyncio.TimeoutError). No WiFi de
+            # desenvolvimento deste projeto (documentado como instavel no
+            # proprio orion.yaml), isso podia derrubar o boot inteiro em vez
+            # de virar uma falha tolerada. Achado real da vistoria de
+            # 2026-07-24.
+            raise ErroTransporte(f"Falha ao enviar em {self._host}:{self._port}: {erro}") from erro
 
     async def receber(self) -> AsyncIterator[bytes]:
         if self._reader is None:
@@ -104,8 +115,14 @@ class ConexaoTcp:
         return not self._writer.is_closing()
 
     async def enviar(self, payload: bytes) -> None:
-        self._writer.write(codificar_tcp(payload))
-        await self._writer.drain()
+        try:
+            self._writer.write(codificar_tcp(payload))
+            await self._writer.drain()
+        except OSError as erro:
+            # Mesmo achado do TcpTransport.enviar() (vistoria de 2026-07-24):
+            # o outro lado (Notebook) pode derrubar a conexao no meio do
+            # envio - sem isso, o erro subia cru em vez de ErroTransporte.
+            raise ErroTransporte(f"Falha ao enviar pela conexao TCP: {erro}") from erro
 
     async def receber(self) -> AsyncIterator[bytes]:
         while True:
@@ -198,7 +215,15 @@ class SerialTransport:
         if self._serial is None or not self.conectado:
             raise ErroTransporte("Transporte serial nao conectado")
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self._executor, self._serial.write, codificar_serial(payload))
+        try:
+            await loop.run_in_executor(
+                self._executor, self._serial.write, codificar_serial(payload)
+            )
+        except serial.SerialException as erro:
+            # Mesmo achado do TcpTransport.enviar() (vistoria de 2026-07-24):
+            # o Arduino pode ser desconectado/resetado no meio do envio -
+            # sem isso, o erro subia cru em vez de ErroTransporte.
+            raise ErroTransporte(f"Falha ao enviar pela porta serial {self._porta}: {erro}") from erro
 
     async def receber(self) -> AsyncIterator[bytes]:
         if self._serial is None:
