@@ -94,6 +94,22 @@ class VoiceCore:
             "voice.audio_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
         )
 
+    async def _falar_com_protecao(self, texto: str) -> None:
+        """Fala `texto`, tolerando falha da saida de audio - mesma classe
+        de problema ja corrigida hoje do lado da entrada (microfone) e da
+        camera: hardware real falha as vezes (PortAudio transitorio,
+        dispositivo ocupado). Sem isso, um erro aqui derrubava o processo
+        inteiro (voice_core, sentinela, avatar - tudo compartilha o mesmo
+        `asyncio.run`), so porque o alto-falante falhou uma vez. Achado
+        real da vistoria de codigo de 2026-07-24."""
+        try:
+            await self._sintetizador.falar(texto)
+        except Exception as erro:
+            logger.exception("Falha ao falar (saida de audio)")
+            await self._event_bus.publish(
+                "voice.audio_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
+            )
+
     async def ciclo_uma_vez(self) -> bool:
         """Um ciclo: escuta uma janela curta, verifica a palavra de
         ativacao e, se detectada, processa um comando completo ate falar a
@@ -122,7 +138,7 @@ class VoiceCore:
         await self._definir_estado(EstadoVoz.WAKE_DETECTED)
         await self._event_bus.publish("voice.wake_detected", {"texto_janela": texto_janela})
         if self._frase_ativacao:
-            await self._sintetizador.falar(self._frase_ativacao)
+            await self._falar_com_protecao(self._frase_ativacao)
 
         await self._definir_estado(EstadoVoz.TRANSCRIBING)
         try:
@@ -144,7 +160,7 @@ class VoiceCore:
 
         await self._definir_estado(EstadoVoz.SPEAKING)
         await self._event_bus.publish("voice.response_started", {"texto": resposta})
-        await self._sintetizador.falar(resposta)
+        await self._falar_com_protecao(resposta)
         await self._event_bus.publish("voice.response_finished", {"texto": resposta})
 
         await self._definir_estado(EstadoVoz.IDLE)

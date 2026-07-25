@@ -138,6 +138,45 @@ async def test_erro_no_processamento_ainda_fala_uma_resposta():
     await tarefa
 
 
+class SintetizadorComFalha:
+    async def falar(self, texto: str) -> None:
+        raise RuntimeError("PortAudio: dispositivo ocupado (simulado)")
+
+
+@pytest.mark.asyncio
+async def test_falha_ao_falar_nao_derruba_o_ciclo():
+    """Achado real da vistoria de 2026-07-24: sintetizador.falar() nao
+    tinha protecao nenhuma - um erro transitorio de audio de saida
+    (PortAudio, dispositivo ocupado) derrubava o processo inteiro (voice
+    core, sentinela, avatar - tudo compartilha o mesmo asyncio.run)."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    erros_audio = []
+    bus.subscribe("voice.audio_error", lambda e: erros_audio.append(e.dados))
+
+    async def processar(texto):
+        return "oi"
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["fofao", "oi"]),
+        sintetizador=SintetizadorComFalha(),
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+    )
+
+    processou = await voice.ciclo_uma_vez()  # nao deve levantar excecao
+    await bus.aguardar_fila_vazia()
+
+    assert processou is True
+    assert len(erros_audio) == 1
+    assert "PortAudio" in erros_audio[0]["motivo"]
+
+    bus.parar()
+    await tarefa
+
+
 @pytest.mark.asyncio
 async def test_erro_de_audio_publica_voice_audio_error():
     from orion.voice.captura_audio import ErroAudio
