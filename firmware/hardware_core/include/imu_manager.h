@@ -28,7 +28,13 @@ class ImuManager {
   void atualizar() {
     if (!_conectado) return;
     sensors_event_t accel, gyro, temp;
-    _mpu.getEvent(&accel, &gyro, &temp);
+    // getEvent() pode falhar sem travar (ex.: NACK pontual no I2C) -
+    // ignorar o retorno usaria accel/gyro/temp nao inicializados pra
+    // calcular inclinacao/impacto. Se falhar, mantem a ultima leitura
+    // valida em vez de calcular sobre lixo (achado real da vistoria de
+    // 2026-07-24; o travamento total do barramento e coberto a parte
+    // pelo Wire.setWireTimeout() em main.cpp).
+    if (!_mpu.getEvent(&accel, &gyro, &temp)) return;
 
     float ax = accel.acceleration.x;
     float ay = accel.acceleration.y;

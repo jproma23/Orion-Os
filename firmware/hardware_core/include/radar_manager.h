@@ -28,6 +28,7 @@ class RadarManager {
     _ultrassom.iniciar(pinos::ULTRASSOM_FRENTE_TRIG, pinos::ULTRASSOM_FRENTE_ECHO);
     _servo.attach(pinos::SERVO_RADAR);
     _servo.write(90);
+    _anguloAtual = 90;
   }
 
   void atualizar() {
@@ -47,6 +48,12 @@ class RadarManager {
 
   float distanciaFrontalCm() const { return _ultrassom.distanciaCm(); }
   bool distanciaFrontalValida() const { return _ultrassom.leituraValida(); }
+  // Achado real da vistoria de 2026-07-24: durante um SCAN_FRONT (~2,1s), o
+  // MESMO sensor ultrassonico usado aqui fica apontado pro lado boa parte
+  // do tempo (varredura 0/30/60/90/120/150/180 graus) - sem isso, o Safety
+  // Manager confiava na leitura como se fosse sempre frontal, criando um
+  // ponto cego de seguranca durante a varredura.
+  bool apontandoParaFrente() const { return _anguloAtual == 90; }
 
  private:
   // membro de instancia normal (nao static) - evita a exigencia de uma
@@ -61,10 +68,12 @@ class RadarManager {
   bool _aguardandoServo = false;
   uint8_t _indiceAtual = 0;
   unsigned long _momentoComandoServo = 0;
+  uint8_t _anguloAtual = 90;
   LeituraRadar _leituras[RADAR_QUANTIDADE_ANGULOS];
 
   void _comandarServo(uint8_t angulo) {
     _servo.write(angulo);
+    _anguloAtual = angulo;
     _momentoComandoServo = millis();
     _aguardandoServo = true;
   }
@@ -82,6 +91,7 @@ class RadarManager {
     if (_indiceAtual >= RADAR_QUANTIDADE_ANGULOS) {
       _varrendo = false;
       _servo.write(90);
+      _anguloAtual = 90;
       return;
     }
     _comandarServo(_angulos[_indiceAtual]);

@@ -22,12 +22,17 @@ class SafetyManager {
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
   bool avaliar(MotorManager& motores, RadarManager& radar, ImuManager& imu,
                unsigned long ultimoComandoMs) {
-    // Leitura invalida (sensor desconectado, fio solto, ruido) NAO e
-    // "livre" - antes disso caia no mesmo caminho de "nada na frente"
-    // (fail-open). Cap 18: "em duvida, para" - leitura invalida tambem
-    // conta como obstaculo, ate o sensor voltar a responder de verdade
-    // (fail-safe). Achado real da vistoria de 2026-07-24.
-    bool obstaculoFrontal = !radar.distanciaFrontalValida() ||
+    // Cap 18: "em duvida, para". Dois casos em que NAO da pra confiar que
+    // a frente esta livre - os dois contam como obstaculo (fail-safe) em
+    // vez de "livre pra andar" (fail-open), achados reais da vistoria de
+    // 2026-07-24:
+    //  1) leitura invalida (sensor desconectado, fio solto, ruido);
+    //  2) o servo do radar esta apontado pro lado (SCAN_FRONT em
+    //     andamento, ~2,1s) - o MESMO sensor ultrassonico e usado pela
+    //     varredura e pela checagem frontal, entao uma leitura valida
+    //     "de lado" nao diz nada sobre o que tem na frente de verdade.
+    bool obstaculoFrontal = !radar.apontandoParaFrente() ||
+                            !radar.distanciaFrontalValida() ||
                             radar.distanciaFrontalCm() < DISTANCIA_MINIMA_FRENTE_CM;
     bool inclinacaoCritica = imu.conectado() && imu.inclinacaoCritica();
     bool impacto = imu.conectado() && imu.impactoDetectado();
