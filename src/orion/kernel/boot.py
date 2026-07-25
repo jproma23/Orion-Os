@@ -164,11 +164,18 @@ def _montar_modulos(
     from orion.display.modulo import ModuloDisplay
     from orion.mission.modulo import ModuloMissao
     from orion.vision.modulo import ModuloVisao
+    from orion.voice.modulo import ModuloVoz
 
     conf_visao = config.secao("vision")
+    missao = ModuloMissao(event_bus, comm, config.secao("ai"))
     return [
         ModuloDisplay(event_bus, conf_visao),
-        ModuloMissao(event_bus, comm, config.secao("ai")),
+        missao,
+        # A voz recebe o METODO da missao, nao o modulo: e aqui, no
+        # orquestrador, que os dois se encontram. ModuloVoz continua sem
+        # saber que ModuloMissao existe (EDR-0023 s.1) e o Boot Manager e o
+        # unico lugar que conhece os dois lados.
+        ModuloVoz(event_bus, config.secao("voice"), processar_comando=missao.processar),
         ModuloVisao(event_bus, conf_visao),
     ]
 
