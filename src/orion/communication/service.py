@@ -59,7 +59,11 @@ class ComunicacaoService:
         self._rotas: dict[str, str] = {}
         self._pendentes_ack: dict[str, asyncio.Future[Mensagem]] = {}
         self._pendentes_resposta: dict[str, asyncio.Future[Mensagem]] = {}
-        self._tarefas_recepcao: list[asyncio.Task] = []
+        # Uma tarefa de recepcao POR PEER (nao uma lista solta): ao
+        # reconectar, precisamos achar e cancelar a tarefa do link antigo.
+        # Com lista, as antigas ficavam rodando sobre sockets vivos - ver
+        # _descartar_link_anterior.
+        self._tarefas_recepcao: dict[str, asyncio.Task] = {}
         self._exigir_checksum_mensagem: dict[str, bool] = {}
 
     def adicionar_link(
@@ -81,13 +85,48 @@ class ComunicacaoService:
         um algoritmo simples e identico nas duas linguagens - por isso e
         seguro confiar nele e nao no checksum da mensagem para esse enlace.
         """
+        self._descartar_link_anterior(nome_peer)
+
         self._links[nome_peer] = transporte
         self._rotas[nome_peer] = nome_peer
         self._exigir_checksum_mensagem[nome_peer] = exigir_checksum_mensagem
         for destino_indireto in alcancaveis_via or []:
             self._rotas[destino_indireto] = nome_peer
-        tarefa = asyncio.create_task(self._loop_recepcao(nome_peer, transporte))
-        self._tarefas_recepcao.append(tarefa)
+        self._tarefas_recepcao[nome_peer] = asyncio.create_task(
+            self._loop_recepcao(nome_peer, transporte)
+        )
+
+    def _descartar_link_anterior(self, nome_peer: str) -> None:
+        """Fecha de verdade o link anterior deste peer, se houver.
+
+        Sem isto, reconectar VAZAVA socket e tarefa: `adicionar_link` so
+        sobrescrevia a entrada do dicionario, e o transporte antigo
+        continuava aberto com sua tarefa de recepcao rodando.
+
+        E acontecia de verdade, nao em teoria: o link e declarado morto por
+        HEARTBEAT ATRASADO, nao por socket fechado. Quando o Notebook
+        engasgava de CPU, o socket seguia perfeitamente vivo - cada
+        "reconexao" deixava mais uma conexao ESTABLISHED para tras (37
+        observadas em 2026-07-19).
+        """
+        tarefa_antiga = self._tarefas_recepcao.pop(nome_peer, None)
+        if tarefa_antiga is not None:
+            tarefa_antiga.cancel()
+
+        transporte_antigo = self._links.pop(nome_peer, None)
+        if transporte_antigo is None:
+            return
+
+        # fechar() e assincrono e adicionar_link nao e - fecha em tarefa
+        # propria. Erro ao fechar um socket ja morto e irrelevante aqui.
+        async def _fechar() -> None:
+            try:
+                await transporte_antigo.fechar()
+            except Exception:
+                logger.debug("falha ao fechar link antigo '%s'", nome_peer, exc_info=True)
+
+        asyncio.create_task(_fechar())
+        logger.info("Link anterior com '%s' descartado (socket e tarefa fechados)", nome_peer)
 
     def _resolver_link(self, destino: str) -> Transporte:
         nome_peer = self._rotas.get(destino)
@@ -313,9 +352,10 @@ class ComunicacaoService:
 
     async def encerrar(self) -> None:
         """Desligamento seguro: para as tarefas de recepcao e fecha os links."""
-        for tarefa in self._tarefas_recepcao:
+        tarefas = list(self._tarefas_recepcao.values())
+        for tarefa in tarefas:
             tarefa.cancel()
-        for tarefa in self._tarefas_recepcao:
+        for tarefa in tarefas:
             try:
                 await tarefa
             except asyncio.CancelledError:

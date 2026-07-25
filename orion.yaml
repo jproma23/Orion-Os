@@ -1,0 +1,270 @@
+# ORION OS — Configuração única (Capítulo 17)
+# Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
+
+system:
+  robot_name: "Fofão"
+  language: "pt-BR"
+  timezone: "America/Sao_Paulo"
+  log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
+  profile: "HOME"            # HOME | SILENT | DEMO | SAFE | DEV
+
+communication:
+  raspberry:                  # enlace Notebook <-> Raspberry (Motion Core)
+    transport: "tcp"          # TCP ponto a ponto - Ethernet na producao final
+                               # (EDR-0018), mas hoje os dois falam por WiFi
+                               # (decisao do usuario, 2026-07-17: ja validado
+                               # funcionando, ver docs/journal.md) - o "host"
+                               # abaixo e o IP da Raspberry NESSA rede WiFi de
+                               # desenvolvimento, nao a subrede Ethernet fixa
+                               # de producao (192.168.50.x) que ainda nao
+                               # existe fisicamente.
+    host: "10.20.20.185"      # IP da Raspberry na rede WiFi atual (dev)
+    tcp_port: 5757
+    maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
+  arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
+    port: "auto"              # "auto" = descoberta via WHO_ARE_YOU (no Raspberry)
+    baud_rate: 115200
+  ack_timeout_ms: 500
+  max_retries: 3
+  heartbeat_interval_s: 1.0
+  heartbeats_lost_threshold: 3   # padrao: link morto apos 3s sem heartbeat
+  # Tolerancia POR ENLACE (sobrescreve o padrao acima). Nem todo link
+  # merece a mesma paciencia:
+  #
+  #   hardware_core (Arduino) - fica no PADRAO curto de proposito: e o
+  #     caminho da seguranca reativa, detectar falha rapido importa.
+  #
+  #   mission_core (Notebook) - tolerante. Inferencia de IA local satura a
+  #     CPU da maquina por dezenas de segundos e atrasa os heartbeats sem
+  #     que nada esteja quebrado. Com 3s o Pi declarava o link morto a cada
+  #     consulta a IA e reconectava em laco (medido 2026-07-19). O link
+  #     com o Notebook NAO esta no caminho da seguranca - perder alguns
+  #     segundos para detectar sua queda e aceitavel; derrubar o link a
+  #     cada pico de CPU nao e.
+  #   motion_core (visto DO Notebook) - tambem tolerante, e o motivo e
+  #     menos obvio: a maquina afogada nao so ATRASA os proprios heartbeats,
+  #     ela tambem deixa de LER os que chegam. Sem isto o Notebook conclui
+  #     que o Pi morreu enquanto o culpado e ele mesmo (medido 2026-07-19:
+  #     o Pi parou de derrubar o link, mas o Notebook continuava
+  #     derrubando o dele). Tolerancia tem que valer nos DOIS lados.
+  heartbeats_lost_threshold_por_link:
+    mission_core: 45
+    motion_core: 45
+
+motion:
+  max_speed_percent: 60
+  acceleration_percent: 40
+  steps_per_meter: 4000          # base; ajustado pela autocalibracao
+  odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
+  autocalibrate_on_first_boot: true
+  min_front_distance_cm: 25      # parada reativa (Camada 1)
+  min_rear_distance_cm: 20
+  mission_timeout_s: 30
+  tilt_limit_degrees: 20         # inclinação máxima antes de SAFE_MODE
+  wheel_base_m: 0.30             # distância entre as rodas (bitola), usada na
+  # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
+  # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
+  # medir com o chassi real e ajustar aqui quando os motores forem montados.
+
+navigation:
+  follow_distance_m: 1.2
+  follow_lost_timeout_s: 10
+  patrol_scan_before_segment: true
+  obstacle_retry_max: 3
+  reduced_speed_near_person_percent: 30
+
+vision:
+  resolution: [640, 480]
+  fps: 15
+  yolo_model: "yolov8n"
+  confidence_threshold: 0.55
+  pan_limits_degrees: [-80, 80]
+  tilt_limits_degrees: [-30, 45]
+  servo_max_speed_deg_s: 60
+  camera_indice_principal: 2   # webcam USB dedicada a visao (Cap 8 s.2)
+  camera_indice_luminosidade: 0 # camera integrada do notebook (estimativa de brilho)
+  # indices de /dev/videoN podem mudar se os cabos USB forem replugados em
+  # outra ordem - conferir com `v4l2-ctl --list-devices` se a visao parecer
+  # estar usando a camera errada.
+  camera_frontal_espelhada: true
+  # a webcam frontal entrega o frame no efeito "selfie" (espelhado) - sem
+  # desfazer isso na captura, o Pan/Tilt gira para o lado errado ao seguir
+  # uma pessoa (esquerda/direita reais ficam trocadas na imagem).
+
+voice:
+  # Escuta por microfone (Whisper + wake word + VAD). DESLIGADA em
+  # 2026-07-20 por decisao do dono: a conversa agora entra por TEXTO na
+  # pagina /controle da web e a resposta sai por TTS + tela. Desligar a
+  # escuta libera os dois Whisper da RAM do Notebook (aperto cronico,
+  # EDR-0019). Religavel por flag quando o mic USB novo chegar (23/07).
+  escuta_habilitada: false
+  wake_word: "fofão"
+  whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
+  # modelo das janelas de vigilancia da wake word. Testado "tiny" ao vivo
+  # (2026-07-18): rapido, mas errava demais ("Fofão" virava "Loco"/"Fofa no")
+  # e o robo nao acordava - com este mic, "base" e o minimo confiavel.
+  whisper_model_ativacao: "base"
+  piper_voice: "pt_BR-faber-medium"
+  piper_voice_path: "data/piper_voices/pt_BR-faber-medium.onnx"
+  volume_percent: 70
+  preferred_mic: "auto"          # auto | notebook | webcam
+  # alto-falante interno e P2 (jack) ainda nao aparecem no audio do Linux
+  # nesta montagem (falta driver/quirk do codec HDA) - a saida agora e a TV
+  # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
+  # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
+  # com `python -m sounddevice` se mudar as portas USB/HDMI.
+  saida_audio_indice: 2
+  # indices de entrada (sounddevice) reconferidos em 2026-07-20: indice 4 =
+  # "USB Audio Device" (headset USB, mic dedicado) adicionado - antes so
+  # [0,1,5] e o seletor caia na webcam (mic ruim, transcricao errada). O
+  # indice 1 (HDMI, 0 canais de entrada) foi removido - nunca foi mic.
+  microfones_candidatos_indices: [4, 0, 5]
+  # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
+  # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
+  # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
+  # (~165% medido em 2026-07-19). Piso de ruido e adaptativo (percentil
+  # baixo do historico de RMS); "fator" = quantas vezes acima do piso o som
+  # precisa estar; "rms_minimo" = limiar absoluto de seguranca para salas
+  # muito silenciosas. Se o robo parar de acordar com "Fofao", abaixe o
+  # fator (ex.: 1.8) ou desabilite para voltar ao comportamento antigo.
+  vad:
+    habilitado: true
+    fator_acima_do_ruido: 2.5
+    rms_minimo: 0.003
+    janelas_de_historico: 30
+
+ai:
+  # gemma3:1b desde 2026-07-19. Historico: llama3.2:3b -> gemma3:4b -> 1b.
+  #
+  # A troca para o modelo PEQUENO so foi possivel depois do grounding
+  # (src/orion/mission/grounding.py). Medido no mesmo prompt real:
+  #
+  #   SEM contexto: gemma3:1b INVENTOU ("Sim, vi a Ana passar!") e o
+  #                 llama3.2:3b inventou ate horario ("as 14h30").
+  #   COM contexto: os quatro modelos testados (1b, 3b, qwen2.5:3b, 4b)
+  #                 responderam "nao vi" corretamente.
+  #
+  # Com os fatos entregues prontos, a IA nao precisa deduzir - so ler e
+  # formular - e o modelo pequeno da conta. Ganho: 880MB em vez de 2,9GB
+  # (folga real na RAM apertada do notebook) e o mais rapido dos quatro
+  # (16,5s contra 48,8s do 4b no mesmo prompt com contexto).
+  #
+  # SE VOLTAR A INVENTAR: o suspeito e o grounding ter parado de entregar
+  # os fatos, NAO o modelo. Cheque o bloco de contexto antes de trocar.
+  ollama_model: "gemma3:1b"
+  temperature: 0.6
+  context_window: 4096
+  keep_alive_minutes: 30         # numa conversa ao vivo, manter o modelo na RAM
+  # resposta curta = falar logo (gerar + sintetizar demoram proporcional ao texto)
+  resposta_max_tokens: 100
+  system_prompt_file: "config/prompt_sistema.txt"
+
+display:
+  avatar:                        # tela do notebook (Cap 13)
+    initial_mode: "AVATAR"
+    brightness_percent: 80
+    sleep_timeout_min: 15
+  web:                           # servida pelo Raspberry (Cap 13)
+    port: 8080
+    # senha da pagina CONFIGURACAO (definida pelo dono em 2026-07-20, quando
+    # a pagina abriu para a rede local/modo AP). Do proprio Pi nao pede.
+    senha_configuracao: "422569"
+  # Modo AP (aba Rede da CONFIGURACAO, 2026-07-20): em lugar sem rede
+  # conhecida, o Pi vira hotspot com este SSID/senha; o dono conecta o
+  # celular e cadastra o WiFi novo em http://10.42.0.1:8080/configuracao.
+  rede_ap:
+    ssid: "Fofao-Setup"
+    senha: "fofao1234"
+    restricted_pages: ["CONFIGURACAO"]
+
+diagnostics:
+  metrics_interval_s: 5
+  thresholds:
+    cpu_warning_percent: 80
+    cpu_critical_percent: 95
+    ram_warning_percent: 85
+    ram_critical_percent: 95
+    cpu_temp_warning_c: 80
+    cpu_temp_critical_c: 90
+    disk_warning_percent: 85
+
+database:                        # roda no Raspberry, SSD 500 GB (EDR-0019)
+  path: "/mnt/ssd/orion/orion.db"
+  backup_dir: "/mnt/ssd/orion/backups"
+  replica_to_notebook: true      # replica cruzada diaria via Ethernet
+  notebook_replica_dir: "data/backups_replica"
+  backup_hour: 3                 # 03:00 diário
+  retention:
+    telemetria_days: 30
+    eventos_days: 90
+    logs_days: 30
+    logs_error_days: 180
+
+lighting:
+  auto_flashlight: true
+  brightness_threshold: 60       # brilho médio 0-255 abaixo do qual acende
+
+connectivity:                    # offline-first: tudo opcional (EDR-0019)
+  online_features_enabled: true  # habilita extras quando houver Internet
+  remote_access: "pi_connect"    # acesso externo a interface web
+  notifications:
+    enabled: true                # avisos no celular em eventos criticos
+    channel: "none"              # none | telegram | email (configurar)
+
+security:
+  authorized_users: []           # preenchido via interface
+  restricted_actions: ["config.security", "database.restore"]
+  child_safe_profile_on_detection: true
+
+behavior:                        # Behavior Core / maestro (EDR-0020)
+  # Conselheiro de IA: o maestro pergunta ao Notebook o que fazer quando
+  # esta ocioso. DESLIGADO por padrao desde 2026-07-19, e o motivo importa.
+  #
+  # Medido ao vivo: cada consulta custava uma QUEDA DO LINK TCP. A
+  # inferencia do gemma3:1b satura os nucleos do notebook por ~20s; o
+  # processo Python e preterido, os heartbeats atrasam e o Motion Core
+  # declara o link morto. O asyncio.to_thread protege o event loop de
+  # bloquear, mas nao protege de falta de CPU.
+  #
+  # Resultado: nenhum conselho entregue (a inferencia estourava ate o
+  # timeout de 20s) e o link caindo a cada 2 minutos. Pior que nao ter.
+  #
+  # O codigo esta pronto e testado (236 testes). Para religar, basta
+  # habilitado: true - mas antes resolva UMA das causas:
+  #   - modelo/hardware mais rapido para a inferencia caber com folga;
+  #   - ou tolerancia de heartbeat maior (communication.heartbeats_lost_
+  #     threshold) para o link sobreviver a um pico de CPU;
+  #   - ou rodar a inferencia com nice/cpulimit, deixando um nucleo livre
+  #     para o loop de comunicacao.
+  conselho_ia:
+    habilitado: false
+    intervalo_consulta_s: 120
+  # Guardião de RAM do Notebook: o Pi vigia a memória livre reportada pelo
+  # Notebook e pede alívio de carga antes do crash. Histerese: entra em
+  # alerta abaixo do crítico, só sai ao voltar à folga (Cap 16).
+  guardiao_ram:
+    limiar_critico_mb: 700
+    limiar_folga_mb: 1200
+  # de quanto em quanto tempo o Notebook reporta sua RAM livre ao Pi.
+  notebook_health_interval_s: 10
+  # Vigília (Modo Sentinela): ao receber um alerta (barulho estranho ou
+  # rosto desconhecido), o maestro assume o controle por este tempo -
+  # orienta-se para a origem, pede foto e notifica - antes de liberar.
+  vigilia:
+    duracao_alerta_s: 8
+  # Teleop (pagina /controle): controle manual do dono, prio 90 no maestro.
+  # watchdog_s = homem-morto do software (a pagina manda keepalive a cada
+  # 0,5s com botao de movimento segurado; sem sinal por este tempo -> STOP).
+  # sessao_timeout_s = sem sinal nenhum por este tempo, o maestro retoma.
+  teleop:
+    watchdog_s: 1.5
+    sessao_timeout_s: 60
+
+  # Detector de rosto desconhecido (roda no Notebook, Cap 8): olha um frame
+  # a cada intervalo_s; rosto que nao casa com a familia -> sentinela.alerta
+  # + foto salva. cooldown_s evita repetir o alerta com o estranho no quadro.
+  sentinela_visao:
+    habilitado: true
+    intervalo_s: 3
+    cooldown_s: 30
+    pasta_fotos: "data/sentinela"

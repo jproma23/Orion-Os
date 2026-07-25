@@ -50,6 +50,7 @@ class SentinelaVisao:
         self._cooldown_s = cooldown_s
         self._pasta_fotos = Path(pasta_fotos)
         self._ultimo_alerta = 0.0
+        self._pausado = False
 
     async def _carregar_familia(self) -> bool:
         """Carrega os rostos conhecidos (com algumas tentativas, pois o link
@@ -70,6 +71,26 @@ class SentinelaVisao:
             await asyncio.sleep(3)
         return False
 
+    def pausar(self) -> None:
+        """Suspende a vigilancia sem derrubar o laco (ver retomar).
+
+        Usado pelo alivio de carga: reconhecimento facial e a parte mais
+        pesada do Notebook, e enquanto a RAM esta critica e melhor ficar
+        cego por alguns minutos do que travar a maquina inteira.
+        """
+        if not self._pausado:
+            self._pausado = True
+            logger.warning("Sentinela de visão PAUSADA (alívio de carga)")
+
+    def retomar(self) -> None:
+        if self._pausado:
+            self._pausado = False
+            logger.info("Sentinela de visão retomada")
+
+    @property
+    def pausado(self) -> bool:
+        return self._pausado
+
     async def executar(self) -> None:
         self._pasta_fotos.mkdir(parents=True, exist_ok=True)
         if not await self._carregar_familia():
@@ -83,7 +104,8 @@ class SentinelaVisao:
         logger.info("Sentinela de visão ativa - vigiando rostos desconhecidos")
         try:
             while True:
-                await self._checar_uma_vez()
+                if not self._pausado:
+                    await self._checar_uma_vez()
                 await asyncio.sleep(self._intervalo_s)
         finally:
             await self._captura.fechar()
