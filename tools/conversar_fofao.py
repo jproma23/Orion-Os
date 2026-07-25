@@ -69,6 +69,12 @@ from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 # ignorar o dono.
 VARIACOES_FOFAO = (
     "fofão", "fofao", "furacão", "furacao", "japão", "japao",
+    # capturadas ao vivo em 2026-07-25 com o microfone novo (indice 1): o
+    # Whisper insiste em "Fulfone"/"Fulfo" para "Fofão". Sao longas e
+    # distintas o bastante para nao disparar em fala normal - ao contrario
+    # de variantes curtas como "famo", que a distancia de edicao 2
+    # transformaria em "chamo"/"amo" e faria o robo acordar sozinho.
+    "fulfone", "fulfo", "falfão", "falfao", "fafão", "fafao",
 )
 
 

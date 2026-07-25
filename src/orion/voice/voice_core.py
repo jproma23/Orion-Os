@@ -137,17 +137,31 @@ class VoiceCore:
 
         await self._definir_estado(EstadoVoz.WAKE_DETECTED)
         await self._event_bus.publish("voice.wake_detected", {"texto_janela": texto_janela})
-        if self._frase_ativacao:
-            await self._falar_com_protecao(self._frase_ativacao)
 
-        await self._definir_estado(EstadoVoz.TRANSCRIBING)
-        try:
-            audio_comando = await self._gravar_audio(self._duracao_comando_s)
-        except ErroAudio as erro:
-            await self._publicar_erro_audio(erro)
-            return False
+        # "Fofão, anda para frente" numa respirada so. Se a propria janela de
+        # ativacao ja traz o comando, aproveita - em vez de responder "pode
+        # falar" para um usuario que JA falou e gravar 3 segundos de silencio.
+        #
+        # Achado ao vivo em 2026-07-25: o usuario dizia a frase inteira, a
+        # janela capturava "Fofão, anda para frente", o robo acordava, e a
+        # janela seguinte (a do comando) pegava silencio porque ele ja tinha
+        # terminado. Pedir para falar em dois tempos seria remendo - ninguem
+        # fala com assistente assim.
+        texto_comando = self._comando_na_janela(texto_janela)
+        if texto_comando is None:
+            if self._frase_ativacao:
+                await self._falar_com_protecao(self._frase_ativacao)
 
-        texto_comando = await self._transcritor.transcrever(audio_comando)
+            await self._definir_estado(EstadoVoz.TRANSCRIBING)
+            try:
+                audio_comando = await self._gravar_audio(self._duracao_comando_s)
+            except ErroAudio as erro:
+                await self._publicar_erro_audio(erro)
+                return False
+
+            texto_comando = await self._transcritor.transcrever(audio_comando)
+        else:
+            logger.info("comando veio junto com a ativacao: %r", texto_comando)
         await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
         await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
 
@@ -165,6 +179,26 @@ class VoiceCore:
 
         await self._definir_estado(EstadoVoz.IDLE)
         return True
+
+    def _comando_na_janela(self, texto_janela: str) -> str | None:
+        """O que sobrou depois da palavra de ativacao, se valer a pena.
+
+        Devolve None quando a janela so tinha o chamado ("Fofão!"), para o
+        fluxo normal seguir e gravar o comando em seguida.
+        """
+        import re
+
+        palavras = re.findall(r"[\wÀ-ÿ]+", texto_janela)
+        for i, palavra in enumerate(palavras):
+            if not self._detector.verificar(palavra):
+                continue
+            resto = " ".join(palavras[i + 1 :]).strip()
+            # Curto demais quase sempre e ruido da propria ativacao ("Fofão,
+            # ah") ou pedaco de palavra. Exigir algo substancial evita mandar
+            # lixo para a IA - e, pior, para o Mission Planner, que poderia
+            # casar por acidente com um comando de movimento.
+            return resto if len(resto) >= 6 else None
+        return None
 
     async def executar(self) -> None:
         self._executando = True

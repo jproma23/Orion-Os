@@ -39,7 +39,9 @@ _PADROES_COMANDO = (
     (re.compile(r"apag\w*.*(lanterna|luz)|deslig\w*.*(lanterna|luz)"), "LIGHT_OFF"),
     (re.compile(r"acend\w*.*(lanterna|luz)|lig\w*.*(lanterna|luz)|luz.*lig"), "LIGHT_ON"),
     (re.compile(r"\bpar[ae]\b|\bparar\b|\bstop\b"), "STOP"),
-    (re.compile(r"anda[re]? para frente|va[i]? para frente|siga em frente"), "MOVE_FORWARD"),
+    (re.compile(r"anda[re]? para frente|va[i]? para frente|siga em frente"
+     r"|(?:pra|para) frente"  # 2026-07-25: o Whisper ouve "nao da PRA FRENTE"
+     r"|segue em frente"), "MOVE_FORWARD"),
     (re.compile(r"vir[ae] (a|para a) esquerda|gir[ae] (a|para a) esquerda"), "TURN_LEFT"),
     (re.compile(r"vir[ae] (a|para a) direita|gir[ae] (a|para a) direita"), "TURN_RIGHT"),
 )
