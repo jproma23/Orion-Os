@@ -11,6 +11,8 @@
 // ver pins.h - ainda nao ligados fisicamente.
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <avr/wdt.h>
 #include <string.h>
 
 #include "command_executor.h"
@@ -148,7 +150,28 @@ void processarQuadro(const uint8_t* dados, size_t tamanho) {
 }  // namespace
 
 void setup() {
+  // Limpa a flag de reset por watchdog e desliga o watchdog ANTES de tudo -
+  // padrao de seguranca AVR: alguns bootloaders (incluindo o usado neste
+  // Mega) nao desligam o watchdog sozinhos apos um reset causado por ele,
+  // e um watchdog ainda "quente" com timeout curto pode reiniciar o chip
+  // no meio do proprio boot antes deste setup() terminar. So depois disso
+  // e seguro rearma-lo no fim da funcao.
+  MCUSR = 0;
+  wdt_disable();
+
   Serial.begin(115200);
+
+  // Timeout no barramento I2C do IMU (Cap 18 s.9, achado real da vistoria
+  // de 2026-07-24): sem isso, um travamento de I2C (clock stretching
+  // infinito por fio solto/ruido) prendia Wire.requestFrom() para sempre
+  // dentro de imu.atualizar() - e como isso roda ANTES de safety.avaliar()
+  // no mesmo loop(), a seguranca reativa inteira parava junto. 25ms e
+  // generoso (uma leitura normal do MPU6050 leva bem menos que isso) mas
+  // pequeno o suficiente pra nao atrasar o loop de forma perceptivel;
+  // "true" reinicia o periferico I2C automaticamente apos o timeout, sem
+  // exigir reset do chip inteiro.
+  Wire.begin();
+  Wire.setWireTimeout(25000, true);
 
   motores.iniciar();
   encoders.iniciar();
@@ -162,9 +185,20 @@ void setup() {
   estados.transicionarPara(orion::Estado::READY);
   estados.transicionarPara(orion::Estado::IDLE);
   ultimoComandoRecebido = millis();
+
+  // Watchdog de hardware (Cap 18 s.9, achado real da vistoria de
+  // 2026-07-24): rede de seguranca final contra QUALQUER travamento do
+  // loop() (I2C, biblioteca de terceiros, bug futuro) que o timeout do I2C
+  // acima nao cubra - se o loop() nao chamar wdt_reset() por 2s seguidos,
+  // o proprio chip se reinicia sozinho. E seguro reiniciar assim porque o
+  // rele dos motores (motor_manager.h) ja fica desenergizado por padrao no
+  // boot (fail-safe confirmado na vistoria).
+  wdt_enable(WDTO_2S);
 }
 
 void loop() {
+  wdt_reset();
+
   while (Serial.available() > 0) {
     uint8_t byte = Serial.read();
     if (decodificador.alimentar(byte)) {
