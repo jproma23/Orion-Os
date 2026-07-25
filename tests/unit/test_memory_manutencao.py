@@ -138,3 +138,58 @@ async def test_backup_falho_publica_backup_failed(tmp_path, monkeypatch):
     db.fechar()
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_loop_sobrevive_a_falha_de_backup_e_tenta_de_novo(tmp_path, monkeypatch):
+    """Achado real da vistoria de 2026-07-24: antes deste fix, uma falha de
+    backup (ex.: SSD cheio por uma noite) matava a task de manutencao pra
+    sempre - nenhum backup nem limpeza de retencao rodava de novo ate
+    reiniciar o processo inteiro. Agora o loop sobrevive e tenta de novo no
+    proximo ciclo de verificacao, ainda dentro da mesma hora configurada."""
+    bus = EventBus()
+    tarefa_bus = await _rodar_bus(bus)
+    falhas = []
+    completos = []
+    bus.subscribe("database.backup_failed", lambda e: falhas.append(e.dados))
+    bus.subscribe("database.backup_completed", lambda e: completos.append(e.dados))
+
+    db = _criar_gerenciador(tmp_path)
+    db.iniciar()
+
+    fazer_backup_original = db.fazer_backup
+    chamadas = {"n": 0}
+
+    def _fazer_backup_falha_na_primeira():
+        chamadas["n"] += 1
+        if chamadas["n"] == 1:
+            raise RuntimeError("disco cheio (simulado)")
+        return fazer_backup_original()
+
+    monkeypatch.setattr(db, "fazer_backup", _fazer_backup_falha_na_primeira)
+
+    class _DatetimeFixoAs3h(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 7, 17, 3, 0, 0)
+
+    monkeypatch.setattr("motion_core.memory.manutencao.datetime", _DatetimeFixoAs3h)
+
+    tarefa = TarefaManutencao(db, bus, hora_backup=3, intervalo_verificacao_s=0.01)
+    tarefa_loop = asyncio.create_task(tarefa.iniciar())
+    await asyncio.sleep(0.1)
+    tarefa.parar()
+    tarefa_loop.cancel()
+    try:
+        await tarefa_loop
+    except asyncio.CancelledError:
+        pass
+    await bus.aguardar_fila_vazia()
+
+    assert len(falhas) >= 1  # primeira tentativa falhou e foi publicada
+    assert len(completos) >= 1  # loop nao morreu - tentou de novo e completou
+    assert chamadas["n"] >= 2  # de fato tentou mais de uma vez
+
+    db.fechar()
+    bus.parar()
+    await tarefa_bus
