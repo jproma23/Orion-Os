@@ -55,6 +55,12 @@ class RadarManager {
 
   float distanciaFrontalCm() const { return _ultrassom.distanciaCm(); }
   bool distanciaFrontalValida() const { return _ultrassom.leituraValida(); }
+  //: false = o modulo nao respondeu ao trigger (ausente, fio solto, sem 5V).
+  //: Distingue isso de "respondeu mas nada refletiu" - ver sensor_ultrassonico.h.
+  bool sensorFrontalRespondeu() const { return _ultrassom.sensorRespondeu(); }
+  //: para onde o radar aponta AGORA (angulo logico, 90 = frente). Sem ele a
+  //: distancia frontal e um numero sem contexto e o mapa nao pode ser montado.
+  uint8_t anguloAtual() const { return _anguloAtual; }
   // Achado real da vistoria de 2026-07-24: durante um SCAN_FRONT (~2,1s), o
   // MESMO sensor ultrassonico usado aqui fica apontado pro lado boa parte
   // do tempo (varredura 0/30/60/90/120/150/180 graus) - sem isso, o Safety
