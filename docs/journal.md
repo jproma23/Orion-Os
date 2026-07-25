@@ -1708,3 +1708,319 @@ servo). Primeira vez testando esses três com hardware real.
 - Detector de barulho (VAD) NAO plugado ainda: RMS sozinho nao separa
   barulho de fala (dispararia em conversa/TV) e o VoiceCore ja e dono do
   mic. So faz sentido em "modo ausente" - decisao pendente do usuario.
+
+## 2026-07-23 (recuperacao pos-reinstall do Pi + fio da replica ligado + reles)
+
+- **Raspberry reinstalado do zero** (usuario fez backup antes). Projeto
+  restaurado em ~/orion-os (sem .venv/caches, recriado do zero - venv +
+  `pip install -e ".[dev,display]"`, 169 testes passando). `orion-motion.service`
+  reinstalado (systemd --user + linger). Raspberry Pi Connect ativado
+  (login feito). Claude Code nativo instalado no Pi.
+- **`orion.db` original perdido de verdade** - a replica cruzada nunca
+  tinha rodado em producao antes do reinstall (so em teste), so nao tinha
+  copia no Notebook. Familia recadastrada via `tools/cadastrar_de_fotos.py`
+  a partir das fotos que sobreviveram no Notebook (data/fotos/): João
+  Paulo (dono, id=1), Marah (dona, id=2), Kamal (morador, id=3) - mesmos
+  IDs de antes.
+- **Causa provavel da corrupcao original**: Raspberry na mesma linha de
+  5VCC dos servos - queda de tensao (brown-out) ao ligar tudo pode ter
+  travado o firmware da VideoCore (achado um deadlock real: `rpi-fw-crypto`
+  preso, `vcgencmd` sem responder, timeouts -110 em GPIO/clock/hwmon,
+  kworkers travados 240s+). Resolvido com `apt upgrade` (129 pacotes) +
+  reboot limpo - confirmado limpo depois (`throttled=0x0` instantaneo,
+  load normal). Usuario vai colocar capacitores (1000-2200uF baixa ESR)
+  perto da entrada de 5V como correcao de hardware.
+- **`tools/desligar_tudo.sh` criado**: desliga Raspberry + Notebook juntos
+  com seguranca (`systemctl poweroff` via SSH, chaves dedicadas
+  `~/.ssh/id_ed25519` autorizadas cruzado, nomes mDNS `pi-os.local`/
+  `Joao.local` em vez de IP). Notebook precisou de
+  `/etc/sudoers.d/desligar_tudo` (NOPASSWD so pra `systemctl poweroff`,
+  Pi ja tinha NOPASSWD:ALL). Testado de verdade - funcionou nos dois
+  sentidos, confirmado por ping/porta 22 caindo.
+- **Fio da replica cruzada finalmente ligado** (existia desde a Fase 3 so
+  em teste, nunca rodava em producao - `TarefaManutencao` nunca era
+  instanciada em `motion_core/__main__.py`, e ninguem registrava
+  `ReceptorReplica` no Notebook):
+  - `motion_core/__main__.py`: `_iniciar_manutencao()` cria a
+    `TarefaManutencao` e assina `database.backup_completed` ->
+    `replicar_backup(..., destino="mission_core")`, tolerando o Notebook
+    desconectado (so avisa, tenta de novo no proximo backup).
+  - `tools/conversar_fofao.py` (processo real que ja segura o link TCP
+    com o Pi): registra `ReceptorReplica(notebook_replica_dir)` uma vez,
+    no boot - NAO um processo separado, porque so pode existir UM link
+    "mission_core" por vez do lado do Pi (`_ao_conectar_notebook`
+    sobrescreve por nome).
+  - Bug real encontrado e corrigido: `TarefaManutencao.iniciar()` checava
+    a hora IMEDIATAMENTE ao subir (antes de esperar o link do Notebook
+    reconectar) - corrida perdida sempre que o backup_hour bate com a
+    hora do boot. Corrigido com uma espera inicial de
+    `intervalo_verificacao_s` antes do loop comecar.
+  - **Testado ponta a ponta de verdade** (backup_hour ajustado
+    temporariamente pra hora atual, depois revertido pra 3): "Replica
+    enviada: orion_20260723T225746Z.db (4 blocos)" no Pi, arquivo de
+    100KB confirmado em `~/orion-os/data/backups_replica/` no Notebook.
+  - 2 testes de `tests/integration/test_motion_core_main.py` corrigidos
+    (`_abrir_memoria` passou a retornar tupla `(memory_api, db)`) + 1
+    teste novo cobrindo a integracao (`_iniciar_manutencao` disparando
+    replica de verdade). 206 passed, 8 skipped no Pi.
+- **Reles de energia adicionados** (usuario decidiu usar rele em vez de
+  so o pino ENA dos TB6600 - mais seguro, corta energia de verdade):
+  - `RELE_MOTORES` (pino 13, ativo em LOW): HIGH por padrao/parado
+    (motores sem energia), LOW so enquanto anda de verdade
+    (`MotorManager::_ligarRele()`/`_desligarRele()`, chamado em cada
+    metodo de movimento e em `parar()`). Nivel escrito ANTES do
+    `pinMode(OUTPUT)` pra nao ter glitch LOW no boot (tecnica padrao
+    AVR: pre-carrega o registrador PORT antes de virar DDR pra saida).
+  - `RELE_VENTILADOR` (pino 12, ativo em LOW, logica "reversa"): comeca
+    LIGADO por padrao (fail-safe, resfria ate prova em contrario).
+    Comandos novos `FAN_ON`/`FAN_OFF` no `command_executor.h`, mesmo
+    padrao de `LIGHT_ON`/`LIGHT_OFF` - a decisao de limiar de
+    temperatura fica pro lado Python (Raspberry le a propria temperatura
+    e manda o comando ja resolvido; Arduino so executa, Cap 10: nunca
+    decide sozinho). Ainda falta o lado Python que le a temperatura do
+    Pi e manda FAN_ON/FAN_OFF - proximo passo.
+  - Compilado com sucesso via PlatformIO (instalado num venv dedicado no
+    Notebook, `~/.venv-pio`, ambiente Debian bloqueava pip --user
+    direto): RAM 32.5%, Flash 15.4%, sem erros. Nao gravado no Mega real
+    ainda - falta o usuario flashar e testar fisicamente.
+- **Pendente para depois**: firmware do fan ainda sem o lado Python
+  (ler temperatura do Pi, decidir limiar via config/orion.yaml, mandar
+  FAN_ON/FAN_OFF); explorar IA remota via API do usuario em vez do Ollama
+  local (tensao com o principio "100% offline" do CLAUDE.md, precisa EDR
+  se for mudanca de arquitetura de verdade); ideia de aprendizado hibrido
+  online/aprende da internet quando disponivel, offline segue a base de
+  dados local; usuario quer validar voz real ouvindo/falando ao vivo.
+
+## 2026-07-23 (continuacao - IA remota de verdade + IA estrategica no maestro)
+
+- **EDR-0021 aprovado e implementado**: IA remota (OpenRouter, API
+  compativel com a OpenAI - `base_url` configuravel) com fallback
+  automatico pro Ollama local se falhar (sem internet/erro/sem chave).
+  `AiManager` virou fabrica com `_chamar_openai`/`_chamar_ollama` atras da
+  mesma interface `responder()`. Chave em `config/secrets.env`
+  (gitignored, `chmod 600`), carregada via `EnvironmentFile=-...` no
+  `orion-avatar.service`. **Testado de verdade**: resposta real da IA em
+  portugues via OpenRouter ("Oi! Como posso ajudar voce hoje?").
+  - Ordem das tentativas ate funcionar: Gemini direto (chave sem cota,
+    `limit: 0` no free tier), OpenAI direto (mesma coisa,
+    `insufficient_quota` mesmo apos adicionar credito - suspeita de
+    descompasso projeto/organizacao), OpenRouter (funcionou de primeira
+    com credito real).
+  - `google-generativeai` foi tentado e abandonado (biblioteca
+    descontinuada pela Google em 2026, aviso explicito) antes de decidir
+    por OpenAI/OpenRouter.
+- **Vault de conhecimento (Obsidian) criado**: `motion_core/memory/vault.py`
+  (`VaultConhecimento`) - notas `.md` com wikilinks em
+  `/mnt/ssd/orion/obsidian_vault/` (mesmo SSD do `orion.db`, ainda NAO
+  entra no backup/replica diario - pendente). Exposto via
+  `memory.nota_escrever`/`memory.nota_buscar` na `PonteMemoria`. IA
+  consulta o vault antes de responder (`MissionPlanner._consultar_contexto`
+  busca `notas_relevantes` pelo texto do usuario).
+- **EDR-0022 aprovado e implementado**: IA estrategica no maestro. Novo
+  comportamento `IaEstrategica` (`motion_core/behavior/comportamentos.py`,
+  prioridade 40 - a vaga da "Patrulha agendada" do EDR-0020, nunca
+  implementada). Consulta a IA em ritmo proprio (`intervalo_s=30`, task de
+  fundo iniciada em `__main__.py`, NUNCA no tick de 200ms do maestro) via
+  novo comando `mission.decidir` (comm.request Pi->Notebook, ponte nova
+  `src/orion/mission/decisao_estrategica.py::PonteDecisao` do lado
+  Notebook, `AiManager.decidir()` novo). Vocabulario FECHADO pra v1:
+  `descansar` (nao disputa controle) e `observar_ambiente` - a IA nunca
+  aciona hardware direto. Continua abaixo de VigilanciaObstaculo (100),
+  Atender (80) e Vigilia (60) - segurança nunca e arbitrada, garantia do
+  EDR-0020 mantida. Prompt de decisao e o `prompt_sistema.txt` atualizados
+  para o papel de "cuidador do lar e da familia" (pedido do usuario) - mais
+  vocabulario (ex.: frases motivacionais, alerta de estranhos) fica para
+  quando o "psicologo da familia"/simulacao de sentimentos for desenhado
+  (conversa futura, usuario mencionou querer isso).
+- **Bug real corrigido**: `TarefaManutencao.iniciar()` (achado testando a
+  replica) verificava a hora IMEDIATAMENTE ao subir, perdendo a corrida
+  contra a reconexao do Notebook sempre que `backup_hour` batia com a hora
+  do boot - corrigido com espera inicial de `intervalo_verificacao_s`.
+- **PENDENTE - bug nao resolvido, investigar amanha**: apos a ultima leva
+  de mudancas (IA estrategica), o `orion-avatar.service` do Notebook trava
+  no boot logo depois de "VAD ligado" (nunca chega a "Motion Core
+  conectado" nem a "Pronto!") - processo fica vivo mas ocioso (~4% CPU,
+  estado sleeping), nao e crash. Confirmado reproduzivel em 2 restarts
+  seguidos, mesmo ponto exato. Nao foi possivel usar `strace` (nao
+  instalado) para ver a syscall exata. Hipoteses a testar amanha: algo
+  entre `VoiceCore(...)`, `SentinelaVisao` (camera - ja falhava antes,
+  tolerado) ou `sintetizador.falar(...)` (Piper/audio) bloqueando de
+  verdade em vez de so demorar; testar comentando pedacos do boot pra
+  isolar. NAO parece ligado ao `PonteDecisao` em si (so faz
+  `event_bus.subscribe`, sem I/O).
+- **Achado (nao relacionado a hoje)**: `git status` no Notebook mostra
+  varios arquivos nao commitados de 2026-07-19/20 (antes deste incidente):
+  `src/orion/mission/conselheiro_comportamento.py`, `conselho_protocolo.py`,
+  `diario.py`, `grounding.py`, `alivio_carga.py`, `src/orion/vision/gestos.py`,
+  `src/orion/heartbeat.py`, `src/orion/watchdog.py`, e copias soltas de
+  `conversar_fofao.py`/`orion.yaml` na raiz do repo - trabalho antigo nunca
+  commitado, provavelmente experimentos anteriores (os nomes sugerem
+  tentativas antigas de ideias parecidas com o que foi feito hoje -
+  conselheiro de comportamento, diario). Nao mexido, decisao do usuario
+  pendente (commitar, terminar ou descartar).
+- Testes: 239 passed/7 skipped no Pi, 298 passed/1 failed (unico teste
+  `test_heartbeat.py` flaky por timing, ja confirmado independente das
+  mudancas de hoje - passa limpo no Pi) no Notebook.
+- **Proximos passos**: resolver o travamento do boot do Notebook; expandir
+  o vocabulario de `IaEstrategica`; incluir o vault no backup/replica
+  diario; decidir o que fazer com os arquivos nao commitados de
+  2026-07-19/20; conversa de design pendente sobre "IA com simulacao de
+  sentimentos"/psicologo da familia.
+
+
+## 2026-07-24 (kiosk nao abria + IP do Pi mudou - dois bugs reais corrigidos)
+
+- **Sessao rodando na maquina Windows de controle** (nao Notebook nem Pi),
+  via SSH com a chave dedicada `orion_pi_ed25519` (autorizada tanto no Pi
+  quanto no Notebook). Usuario reportou: tela kiosk do avatar nao abriu
+  hoje, e o IP do Raspberry mudou de novo (agora `10.20.20.196`, era
+  `10.20.20.188`).
+- **Causa raiz 1 (nova, nao e o hang de ontem):** `orion-avatar.service`
+  no Notebook caia com `ErroAudio: Nenhum microfone candidato respondeu`
+  segundos apos subir - `microfones_candidatos_indices: [0, 1, 5]` em
+  `config/orion.yaml` estava desatualizado; a 2a webcam (USB Composite
+  Device) foi desconectada fisicamente e a enumeracao de audio mudou -
+  indices 0/1/5 viraram saidas HDMI (0 canais de entrada). Confirmado com
+  `sd.query_devices()` + `lsusb`: so sobraram "PC Camera" (indice 3) e
+  "USB Audio Device" (indice 4) como entradas reais. Corrigido para
+  `[3, 4]`.
+- **Causa raiz 2 (essa SIM e o mesmo travamento de ontem, "trava depois de
+  VAD ligado" - so que hoje deu erro em vez de hang):** com o mic
+  corrigido, o processo chegava ate "VAD ligado" e cai com
+  `KeyError: 'pasta_fotos'` em `conversar_fofao.py:372`, montando a
+  `SentinelaVisao`. A secao `behavior.sentinela_visao` do
+  `config/orion.yaml` (recriada no reinstall do Pi / restauracao) estava
+  sem a chave `pasta_fotos`, que o construtor exige sem default. Corrigido
+  adicionando `pasta_fotos: "data/sentinela"` (mesmo caminho ja usado em
+  outras partes do codigo). **Isso fecha, com causa raiz de verdade, a
+  pendencia de ontem** ("orion-avatar.service trava logo depois de VAD
+  ligado") - nao era hang silencioso, era essa excecao nao tratada
+  matando a task principal; parecia hang porque o systemd ficava
+  reiniciando e o log rolava rapido.
+- **IP do Pi atualizado:** `communication.raspberry.host` em
+  `config/orion.yaml` (Notebook) de `10.20.20.188` para `10.20.20.196`.
+- **Validado de ponta a ponta:** `systemctl --user restart
+  orion-avatar.service` no Notebook ficou estavel (sem mais
+  auto-restart), log mostrou "Pronto!" e depois "Motion Core conectado".
+  Firefox kiosk (rodava desde antes do fix, preso numa pagina de erro de
+  quando o servidor ficava caindo) foi morto e relancado
+  (`DISPLAY=:0 XAUTHORITY=~/.Xauthority firefox-esr --profile
+  .../orion-avatar-kiosk --kiosk http://127.0.0.1:8090`). Screenshot via
+  `scrot` (copiado para a maquina Windows via scp) confirmou o avatar
+  renderizando com status "ouvindo..." e "Motion Core conectado ao Event
+  Bus".
+- **Nao mexido:** `camera_indice_principal: 2` (Cap 8) tambem ficou
+  desatualizado pela 2a webcam desconectada (so resta 1 camera fisica,
+  `/dev/video0`/`/dev/video1`), mas isso e tolerado pelo codigo (nao
+  derruba o processo) - so revisar se o usuario for usar Vision de verdade
+  de novo com a 2a webcam ainda desconectada.
+- **Proximos passos:** usuario reconectando o Pi na internet manualmente
+  (Wi-Fi caiu, exige senha na tela fisica dele) - fora do escopo desta
+  sessao Windows, acompanhar se o Pi volta a responder normalmente depois
+  disso.
+
+
+## 2026-07-24 (continuacao - vistoria de codigo completa + 5 criticos + parte dos altos + calibracao fisica)
+
+- **Vistoria de codigo pedida pelo usuario** ("quero fazer uma vistoria em
+  todo codigo... ver o que precisa fazer para nao acontecer erros no
+  sistema"). Copiado o codigo completo (src/, motion_core/, firmware/,
+  tests/, tools/) pra maquina Windows de controle e revisado em paralelo
+  por 4 agentes (Kernel+Comunicacao, Motion Core, Vision/Voice/Mission +
+  arquivos nao commitados, Display+Firmware) + auditoria manual de
+  chaves de config vs orion.yaml + investigacao do teste "flaky" do
+  heartbeat. **28 achados no total** (5 criticos, 6 altos, 7 medios, 4
+  baixos, 6 decisoes de arquitetura pendentes nos arquivos nao
+  commitados de 2026-07-19/20). Relatorio publicado como artifact HTML
+  pro usuario consultar.
+- **Achado que atravessa varios modulos**: `VisionCore` completo (YOLO,
+  rastreamento, pan/tilt) nunca e instanciado em producao - so nos
+  testes. `vision.resolution/fps/yolo_model/confidence_threshold` sao
+  configs mortas hoje; FOLLOW nunca recebe `vision.person_detected` real.
+- **Teste `test_heartbeat.py::test_falha_ao_enviar_heartbeat_tambem_gera_comm_module_lost`
+  NAO e flaky** (rodado 5x seguidas, falhou as 5): o guard que evita
+  alarme falso pra quem "ainda nao conectou" tambem impede, pra sempre,
+  que um peer que nunca conseguiu conectar gere `comm.module_lost` -
+  ainda sem correcao (fica pra depois, catalogado como Medio).
+
+### 5 CRITICOS corrigidos, testados e commitados (Pi + Notebook):
+1. **Firmware**: `SafetyManager::avaliar()` so parava o motor na
+   transicao livre->perigo, nao continuamente - um comando de movimento
+   atrasado do Raspberry podia religar o motor com o perigo ainda ativo.
+   Corrigido: reforca `motores.parar()` todo ciclo enquanto o perigo
+   persistir + `CommandExecutor` recusa comando de movimento novo
+   enquanto `safety.pararAtivo()`. Leitura invalida do ultrassom agora
+   conta como obstaculo (fail-safe) em vez de "livre pra andar".
+2. **motion_core**: `TarefaManutencao.iniciar()` matava a task pra
+   sempre na primeira falha de backup - agora sobrevive e tenta de novo
+   no proximo ciclo, ainda na mesma hora configurada.
+3. **kernel**: `communication.raspberry.host` sem validacao no schema -
+   podia sumir do yaml sem a config falhar, so quebrando depois com
+   KeyError cru no boot. Agora validado (`_ESQUEMA`).
+4. **comunicacao**: `TcpTransport`/`SerialTransport`/`ConexaoTcp.enviar()`
+   nao convertiam `OSError`/`SerialException` em `ErroTransporte` -
+   queda de rede no meio do envio derrubava processo/boot inteiro.
+
+### Parte dos 6 ALTOS corrigidos:
+5. **Firmware**: ponto cego do radar durante SCAN_FRONT (~2,1s, servo
+   apontado pro lado) - `SafetyManager` so confia na leitura frontal
+   quando `radar.apontandoParaFrente()`.
+6. **Firmware**: `Wire.setWireTimeout(25ms, reset automatico)` +
+   watchdog de hardware (`wdt_enable` 2s + `wdt_reset()` todo loop) -
+   travamento do I2C do IMU nao para mais a seguranca reativa inteira
+   junto. `imu_manager.h::atualizar()` tambem passou a checar o retorno
+   de `getEvent()`.
+7. **voice**: `sintetizador.falar()` (frase de ativacao e resposta) sem
+   protecao nenhuma - erro transitorio de audio de saida derrubava
+   avatar+sentinela+chat juntos. Corrigido com `_falar_com_protecao()`.
+- Faltam pra fechar os Altos: FOLLOW travar se comm falhar durante perda
+  de alvo, SQLite concorrente (webui + manutencao sem lock), discovery
+  KeyError em payload incompleto.
+
+### Calibracao fisica do robo (sessao ao vivo, achados que so aparecem
+na pratica, nao em codigo):
+- **Servo do radar com horn colado torto** (nao da pra reencaixar
+  fisicamente) - calibrado ao vivo com o usuario usando a webcam externa
+  (DV20 USB, `/dev/video2`) pra confirmar visualmente: comandar o angulo
+  LOGICO 90 (frente) precisa escrever 45 de verdade no servo. Adicionado
+  `RADAR_OFFSET_GRAUS = -45` em `radar_manager.h`, aplicado so na hora de
+  escrever (`_paraFisico`) - toda a logica interna continua em angulo
+  logico. Novo comando de protocolo `RADAR_SET_ANGLE` (calibracao manual)
+  e `PAN_TILT_SOLTAR` (`Servo::detach()` pra girar a webcam na mao).
+- **Arco de varredura reduzido pra 120 graus (30-150)**: o braco do
+  servo colide fisicamente com o suporte da webcam ao lado fora desse
+  arco - confirmado suficiente pelo usuario pra "enxergar o mundo a
+  frente".
+- **RELE_MOTORES mudou do pino 13 pro pino 12** (`pins.h`): achado real
+  - pino 13 e o mesmo do LED embutido do Mega, que o bootloader pisca em
+  TODO reset (upload de firmware, watchdog, power-on) antes do setup()
+  rodar - o rele "tremelicava" fora do controle do codigo nesses
+  instantes. `RELE_VENTILADOR` foi desconectado fisicamente pelo usuario
+  (consumo de energia) e a constante realocada pro pino 7 no codigo so
+  pra nao colidir com o motor - `FAN_ON`/`FAN_OFF` continuam no
+  protocolo, sem efeito fisico ate reconectar. Fio do motor confirmado
+  fisicamente movido de 13 pra 12 pelo usuario antes da gravacao.
+- **Novo `tools/gravar_firmware_seguro.sh`**: acha que orion-motion.service
+  fica com a porta serial do Arduino aberta o tempo todo - gravar
+  firmware por cima disso fazia dois processos brigarem pela porta
+  (heartbeat falhando depois da gravacao, servo reagindo de forma
+  imprevisivel). O script para o servico antes de gravar e religa depois
+  sempre (trap), mesmo se a gravacao falhar.
+- **5 gravacoes reais no Mega hoje**, todas compilando e verificando
+  limpo via `pio run -t upload` a partir do Pi (nunca do Notebook -
+  regra arquitetural: Arduino so fala com o Raspberry).
+
+### Pendencia caracterizada, nao corrigida (decisao consciente - hora
+errada pra mexer em codigo de seguranca/wake-word sem poder testar com
+calma):
+- **Deteccao da palavra de ativacao "Fofao" perdendo variantes reais do
+  Whisper**: testado ao vivo repetidas vezes hoje (ambiente com ruido E
+  depois em silencio total), transcricoes obtidas: `''` (vazio, RMS
+  0.13-0.20 - som havia, transcricao nao), `'Fulfo'`, `'FAMO'`,
+  `'Ei, oui!'`, `'FO FÃO'` (com espaco no meio - o mais proximo, ainda
+  assim nao bate no regex `\bfofao\b` por causa do espaco). O robo nunca
+  avanca de LISTENING pra WAKE_DETECTED nessas tentativas.
+  `wake_word.py::DetectorPalavraAtivacao.verificar()` exige "fofao"
+  contiguo, sem tolerancia. **Proximo passo**: considerar normalizar
+  removendo espacos internos antes de comparar, e/ou tolerancia fonetica
+  (distancia de edicao) - decidir com cuidado e teste, nao as pressas.
