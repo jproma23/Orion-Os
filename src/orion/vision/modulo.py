@@ -33,6 +33,8 @@ class ModuloVisao:
         conf_visao: dict[str, Any],
         publicar_pan_tilt: CallbackPanTilt | None = None,
         nucleo: Any | None = None,
+        conf_sentinela: dict[str, Any] | None = None,
+        carregar_conhecidos: Any | None = None,
     ) -> None:
         # `nucleo` injetavel: os testes passam um dublê e nao precisam de
         # camera, YOLO nem face_recognition instalados.
@@ -40,6 +42,9 @@ class ModuloVisao:
         self._conf = conf_visao
         self._publicar_pan_tilt = publicar_pan_tilt
         self._nucleo = nucleo
+        self._conf_sentinela = conf_sentinela
+        self._carregar_conhecidos = carregar_conhecidos
+        self._sentinela: Any | None = None
         self._tarefa: asyncio.Task | None = None
 
     async def iniciar(self) -> None:
@@ -52,8 +57,49 @@ class ModuloVisao:
         # vision.camera_error e segue tentando reabrir, mantendo o resto do
         # ORION OS de pe em modo SEM_VISAO. Por isso o modulo sobe mesmo sem
         # camera - "sem imagem" nao e o mesmo que "modulo quebrado".
+        await self._carregar_familia()
+        self._ligar_sentinela()
         self._tarefa = asyncio.create_task(self._nucleo.executar())
         logger.info("Vision Core ativo (dono da camera %s)", self._conf["camera_indice_principal"])
+
+    async def _carregar_familia(self) -> None:
+        """Ensina ao Vision Core quem e da casa.
+
+        Sem isso TODO mundo vira estranho e a Sentinela alerta sem parar -
+        por isso a falha aqui e tolerada mas nunca silenciosa (Cap 6 s.8): o
+        link com o Pi, que guarda os rostos, pode ainda estar subindo.
+        """
+        if self._carregar_conhecidos is None:
+            return
+        try:
+            pessoas = await self._carregar_conhecidos()
+        except Exception:  # noqa: BLE001
+            logger.warning("Nao consegui carregar os rostos conhecidos - seguindo sem", exc_info=True)
+            return
+        conhecidos = [p for p in (pessoas or []) if p.get("embedding_face")]
+        if not conhecidos:
+            logger.warning("Nenhum rosto conhecido no banco - Sentinela ficaria alertando de tudo")
+            return
+        self._nucleo.carregar_pessoas_conhecidas(conhecidos)
+        logger.info("Vision Core: %d rosto(s) conhecido(s) carregado(s)", len(conhecidos))
+
+    def _ligar_sentinela(self) -> None:
+        """A Sentinela agora e uma ouvinte dos eventos do Vision Core.
+
+        Ela some da lista de donos de camera (EDR-0023 s.3) e para de rodar
+        um segundo reconhecimento facial sobre os mesmos frames.
+        """
+        if not self._conf_sentinela or not self._conf_sentinela.get("habilitado"):
+            return
+        from orion.vision.sentinela_visao import SentinelaVisao
+
+        self._sentinela = SentinelaVisao(
+            self._event_bus,
+            cooldown_s=self._conf_sentinela["cooldown_s"],
+            pasta_fotos=self._conf_sentinela["pasta_fotos"],
+            salvar_foto=self._nucleo.salvar_ultimo_frame,
+        )
+        self._sentinela.registrar()
 
     async def encerrar(self) -> None:
         if self._nucleo is not None:

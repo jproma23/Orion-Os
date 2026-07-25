@@ -162,6 +162,7 @@ def _montar_modulos(
     if simulado:
         return []
     from orion.display.modulo import ModuloDisplay
+    from orion.mission.memory_client import MemoryClient as _MemoryClient
     from orion.mission.modulo import ModuloMissao
     from orion.vision.modulo import ModuloVisao
     from orion.voice.modulo import ModuloVoz
@@ -176,7 +177,14 @@ def _montar_modulos(
         # saber que ModuloMissao existe (EDR-0023 s.1) e o Boot Manager e o
         # unico lugar que conhece os dois lados.
         ModuloVoz(event_bus, config.secao("voice"), processar_comando=missao.processar),
-        ModuloVisao(event_bus, conf_visao),
+        ModuloVisao(
+            event_bus,
+            conf_visao,
+            conf_sentinela=config.secao("behavior").get("sentinela_visao"),
+            # os rostos da familia moram no banco, no SSD do Raspberry - o
+            # Notebook os consulta pelo enlace (regra 5 do CLAUDE.md).
+            carregar_conhecidos=lambda: _MemoryClient(comm).recall("pessoas"),
+        ),
     ]
 
 

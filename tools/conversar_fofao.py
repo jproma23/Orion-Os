@@ -53,9 +53,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
-from orion.vision.captura import CapturaCamera  # noqa: E402
-from orion.vision.reconhecimento_facial import ReconhecedorFacial  # noqa: E402
-from orion.vision.sentinela_visao import SentinelaVisao  # noqa: E402
+from orion.vision.modulo import ModuloVisao  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
@@ -374,22 +372,25 @@ async def principal() -> None:
 
     # Sentinela de visão (Cap 8): vigia rostos desconhecidos e dispara
     # sentinela.alerta -> Pi -> Vigília. Tolera câmera/link ausentes.
-    tarefa_sentinela = None
-    conf_sent = config.secao("behavior")["sentinela_visao"]
-    if conf_sent["habilitado"]:
-        sentinela = SentinelaVisao(
-            bus,
-            ReconhecedorFacial(),
-            CapturaCamera(
-                indice=secao_visao["camera_indice_principal"],
-                espelhado=secao_visao["camera_frontal_espelhada"],
-            ),
-            carregar_conhecidos=lambda: MemoryClient(comm).recall("pessoas"),
-            intervalo_s=conf_sent["intervalo_s"],
-            cooldown_s=conf_sent["cooldown_s"],
-            pasta_fotos=conf_sent["pasta_fotos"],
-        )
-        tarefa_sentinela = asyncio.create_task(sentinela.executar())
+    # Visao (EDR-0023): o ModuloVisao e o dono da camera e traz VisionCore +
+    # Sentinela juntos. A Sentinela deixou de abrir camera propria e de rodar
+    # um SEGUNDO reconhecimento facial sobre os mesmos frames - agora ela
+    # apenas ouve `vision.faces_desconhecidas` publicado pelo Vision Core.
+    #
+    # Efeito colateral esperado: o YOLO passa a carregar tambem aqui, o que
+    # consome mais RAM do Notebook. O guardiao de RAM (EDR-0020) continua
+    # vigiando; se apertar, e este modulo que deve ser pausado primeiro.
+    modulo_visao = ModuloVisao(
+        bus,
+        secao_visao,
+        conf_sentinela=config.secao("behavior")["sentinela_visao"],
+        carregar_conhecidos=lambda: MemoryClient(comm).recall("pessoas"),
+    )
+    try:
+        await modulo_visao.iniciar()
+    except Exception:
+        # Cap 6 s.8: sem camera ou sem os modelos, a conversa segue de pe.
+        logger.exception("Visao indisponivel - seguindo sem ela")
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
     logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')
@@ -399,8 +400,7 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
-        if tarefa_sentinela is not None:
-            tarefa_sentinela.cancel()
+        await modulo_visao.encerrar()
         tarefa_link.cancel()
         heartbeat.parar()
         tarefa_heartbeat.cancel()

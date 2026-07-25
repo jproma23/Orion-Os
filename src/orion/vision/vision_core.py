@@ -63,6 +63,19 @@ class VisionCore:
         self._executando = False
         self._tinha_alvo = False
         self._ultimo_processamento_ts: float | None = None
+        self._ultimo_frame = None
+
+    def salvar_ultimo_frame(self, caminho: str) -> str | None:
+        """Grava em disco a ultima imagem lida. Devolve o caminho, ou None se
+        ainda nao houve frame (camera ausente ou recem-aberta).
+
+        Existe aqui porque so o dono da camera tem o frame: quem precisa da
+        foto pede, em vez de abrir o dispositivo por conta propria.
+        """
+        if self._ultimo_frame is None:
+            return None
+        cv2.imwrite(caminho, self._ultimo_frame)
+        return caminho
 
     def carregar_pessoas_conhecidas(self, pessoas: list[dict]) -> None:
         self._reconhecedor.carregar_pessoas_conhecidas(pessoas)
@@ -98,6 +111,21 @@ class VisionCore:
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rostos = await self._reconhecedor.reconhecer(frame_rgb)
+        # guardado para quem precisar da imagem do momento (a Sentinela salva
+        # a foto do estranho). So o dono da camera tem o frame (EDR-0023 s.3).
+        self._ultimo_frame = frame
+
+        # Rostos que nao casaram com ninguem conhecido. A Sentinela consome
+        # este evento em vez de abrir a propria camera e rodar um SEGUNDO
+        # reconhecimento facial sobre os mesmos frames - era o trabalho mais
+        # pesado do Notebook, feito em dobro ate 2026-07-25.
+        desconhecidos = [rosto for rosto in rostos if rosto.pessoa_id is None]
+        if desconhecidos:
+            await self._event_bus.publish(
+                "vision.faces_desconhecidas",
+                {"quantidade": len(desconhecidos), "timestamp": agora},
+                prioridade=Prioridade.ALTA,
+            )
 
         for deteccao in deteccoes:
             topico = "vision.person_detected" if deteccao.classe == "person" else "vision.object_detected"
