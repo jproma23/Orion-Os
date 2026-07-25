@@ -37,6 +37,7 @@ class VisionCore:
         indice_camera: int = 0,
         camera_espelhada: bool = False,
         confianca_minima: float = 0.55,
+        modelo_yolo: str = "yolov8n.pt",
         limites_pan_tilt: LimitesPanTilt | None = None,
         publicar_pan_tilt: CallbackPanTilt | None = None,
         captura: CapturaCamera | None = None,
@@ -49,7 +50,12 @@ class VisionCore:
         # sem precisar de camera/modelos de verdade.
         self._event_bus = event_bus
         self._captura = captura or CapturaCamera(indice=indice_camera, espelhado=camera_espelhada)
-        self._detector = detector or DetectorYolo(confianca_minima=confianca_minima)
+        # modelo_yolo vem do orion.yaml (vision.yolo_model). Antes o nome do
+        # modelo ficava fixo no default do DetectorYolo e a config era
+        # ignorada - configuracao morta, contra a regra 6 do CLAUDE.md.
+        self._detector = detector or DetectorYolo(
+            modelo=modelo_yolo, confianca_minima=confianca_minima
+        )
         self._reconhecedor = reconhecedor or ReconhecedorFacial()
         self._rastreador = Rastreador(timeout_perdido_s=timeout_alvo_perdido_s)
         self._pan_tilt = CalculadoraPanTilt(limites_pan_tilt)

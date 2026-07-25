@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from orion.kernel.config import ConfigurationManager
 from orion.kernel.event_bus import EventBus, Prioridade
@@ -39,9 +39,10 @@ _ETAPAS_PENDENTES = (
     ("arduino", "Deteccao do Arduino via Raspberry (Fase 2/4)"),
     ("database", "Banco de dados no SSD (Fase 3)"),
     ("ai", "IA / Ollama (Fase 6)"),
-    ("vision", "Vision Core (Fase 5)"),
     ("motion_hardware", "Motion Core + Hardware Core (Fase 4/7)"),
 )
+# "vision" saiu desta lista em 2026-07-25 (EDR-0023): agora e um modulo de
+# verdade, iniciado em _iniciar_modulos, e nao mais um aviso no log.
 
 
 async def _conectar_raspberry(
@@ -49,10 +50,20 @@ async def _conectar_raspberry(
     config: ConfigurationManager,
     event_bus: EventBus,
     logger: logging.Logger,
+    simulado: bool = False,
 ) -> bool:
     """Tenta conectar no Motion Core (Raspberry) via TCP (Cap 14 s.2) e
     confirma via WHO_ARE_YOU. Tolera ausencia (Cap 6 s.8): Raspberry
-    desligado ou fora da rede nao aborta o boot do Notebook."""
+    desligado ou fora da rede nao aborta o boot do Notebook.
+
+    Com `simulado` (--sim) NAO abre soquete nenhum. Antes de 2026-07-25 a
+    flag era ignorada aqui e o modo "simulado" conectava no Pi real - o que
+    alem de errado era perigoso: o Pi so aceita UM enlace chamado
+    "mission_core" por vez, entao rodar o boot para testar ROUBAVA o enlace
+    do processo de producao (EDR-0023 secao 5)."""
+    if simulado:
+        logger.info("Modo simulado: enlace com o Raspberry nao sera aberto")
+        return False
     # import local, nao no topo do arquivo: orion.communication.* importa
     # orion.kernel.event_bus, e orion/kernel/__init__.py importa boot.py
     # de olhos fechados antes de mais nada - import no topo daria um
@@ -96,6 +107,51 @@ async def _conectar_raspberry(
     return True
 
 
+async def _iniciar_modulos(
+    modulos: list[Any],
+    registry: ServiceRegistry,
+    event_bus: EventBus,
+    logger: logging.Logger,
+) -> list[Any]:
+    """Sobe os modulos do Mission Core (EDR-0023 secao 2).
+
+    Retorna SO os que subiram - sao esses que o SistemaOrion precisa
+    desligar depois. Um modulo que falha ao iniciar e "ausente", nao
+    "sistema quebrado" (Cap 6 s.8): o boot registra, avisa e segue.
+    """
+    ativos: list[Any] = []
+    for modulo in modulos:
+        registry.registrar(modulo.nome, VERSAO_KERNEL, servicos=[modulo.nome])
+        try:
+            await modulo.iniciar()
+        except Exception as erro:  # noqa: BLE001 - qualquer falha = ausente
+            registry.atualizar_estado(modulo.nome, EstadoModulo.DEGRADED)
+            logger.warning("Modulo %s indisponivel: %s", modulo.nome, erro, exc_info=True)
+            await event_bus.publish(
+                "diagnostic.error",
+                {"modulo": modulo.nome, "motivo": "falha_ao_iniciar", "detalhe": str(erro)},
+                prioridade=Prioridade.ALTA,
+            )
+            continue
+        registry.atualizar_estado(modulo.nome, EstadoModulo.RUNNING)
+        ativos.append(modulo)
+        logger.info("Modulo %s iniciado", modulo.nome)
+    return ativos
+
+
+def _montar_modulos(config: ConfigurationManager, event_bus: EventBus, simulado: bool) -> list[Any]:
+    """Lista de modulos do Mission Core, na ordem de inicializacao.
+
+    Em modo simulado nada de hardware real e aberto (EDR-0023 s.5), entao a
+    lista sai vazia por enquanto - simuladores entram aqui quando existirem.
+    """
+    if simulado:
+        return []
+    from orion.vision.modulo import ModuloVisao
+
+    return [ModuloVisao(event_bus, config.secao("vision"))]
+
+
 class SistemaOrion:
     """Handles vivos apos o boot - usados pelo chamador e no encerramento."""
 
@@ -111,7 +167,9 @@ class SistemaOrion:
         tarefa_watchdog: asyncio.Task,
         comm: ComunicacaoService,
         raspberry_conectado: bool,
+        modulos: list[Any] | None = None,
     ) -> None:
+        self.modulos = list(modulos or [])
         self.config = config
         self.event_bus = event_bus
         self.registry = registry
@@ -126,6 +184,17 @@ class SistemaOrion:
     async def encerrar(self) -> None:
         """Desligamento seguro: para o watchdog e o event bus (Cap 6)."""
         self.logger.info("Iniciando desligamento seguro do ORION OS")
+        # Modulos primeiro, na ORDEM INVERSA da inicializacao (EDR-0023 s.2):
+        # eles seguram hardware (camera, microfone) e ainda podem querer
+        # publicar no bus ao sair - se o bus parasse antes, o desligamento
+        # deles ficaria pela metade.
+        for modulo in reversed(self.modulos):
+            try:
+                await modulo.encerrar()
+            except Exception:  # noqa: BLE001 - desligamento nunca aborta
+                self.logger.warning(
+                    "Falha ao encerrar o modulo %s", getattr(modulo, "nome", "?"), exc_info=True
+                )
         self.watchdog.parar()
         await self.comm.encerrar()
         self.event_bus.parar()
@@ -188,7 +257,16 @@ class BootManager:
             ack_timeout_ms=conf_comm["ack_timeout_ms"],
             versao_modulo=VERSAO_KERNEL,
         )
-        raspberry_conectado = await _conectar_raspberry(comm, config, event_bus, logger)
+        raspberry_conectado = await _conectar_raspberry(
+            comm, config, event_bus, logger, simulado=self._simulado
+        )
+
+        # Modulos do Mission Core (EDR-0023). Vision e o primeiro; Voice,
+        # Mission/IA e Display entram aqui conforme forem migrados de
+        # tools/conversar_fofao.py.
+        modulos = await _iniciar_modulos(
+            _montar_modulos(config, event_bus, self._simulado), registry, event_bus, logger
+        )
 
         # 6-10. Arduino (via Raspberry), banco, IA, Vision, Motion Core +
         # Hardware Core: ainda nao implementados nesta fase do projeto.
@@ -234,4 +312,5 @@ class BootManager:
             tarefa_watchdog=tarefa_watchdog,
             comm=comm,
             raspberry_conectado=raspberry_conectado,
+            modulos=modulos,
         )
