@@ -56,6 +56,19 @@ unsigned long ultimoHeartbeat = 0;
 unsigned long ultimaTelemetria = 0;
 unsigned long ultimoImu = 0;
 unsigned long ultimoComandoRecebido = 0;
+
+// Instrumentacao do tempo de volta do loop (2026-07-25). Motivo real: o
+// ultrassom e lido por sondagem, e o eco de um obstaculo a 30 cm dura so
+// 1,7 ms - se a volta do loop demorar mais que isso, o pulso comeca e
+// termina entre duas leituras do pino e a distancia nunca fica valida.
+// Medido ao vivo: zero leituras validas em 18 s com obstaculo a ~1 m.
+// Estes numeros vao na telemetria para achar o culpado com dado, em vez
+// de palpite (suspeitos: I2C do IMU com timeout de 25 ms, e o Serial.write
+// da telemetria, que bloqueia quando o buffer de 64 bytes enche).
+unsigned long loopAnteriorUs = 0;
+unsigned long loopMaxUs = 0;
+unsigned long loopSomaUs = 0;
+unsigned long loopVoltas = 0;
 orion::Estado estadoAnterior = orion::Estado::BOOT;
 bool varrendoAnterior = false;
 
@@ -199,6 +212,17 @@ void setup() {
 void loop() {
   wdt_reset();
 
+  {
+    unsigned long agoraUs = micros();
+    if (loopAnteriorUs != 0) {
+      unsigned long duracao = agoraUs - loopAnteriorUs;  // seguro no overflow
+      if (duracao > loopMaxUs) loopMaxUs = duracao;
+      loopSomaUs += duracao;
+      loopVoltas++;
+    }
+    loopAnteriorUs = agoraUs;
+  }
+
   while (Serial.available() > 0) {
     uint8_t byte = Serial.read();
     if (decodificador.alimentar(byte)) {
@@ -241,6 +265,14 @@ void loop() {
     ultimaTelemetria = agora;
     JsonDocument payload;
     telemetria.preencherPayload(payload.to<JsonObject>());
+    // Tempo de volta do loop desde a ultima telemetria (ver comentario nas
+    // globais). loop_max_us acima de ~1700 significa que ecos de obstaculo
+    // proximo estao sendo perdidos.
+    payload["loop_max_us"] = loopMaxUs;
+    payload["loop_media_us"] = loopVoltas > 0 ? (loopSomaUs / loopVoltas) : 0;
+    loopMaxUs = 0;
+    loopSomaUs = 0;
+    loopVoltas = 0;
     orion::enviarMensagem(Serial, "TELEMETRY", "motion_core", payload.as<JsonObjectConst>());
   }
 }
