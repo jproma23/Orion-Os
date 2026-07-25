@@ -1866,3 +1866,109 @@ servo). Primeira vez testando esses três com hardware real.
   diario; decidir o que fazer com os arquivos nao commitados de
   2026-07-19/20; conversa de design pendente sobre "IA com simulacao de
   sentimentos"/psicologo da familia.
+﻿
+
+## 2026-07-24 (continuacao - vistoria de codigo completa + 5 criticos + parte dos altos + calibracao fisica)
+
+- **Vistoria de codigo pedida pelo usuario** ("quero fazer uma vistoria em
+  todo codigo... ver o que precisa fazer para nao acontecer erros no
+  sistema"). Copiado o codigo completo (src/, motion_core/, firmware/,
+  tests/, tools/) pra maquina Windows de controle e revisado em paralelo
+  por 4 agentes (Kernel+Comunicacao, Motion Core, Vision/Voice/Mission +
+  arquivos nao commitados, Display+Firmware) + auditoria manual de
+  chaves de config vs orion.yaml + investigacao do teste "flaky" do
+  heartbeat. **28 achados no total** (5 criticos, 6 altos, 7 medios, 4
+  baixos, 6 decisoes de arquitetura pendentes nos arquivos nao
+  commitados de 2026-07-19/20). Relatorio publicado como artifact HTML
+  pro usuario consultar.
+- **Achado que atravessa varios modulos**: `VisionCore` completo (YOLO,
+  rastreamento, pan/tilt) nunca e instanciado em producao - so nos
+  testes. `vision.resolution/fps/yolo_model/confidence_threshold` sao
+  configs mortas hoje; FOLLOW nunca recebe `vision.person_detected` real.
+- **Teste `test_heartbeat.py::test_falha_ao_enviar_heartbeat_tambem_gera_comm_module_lost`
+  NAO e flaky** (rodado 5x seguidas, falhou as 5): o guard que evita
+  alarme falso pra quem "ainda nao conectou" tambem impede, pra sempre,
+  que um peer que nunca conseguiu conectar gere `comm.module_lost` -
+  ainda sem correcao (fica pra depois, catalogado como Medio).
+
+### 5 CRITICOS corrigidos, testados e commitados (Pi + Notebook):
+1. **Firmware**: `SafetyManager::avaliar()` so parava o motor na
+   transicao livre->perigo, nao continuamente - um comando de movimento
+   atrasado do Raspberry podia religar o motor com o perigo ainda ativo.
+   Corrigido: reforca `motores.parar()` todo ciclo enquanto o perigo
+   persistir + `CommandExecutor` recusa comando de movimento novo
+   enquanto `safety.pararAtivo()`. Leitura invalida do ultrassom agora
+   conta como obstaculo (fail-safe) em vez de "livre pra andar".
+2. **motion_core**: `TarefaManutencao.iniciar()` matava a task pra
+   sempre na primeira falha de backup - agora sobrevive e tenta de novo
+   no proximo ciclo, ainda na mesma hora configurada.
+3. **kernel**: `communication.raspberry.host` sem validacao no schema -
+   podia sumir do yaml sem a config falhar, so quebrando depois com
+   KeyError cru no boot. Agora validado (`_ESQUEMA`).
+4. **comunicacao**: `TcpTransport`/`SerialTransport`/`ConexaoTcp.enviar()`
+   nao convertiam `OSError`/`SerialException` em `ErroTransporte` -
+   queda de rede no meio do envio derrubava processo/boot inteiro.
+
+### Parte dos 6 ALTOS corrigidos:
+5. **Firmware**: ponto cego do radar durante SCAN_FRONT (~2,1s, servo
+   apontado pro lado) - `SafetyManager` so confia na leitura frontal
+   quando `radar.apontandoParaFrente()`.
+6. **Firmware**: `Wire.setWireTimeout(25ms, reset automatico)` +
+   watchdog de hardware (`wdt_enable` 2s + `wdt_reset()` todo loop) -
+   travamento do I2C do IMU nao para mais a seguranca reativa inteira
+   junto. `imu_manager.h::atualizar()` tambem passou a checar o retorno
+   de `getEvent()`.
+7. **voice**: `sintetizador.falar()` (frase de ativacao e resposta) sem
+   protecao nenhuma - erro transitorio de audio de saida derrubava
+   avatar+sentinela+chat juntos. Corrigido com `_falar_com_protecao()`.
+- Faltam pra fechar os Altos: FOLLOW travar se comm falhar durante perda
+  de alvo, SQLite concorrente (webui + manutencao sem lock), discovery
+  KeyError em payload incompleto.
+
+### Calibracao fisica do robo (sessao ao vivo, achados que so aparecem
+na pratica, nao em codigo):
+- **Servo do radar com horn colado torto** (nao da pra reencaixar
+  fisicamente) - calibrado ao vivo com o usuario usando a webcam externa
+  (DV20 USB, `/dev/video2`) pra confirmar visualmente: comandar o angulo
+  LOGICO 90 (frente) precisa escrever 45 de verdade no servo. Adicionado
+  `RADAR_OFFSET_GRAUS = -45` em `radar_manager.h`, aplicado so na hora de
+  escrever (`_paraFisico`) - toda a logica interna continua em angulo
+  logico. Novo comando de protocolo `RADAR_SET_ANGLE` (calibracao manual)
+  e `PAN_TILT_SOLTAR` (`Servo::detach()` pra girar a webcam na mao).
+- **Arco de varredura reduzido pra 120 graus (30-150)**: o braco do
+  servo colide fisicamente com o suporte da webcam ao lado fora desse
+  arco - confirmado suficiente pelo usuario pra "enxergar o mundo a
+  frente".
+- **RELE_MOTORES mudou do pino 13 pro pino 12** (`pins.h`): achado real
+  - pino 13 e o mesmo do LED embutido do Mega, que o bootloader pisca em
+  TODO reset (upload de firmware, watchdog, power-on) antes do setup()
+  rodar - o rele "tremelicava" fora do controle do codigo nesses
+  instantes. `RELE_VENTILADOR` foi desconectado fisicamente pelo usuario
+  (consumo de energia) e a constante realocada pro pino 7 no codigo so
+  pra nao colidir com o motor - `FAN_ON`/`FAN_OFF` continuam no
+  protocolo, sem efeito fisico ate reconectar. Fio do motor confirmado
+  fisicamente movido de 13 pra 12 pelo usuario antes da gravacao.
+- **Novo `tools/gravar_firmware_seguro.sh`**: acha que orion-motion.service
+  fica com a porta serial do Arduino aberta o tempo todo - gravar
+  firmware por cima disso fazia dois processos brigarem pela porta
+  (heartbeat falhando depois da gravacao, servo reagindo de forma
+  imprevisivel). O script para o servico antes de gravar e religa depois
+  sempre (trap), mesmo se a gravacao falhar.
+- **5 gravacoes reais no Mega hoje**, todas compilando e verificando
+  limpo via `pio run -t upload` a partir do Pi (nunca do Notebook -
+  regra arquitetural: Arduino so fala com o Raspberry).
+
+### Pendencia caracterizada, nao corrigida (decisao consciente - hora
+errada pra mexer em codigo de seguranca/wake-word sem poder testar com
+calma):
+- **Deteccao da palavra de ativacao "Fofao" perdendo variantes reais do
+  Whisper**: testado ao vivo repetidas vezes hoje (ambiente com ruido E
+  depois em silencio total), transcricoes obtidas: `''` (vazio, RMS
+  0.13-0.20 - som havia, transcricao nao), `'Fulfo'`, `'FAMO'`,
+  `'Ei, oui!'`, `'FO FÃO'` (com espaco no meio - o mais proximo, ainda
+  assim nao bate no regex `\bfofao\b` por causa do espaco). O robo nunca
+  avanca de LISTENING pra WAKE_DETECTED nessas tentativas.
+  `wake_word.py::DetectorPalavraAtivacao.verificar()` exige "fofao"
+  contiguo, sem tolerancia. **Proximo passo**: considerar normalizar
+  removendo espacos internos antes de comparar, e/ou tolerancia fonetica
+  (distancia de edicao) - decidir com cuidado e teste, nao as pressas.
