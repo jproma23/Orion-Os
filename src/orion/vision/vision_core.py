@@ -44,6 +44,7 @@ class VisionCore:
         detector: DetectorYolo | None = None,
         reconhecedor: ReconhecedorFacial | None = None,
         timeout_alvo_perdido_s: float = 2.0,
+        fps: float = 0.0,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -64,6 +65,11 @@ class VisionCore:
         self._tinha_alvo = False
         self._ultimo_processamento_ts: float | None = None
         self._ultimo_frame = None
+        # 0 = sem limite (comportamento antigo). Vem de vision.fps no
+        # orion.yaml: ate 2026-07-25 essa chave era configuracao MORTA e o
+        # laco rodava a toda velocidade, medido em 131% de CPU disputando os
+        # 4 nucleos com o Whisper. Ver _dormir_o_resto_do_quadro.
+        self._intervalo_alvo_s = 1.0 / fps if fps and fps > 0 else 0.0
 
     def salvar_ultimo_frame(self, caminho: str) -> str | None:
         """Grava em disco a ultima imagem lida. Devolve o caminho, ou None se
@@ -182,11 +188,28 @@ class VisionCore:
                 except ErroCamera:
                     await asyncio.sleep(intervalo_reconexao_s)
                     continue
+            inicio = time.monotonic()
             try:
                 await self.processar_um_frame()
             except ErroCamera:
                 await self._captura.fechar()
                 await asyncio.sleep(intervalo_reconexao_s)
+                continue
+            await self._dormir_o_resto_do_quadro(inicio)
+
+    async def _dormir_o_resto_do_quadro(self, inicio: float) -> None:
+        """Devolve ao sistema o tempo que sobrou do orcamento do quadro.
+
+        Sem isto o laco processa o mais rapido que a CPU aguentar - e num
+        Notebook de 4 nucleos onde o Whisper tambem precisa de CPU, isso
+        engasga a voz. Se o quadro ja estourou o orcamento, nao dorme (mas
+        cede a vez com sleep(0), senao um quadro lento monopoliza o loop de
+        eventos e ninguem mais roda).
+        """
+        if not self._intervalo_alvo_s:
+            return
+        sobra = self._intervalo_alvo_s - (time.monotonic() - inicio)
+        await asyncio.sleep(sobra if sobra > 0 else 0)
 
     def parar(self) -> None:
         self._executando = False

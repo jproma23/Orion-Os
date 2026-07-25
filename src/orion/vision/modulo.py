@@ -141,6 +141,7 @@ class ModuloVisao:
                 velocidade_max_graus_s=self._conf["servo_max_speed_deg_s"],
             ),
             publicar_pan_tilt=self._publicar_pan_tilt,
+            fps=self._conf["fps"],
         )
 
 

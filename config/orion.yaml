@@ -91,7 +91,7 @@ voice:
   # (indice 3) e USB Audio Device (indice 4) - indices de audio mudam
   # conforme o que esta plugado, reconferir com sd.query_devices() se
   # o erro "Nenhum microfone candidato respondeu" voltar
-  microfones_candidatos_indices: [3, 4]
+  microfones_candidatos_indices: [1, 5, 0]   # reconferido 2026-07-25: indices mudaram apos religar (3 e 4 viraram saidas HDMI)
   # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
   # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
   # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
