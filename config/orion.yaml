@@ -18,7 +18,7 @@ communication:
                                # desenvolvimento, nao a subrede Ethernet fixa
                                # de producao (192.168.50.x) que ainda nao
                                # existe fisicamente.
-    host: "10.20.20.188"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP
+    host: "10.20.20.196"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP, atualizado 2026-07-24
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
   arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
@@ -86,9 +86,12 @@ voice:
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
   saida_audio_indice: 2
-  # indices de entrada (sounddevice) reconferidos em 2026-07-18: USB
-  # Composite Device (2a webcam), PC Camera e USB Audio Device
-  microfones_candidatos_indices: [0, 1, 5]
+  # indices de entrada (sounddevice) reconferidos em 2026-07-24: 2a webcam
+  # (USB Composite Device) desconectada fisicamente hoje, sobrou PC Camera
+  # (indice 3) e USB Audio Device (indice 4) - indices de audio mudam
+  # conforme o que esta plugado, reconferir com sd.query_devices() se
+  # o erro "Nenhum microfone candidato respondeu" voltar
+  microfones_candidatos_indices: [3, 4]
   # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
   # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
   # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
@@ -123,6 +126,10 @@ ai:
   # resposta curta = falar logo (gerar + sintetizar demoram proporcional ao texto)
   resposta_max_tokens: 100
   system_prompt_file: "config/prompt_sistema.txt"
+  # Modelo usado pelo Mentor de comportamento (behavior.mentor,
+  # 2026-07-24) - mesma OpenRouter/base_url acima, so o modelo pode ser
+  # diferente do da conversa (aqui exige saida JSON estruturada).
+  mentor_model: "openai/gpt-4o-mini"
 
 display:
   avatar:                        # tela do notebook (Cap 13)
@@ -197,6 +204,7 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     habilitado: true
     intervalo_s: 3
     cooldown_s: 30
+    pasta_fotos: "data/sentinela"
   # IA estrategica (EDR-0022) - ocupa a vaga da antiga "Patrulha agendada"
   # (EDR-0020, nunca implementada). Consulta a IA em ritmo proprio (nunca
   # no tick de 200ms do maestro) e escolhe entre um vocabulario FECHADO -
@@ -207,3 +215,16 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     intervalo_s: 30
     acoes_validas: ["descansar", "observar_ambiente"]
     pasta_fotos: "data/sentinela"
+  # Mentor de comportamento (ligado em 2026-07-24) - camada de reflexao
+  # mais profunda e mais lenta que a ia_estrategica acima, complementar a
+  # ela (nao substituta): consulta IA remota (OpenAI/OpenRouter, ver
+  # ai.mentor_model) em vez de Ollama local - decisao do usuario, Ollama
+  # local trava o Notebook ao carregar um modelo (mesmo achado do
+  # EDR-0021). Prioridade menor que ia_estrategica de proposito - a
+  # resposta mais rapida/atual vence quando as duas tem opiniao; o Mentor
+  # so assume quando a ia_estrategica esta "descansando".
+  mentor:
+    habilitado: true
+    prioridade: 35
+    intervalo_s: 90
+    acoes_validas: ["descansar", "observar_ambiente"]

@@ -48,8 +48,10 @@ from motion_core.memory.replica import ReceptorReplica  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
+from orion.mission.conselheiro_comportamento import ConselheiroComportamento  # noqa: E402
 from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
+from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.captura import CapturaCamera  # noqa: E402
 from orion.vision.reconhecimento_facial import ReconhecedorFacial  # noqa: E402
@@ -212,6 +214,22 @@ async def principal() -> None:
     # no Pi manda "mission.decidir" por este mesmo link "motion_core" -
     # mesmo padrao do receptor de replica acima.
     PonteDecisao(ia, comm).registrar(bus)
+
+    # Mentor de comportamento (ligado em 2026-07-24): comportamento Mentor
+    # no Pi manda "behavior.aconselhar" por este mesmo link. Usa IA remota
+    # (OpenAI/OpenRouter) - decisao do usuario: Ollama local trava o
+    # Notebook ao carregar um modelo (mesmo achado do EDR-0021). Tolerado
+    # ausente: sem OPENAI_API_KEY ou com a lib `openai` faltando, o Mentor
+    # simplesmente nunca tem conselho (Cap 6 s.8), sem derrubar o boot.
+    try:
+        conselheiro = ConselheiroComportamento(
+            modelo=secao_ia.get("mentor_model", "openai/gpt-4o-mini"),
+            base_url=secao_ia.get("openai_base_url"),
+        )
+        PonteConselho(conselheiro, comm).registrar(bus)
+        logger.info("Mentor de comportamento ativo (IA remota)")
+    except Exception:
+        logger.exception("Mentor de comportamento indisponivel - seguindo sem ele")
 
     async def _conectar_link_pi() -> None:
         transporte = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
