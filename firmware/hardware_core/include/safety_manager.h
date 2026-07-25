@@ -22,7 +22,12 @@ class SafetyManager {
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
   bool avaliar(MotorManager& motores, RadarManager& radar, ImuManager& imu,
                unsigned long ultimoComandoMs) {
-    bool obstaculoFrontal = radar.distanciaFrontalValida() &&
+    // Leitura invalida (sensor desconectado, fio solto, ruido) NAO e
+    // "livre" - antes disso caia no mesmo caminho de "nada na frente"
+    // (fail-open). Cap 18: "em duvida, para" - leitura invalida tambem
+    // conta como obstaculo, ate o sensor voltar a responder de verdade
+    // (fail-safe). Achado real da vistoria de 2026-07-24.
+    bool obstaculoFrontal = !radar.distanciaFrontalValida() ||
                             radar.distanciaFrontalCm() < DISTANCIA_MINIMA_FRENTE_CM;
     bool inclinacaoCritica = imu.conectado() && imu.inclinacaoCritica();
     bool impacto = imu.conectado() && imu.impactoDetectado();
@@ -31,18 +36,29 @@ class SafetyManager {
 
     bool deveParar = obstaculoFrontal || inclinacaoCritica || impacto || timeoutComando;
 
-    if (deveParar && !_pararAtivo) {
+    if (deveParar) {
+      // Reforca a parada TODO ciclo de loop() enquanto o perigo persistir,
+      // nao so na transicao livre->perigo - achado real da vistoria de
+      // 2026-07-24: do jeito antigo, se um comando de movimento chegasse
+      // do Raspberry com o perigo ainda ativo (retry, fila atrasada, race
+      // condition), o motor religava e a seguranca nunca disparava de
+      // novo, porque o "if" so rodava na borda. CommandExecutor tambem
+      // recusa comando de movimento novo enquanto pararAtivo() for
+      // verdadeiro (defesa em profundidade) - mas essa chamada aqui e a
+      // que garante que o motor para de fato, mesmo que algo escape
+      // daquela outra checagem.
       motores.parar();
-      _motivo = obstaculoFrontal   ? "obstaculo_frontal"
-                : inclinacaoCritica ? "inclinacao_critica"
-                : impacto           ? "impacto"
-                                    : "timeout_comando";
-      _pararAtivo = true;
-      return true;
+      if (!_pararAtivo) {
+        _motivo = obstaculoFrontal   ? "obstaculo_frontal"
+                  : inclinacaoCritica ? "inclinacao_critica"
+                  : impacto           ? "impacto"
+                                      : "timeout_comando";
+        _pararAtivo = true;
+        return true;
+      }
+      return false;
     }
-    if (!deveParar) {
-      _pararAtivo = false;
-    }
+    _pararAtivo = false;
     return false;
   }
 

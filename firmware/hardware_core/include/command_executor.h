@@ -13,6 +13,7 @@
 #include "motor_manager.h"
 #include "pins.h"
 #include "radar_manager.h"
+#include "safety_manager.h"
 
 namespace orion {
 
@@ -24,8 +25,9 @@ constexpr float SERVO_CENTRO_GRAUS = 90.0f;
 
 class CommandExecutor {
  public:
-  CommandExecutor(MotorManager& motores, RadarManager& radar, MaquinaDeEstados& estados)
-      : _motores(motores), _radar(radar), _estados(estados) {}
+  CommandExecutor(MotorManager& motores, RadarManager& radar, MaquinaDeEstados& estados,
+                   SafetyManager& safety)
+      : _motores(motores), _radar(radar), _estados(estados), _safety(safety) {}
 
   // Precisa ser chamado de dentro de setup(), nunca no construtor: este
   // objeto e global (criado antes de main()/init() rodar), e Servo::attach()
@@ -54,6 +56,24 @@ class CommandExecutor {
   // saber se deve considerar "executado" para fins de log/telemetria).
   bool executar(const char* comando, JsonObjectConst payload) {
     float velocidade = payload["velocidade_percent"] | 50.0f;
+
+    // Camada reativa (Cap 18 s.9, regra 7 do CLAUDE.md): enquanto uma
+    // parada de seguranca estiver ativa (obstaculo, inclinacao, impacto
+    // ou timeout), nenhum comando de movimento NOVO e aceito, mesmo que
+    // venha do Raspberry - so volta a aceitar quando safety.avaliar()
+    // confirmar de novo que esta livre. Sem isso, um comando
+    // atrasado/reenviado (retry, fila antiga, race condition) religava o
+    // motor com o perigo ainda presente (achado real da vistoria de
+    // 2026-07-24) - defesa em profundidade junto com o reforco continuo
+    // em SafetyManager::avaliar().
+    bool comandoDeMovimento = strcmp(comando, "MOVE_FORWARD") == 0 ||
+                               strcmp(comando, "MOVE_CONTINUOUS") == 0 ||
+                               strcmp(comando, "MOVE_DISTANCE") == 0 ||
+                               strcmp(comando, "TURN_LEFT") == 0 ||
+                               strcmp(comando, "TURN_RIGHT") == 0;
+    if (comandoDeMovimento && _safety.pararAtivo()) {
+      return false;
+    }
 
     if (strcmp(comando, "MOVE_FORWARD") == 0 || strcmp(comando, "MOVE_CONTINUOUS") == 0) {
       _motores.andarFrente(velocidade);
@@ -141,6 +161,7 @@ class CommandExecutor {
   MotorManager& _motores;
   RadarManager& _radar;
   MaquinaDeEstados& _estados;
+  SafetyManager& _safety;
   Servo _servoPan;
   Servo _servoTilt;
 };

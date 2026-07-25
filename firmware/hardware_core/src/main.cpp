@@ -43,7 +43,7 @@ orion::ImuManager imu;
 orion::DhtManager dht;
 orion::SafetyManager safety;
 orion::SensorUltrassonico ultrassomTraseiro;
-orion::CommandExecutor comandos(motores, radar, estados);
+orion::CommandExecutor comandos(motores, radar, estados, safety);
 orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
