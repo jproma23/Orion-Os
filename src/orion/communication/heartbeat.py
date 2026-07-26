@@ -43,6 +43,14 @@ class MonitorHeartbeat:
         #: Serve para separar "ainda nao conectei" de "perdi a conexao" -
         #: ver _marcar_perdido.
         self._ja_estabelecidos: set[str] = set()
+        #: Falhas de envio seguidas, por peer (zera a cada sucesso). Da a
+        #: quem NUNCA conectou uma carencia antes de virar perda - ver
+        #: _marcar_perdido.
+        self._falhas_envio: dict[str, int] = {}
+        #: Limite de perdidos efetivo de cada peer (o global, ou o proprio
+        #: se `monitorar` recebeu um).
+        self._limite_perdidos: dict[str, int] = {}
+        self._limite_global = heartbeats_perdidos_limite
         self._executando = False
 
         event_bus.subscribe("comm.mensagem.heartbeat", self._ao_receber_heartbeat)
@@ -61,11 +69,32 @@ class MonitorHeartbeat:
         links igual: o Arduino precisa de deteccao rapida, o Notebook
         precisa aguentar pausas longas de CPU. Ver HealthMonitor.timeout_de.
         """
-        self._peers.append(nome_peer)
+        # Idempotente de proposito: `monitorar` e chamado do callback de
+        # conexao TCP, que roda de novo a CADA reconexao do peer. Sem esta
+        # guarda o mesmo nome entrava varias vezes em _peers e o laco
+        # passava a mandar 1 heartbeat por copia (e a cobrar perda varias
+        # vezes) - achado real de 2026-07-25, com o link caindo e voltando.
+        ja_monitorado = nome_peer in self._peers
+        if not ja_monitorado:
+            self._peers.append(nome_peer)
+
         self._reconectar[nome_peer] = reconectar
+        self._limite_perdidos[nome_peer] = (
+            heartbeats_perdidos_limite
+            if heartbeats_perdidos_limite is not None
+            else self._limite_global
+        )
+        # Re-registrar zera o relogio do peer no HealthMonitor, que e
+        # justamente o que se quer numa reconexao: a contagem recomeca do
+        # zero em vez de carregar o atraso de quando o link estava caido.
         self._health_monitor.registrar_modulo(
             nome_peer, heartbeats_perdidos_limite=heartbeats_perdidos_limite
         )
+        self._falhas_envio[nome_peer] = 0
+
+        if ja_monitorado:
+            logger.debug("'%s' reconectou - monitoramento reaproveitado", nome_peer)
+            return
         if heartbeats_perdidos_limite is not None:
             logger.info(
                 "Heartbeat de '%s': tolerancia propria de %d perdidos (%.0fs)",
@@ -95,16 +124,25 @@ class MonitorHeartbeat:
         publica module_lost, porque a deteccao antiga so olhava
         heartbeats *recebidos*, nunca falha ao *enviar*).
 
-        NAO marca perda de quem nunca conectou. No boot, o laco de
-        heartbeat comeca antes de o supervisor TCP abrir o link: enviar
-        falha com "sem rota" e isso NAO e uma perda, e um "ainda nao".
-        Tratar os dois como a mesma coisa gerava um "Heartbeat perdido"
-        falso em toda partida (visto em 2026-07-19), poluindo o log e
-        disparando reconexao para um link que ja estava sendo aberto.
+        Quem nunca conectou ganha uma CARENCIA, nao silencio eterno. No
+        boot, o laco de heartbeat comeca antes de o supervisor TCP abrir o
+        link: enviar falha com "sem rota" e isso NAO e uma perda, e um
+        "ainda nao" - tratar os dois igual gerava "Heartbeat perdido" falso
+        em toda partida (visto em 2026-07-19). Mas ignorar PARA SEMPRE quem
+        nunca conectou tinha o defeito oposto: um link que morreu de vez
+        (ex.: Pi desligado) nunca virava comm.module_lost e ninguem era
+        avisado. Entao a carencia dura o mesmo tanto que a tolerancia
+        normal do peer (N falhas seguidas); passou disso, e perda de
+        verdade.
         """
         if peer not in self._ja_estabelecidos:
-            logger.debug("'%s' ainda nao conectou - nao e perda", peer)
-            return
+            limite = self._limite_perdidos.get(peer, self._limite_global)
+            if self._falhas_envio.get(peer, 0) < limite:
+                logger.debug("'%s' ainda nao conectou - dentro da carencia", peer)
+                return
+            logger.warning(
+                "'%s' nunca conectou apos %d tentativas - tratando como perda", peer, limite
+            )
         if peer in self._perdidos_atualmente:
             return
         self._perdidos_atualmente.add(peer)
@@ -125,12 +163,14 @@ class MonitorHeartbeat:
                     # Antes do primeiro sucesso isto e rotina (link ainda
                     # nao aberto), depois dele e sintoma - o nivel do log
                     # acompanha, para nao gritar no boot.
+                    self._falhas_envio[peer] = self._falhas_envio.get(peer, 0) + 1
                     if peer in self._ja_estabelecidos:
                         logger.warning("Falha ao enviar heartbeat para '%s'", peer)
                     else:
                         logger.debug("Link com '%s' ainda nao aberto", peer)
                     await self._marcar_perdido(peer)
                 else:
+                    self._falhas_envio[peer] = 0
                     self._ja_estabelecidos.add(peer)
 
             perdidos_por_recebimento = set(self._health_monitor.modulos_com_heartbeat_perdido())

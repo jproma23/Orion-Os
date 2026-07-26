@@ -135,3 +135,41 @@ async def test_falha_ao_enviar_heartbeat_tambem_gera_comm_module_lost():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_monitorar_o_mesmo_peer_duas_vezes_nao_duplica():
+    # achado real (2026-07-25): `monitorar` e chamado do callback de
+    # conexao TCP, que roda de novo a cada RECONEXAO do peer. Como a lista
+    # de peers so fazia append, um link que caia e voltava deixava o mesmo
+    # nome repetido - o laco passava a mandar um heartbeat por copia e a
+    # cobrar a perda varias vezes (relatorio de 2026-07-25, item 5.3).
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    servico = ComunicacaoService("motion_core", bus)
+    transporte = FakeTransporte()
+    servico.adicionar_link("mission_core", transporte)
+
+    monitor = MonitorHeartbeat(servico, bus, intervalo_s=0.05, heartbeats_perdidos_limite=3)
+    monitor.monitorar("mission_core")
+    monitor.monitorar("mission_core")  # "reconexao"
+    monitor.monitorar("mission_core")  # outra
+
+    assert monitor._peers == ["mission_core"]
+
+    # e na pratica: um unico heartbeat por ciclo, nao tres
+    tarefa_monitor = asyncio.create_task(monitor.iniciar())
+    await asyncio.sleep(0.06)
+    monitor.parar()
+    tarefa_monitor.cancel()
+    try:
+        await tarefa_monitor
+    except asyncio.CancelledError:
+        pass
+    await bus.aguardar_fila_vazia()
+
+    assert len(transporte.enviados) == 1
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus
