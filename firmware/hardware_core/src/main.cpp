@@ -265,7 +265,21 @@ void loop() {
                                           : orion::Estado::SAFE_MODE);
   } else if (!safety.pararAtivo() && !motores.emMovimento() &&
              (estados.atual() == orion::Estado::OBSTACLE_DETECTED ||
-              estados.atual() == orion::Estado::EXECUTING_MISSION)) {
+              estados.atual() == orion::Estado::EXECUTING_MISSION ||
+              estados.atual() == orion::Estado::SAFE_MODE)) {
+    // SAFE_MODE entrou nesta lista em 2026-07-26. Antes disso ele era um
+    // estado SEM SAIDA: o robo entrava e nunca mais voltava a IDLE sozinho,
+    // mesmo com todos os gatilhos limpos (medido na bancada: inclinacao 8 de
+    // 20 graus, frontal 245 de 25 cm, radar em 90, sem impacto, motores
+    // parados - e ainda assim preso). Bastava UM ciclo de leitura ruim do
+    // ultrassom, dos que a vibracao do motor de passo provoca, para travar o
+    // robo ate alguem reiniciar na mao - inviavel para as 72h de operacao
+    // continua que o projeto persegue.
+    //
+    // A seguranca NAO afrouxa: a saida continua exigindo perigo encerrado
+    // (!safety.pararAtivo()) e motores parados (!motores.emMovimento()). O
+    // robo segue parando na hora do perigo; a mudanca e que agora ele se
+    // RECUPERA quando o perigo passa.
     estados.transicionarPara(orion::Estado::IDLE);
   }
 
