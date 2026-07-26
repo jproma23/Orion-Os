@@ -2024,3 +2024,68 @@ calma):
   contiguo, sem tolerancia. **Proximo passo**: considerar normalizar
   removendo espacos internos antes de comparar, e/ou tolerancia fonetica
   (distancia de edicao) - decidir com cuidado e teste, nao as pressas.
+
+## 2026-07-25 (git em 3 linhas reconciliado + ciclo de reconexao TCP corrigido e validado no Pi)
+
+- **Descoberta que motivou a sessao:** o repositorio tinha TRES linhas de
+  desenvolvimento divergentes desde 2026-07-19, nenhuma subconjunto da
+  outra: GitHub `73bf557` (20/07, +25 exclusivos - tem a correcao do
+  ultrassom frente/tras trocado, `CLAUDE.md`->`ARQUITETURA.md`, blog e
+  README que ninguem mais tem), Notebook `127701e` (+29) e Pi `d017986`
+  (+18). A copia Windows usada na vistoria estava 23 commits atras, e o
+  relatorio gerado a partir dela apontava problemas ja resolvidos (o IP
+  `10.20.20.188`, por exemplo, ja era `.196` desde 24/07).
+- **Tudo preservado antes de qualquer merge**, como branches no GitHub:
+  `linha-notebook-2026-07-25`, `linha-pi-2026-07-25`,
+  `backup-windows-2026-07-25`. `master`/`main` do GitHub nao foi tocado.
+  A linha do GitHub segue **pendente de integracao**.
+- **O Pi tinha perdido a chave SSH para o Notebook** na formatacao - o
+  erro do `git fetch` era `Host key verification failed` (known_hosts com
+  identidade antiga), nao falta de chave: a publica do Pi ja estava
+  autorizada la. Corrigido com `ssh-keygen -R` + `ssh-keyscan`.
+- **Merge Pi x Notebook (`cc900e3`):** 18 blocos de conflito, mas so 5
+  reais - os outros 13 eram codigo do Pi em regiao vazia do Notebook.
+  Resolucoes: `openai` fica no pyproject (os DOIS lados fazem `from openai
+  import OpenAI`; o `google-generativeai` do Pi era dependencia orfa, sem
+  nenhum import); microfones ficam `[1,5,0]` do Notebook (os `[3,4]` do Pi
+  viraram saidas HDMI); `avancar` do Pi entra junto com o Mentor do
+  Notebook; `motion_core/__main__.py` fica com o lado do Pi, que e
+  superconjunto (traz o guarda-rail de prioridade).
+- **Heartbeat, dois defeitos corrigidos (`214db61`):** `monitorar()` so
+  fazia `append`, mas e chamado do callback de conexao TCP - que roda a
+  CADA reconexao; virou idempotente. E o guard de "nunca conectou"
+  ignorava a perda **para sempre**, cegando `comm.module_lost` de um link
+  que morreu de vez; virou carencia de N falhas.
+- **A correcao do TCP (`_descartar_link_anterior`) existia no Notebook e
+  NUNCA tinha chegado ao Pi** - por isso os `socket.send() raised
+  exception` nos logs. Nao era bug novo, era codigo desatualizado.
+- **Validacao em producao no Pi (`af5a91d`, tag `v1.0.0-tcp-fix`):** 3
+  reconexoes seguidas -> sempre 1 socket ESTABLISHED (antes acumulava; 37
+  observadas em 19/07); a porta antiga sumiu de todos os estados e o inode
+  mudou, provando troca real; "Heartbeat perdido" publicado UMA vez por
+  perda. Os erros de envio agora aparecem so na janela real de queda e
+  cessam no instante da reconexao - comportamento correto, nao regressao.
+- **Testes:** 329 unitarias + 11 integracao no Notebook, 286 (7 skipped)
+  no Pi, `compileall` exit=0. O poder de deteccao do teste novo foi
+  comprovado desativando `_descartar_link_anterior` (falha no ponto certo)
+  e reativando (passa).
+- **Auditoria do backup:** nao e bug de codigo. O agendamento e por hora
+  fixa (`backup_hour: 3`) e **o Pi nao fica ligado as 03:00** - os backups
+  de 23/07 sao das 19h, manuais. Falha de replica NAO bloqueia o backup
+  local (`executar_backup_agora` so faz backup+retencao; a replica roda
+  depois, por evento, e trata `ErroComunicacao`). SSD escrevivel, 432GB
+  livres, relogio sincronizado por NTP (o Pi nao tem RTC). **Proposta
+  pendente:** trocar o gatilho por "no startup, se passou >24h".
+- **Mudanca de arquitetura de disco no Pi (pos-formatacao):** ele agora
+  BOOTA do SSD (`sda2` = `/`). `/mnt/ssd` virou diretorio comum - os dados
+  seguem fisicamente no SSD, mas o caminho ficou enganoso.
+- **Codigo orfao encontrado, nao mexido:** existe um `conversar_fofao.py`
+  na RAIZ (versionado, de um commit `[wip]`), diferente do de `tools/` que
+  e o de producao. Ele importa `AlivioCarga` e `DiarioObservacoes` -
+  modulos que existem em `src/orion/mission/` e que **nenhum outro arquivo
+  usa**. `escuta_habilitada` tambem nao existe no `orion.yaml`. Decidir se
+  entram em producao ou saem.
+- **Pendencias:** integrar a linha do GitHub; ACK intermitente do
+  `SET_PAN_TILT`; `OBSTACLE_DETECTED` com o robo suspenso impedindo teste
+  de motores; vault do Obsidian vazio; wake word ("FO FÃO" com espaco
+  escapa do `DetectorFuzzy`, que filtra tokens com `len < 4`).
