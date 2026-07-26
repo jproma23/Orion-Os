@@ -25,6 +25,7 @@ from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     Atender,
     IaEstrategica,
+    Mentor,
     Repouso,
     Vigilia,
     VigilanciaObstaculo,
@@ -270,16 +271,44 @@ async def principal() -> None:
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
             acoes_validas=tuple(conf_ia_estrategica["acoes_validas"]),
+            distancia_avanco_cm=conf_ia_estrategica.get("distancia_avanco_cm", 30.0),
+            velocidade_avanco_percent=conf_ia_estrategica.get("velocidade_avanco_percent", 40.0),
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
+        # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
+        # comportamento nao-reativo pode ultrapassar a prioridade da
+        # seguranca tatica - antes um valor mal digitado no orion.yaml
+        # nao tinha nenhuma barreira de codigo contra isso.
+        assert ia_estrategica.prioridade < VigilanciaObstaculo.prioridade, (
+            "behavior.ia_estrategica.prioridade nao pode ser >= "
+            "VigilanciaObstaculo.prioridade (seguranca nunca e arbitrada)"
+        )
         maestro.registrar(ia_estrategica)
         tarefa_ia_estrategica = ia_estrategica.iniciar()
+
+    conf_mentor = config.secao("behavior").get("mentor", {})
+    tarefa_mentor = None
+    if conf_mentor.get("habilitado"):
+        mentor = Mentor(
+            event_bus,
+            comm,
+            intervalo_s=conf_mentor["intervalo_s"],
+            acoes_validas=tuple(conf_mentor["acoes_validas"]),
+        )
+        mentor.prioridade = conf_mentor["prioridade"]
+        assert mentor.prioridade < VigilanciaObstaculo.prioridade, (
+            "behavior.mentor.prioridade nao pode ser >= "
+            "VigilanciaObstaculo.prioridade (seguranca nunca e arbitrada)"
+        )
+        maestro.registrar(mentor)
+        tarefa_mentor = mentor.iniciar()
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(
         "Behavior Core (maestro) ativo - comportamentos: repouso, atender, vigilia, "
-        "vigilancia_obstaculo%s",
+        "vigilancia_obstaculo%s%s",
         ", ia_estrategica" if tarefa_ia_estrategica is not None else "",
+        ", mentor" if tarefa_mentor is not None else "",
     )
 
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
@@ -304,7 +333,13 @@ async def principal() -> None:
 
     # 5. Interface web (Cap 13 s.4).
     conf_web = config.secao("display")["web"]
-    webui = WebUIServer(event_bus, port=conf_web["port"], memory_api=memory_api, config=config)
+    webui = WebUIServer(
+        event_bus,
+        port=conf_web["port"],
+        memory_api=memory_api,
+        config=config,
+        comm=comm,
+    )
     await webui.iniciar()
 
     registry.atualizar_estado(NOME_MODULO, EstadoModulo.RUNNING)
