@@ -150,16 +150,19 @@ async def test_monitorar_o_mesmo_peer_duas_vezes_nao_duplica():
     transporte = FakeTransporte()
     servico.adicionar_link("mission_core", transporte)
 
-    monitor = MonitorHeartbeat(servico, bus, intervalo_s=0.05, heartbeats_perdidos_limite=3)
+    # intervalo LONGO de proposito: a janela de sleep abaixo cabe dentro de
+    # um unico ciclo do laco, entao o que se conta e quantos heartbeats
+    # saem POR CICLO (1 se nao duplicou, 3 se duplicou) - e nao quantos
+    # ciclos couberam na janela.
+    monitor = MonitorHeartbeat(servico, bus, intervalo_s=1.0, heartbeats_perdidos_limite=3)
     monitor.monitorar("mission_core")
     monitor.monitorar("mission_core")  # "reconexao"
     monitor.monitorar("mission_core")  # outra
 
     assert monitor._peers == ["mission_core"]
 
-    # e na pratica: um unico heartbeat por ciclo, nao tres
     tarefa_monitor = asyncio.create_task(monitor.iniciar())
-    await asyncio.sleep(0.06)
+    await asyncio.sleep(0.05)
     monitor.parar()
     tarefa_monitor.cancel()
     try:
