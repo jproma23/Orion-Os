@@ -176,3 +176,71 @@ async def test_monitorar_o_mesmo_peer_duas_vezes_nao_duplica():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+class TransporteRastreado(FakeTransporte):
+    """FakeTransporte que conta envios feitos DEPOIS de fechado - e assim
+    prova que nenhum socket velho continua sendo usado (o sintoma real era
+    'socket.send() raised exception' repetido no log do Pi)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.enviou_apos_fechar = 0
+
+    async def enviar(self, payload: bytes) -> None:
+        if not self.conectado:
+            self.enviou_apos_fechar += 1
+        await super().enviar(payload)
+
+
+@pytest.mark.asyncio
+async def test_reconexoes_repetidas_nao_deixam_link_nem_heartbeat_orfao():
+    # Reproduz o ciclo real: _ao_conectar_notebook roda a CADA reconexao
+    # TCP e chama adicionar_link + monitorar. Antes das correcoes, cada
+    # volta deixava para tras um socket ESTABLISHED com sua tarefa de
+    # recepcao viva (37 observadas em 2026-07-19) e mais uma copia do peer
+    # na lista do heartbeat.
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    servico = ComunicacaoService("motion_core", bus)
+    monitor = MonitorHeartbeat(servico, bus, intervalo_s=1.0, heartbeats_perdidos_limite=3)
+
+    transportes: list[TransporteRastreado] = []
+    for _ in range(4):  # quatro "reconexoes" do Notebook
+        transporte = TransporteRastreado()
+        transportes.append(transporte)
+        servico.adicionar_link("mission_core", transporte)
+        monitor.monitorar("mission_core")
+        await asyncio.sleep(0.01)  # deixa a tarefa de fechamento rodar
+
+    antigos, atual = transportes[:-1], transportes[-1]
+
+    # 1. todo socket antigo foi realmente fechado; so o atual segue vivo
+    assert all(not t.conectado for t in antigos)
+    assert atual.conectado
+
+    # 2. sobra UMA tarefa de recepcao, e ela esta viva
+    assert len(servico._tarefas_recepcao) == 1
+    assert not servico._tarefas_recepcao["mission_core"].done()
+
+    # 3. heartbeat idempotente mesmo apos 4 reconexoes
+    assert monitor._peers == ["mission_core"]
+
+    # 4. um ciclo do monitor: exatamente 1 heartbeat, e no socket ATUAL
+    tarefa_monitor = asyncio.create_task(monitor.iniciar())
+    await asyncio.sleep(0.05)
+    monitor.parar()
+    tarefa_monitor.cancel()
+    try:
+        await tarefa_monitor
+    except asyncio.CancelledError:
+        pass
+    await bus.aguardar_fila_vazia()
+
+    assert len(atual.enviados) == 1, "deveria sair 1 heartbeat por ciclo, nao um por reconexao"
+    assert all(t.enviados == [] for t in antigos), "socket antigo nao pode receber envio"
+    assert all(t.enviou_apos_fechar == 0 for t in antigos)
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus
