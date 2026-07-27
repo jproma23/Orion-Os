@@ -3111,3 +3111,95 @@ calma):
   PARADO por mais que o robo gire, esse e o teste de qualidade); so entao a
   varredura de horizonte do EDR-0024; e os 3 bugs ALTOS ainda abertos
   (FOLLOW travando, SQLite concorrente, discovery com KeyError).
+
+## 2026-07-27 (noite - interface web ganha corpo, e dois bugs achados por ela)
+
+- **Bussola no barramento, enfim.** O scan de I2C do boot (feito na sessao
+  anterior) pagou: com o fio do MPU solto deu `i2c_total: 0` - barramento
+  VAZIO, nao modulo defeituoso. Apos o usuario refazer a ligacao,
+  `[0x1C, 0x68]`. Estado atual: `bussola_conectada: true`, rumo lendo,
+  `rumo_valido: false` porque ainda NAO foi calibrada.
+  - **Correcao de uma conclusao minha errada:** eu tinha afirmado que a
+    queda de 71uT para 18,9uT provava dado corrompido por falta de pull-ups.
+    Nao e isso. O `campo_ut` e calculado sobre o valor CRU, entao ele mede
+    "campo da Terra + offset do ferro" - e essa soma MUDA com a direcao. 18,9
+    a rumo ~63 graus e 70,7 a rumo ~217 sao a assinatura classica de
+    hard-iron grande, nao corrupcao. Offset estimado ~45uT contra ~26uT da
+    Terra.
+  - **O chassi de aluminio NAO e a fonte** (o usuario informou o material):
+    aluminio nao e ferromagnetico. A fonte sao os imas permanentes dos
+    NEMA17, que produzem campo mesmo desligados. Bom: offset fixo no
+    referencial do robo = calibravel. Ruim: aluminio tambem nao BLINDA, entao
+    o unico remedio contra o campo dos motores energizados e distancia
+    (mastro).
+
+- **BUG REAL - microfone: o robo ficou surdo SEM dar erro.** Sintoma: "IA nao
+  responde, robo nao ouve". O log mostrava OpenRouter em 200 OK o tempo todo
+  e ZERO linhas `ouvi (rms=...)`. Causa: a DV20 (webcam USB, que tem
+  microfone) saiu durante a montagem e os indices do sounddevice mudaram pela
+  TERCEIRA vez. Os candidatos `[1, 5, 0]` ficaram invalidos - so que o 5 e o
+  `default` do PulseAudio, que EXISTE e aceita ser aberto mas nao captura
+  nada. Sem excecao, sem crash-loop, servico `active`, robo surdo.
+  **Muito pior de diagnosticar que a falha de 24/07**, que ao menos derrubava
+  o servico. Corrigido para `[3, 4, 5]` (3 = USB Audio Device real) e o
+  padrao das 3 ocorrencias documentado no proprio yaml.
+
+- **Legenda no avatar**: `voice.response_started/finished` ja carregavam o
+  texto desde sempre, sem nenhum consumidor. Nao reusa o balao de frase curta
+  (some em 3,5s e resposta longa demora mais que isso) - a legenda persiste e
+  quem a encerra e o fim real da fala, com 2,5s de folga para ler.
+
+- **Interface web:** rosa dos ventos com seta vetorial (sem numeros, pedido
+  do usuario); mapa virou radar 360 com o arco frontal REAL de 30-150 graus
+  (era rotulado 0-180, prometendo cobertura que o servo nao alcanca) mais o
+  cone traseiro fixo desenhado com a abertura do feixe do HC-SR04; senha na
+  pagina CONFIGURACAO lida de `ORION_SENHA_CONFIG` em `config/secrets.env` -
+  NUNCA do codigo, porque o repositorio e publico; e joystick de controle
+  manual.
+  - Regra adotada nas telas: **nunca mostrar valor inventado como medida.**
+    `sem_eco` aparece como "sem eco" e nao como 517cm; rumo sem calibracao
+    aparece em vermelho.
+  - O `/comando` DESCARTAVA `velocidade_percent` - o firmware caia sempre em
+    50% e o joystick seria inutil. Corrigido, limitado por
+    `motion.max_speed_percent`.
+
+- **Telemetria em dois regimes** (ideia do usuario): parado manda o pacote
+  completo a cada 1s; andando, um pacote reduzido a cada 200ms. Motivo
+  medido: o pacote completo bloqueia `Serial.write` por 74ms e nesse tempo o
+  loop nao le o pino ECHO - o eco de um obstaculo a 30cm dura 1,7ms e cabe
+  inteiro dentro da cegueira, fazendo o sensor concluir "caminho livre".
+  **O regime de movimento ainda NAO foi validado**: o robo nunca se moveu.
+
+- **Instrumentacao: duas hipoteses minhas morreram, registradas para ninguem
+  repetir.** (1) Subir o I2C de 100k para 400kHz nao mudou nada (99,4 ->
+  99,3ms), logo nao era tempo de transferencia. (2) Aqueles 99ms eram em boa
+  parte ARTEFATO DO PROPRIO INSTRUMENTO - o timer envolvia a chamada da
+  bussola, que roda em toda volta do loop, somando o custo de se medir. Com
+  contadores separados: envio 74ms, IMU 3,6ms/leitura, bussola 3,0ms/leitura.
+  **O bloqueio e a telemetria, sozinha.**
+
+- **PENDENTE - achado do usuario no fim da sessao, nao corrigido:** o rele
+  dos motores (pino 12) fecha e o firmware pulsa STEP quase no mesmo
+  instante (`_configurarRoda` faz `ultimoPassoUs = micros()`). Mas o contato
+  do rele quica (~5-10ms) e o TB6600 leva alguns ms para acordar - entao os
+  primeiros passos de CADA movimento sao emitidos e nao executados, e o
+  firmware conta todos. Erro sistematico, sempre no mesmo sentido, pior que
+  patinacao. Correcao proposta: adiar o primeiro pulso em ~20ms apos
+  `_ligarRele()`, sem `delay()`. Medir depois comandando 1000 passos e
+  conferindo com o ultrassom contra a parede.
+
+- **Joystick nao moveu o robo** no primeiro teste (rodas no ar): `estado`
+  ficou em IDLE, `em_movimento: false`, nenhum pacote reduzido em 40s, e a
+  seguranca NAO estava bloqueando (frente livre a 174cm). O comando nao
+  chegou ao Mega. Diagnostico rapido para a proxima: o rele do pino 12 clica
+  ao arrastar o joystick? Se NAO clica, o problema e antes do Mega
+  (navegador / `/comando` / TCP / serial); se clica e a roda nao gira, e
+  alimentacao ou fiacao.
+
+- **Proximos passos:** atraso do rele (afeta toda a odometria); descobrir por
+  que o joystick nao moveu; tela dormindo + acordar por voz (e baixar a
+  cadencia da visao, que pesa mais na bateria que o backlight); calibrar a
+  bussola de verdade (exige motores); chat de duas vias; botao de desligar;
+  e o ar-condicionado Tuya/SmartLife via `tinytuya` local, esperando a
+  `Local Key` do iot.tuya.com - com carencia de 3 min no religamento, porque
+  compressor nao pode partir logo apos desligar.
