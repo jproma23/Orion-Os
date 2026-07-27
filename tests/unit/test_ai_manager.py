@@ -13,12 +13,21 @@ def ai_manager(tmp_path):
     return AiManager(caminho_prompt_sistema=caminho_prompt)
 
 
-def test_sem_contexto_usa_prompt_base(ai_manager):
-    assert ai_manager._montar_prompt_sistema(None) == "Voce e o Fofão."
+def test_sem_contexto_o_prompt_diz_o_que_nao_se_sabe(ai_manager):
+    """Ate 2026-07-25 este teste exigia que o prompt fosse SO a frase base.
+    O grounding (merge de 2026-07-26) mudou isso de proposito: mesmo sem
+    dado nenhum, o bloco de fatos entra dizendo "nao sei (sem registro)".
+    Campo ausente e convite a invencao - o modelo respondia "Sim, vi a Ana
+    passar!" sobre quem nunca viu (medido 2026-07-19, ver grounding.py)."""
+    prompt = ai_manager._montar_prompt_sistema(None)
+    assert "Voce e o Fofão." in prompt
+    assert "não sei (sem registro)" in prompt
 
 
-def test_contexto_vazio_usa_prompt_base(ai_manager):
-    assert ai_manager._montar_prompt_sistema({}) == "Voce e o Fofão."
+def test_contexto_vazio_o_prompt_diz_o_que_nao_se_sabe(ai_manager):
+    prompt = ai_manager._montar_prompt_sistema({})
+    assert "Voce e o Fofão." in prompt
+    assert "não sei (sem registro)" in prompt
 
 
 def test_contexto_com_pessoa_adiciona_ao_prompt(ai_manager):
