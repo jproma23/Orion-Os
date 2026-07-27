@@ -10,6 +10,7 @@ import pytest
 
 from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService, ErroComunicacao
+from orion.communication.transport import ErroTransporte
 from orion.kernel.event_bus import EventBus
 
 from conftest import FakeTransporte
@@ -283,6 +284,56 @@ async def test_roteamento_reassina_checksum_de_mensagem_do_firmware():
     assert encaminhada.checksum_valido()  # reassinada pelo roteador
     assert encaminhada.payload == {"uptime_ms": 123}
     assert encaminhada.id_referencia == "abc123"
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus
+
+
+# ---------------------------------------------------------------------------
+# Regressao 2026-07-27: ErroTransporte nao pode vazar cru de send()/request().
+#
+# ErroComunicacao e ErroTransporte herdam as duas de Exception e NENHUMA e
+# subclasse da outra. Enquanto `transporte.enviar()` levantava ErroTransporte
+# sem conversao, todo chamador que tratava ErroComunicacao corretamente morria
+# mesmo assim. Efeitos reais medidos: a navegacao ficava presa em FOLLOW para
+# sempre quando a serial caia no instante da perda do alvo, e o Motion Core
+# morria no boot se o Mega resetasse entre conectar() e o WHO_ARE_YOU.
+# ---------------------------------------------------------------------------
+
+
+class _TransporteQueMorreAoEnviar(FakeTransporte):
+    """Porta serial/TCP morta: aceita ser criada, mas falha no envio."""
+
+    async def enviar(self, payload: bytes) -> None:
+        raise ErroTransporte("Transporte serial nao conectado")
+
+
+@pytest.mark.asyncio
+async def test_send_converte_erro_transporte_em_erro_comunicacao():
+    bus = EventBus()
+    tarefa_bus = await _rodar_bus(bus)
+    servico = ComunicacaoService("mission_core", bus, max_retries=2, ack_timeout_ms=50)
+    servico.adicionar_link("motion_core", _TransporteQueMorreAoEnviar())
+
+    with pytest.raises(ErroComunicacao):
+        await servico.send("motion_core", {"acao": "STOP"})
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_request_converte_erro_transporte_em_erro_comunicacao():
+    """O caminho do WHO_ARE_YOU: aqui o vazamento matava o boot inteiro."""
+    bus = EventBus()
+    tarefa_bus = await _rodar_bus(bus)
+    servico = ComunicacaoService("mission_core", bus)
+    servico.adicionar_link("motion_core", _TransporteQueMorreAoEnviar())
+
+    with pytest.raises(ErroComunicacao):
+        await servico.request("motion_core", {"comando": "WHO_ARE_YOU"}, timeout_s=0.2)
 
     await servico.encerrar()
     bus.parar()

@@ -147,7 +147,22 @@ class ComunicacaoService:
         self._pendentes_ack[mensagem.id] = futuro
         try:
             for tentativa in range(1, self._max_retries + 1):
-                await transporte.enviar(mensagem.to_bytes())
+                try:
+                    await transporte.enviar(mensagem.to_bytes())
+                except ErroTransporte as erro:
+                    # O contrato de send() para quem chama e ErroComunicacao
+                    # (Cap 14 s.5). ErroTransporte e detalhe da camada de
+                    # transporte e nenhum modulo de aplicacao deveria conhecer.
+                    #
+                    # Deixar ele vazar cru fazia o chamador que tratava
+                    # ErroComunicacao CORRETAMENTE morrer mesmo assim - as duas
+                    # herdam de Exception e nenhuma e subclasse da outra. Achado
+                    # real (2026-07-27): com a serial caida no instante em que o
+                    # FOLLOW perdia o alvo, a task de monitoramento morria em
+                    # silencio e a navegacao ficava presa em FOLLOW para sempre.
+                    raise ErroComunicacao(
+                        f"Falha ao enviar para '{destino}': {erro}"
+                    ) from erro
                 try:
                     return await asyncio.wait_for(
                         asyncio.shield(futuro), timeout=self._ack_timeout_s
@@ -207,6 +222,16 @@ class ComunicacaoService:
         try:
             await transporte.enviar(mensagem.to_bytes())
             return await asyncio.wait_for(futuro, timeout=timeout_s)
+        except ErroTransporte as erro:
+            # Mesmo motivo do send(). Aqui o estrago era pior: o WHO_ARE_YOU da
+            # descoberta passa por aqui, e `_conectar_arduino` promete no proprio
+            # docstring que "nunca levanta excecao" - mas so pegava
+            # ErroComunicacao. Se o Mega resetasse na janela entre conectar() e o
+            # WHO_ARE_YOU, ErroTransporte subia ate o asyncio.run e MATAVA o
+            # Motion Core no boot.
+            raise ErroComunicacao(
+                f"Falha ao enviar pedido para '{destino}': {erro}"
+            ) from erro
         except asyncio.TimeoutError as erro:
             raise ErroComunicacao(
                 f"Sem resposta de '{destino}' em {timeout_s}s (msg_id={mensagem.id})"

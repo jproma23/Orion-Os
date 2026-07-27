@@ -245,8 +245,12 @@ class NavigationCore:
         if self._tarefa_follow is not None:
             self._tarefa_follow.cancel()
             self._tarefa_follow = None
-        await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+        # O modo muda ANTES do envio: o estado interno da navegacao nao pode
+        # depender de o Arduino estar plugado. Antes, se o send falhasse, o
+        # operador mandava PARAR, nao via erro nenhum, e o robo continuava
+        # registrado em FOLLOW/PATROL.
         await self._mudar_modo(ModoNavegacao.HOLD)
+        await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
 
     # ---------- MANUAL ----------
 
@@ -399,14 +403,23 @@ class NavigationCore:
                     try:
                         await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
                         await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
-                    except ErroComunicacao:
+                    except Exception:
+                        # `except Exception` de proposito, e nao so
+                        # ErroComunicacao: sair de FOLLOW e mais importante que
+                        # qualquer falha ao avisar o Arduino. Ficar preso em
+                        # FOLLOW e pior do que qualquer erro que apareca aqui -
+                        # o robo volta a girar atras da primeira pessoa que
+                        # aparecer, sem ter feito o STOP.
                         logger.exception(
                             "Falha ao enviar STOP/SCAN_FRONT ao perder o alvo do FOLLOW - "
                             "saindo do modo mesmo assim (o Arduino tem seu proprio timeout "
                             "reativo de comando)"
                         )
-                    await self._event_bus.publish("navigation.target_lost", {})
-                    await self._mudar_modo(ModoNavegacao.HOLD)
+                    finally:
+                        # No `finally` para que a saida do modo aconteca mesmo se
+                        # o publish ou o proprio except falharem.
+                        await self._event_bus.publish("navigation.target_lost", {})
+                        await self._mudar_modo(ModoNavegacao.HOLD)
                     return
         except asyncio.CancelledError:
             pass
