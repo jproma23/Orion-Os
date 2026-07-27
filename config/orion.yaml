@@ -23,7 +23,14 @@ communication:
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
   arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
     port: "auto"              # "auto" = descoberta via WHO_ARE_YOU (no Raspberry)
-    baud_rate: 115200
+    # 250000 desde 2026-07-27 (era 115200). O pacote de telemetria passa de
+    # 600 bytes e o buffer serial do Mega e de 64 - o firmware BLOQUEAVA ate
+    # 84ms por pacote esperando drenar, e nesse tempo ele nao le o eco do
+    # ultrassom (que dura 1,7ms a 30cm). Ver o comentario em
+    # firmware/hardware_core/src/main.cpp::setup.
+    # TEM que ser igual ao Serial.begin() do firmware - se so um lado mudar,
+    # o Mega fica mudo e a descoberta por WHO_ARE_YOU falha em todas as portas.
+    baud_rate: 250000
   ack_timeout_ms: 500
   max_retries: 3
   heartbeat_interval_s: 1.0

@@ -174,6 +174,13 @@ class ImuManager {
   bool conectado() const { return _conectado; }
   bool calibrado() const { return _calibrado; }
   float inclinacaoGraus() const { return _inclinacaoGraus; }
+  // Vetor cru da aceleracao (m/s^2). Existe para a BussolaManager compensar
+  // a inclinacao SEM fazer uma segunda leitura I2C da MPU6050 - o dado ja
+  // foi lido aqui a cada 50 ms, ler de novo so encheria o barramento e a
+  // volta do loop (ver loop_max_us em main.cpp).
+  float acelX() const { return _ax; }
+  float acelY() const { return _ay; }
+  float acelZ() const { return _az; }
   bool inclinacaoCritica() const { return _inclinacaoGraus > LIMITE_INCLINACAO_GRAUS; }
   // Verdadeiro durante JANELA_IMPACTO_MS apos o ultimo tranco detectado.
   bool impactoDetectado() const {

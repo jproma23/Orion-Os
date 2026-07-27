@@ -5,6 +5,7 @@
 
 #include <ArduinoJson.h>
 
+#include "bussola_manager.h"
 #include "dht_manager.h"
 #include "estado.h"
 #include "bateria_manager.h"
@@ -19,14 +20,15 @@ class TelemetryManager {
  public:
   TelemetryManager(MotorManager& motores, RadarManager& radar, ImuManager& imu, DhtManager& dht,
                     MaquinaDeEstados& estados, SensorUltrassonico& ultrassomTraseiro,
-                    BateriaManager& bateria)
+                    BateriaManager& bateria, BussolaManager& bussola)
       : _motores(motores),
         _radar(radar),
         _imu(imu),
         _dht(dht),
         _estados(estados),
         _ultrassomTraseiro(ultrassomTraseiro),
-        _bateria(bateria) {}
+        _bateria(bateria),
+        _bussola(bussola) {}
 
   void preencherPayload(JsonObject destino) {
     destino["estado"] = nomeEstado(_estados.atual());
@@ -38,10 +40,16 @@ class TelemetryManager {
     // foi exatamente essa confusao que manteve o robo parado por horas em
     // 2026-07-25. false = o pino ECHO nem chegou a subir apos o trigger.
     destino["frontal_sensor_ok"] = _radar.sensorFrontalRespondeu();
+    // `sem_eco` = a distancia acima NAO foi medida, e o teto de alcance
+    // reportado porque nada refletiu. Sem este campo, "517 cm valido" era
+    // indistinguivel de uma parede realmente a 517 cm - quem monta mapa
+    // precisa tratar um como DESCONHECIDO e o outro como obstaculo (EDR-0024).
+    destino["frontal_sem_eco"] = _radar.frontalSemEco();
 
     destino["distancia_traseira_cm"] = _ultrassomTraseiro.distanciaCm();
     destino["distancia_traseira_valida"] = _ultrassomTraseiro.leituraValida();
     destino["traseiro_sensor_ok"] = _ultrassomTraseiro.sensorRespondeu();
+    destino["traseiro_sem_eco"] = _ultrassomTraseiro.semEco();
 
     // Angulo para onde o radar aponta. Sem isto, a distancia frontal e um
     // numero sem significado (nao se sabe o que foi medido), e o mapa nunca
@@ -73,6 +81,21 @@ class TelemetryManager {
       destino["bateria_nivel"] = BateriaManager::nomeNivel(_bateria.nivel());
     }
 
+    // Bussola (QMC6310). `rumo_valido` separa "modulo ausente" de "presente
+    // mas ainda sem calibracao" - sem calibracao o rumo existe mas nao
+    // significa nada, e a fusao de sensores precisa saber a diferenca para
+    // nao corrigir a odometria com um numero inventado.
+    destino["bussola_conectada"] = _bussola.conectado();
+    if (_bussola.conectado()) {
+      destino["bussola_calibrada"] = _bussola.calibrada();
+      destino["bussola_calibrando"] = _bussola.calibrando();
+      destino["rumo_valido"] = _bussola.rumoValido();
+      destino["rumo_graus"] = _bussola.rumoGraus();
+      // Deveria ficar parado por mais que o robo gire - oscilacao grande
+      // aqui denuncia calibracao ruim ou motor ligado perto demais.
+      destino["campo_ut"] = _bussola.campoUt();
+    }
+
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
@@ -86,6 +109,7 @@ class TelemetryManager {
   MaquinaDeEstados& _estados;
   SensorUltrassonico& _ultrassomTraseiro;
   BateriaManager& _bateria;
+  BussolaManager& _bussola;
 };
 
 }  // namespace orion

@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "bateria_manager.h"
+#include "bussola_manager.h"
 #include "command_executor.h"
 #include "dht_manager.h"
 #include "encoder_manager.h"
@@ -48,9 +49,10 @@ orion::DhtManager dht;
 orion::BateriaManager bateria;
 orion::SafetyManager safety;
 orion::SensorUltrassonico ultrassomTraseiro;
+orion::BussolaManager bussola;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
 orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
-                                  bateria);
+                                  bateria, bussola);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 constexpr unsigned long INTERVALO_TELEMETRIA_MS = 500;
@@ -77,6 +79,32 @@ orion::Estado estadoAnterior = orion::Estado::BOOT;
 bool varrendoAnterior = false;
 
 JsonDocument g_payloadVazio;  // reutilizado para ACK/HEARTBEAT (sempre {})
+
+// DIAGNOSTICO DE I2C (2026-07-27). Motivo: a MPU6050 e a bussola QMC6310
+// dividem os pinos 20/21 e as duas apareceram mudas na telemetria
+// (`imu_conectado` e `bussola_conectada` ambos false). Sem enxergar o
+// barramento, "o modulo esta quebrado", "o endereco e outro" e "o barramento
+// nao sobe" sao indistinguiveis de fora - e cada um pede um conserto
+// diferente. Uma varredura unica no boot resolve a duvida com dado.
+constexpr uint8_t I2C_MAX_ENCONTRADOS = 4;
+uint8_t g_i2cEncontrados[I2C_MAX_ENCONTRADOS] = {0, 0, 0, 0};
+uint8_t g_i2cTotal = 0;
+
+void escanearI2c() {
+  // Faixa valida de enderecos de 7 bits (0x00-0x07 e 0x78-0x7F sao
+  // reservados pela especificacao do I2C). Um endereco "responde" quando o
+  // dispositivo puxa o ACK - nada e lido nem escrito, entao a varredura nao
+  // altera a configuracao de ninguem.
+  for (uint8_t endereco = 0x08; endereco < 0x78; endereco++) {
+    Wire.beginTransmission(endereco);
+    if (Wire.endTransmission() == 0) {
+      if (g_i2cTotal < I2C_MAX_ENCONTRADOS) {
+        g_i2cEncontrados[g_i2cTotal] = endereco;
+      }
+      g_i2cTotal++;
+    }
+  }
+}
 
 void enviarPayloadVazio(const char* tipo, const char* destino, const char* idReferencia = nullptr) {
   orion::enviarMensagem(Serial, tipo, destino, g_payloadVazio.as<JsonObjectConst>(), idReferencia);
@@ -139,6 +167,25 @@ void responderCalibrarImu(const char* origem, const char* idMsg) {
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
+// Comeca a calibracao da bussola e responde NA HORA, sem esperar os 25 s de
+// coleta. Tem que ser assim: o watchdog de 2 s reiniciaria o Mega se este
+// handler ficasse esperando, e a serial ficaria muda enquanto isso. Quem
+// pediu acompanha o fim pelos campos `bussola_calibrando`/`bussola_calibrada`
+// da telemetria, que sai a cada 500 ms.
+//
+// Durante a coleta o robo precisa GIRAR para todos os lados - quem comanda
+// isso e o Raspberry (regra 3: o Arduino nunca decide movimento sozinho).
+void responderCalibrarBussola(const char* origem, const char* idMsg) {
+  JsonDocument payload;
+  bool ok = bussola.iniciarCalibracao();
+  payload["ok"] = ok;
+  payload["duracao_ms"] = orion::DURACAO_CALIBRACAO_BUSSOLA_MS;
+  if (!ok) {
+    payload["erro"] = bussola.conectado() ? "calibracao_ja_em_andamento" : "bussola_desconectada";
+  }
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
 void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   const char* comando = msg["payload"]["comando"] | "";
 
@@ -162,6 +209,10 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   }
   if (strcmp(comando, "CALIBRATE_IMU") == 0) {
     responderCalibrarImu(origem, idMsg);
+    return;
+  }
+  if (strcmp(comando, "CALIBRATE_COMPASS") == 0) {
+    responderCalibrarBussola(origem, idMsg);
     return;
   }
 
@@ -204,7 +255,22 @@ void setup() {
   MCUSR = 0;
   wdt_disable();
 
-  Serial.begin(115200);
+  // 250000 e nao 115200 (2026-07-27). Dois motivos, os dois medidos:
+  //
+  // 1. TEMPO DE LOOP. O pacote de TELEMETRY passa de 600 bytes e o buffer de
+  //    saida do AVR e de 64 - `Serial.write` BLOQUEIA esperando drenar. A
+  //    87 us/byte isso dava picos de 84 ms na volta do loop (medido em
+  //    loop_max_us, com media de 79 us). Como o eco de um obstaculo a 30 cm
+  //    dura 1,7 ms, o robo ficava cego em rajadas: 84 ms perdidos a cada
+  //    500 ms de telemetria. A 250000 baud o mesmo pacote leva ~24 ms.
+  //
+  // 2. ERRO DO GERADOR DE BAUD. A 16 MHz, 250000 cai exato (UBRR=3, erro
+  //    0,0%); 115200 cai em UBRR=8 com 2,1% de erro. Ou seja, a taxa mais
+  //    alta e tambem a mais confiavel neste chip.
+  //
+  // O outro lado (communication.arduino.baud_rate em config/orion.yaml)
+  // TEM que bater - se um lado mudar sozinho, o Mega fica mudo.
+  Serial.begin(250000);
 
   // Timeout no barramento I2C do IMU (Cap 18 s.9, achado real da vistoria
   // de 2026-07-24): sem isso, um travamento de I2C (clock stretching
@@ -218,10 +284,19 @@ void setup() {
   Wire.begin();
   Wire.setWireTimeout(25000, true);
 
+  // Antes de qualquer manager tocar no barramento: retrato limpo de quem
+  // esta la de verdade (ver escanearI2c).
+  escanearI2c();
+
   motores.iniciar();
   encoders.iniciar();
   radar.iniciar();
   imu.iniciar();
+  // Depois da IMU de proposito: as duas dividem o barramento I2C (20/21) e
+  // a bussola usa o acelerometro dela para compensar inclinacao. Ausente e
+  // tolerado (Cap 6 s.8) - o retorno so vira `bussola_conectada: false` na
+  // telemetria.
+  bussola.iniciar();
   dht.iniciar();
   bateria.iniciar(pinos::BATERIA_SENSE);
   ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
@@ -292,6 +367,11 @@ void loop() {
     imu.atualizar();
   }
 
+  // Fora do bloco do IMU: a bussola tem ritmo proprio (100 ms) e ela mesma
+  // controla isso. Reaproveita a ultima leitura do acelerometro em vez de
+  // ler a MPU6050 de novo pelo I2C.
+  bussola.atualizar(imu.acelX(), imu.acelY(), imu.acelZ());
+
   bool acionouParadaAgora = safety.avaliar(motores, radar, imu, ultimoComandoRecebido);
   if (acionouParadaAgora) {
     bool ehObstaculo = strcmp(safety.motivo(), "obstaculo_frontal") == 0;
@@ -332,6 +412,15 @@ void loop() {
     // Tempo de volta do loop desde a ultima telemetria (ver comentario nas
     // globais). loop_max_us acima de ~1700 significa que ecos de obstaculo
     // proximo estao sendo perdidos.
+    // Resultado da varredura de I2C do boot (ver escanearI2c). Vai na
+    // telemetria por ser a unica janela que temos para o barramento - a
+    // serial e exclusiva do protocolo, entao nao ha como imprimir.
+    payload["i2c_total"] = g_i2cTotal;
+    JsonArray encontrados = payload["i2c_enderecos"].to<JsonArray>();
+    for (uint8_t i = 0; i < g_i2cTotal && i < I2C_MAX_ENCONTRADOS; i++) {
+      encontrados.add(g_i2cEncontrados[i]);
+    }
+
     payload["loop_max_us"] = loopMaxUs;
     payload["loop_media_us"] = loopVoltas > 0 ? (loopSomaUs / loopVoltas) : 0;
     loopMaxUs = 0;
