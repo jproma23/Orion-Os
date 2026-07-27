@@ -55,7 +55,17 @@ orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomT
                                   bateria, bussola);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
-constexpr unsigned long INTERVALO_TELEMETRIA_MS = 500;
+// DOIS REGIMES DE TELEMETRIA (2026-07-27, pedido do usuario a partir da
+// medicao): o pacote completo bloqueia a serial por 74 ms, e enquanto ela
+// bloqueia o loop nao le o ultrassom. Parado isso e inofensivo; andando e
+// perigoso, porque o eco perdido vira "caminho livre".
+//
+// Parado  -> pacote COMPLETO, devagar (1 s). Nada ali muda rapido.
+// Andando -> pacote REDUZIDO, rapido (200 ms). So o que seguranca e
+//            navegacao consomem, para o Pi receber dado fresco sem pagar
+//            a cegueira longa.
+constexpr unsigned long INTERVALO_TELEMETRIA_PARADO_MS = 1000;
+constexpr unsigned long INTERVALO_TELEMETRIA_MOVENDO_MS = 200;
 constexpr unsigned long INTERVALO_IMU_MS = 50;
 
 unsigned long ultimoHeartbeat = 0;
@@ -75,6 +85,28 @@ unsigned long loopAnteriorUs = 0;
 unsigned long loopMaxUs = 0;
 unsigned long loopSomaUs = 0;
 unsigned long loopVoltas = 0;
+
+// Instrumentacao dirigida (2026-07-27, segunda rodada). A primeira rodada
+// (loop_max_us) provou que a volta do loop estoura, mas nao QUEM estoura: a
+// troca de 115200 para 250000 baud derrubou o pico de 84ms para so 68ms,
+// contra os ~24ms que a conta do tempo de serial previa. Ou seja, a serial
+// e parcela e nao causa principal, e o resto seguia sem explicacao.
+//
+// Em vez de chutar de novo, cada suspeito passa a ser cronometrado
+// separadamente. `t_envio_us` mede a telemetria ANTERIOR (nao da para um
+// pacote informar o proprio tempo de envio); `t_i2c_us` acumula o que IMU e
+// bussola gastaram desde o ultimo pacote.
+unsigned long tempoEnvioAnteriorUs = 0;
+// Separados desde a terceira rodada: `t_i2c_us` junto acusava 99,4 ms por
+// janela de 500 ms, mas subir o barramento de 100 kHz para 400 kHz nao
+// mudou NADA (99,3 ms) - logo nao e tempo de transferencia, e espera. Com
+// IMU e bussola no mesmo numero nao dava para saber de quem era: 99,4/10
+// leituras da IMU = 9,94 ms, mas 99,4/5 leituras da bussola = 19,9 ms, e
+// os dois sao plausiveis. Contadores separados resolvem em uma gravacao.
+unsigned long tempoImuAcumuladoUs = 0;
+unsigned long tempoBussolaAcumuladoUs = 0;
+uint16_t leiturasImu = 0;
+uint16_t leiturasBussola = 0;
 orion::Estado estadoAnterior = orion::Estado::BOOT;
 bool varrendoAnterior = false;
 
@@ -282,6 +314,15 @@ void setup() {
   // "true" reinicia o periferico I2C automaticamente apos o timeout, sem
   // exigir reset do chip inteiro.
   Wire.begin();
+  // 400 kHz em vez dos 100 kHz padrao (2026-07-27). MEDIDO: com 100 kHz o
+  // I2C consumia 99,4 ms a cada 500 ms de telemetria (t_i2c_us) - 20% de
+  // todo o tempo do robo, com uma leitura da IMU levando ~10 ms. Tanto a
+  // MPU6050 quanto o QMC6310 suportam 400 kHz (fast mode) por datasheet.
+  // Enquanto o loop esta preso no I2C ele nao olha o pino ECHO do ultrassom,
+  // e o eco de um obstaculo a 30 cm dura 1,7 ms - perder essas janelas faz o
+  // sensor concluir "nada refletiu" e reportar caminho LIVRE (fail-open, o
+  // lado errado para falhar).
+  Wire.setClock(400000);
   Wire.setWireTimeout(25000, true);
 
   // Antes de qualquer manager tocar no barramento: retrato limpo de quem
@@ -364,13 +405,27 @@ void loop() {
 
   if (agora - ultimoImu >= INTERVALO_IMU_MS) {
     ultimoImu = agora;
+    unsigned long inicioUs = micros();
     imu.atualizar();
+    tempoImuAcumuladoUs += micros() - inicioUs;
+    leiturasImu++;
   }
 
-  // Fora do bloco do IMU: a bussola tem ritmo proprio (100 ms) e ela mesma
-  // controla isso. Reaproveita a ultima leitura do acelerometro em vez de
-  // ler a MPU6050 de novo pelo I2C.
-  bussola.atualizar(imu.acelX(), imu.acelY(), imu.acelZ());
+  {
+    // Fora do bloco do IMU: a bussola tem ritmo proprio (100 ms) e ela mesma
+    // controla isso. Reaproveita a ultima leitura do acelerometro em vez de
+    // ler a MPU6050 de novo pelo I2C. A maioria das chamadas retorna na hora
+    // (ainda nao deu o intervalo) - por isso `leituras_bussola` conta so as
+    // que custaram algo, senao a media ficaria diluida por milhares de
+    // retornos imediatos.
+    unsigned long inicioUs = micros();
+    bussola.atualizar(imu.acelX(), imu.acelY(), imu.acelZ());
+    unsigned long custo = micros() - inicioUs;
+    if (custo > 100) {  // 100us: separa leitura de verdade de retorno imediato
+      tempoBussolaAcumuladoUs += custo;
+      leiturasBussola++;
+    }
+  }
 
   bool acionouParadaAgora = safety.avaliar(motores, radar, imu, ultimoComandoRecebido);
   if (acionouParadaAgora) {
@@ -405,9 +460,22 @@ void loop() {
     enviarPayloadVazio("HEARTBEAT", "motion_core");
   }
 
-  if (agora - ultimaTelemetria >= INTERVALO_TELEMETRIA_MS) {
+  bool movendo = motores.emMovimento();
+  unsigned long intervaloTelemetria =
+      movendo ? INTERVALO_TELEMETRIA_MOVENDO_MS : INTERVALO_TELEMETRIA_PARADO_MS;
+
+  if (agora - ultimaTelemetria >= intervaloTelemetria) {
     ultimaTelemetria = agora;
     JsonDocument payload;
+    if (movendo) {
+      // Andando: so o essencial, e sem os campos de diagnostico abaixo -
+      // cada byte aqui e tempo de olho fechado para o ultrassom.
+      telemetria.preencherPayloadReduzido(payload.to<JsonObject>());
+      unsigned long inicioEnvioUs = micros();
+      orion::enviarMensagem(Serial, "TELEMETRY", "motion_core", payload.as<JsonObjectConst>());
+      tempoEnvioAnteriorUs = micros() - inicioEnvioUs;
+      return;  // nada de instrumentacao no caminho quente
+    }
     telemetria.preencherPayload(payload.to<JsonObject>());
     // Tempo de volta do loop desde a ultima telemetria (ver comentario nas
     // globais). loop_max_us acima de ~1700 significa que ecos de obstaculo
@@ -423,9 +491,24 @@ void loop() {
 
     payload["loop_max_us"] = loopMaxUs;
     payload["loop_media_us"] = loopVoltas > 0 ? (loopSomaUs / loopVoltas) : 0;
+    // Quanto o envio ANTERIOR desta mesma telemetria custou, e quanto o I2C
+    // (IMU + bussola) gastou desde entao. Somados ao resto do loop, dizem
+    // onde os ~50ms sem explicacao estao - ver o bloco das globais.
+    payload["t_envio_us"] = tempoEnvioAnteriorUs;
+    payload["t_imu_us"] = tempoImuAcumuladoUs;
+    payload["n_imu"] = leiturasImu;
+    payload["t_bussola_us"] = tempoBussolaAcumuladoUs;
+    payload["n_bussola"] = leiturasBussola;
     loopMaxUs = 0;
     loopSomaUs = 0;
     loopVoltas = 0;
+    tempoImuAcumuladoUs = 0;
+    tempoBussolaAcumuladoUs = 0;
+    leiturasImu = 0;
+    leiturasBussola = 0;
+
+    unsigned long inicioEnvioUs = micros();
     orion::enviarMensagem(Serial, "TELEMETRY", "motion_core", payload.as<JsonObjectConst>());
+    tempoEnvioAnteriorUs = micros() - inicioEnvioUs;
   }
 }
