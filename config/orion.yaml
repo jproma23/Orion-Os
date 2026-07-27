@@ -97,15 +97,23 @@ vision:
   pan_limits_degrees: [-80, 80]
   tilt_limits_degrees: [-30, 45]
   servo_max_speed_deg_s: 60
-  # CORRIGIDO 2026-07-27: estava 2, indice da 2a webcam USB - que foi
-  # DESCONECTADA fisicamente em 24/07. Com ela fora, so restou uma camera
-  # (indices 0 e 1 do OpenCV) e o indice 2 deixou de existir: "Camera index
-  # out of range (index is 2, must be less than 2)". A captura falhava, o
-  # VisionCore nunca recebia um quadro e o YOLOv8n parecia "nao funcionar" -
-  # sem erro visivel, porque o codigo tolera camera ausente de proposito
-  # (Cap 6 s.8) e so segue sem visao. Medido abrindo os 4 indices na mao:
-  # 0 e 1 abrem e leem quadro, 2 e 3 nao existem.
-  camera_indice_principal: 0   # webcam USB dedicada a visao (Cap 8 s.2)
+  # 2 = webcam USB DEDICADA a visao (DV20 USB, a que fica no pan/tilt).
+  # NAO trocar por 0: o 0 e a camera INTEGRADA do notebook, que e fixa na
+  # tampa e nao acompanha os servos - com ela o seguimento de pessoa nao
+  # funciona, por mais que a deteccao funcione.
+  #
+  # HISTORIA (2026-07-27, para ninguem repetir): a DV20 foi desconectada
+  # fisicamente em 24/07. Com ela fora, o indice 2 deixou de existir e a
+  # captura falhava com "Camera index out of range (index is 2, must be less
+  # than 2)" - o VisionCore nunca recebia quadro e o YOLOv8n parecia "nao
+  # funcionar". Falha em SILENCIO, porque o codigo tolera camera ausente de
+  # proposito (Cap 6 s.8). Cheguei a mudar para 0 achando que a config e que
+  # estava velha; ao reconectar a DV20 o log mostrou o contrario:
+  #     10:53:36  orion.vision.captura: Camera 2 aberta (640x480)
+  #     10:54:11  SENTINELA: 1 rosto(s) desconhecido(s) - alerta!
+  # O `conversar_fofao.py` reabre a camera em laco, entao ele pegou a DV20 no
+  # segundo em que ela foi plugada. A config estava certa; faltava o hardware.
+  camera_indice_principal: 2   # webcam USB dedicada a visao (Cap 8 s.2)
   camera_indice_luminosidade: 0 # camera integrada do notebook (estimativa de brilho)
   # NOTA: camera_indice_luminosidade nao e lido por nenhum codigo hoje
   # (verificado por grep em 2026-07-27) - e config morta, mantida so para
