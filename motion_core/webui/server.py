@@ -233,8 +233,42 @@ class WebUIServer:
                 },
                 status=400,
             )
+        payload: dict[str, Any] = {"comando": comando}
+
+        # Velocidade: ate 2026-07-27 este endpoint DESCARTAVA o que o cliente
+        # mandasse e o firmware caia no default de 50% - com joystick isso
+        # significa que empurrar pouco ou muito dava exatamente a mesma
+        # velocidade. Limitada pelo motion.max_speed_percent do orion.yaml
+        # (regra 6: o teto e config, nao numero no codigo) e por um piso,
+        # abaixo do qual o motor de passo tranca em vez de girar.
+        if "velocidade_percent" in corpo:
+            try:
+                velocidade = float(corpo["velocidade_percent"])
+            except (TypeError, ValueError):
+                return web.json_response({"erro": "velocidade_percent invalida"}, status=400)
+            teto = 100.0
+            if self._config is not None:
+                teto = float(self._config.secao("motion")["max_speed_percent"])
+            payload["velocidade_percent"] = max(
+                VELOCIDADE_MINIMA_PERCENT, min(velocidade, teto)
+            )
+
+        # Distancia so faz sentido no MOVE_DISTANCE, e o unico uso hoje e a
+        # re do joystick. Limitada em modulo: a re NAO tem seguranca reativa
+        # (o SafetyManager so olha o sensor frontal), entao cada pedido anda
+        # um pedaco curto e precisa ser repetido - soltar o joystick
+        # simplesmente para de repetir, e o robo para sozinho.
+        if comando == "MOVE_DISTANCE":
+            try:
+                distancia = float(corpo.get("distancia_cm", 0.0))
+            except (TypeError, ValueError):
+                return web.json_response({"erro": "distancia_cm invalida"}, status=400)
+            if distancia == 0.0:
+                return web.json_response({"erro": "distancia_cm obrigatoria"}, status=400)
+            payload["distancia_cm"] = max(-RE_MAXIMA_CM, min(distancia, RE_MAXIMA_CM))
+
         try:
-            await self._comm.send("hardware_core", {"comando": comando})
+            await self._comm.send("hardware_core", payload)
         except Exception as erro:  # noqa: BLE001
             # o Arduino pode estar ausente (Cap 6 s.8) ou recusar por seguranca
             return web.json_response({"erro": str(erro)}, status=502)

@@ -207,3 +207,143 @@ function conectar() {
 
 carregarEstadoInicial();
 conectar();
+
+// ---- Joystick de controle manual ----
+//
+// O robô é diferencial e o vocabulário do Hardware Core é DISCRETO
+// (MOVE_CONTINUOUS / TURN_LEFT / TURN_RIGHT / MOVE_DISTANCE), então o
+// joystick não é proporcional em dois eixos ao mesmo tempo: o eixo dominante
+// decide o verbo e a distância do centro decide a velocidade.
+//
+// Três proteções, e nenhuma é decorativa:
+//  1. SOLTAR = STOP na hora.
+//  2. Enquanto segurado, o comando é REPETIDO a cada 300ms. Não é enfeite: o
+//     firmware para sozinho se não receber comando por 5s (TIMEOUT_COMANDO_MS),
+//     então se o navegador travar ou o WiFi cair, o robô para por conta
+//     própria. O joystick depende disso de propósito.
+//  3. A ré usa MOVE_DISTANCE em passos curtos, nunca movimento contínuo - o
+//     SafetyManager só olha o sensor frontal, então andar de ré não tem
+//     nenhuma rede de segurança reativa.
+
+const jsBase = document.getElementById('joystick');
+const jsPunho = document.getElementById('joystick-punho');
+const jsStatus = document.getElementById('joystick-status');
+
+if (jsBase && jsPunho) {
+  const RAIO_MAX_PX = 62;      // quanto o punho anda antes de saturar
+  const ZONA_MORTA = 0.18;     // abaixo disso é tremor de dedo, não comando
+  const INTERVALO_REPETICAO_MS = 300;
+  const RE_PASSO_CM = 8;       // por pedido; o servidor limita em 15
+
+  let arrastando = false;
+  let ultimoComando = null;
+  let repeticao = null;
+
+  async function enviar(comando, extra = {}) {
+    try {
+      const resposta = await fetch('/comando', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comando, ...extra }),
+      });
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => ({}));
+        jsStatus.className = 'erro';
+        jsStatus.textContent = corpo.erro || `recusado (HTTP ${resposta.status})`;
+      }
+    } catch (e) {
+      jsStatus.className = 'erro';
+      jsStatus.textContent = 'sem resposta do robô';
+    }
+  }
+
+  function decidir(x, y) {
+    // y negativo = para cima na tela = frente
+    const magnitude = Math.min(1, Math.hypot(x, y));
+    if (magnitude < ZONA_MORTA) return null;
+    const velocidade = Math.round(20 + magnitude * 80);  // 20..100
+    if (Math.abs(y) >= Math.abs(x)) {
+      return y < 0
+        ? { comando: 'MOVE_CONTINUOUS', extra: { velocidade_percent: velocidade }, rotulo: 'frente' }
+        : { comando: 'MOVE_DISTANCE',
+            extra: { distancia_cm: -RE_PASSO_CM, velocidade_percent: velocidade },
+            rotulo: 're' };
+    }
+    return x > 0
+      ? { comando: 'TURN_RIGHT', extra: { velocidade_percent: velocidade }, rotulo: 'direita' }
+      : { comando: 'TURN_LEFT', extra: { velocidade_percent: velocidade }, rotulo: 'esquerda' };
+  }
+
+  function aplicar(x, y) {
+    jsPunho.style.transform = `translate(${x * RAIO_MAX_PX}px, ${y * RAIO_MAX_PX}px)`;
+    const decisao = decidir(x, y);
+
+    if (!decisao) {
+      pararRepeticao();
+      if (ultimoComando !== null) {
+        ultimoComando = null;
+        enviar('STOP');
+      }
+      jsStatus.className = '';
+      jsStatus.textContent = 'centro — robô parado';
+      return;
+    }
+
+    jsStatus.className = 'movendo';
+    jsStatus.textContent = `${decisao.rotulo} · ${decisao.extra.velocidade_percent}%`;
+
+    // A re é sempre reenviada (cada pedido anda um pedaço); os contínuos só
+    // quando o verbo muda, mais a repetição periódica que segura o timeout.
+    if (decisao.comando !== ultimoComando || decisao.comando === 'MOVE_DISTANCE') {
+      enviar(decisao.comando, decisao.extra);
+    }
+    ultimoComando = decisao.comando;
+
+    pararRepeticao();
+    repeticao = setInterval(() => enviar(decisao.comando, decisao.extra), INTERVALO_REPETICAO_MS);
+  }
+
+  function pararRepeticao() {
+    if (repeticao !== null) { clearInterval(repeticao); repeticao = null; }
+  }
+
+  function normalizar(evento) {
+    const r = jsBase.getBoundingClientRect();
+    const x = (evento.clientX - (r.left + r.width / 2)) / RAIO_MAX_PX;
+    const y = (evento.clientY - (r.top + r.height / 2)) / RAIO_MAX_PX;
+    const m = Math.hypot(x, y);
+    return m > 1 ? [x / m, y / m] : [x, y];  // satura na borda
+  }
+
+  function soltar() {
+    if (!arrastando) return;
+    arrastando = false;
+    jsBase.classList.remove('ativo');
+    jsPunho.style.transform = 'translate(0, 0)';
+    pararRepeticao();
+    ultimoComando = null;
+    jsStatus.className = '';
+    jsStatus.textContent = 'solto — robô parado';
+    enviar('STOP');
+  }
+
+  jsBase.addEventListener('pointerdown', (evento) => {
+    arrastando = true;
+    jsBase.classList.add('ativo');
+    jsBase.setPointerCapture(evento.pointerId);
+    aplicar(...normalizar(evento));
+  });
+  jsBase.addEventListener('pointermove', (evento) => {
+    if (arrastando) aplicar(...normalizar(evento));
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((tipo) =>
+    jsBase.addEventListener(tipo, soltar));
+  // Rede extra: perder o foco da aba com o dedo apertado não pode deixar o
+  // robô andando.
+  window.addEventListener('blur', soltar);
+
+  document.getElementById('botao-parar')?.addEventListener('click', () => {
+    soltar();
+    enviar('STOP');
+  });
+}

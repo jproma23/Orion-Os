@@ -233,3 +233,55 @@ dd {
   cursor: pointer;
 }
 .form-senha .erro-senha { color: var(--alerta); min-height: 1.2em; }
+
+/* ---- Joystick de controle manual ---- */
+
+.painel--joystick { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+.joystick {
+  position: relative;
+  width: 190px; height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #10151f 0%, var(--bg) 70%);
+  border: 1px solid var(--borda);
+  touch-action: none;        /* sem isto o arraste rola a pagina no celular */
+  cursor: grab;
+  user-select: none;
+}
+.joystick:active { cursor: grabbing; }
+
+.joystick-eixo { position: absolute; background: var(--borda); opacity: .6; }
+.joystick-eixo--v { left: 50%; top: 8%; bottom: 8%; width: 1px; }
+.joystick-eixo--h { top: 50%; left: 8%; right: 8%; height: 1px; }
+
+.joystick-punho {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 62px; height: 62px;
+  margin: -31px 0 0 -31px;
+  border-radius: 50%;
+  background: var(--acento);
+  box-shadow: 0 0 16px rgb(79 209 197 / .35);
+  transition: transform .12s ease-out;
+}
+.joystick.ativo .joystick-punho { transition: none; }
+
+#joystick-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-fraco);
+  text-align: center;
+  min-height: 1.3em;
+}
+#joystick-status.movendo { color: var(--acento); }
+#joystick-status.erro { color: var(--alerta); }
+
+.botao-parar {
+  width: 100%;
+  background: var(--alerta);
+  color: #1a0603;
+  border: 0; border-radius: 8px;
+  padding: 11px;
+  font: inherit; font-weight: 700; letter-spacing: .08em;
+  cursor: pointer;
+}
