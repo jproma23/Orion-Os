@@ -3203,3 +3203,105 @@ calma):
   e o ar-condicionado Tuya/SmartLife via `tinytuya` local, esperando a
   `Local Key` do iot.tuya.com - com carencia de 3 min no religamento, porque
   compressor nao pode partir logo apos desligar.
+
+## 2026-07-27 (vistoria das 3 maquinas + arquitetura em camadas do 1.0)
+
+- **Sessao na maquina Windows de controle**, por SSH no Pi (`10.20.20.196`) e no
+  Notebook (`10.20.20.195`). Nenhuma linha de codigo de producao alterada -
+  sessao de leitura, medicao e decisao de arquitetura.
+
+- **As 3 maquinas continuam iguais.** Pi e Notebook os dois em `c618237`,
+  `master`, arvore limpa. Medido, nao suposto: **424 testes passam no Notebook**;
+  **380 passam e 7 pulam no Pi**. Os 7 pulados sao `numpy`, `cv2` e `ollama`
+  ausentes - esta CERTO, visao e voz rodam no Notebook (regra 4). Firmware
+  compila: **RAM 45,5%, Flash 19,3%** (a bussola custou ~4,5 pontos de RAM
+  contra os 41% de 26/07).
+
+- **Tres pendencias "ALTAS" do journal ja estavam mortas.** Fui conferir no
+  codigo antes de caca-las:
+  - `discovery` com KeyError - `discovery.py:53` ja usa `.get()` com default;
+  - SQLite concorrente - `database.py:53` ja tem `asyncio.Lock()` compartilhado
+    mais modo WAL;
+  - FOLLOW travando - `navigation_core.py:403-422` ja tem `try/except/finally`
+    e sai do modo mesmo se o envio falhar.
+  Licao: pendencia em journal envelhece. Conferir no codigo antes de abrir
+  sessao de conserto.
+
+- **JOYSTICK: sao DOIS problemas, nao um.**
+
+  **(1) O comando e aceito, confirmado e jogado fora em silencio.** O firmware
+  manda o ACK ANTES de executar (`main.cpp:272-273`). Depois,
+  `command_executor.h:74` recusa todo comando de movimento enquanto
+  `safety.pararAtivo()` - e essa recusa nao avisa ninguem. O navegador recebe
+  `200 OK`, o joystick nao mostra erro, o robo nao anda. **O `/comando` da webui
+  tambem nao registra nada em log** - nao ha rastro de comando manual nenhum.
+  - A seguranca ESTAVA ativa: o `motion_core.log` tem **423 ciclos** de
+    "obstaculo a frente" / "obstaculo liberado", perfeitamente pareados, e
+    **ZERO varreduras** - entao nao e o ponto cego do SCAN_FRONT.
+  - **Hipotese (nao medida ainda, mas testavel barato):** o driver do HC-SR04 le
+    o pino ECHO por sondagem. A media do loop e 79us (otima), mas o envio da
+    telemetria BLOQUEIA o loop por ~24ms a cada 500ms. Se essa cegueira cair no
+    meio de um eco, o codigo perde a borda de SUBIDA e marca `_inicioEchoUs`
+    atrasado (`sensor_ultrassonico.h:38`) - a duracao medida sai CURTA DEMAIS e
+    174cm viram poucos centimetros, disparando `dist < 25`. O driver nao tem como
+    saber que perdeu a borda.
+  - **Correcao proposta:** comparar `_inicioEchoUs` com o instante do trigger e
+    DESCARTAR a leitura se a subida veio tarde demais (o HC-SR04 sobe em ~460us;
+    limite de ~1ms e seguro). Coerente com a regra ja adotada nas telas: nunca
+    tratar valor inventado como medida.
+
+  **(2) O modo manual nao existe de verdade** (achado a partir da observacao do
+  mantenedor de que o joystick e do modo manual e que nos demais o maestro deve
+  assumir). O `/comando` chama `self._comm.send("hardware_core", payload)` DIRETO
+  (`webui/server.py:271`) e pula inteiramente o `NavigationCore.executar_manual()`
+  - que existe (`navigation_core.py:257`) e faz o certo: muda o modo para MANUAL,
+  checa obstaculo na camada tatica e espera o robo ficar ocioso antes de empilhar
+  movimento. Consequencia: **o modo nunca vira MANUAL e o maestro nao sabe que
+  alguem assumiu o controle.** Conferidas as prioridades - nao existe
+  comportamento "manual" nenhum: vigilancia_obstaculo 100, atender 80, vigilia 60,
+  ia_estrategica 40, mentor 35, ronda 20, repouso 10. Falta um comportamento
+  manual de prioridade alta (abaixo so da seguranca) que preempte os autonomos
+  enquanto o joystick estiver em uso e devolva o controle ao solta-lo.
+
+- **Hipotese minha DESCARTADA, registrada para ninguem repetir:** suspeitei que a
+  geracao de passos estivesse limitada pela frequencia do loop (`motores.atualizar()`
+  roda 1x por volta e emite no maximo 1 pulso por roda). Com loop de 68-84ms isso
+  daria ~15 passos/s contra os 2000 pedidos. **Errado:** os 68-84ms sao o PICO
+  (`loop_max_us`); a MEDIA e 79us, que da teto de ~12.600 passos/s. Nao e gargalo.
+  O que sobra e gagueira: durante os ~24ms da telemetria nenhum passo sai, entao a
+  velocidade real fica um pouco abaixo da comandada - mas a distancia do
+  MOVE_DISTANCE nao se perde, porque o firmware conta os passos EMITIDOS.
+
+- **Arquitetura em camadas do 1.0 recebida do mantenedor** (Kernel / Core / API /
+  Desktop), mais uma cadeia de boot e uma tela de inicializacao. Registrada como
+  **EDR-0025**. Decisoes:
+  - **MQTT fora, definitivamente** (decisao do mantenedor: "ja temos uma
+    comunicacao criada que funciona"). Ele resolveria transporte de mensagens -
+    problema que `src/orion/communication/` ja resolve com CRC16 validado byte a
+    byte nas duas linguagens, ACK com 3 retransmissoes e heartbeat, e sem exigir
+    broker no ar (que empurraria contra o "100% offline"). Consequencia: a tela de
+    inicializacao **nao mostra `✓ MQTT`** - um ✓ verde num subsistema inexistente
+    e a mesma falha do "517cm valido", na tela mais visivel do robo.
+  - **ROS2 fora do 1.0**: traz event bus e transporte proprios, que o ORION ja
+    tem. Se entrar um dia, entra como ponte OPCIONAL na camada API.
+  - **"Orion Boot" e servico de aplicacao, nao bootloader.** No diagrama ele
+    aparecia entre a BIOS e o kernel do Linux - nessa posicao so cabe um GRUB, e
+    escrever um seria outro projeto sem ganho para o robo. O `boot.py` que ja
+    existe roda depois do Linux. A sensacao de "ORION OS inicializando" sai de um
+    tema de Plymouth mais os `.service` que ja estao em `tools/`.
+  - **A splash e dirigida por evento real**: cada ✓ acende quando o modulo
+    registra no Service Registry; modulo que falha aparece em vermelho em vez de
+    sumir. Barato, porque `boot.py` e o `ServiceRegistry` ja publicam isso.
+  - **Colisoes de nome a resolver**: "Mission Core" e o Notebook inteiro
+    (EDR-0018/0019) E um modulo do Core; "Vision Core" rotula o Notebook E e um
+    arquivo. Os nomes de hardware sao lei e nao mudam - modulo se cita pelo
+    arquivo, maquina pelo papel.
+  - **`src/orion/memory/` sai**: contem so um `__init__.py` de 0 byte; a memoria
+    real vive em `motion_core/memory/`, no Pi (regra 5). O stub manda quem segue o
+    diagrama para o lugar errado.
+
+- **Proximos passos:** (1) modo manual de verdade - e o que destrava o teste do
+  joystick; (2) descarte de leitura com borda perdida no HC-SR04, que para o falso
+  obstaculo; (3) atraso do rele (~20ms apos `_ligarRele()`), que afeta toda a
+  odometria; depois calibrar a bussola com o robo montado e so entao a varredura
+  do EDR-0024. GitHub segue em `73bf557`, agora bem atras.
