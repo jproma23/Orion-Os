@@ -207,3 +207,29 @@ dd {
   color: var(--texto-fraco);
   overflow-wrap: anywhere;
 }
+
+/* ---- Formulário de senha da página CONFIGURAÇÃO ---- */
+
+.form-senha { display: flex; flex-direction: column; gap: 10px; max-width: 280px; }
+.form-senha p { margin: 0; color: var(--texto-fraco); font-size: 12px; line-height: 1.5; }
+.form-senha input {
+  background: var(--bg);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 9px 11px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+}
+.form-senha input:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+.form-senha button {
+  background: var(--acento);
+  color: #08131a;
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.form-senha .erro-senha { color: var(--alerta); min-height: 1.2em; }

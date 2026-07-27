@@ -13,6 +13,11 @@ After=network.target
 
 [Service]
 WorkingDirectory=%h/orion-os
+# Segredos que NAO podem viver no repositorio (ele e publico no GitHub):
+# hoje so ORION_SENHA_CONFIG, a senha da pagina CONFIGURACAO. O "-" faz o
+# arquivo ser opcional - sem ele o servico sobe igual, apenas com o acesso
+# por senha desligado e a pagina restrita ao proprio Raspberry.
+EnvironmentFile=-%h/orion-os/config/secrets.env
 ExecStart=%h/orion-os/.venv/bin/python -u -m motion_core
 Restart=always
 RestartSec=5

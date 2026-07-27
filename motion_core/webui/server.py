@@ -13,8 +13,11 @@ conexao GET /eventos recebe os mesmos updates via Server-Sent Events.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
+import os
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -33,6 +36,15 @@ DIRETORIO_ESTATICO = Path(__file__).parent / "static"
 #: "acesso restrito") - a pedido do usuario, restrito ao proprio
 #: Raspberry, nem o resto da rede local ve essa pagina.
 ENDERECOS_LOCAIS = frozenset({"127.0.0.1", "::1"})
+
+#: Variavel de ambiente com a senha da pagina CONFIGURACAO. Vive em
+#: config/secrets.env (gitignored), NUNCA no codigo: este repositorio e
+#: publico no GitHub. Sem ela definida, o login por senha fica desligado e
+#: a pagina segue restrita ao proprio Raspberry.
+VARIAVEL_SENHA_CONFIG = "ORION_SENHA_CONFIG"
+COOKIE_SESSAO = "orion_sessao"
+#: teto de sessoes simultaneas - o robo tem um dono, nao mil.
+MAXIMO_SESSOES = 8
 
 #: topicos consumidos (Cap 13 s.7: system.*, motion.*, vision.*, voice.*,
 #: navigation.*, diagnostic.* - mais safety.*, que a Fusao de Sensores
@@ -170,6 +182,9 @@ class WebUIServer:
             "diagnostico": {"ultimos_erros": [], "modulos": {}},
         }
         self._eventos_recentes: list[dict[str, Any]] = []
+        #: tokens de sessao da pagina CONFIGURACAO (memoria apenas -
+        #: reiniciar o Motion Core desloga todo mundo, o que e desejavel)
+        self._sessoes: set[str] = set()
 
         self._app = web.Application()
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -183,6 +198,7 @@ class WebUIServer:
         self._app.router.add_get("/api/conversas", self._handler_api_conversas)
         self._app.router.add_get("/configuracao", self._handler_configuracao)
         self._app.router.add_get("/api/configuracao", self._handler_api_configuracao)
+        self._app.router.add_post("/api/configuracao/entrar", self._handler_login_configuracao)
         self._app.router.add_static("/", DIRETORIO_ESTATICO, show_index=False)
 
         for topico in TOPICOS_REPASSADOS:
@@ -269,16 +285,61 @@ class WebUIServer:
     def _acesso_local_permitido(request: web.Request) -> bool:
         return request.remote in ENDERECOS_LOCAIS
 
+    def _acesso_permitido(self, request: web.Request) -> bool:
+        """Do proprio Raspberry, ou com sessao aberta por senha.
+
+        O acesso local continua liberado sem senha de proposito: quem ja esta
+        no teclado do robo passou por uma barreira fisica, e exigir senha ali
+        so atrapalharia a manutencao.
+        """
+        if self._acesso_local_permitido(request):
+            return True
+        token = request.cookies.get(COOKIE_SESSAO)
+        return bool(token) and token in self._sessoes
+
+    async def _handler_login_configuracao(self, request: web.Request) -> web.Response:
+        """Abre sessao para a pagina CONFIGURACAO a partir da rede.
+
+        A senha vem de ORION_SENHA_CONFIG (config/secrets.env, gitignored) -
+        NUNCA do codigo: este repositorio e publico no GitHub, e uma senha
+        commitada esta publicada.
+
+        Sem a variavel definida, o login fica desligado e a pagina segue
+        restrita ao proprio Raspberry, como era antes.
+        """
+        senha_esperada = os.environ.get(VARIAVEL_SENHA_CONFIG, "")
+        if not senha_esperada:
+            return web.json_response(
+                {"erro": "acesso por senha nao configurado neste robo"}, status=403
+            )
+        try:
+            corpo = await request.json()
+        except Exception:
+            return web.json_response({"erro": "corpo precisa ser JSON"}, status=400)
+
+        # compare_digest em vez de "==": comparacao comum sai mais cedo na
+        # primeira letra errada, e esse tempo vaza a senha aos poucos.
+        if not hmac.compare_digest(str(corpo.get("senha", "")), senha_esperada):
+            return web.json_response({"erro": "senha incorreta"}, status=401)
+
+        token = secrets.token_urlsafe(32)
+        self._sessoes.add(token)
+        if len(self._sessoes) > MAXIMO_SESSOES:
+            self._sessoes.pop()  # teto simples: o robo tem um dono, nao mil
+        resposta = web.json_response({"ok": True})
+        resposta.set_cookie(
+            COOKIE_SESSAO, token, httponly=True, samesite="Strict", max_age=8 * 3600
+        )
+        return resposta
+
     async def _handler_configuracao(self, request: web.Request) -> web.StreamResponse:
-        # Cap 13 s.4: "CONFIGURACAO ... acesso restrito" - a pedido do
-        # usuario, restrito ao proprio Raspberry (nem o resto da rede
-        # local ve essa pagina, diferente das outras 4).
-        if not self._acesso_local_permitido(request):
-            return web.Response(status=403, text="Acesso restrito ao proprio Raspberry.")
+        # A PAGINA agora e sempre servida; quem exige credencial e a API de
+        # dados abaixo. Antes o 403 vinha antes do HTML carregar, e nao havia
+        # onde mostrar um campo de senha.
         return web.FileResponse(DIRETORIO_ESTATICO / "configuracao.html")
 
     async def _handler_api_configuracao(self, request: web.Request) -> web.Response:
-        if not self._acesso_local_permitido(request):
+        if not self._acesso_permitido(request):
             return web.json_response({"erro": "acesso restrito"}, status=403)
         if self._config is None:
             return web.json_response({"parametros": {}, "aviso": "configuracao nao disponivel"})
