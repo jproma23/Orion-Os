@@ -90,6 +90,18 @@ header {
 
 #fala.show { opacity: 1; }
 
+/* Legenda da fala do Fofao: maior e mais larga que o balao de frase curta.
+   Esta tela e vista de longe (kiosk na TV), entao 14px nao serve - o texto
+   da resposta inteira precisa ser legivel da distancia do sofa. */
+#fala.legenda {
+  font-size: clamp(18px, 2.6vw, 30px);
+  line-height: 1.35;
+  max-width: min(1000px, 92vw);
+  padding: 14px 26px;
+  bottom: 48px;
+  text-wrap: balance;
+}
+
 footer {
   position: fixed;
   left: 0; right: 0; bottom: 12px;

@@ -4,7 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Fofão — Fofão</title>
-<link rel="stylesheet" href="avatar.css" />
+<!-- ?v= e cache-bust: o Firefox do kiosk guardava o JS/CSS antigo e as
+     mudancas nao apareciam mesmo com o servidor entregando o arquivo novo
+     (achado real de 2026-07-20 na webui do Pi). Subir a data a cada
+     mudanca de avatar.js/avatar.css. -->
+<link rel="stylesheet" href="avatar.css?v=20260727" />
 <body>
 
 <div id="cena"></div>
@@ -23,6 +27,6 @@
 <footer>Fofão — Motion Core conectado ao Event Bus</footer>
 
 <script src="vendor/three.min.js"></script>
-<script src="avatar.js"></script>
+<script src="avatar.js?v=20260727"></script>
 </body>
 </html>

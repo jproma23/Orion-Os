@@ -169,8 +169,29 @@ let falaTimer = null;
 function dizer(txt, ms = 3500) {
   fala.textContent = txt;
   fala.classList.add('show');
+  fala.classList.remove('legenda');  // frase curta usa o balao pequeno
   clearTimeout(falaTimer);
   falaTimer = setTimeout(() => fala.classList.remove('show'), ms);
+}
+
+// Legenda do que o Fofao esta FALANDO agora (voice.response_started).
+//
+// Diferente de dizer(): NAO some sozinha depois de um tempo fixo. Uma
+// resposta longa leva mais que os 3,5s do balao para ser falada pelo Piper,
+// e a legenda sumindo no meio da fala e pior que nao ter legenda. Quem a
+// encerra e o proprio fim da fala (voice.response_finished).
+function legendar(txt) {
+  if (!txt) return;
+  clearTimeout(falaTimer);
+  fala.textContent = txt;
+  fala.classList.add('show', 'legenda');
+}
+
+// Folga apos o fim da fala: o audio acabou, mas quem esta lendo ainda
+// precisa de um instante para terminar a ultima linha.
+function encerrarLegenda(ms = 2500) {
+  clearTimeout(falaTimer);
+  falaTimer = setTimeout(() => fala.classList.remove('show', 'legenda'), ms);
 }
 
 function definirAlerta(ativo) {
@@ -204,6 +225,16 @@ function conectar() {
   fonte.addEventListener('voice.status', (evento) => {
     const dados = JSON.parse(evento.data);
     aplicarEstadoVoz(dados.estado);
+  });
+
+  // Legenda: aparece com o inicio da fala e sai um pouco depois do fim.
+  fonte.addEventListener('voice.response_started', (evento) => {
+    const dados = JSON.parse(evento.data);
+    legendar(dados.texto);
+  });
+
+  fonte.addEventListener('voice.response_finished', () => {
+    encerrarLegenda();
   });
 
   fonte.addEventListener('motion.pan_tilt', (evento) => {

@@ -23,6 +23,12 @@ DIRETORIO_ESTATICO = Path(__file__).parent / "static"
 #: system.*, motion.*, vision.*, voice.*, navigation.*, diagnostic.*)
 TOPICOS_REPASSADOS = (
     "voice.status",
+    # Legenda do que o FOFAO esta falando (2026-07-27). Os dois eventos ja
+    # carregavam o texto da resposta ({"texto": ...}, voice_core.py) desde
+    # sempre - so ninguem consumia. Nao confundir com mostrar o que o
+    # Whisper ouviu do usuario, que e outra ideia.
+    "voice.response_started",
+    "voice.response_finished",
     "motion.pan_tilt",
     "motion.status",
     "motion.obstacle_front",
