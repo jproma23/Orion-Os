@@ -162,13 +162,20 @@ async def test_marcha_a_re_anda_para_tras_em_vez_de_ser_descartada(cenario):
 
 @pytest.mark.asyncio
 async def test_re_so_de_um_lado_gira_para_o_outro(cenario):
-    """Re assimetrica tem que girar o robo, nao virar deslocamento fantasma."""
+    """Re assimetrica tem que girar o robo, nao virar deslocamento fantasma.
+
+    A orientacao publicada e normalizada para [0, 360), entao um giro
+    horario de 57,3 graus aparece como 302,7 - e o mesmo angulo, nao um
+    giro quase completo para o outro lado.
+    """
     await cenario.enviar_telemetria(passos_esquerda=2000, passos_direita=2000)
-    # so a direita recua -> gira no sentido horario (orientacao diminui)
+    # so a direita recua -> gira no sentido horario (orientacao DIMINUI)
     await cenario.enviar_telemetria(passos_esquerda=2000, passos_direita=800)
 
     assert len(cenario.posicoes) == 1
-    assert cenario.posicoes[0]["orientacao_graus"] < 0
+    recuo_direita_m = (800 - 2000) / CONFIG_MOTION["steps_per_meter"]
+    esperado_graus = math.degrees(recuo_direita_m / CONFIG_MOTION["wheel_base_m"]) % 360.0
+    assert cenario.posicoes[0]["orientacao_graus"] == pytest.approx(esperado_graus, rel=1e-3)
 
 
 # ---------- seguranca da IMU ----------
