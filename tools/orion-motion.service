@@ -17,5 +17,22 @@ ExecStart=%h/orion-os/.venv/bin/python -u -m motion_core
 Restart=always
 RestartSec=5
 
+# LOG EM ARQUIVO, e nao so no journal (achado real, 2026-07-27): o
+# systemd-journald do USUARIO esta inativo neste Pi, entao
+# `journalctl --user -u orion-motion.service` responde "No journal files were
+# found" e TUDO que o Motion Core imprime se perde. Ficamos sem saber por que
+# algo falhou - inaceitavel para as 72h de operacao continua que o projeto
+# persegue, em que a falha acontece de madrugada e ninguem esta olhando.
+#
+# `append:` (e nao `file:`) preserva o log entre reinicios do servico, que e
+# justamente quando ele mais importa: com Restart=always, um crash em laco
+# apagaria a propria evidencia a cada 5s.
+#
+# O diretorio precisa existir antes; o ExecStartPre garante isso numa
+# instalacao nova, sem exigir passo manual.
+ExecStartPre=/bin/mkdir -p %h/orion-os/data/logs
+StandardOutput=append:%h/orion-os/data/logs/motion_core.log
+StandardError=append:%h/orion-os/data/logs/motion_core.log
+
 [Install]
 WantedBy=default.target
