@@ -345,7 +345,25 @@ class WebUIServer:
                 "inclinacao_graus",
                 "aceleracao_g",
                 "impacto_detectado",
+                # Bussola QMC6310 (2026-07-27). `rumo_valido` importa tanto
+                # quanto o rumo: sem calibracao o valor existe mas nao
+                # significa nada, e a tela nao pode mostrar 217 graus como se
+                # fosse direcao de verdade.
+                "bussola_conectada",
+                "bussola_calibrada",
+                "bussola_calibrando",
+                "rumo_valido",
+                "rumo_graus",
+                "campo_ut",
+                # `sem_eco` separa "nada refletiu" de distancia medida - sem
+                # isto a tela mostra 517cm como se fosse parede (ver
+                # sensor_ultrassonico.h e EDR-0024).
+                "frontal_sem_eco",
+                "traseiro_sem_eco",
             ):
+                # `if campo in dados` tambem cobre o pacote REDUZIDO que o
+                # firmware manda com o robo em movimento: campo ausente
+                # mantem o ultimo valor conhecido em vez de zerar a tela.
                 if campo in dados:
                     hardware[campo] = dados[campo]
         elif topico == "safety.safe_mode_entered":
