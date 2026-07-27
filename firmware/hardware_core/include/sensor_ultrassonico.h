@@ -50,6 +50,16 @@ class SensorUltrassonico {
           unsigned long duracao = agora - _inicioEchoUs;
           _distanciaCm = duracao / 58.0f;  // formula padrao do HC-SR04
           _leituraValida = true;
+          _semEco = false;  // esta e uma medida de verdade, nao um chute
+          // BUG CORRIGIDO 2026-07-27: esta linha faltava. `_sensorRespondeu`
+          // so era ligado dentro de _foraDeAlcance(), entao um sensor que
+          // funciona PERFEITAMENTE - devolvendo eco de verdade toda leitura -
+          // reportava `sensor_ok: false` para sempre. Foi o que apareceu na
+          // telemetria de hoje: frontal em 173cm e traseiro em 102cm, os dois
+          // com leitura real, os dois marcados como sensor mudo. A bandeira
+          // que existe para denunciar sensor quebrado estava acusando os
+          // sensores bons.
+          _sensorRespondeu = true;
           // LATCH DE PRESENCA: um eco de verdade so acontece se existe um
           // modulo ligado e funcionando. A partir daqui sabemos que ele
           // ESTA la, e o silencio dele passa a significar "nada refletindo"
@@ -83,6 +93,11 @@ class SensorUltrassonico {
   //: false so quando o modulo nao respondeu ao trigger (defeito de verdade).
   //: "Nada dentro do alcance" NAO derruba isto - ver _foraDeAlcance.
   bool sensorRespondeu() const { return _sensorRespondeu; }
+  //: true quando a distancia atual NAO foi medida: o pulso saiu, nada voltou,
+  //: e o valor reportado e o teto de alcance (ver _foraDeAlcance). Existe
+  //: para que ninguem confunda esse numero com uma medicao - de fora, 517cm
+  //: "valido" era indistinguivel de uma parede realmente a 517cm.
+  bool semEco() const { return _semEco; }
 
  private:
   enum class Estagio { OCIOSO, AGUARDANDO_SUBIDA, AGUARDANDO_DESCIDA };
@@ -101,6 +116,9 @@ class SensorUltrassonico {
   // sensor ligado, e o conservador e assumir que nao (o robo fica parado
   // ate o primeiro eco confirmar que o modulo existe).
   bool _sensorRespondeu = false;
+  //: comeca true porque antes da primeira leitura nao existe eco nenhum - o
+  //: valor inicial de _distanciaCm (-1) tambem nao e medicao.
+  bool _semEco = true;
   //: fecha no primeiro eco de verdade e nunca mais abre - e a prova de que
   //: existe um modulo ligado nestes pinos. Ver _semResposta.
   bool _jaRespondeu = false;
@@ -137,9 +155,19 @@ class SensorUltrassonico {
   }
 
   void _foraDeAlcance(unsigned long agora) {
-    // leitura VALIDA de "nada por perto": o sensor respondeu, so nao ha eco
+    // "Nada por perto": o sensor respondeu, so nao ha eco.
+    //
+    // ATENCAO - este valor NAO E UMA MEDICAO. Ninguem mediu 517 cm; o pulso
+    // saiu, nada voltou, e o teto de alcance e reportado no lugar. Continua
+    // valendo como "livre" para a seguranca reativa DE PROPOSITO: tratar
+    // silencio como obstaculo travava o robo para sempre numa sala vazia
+    // (medido em 2026-07-25, 0 leituras validas em 10 amostras com o caminho
+    // livre). Mas o `_semEco` abaixo deixa isso explicito na telemetria, para
+    // que o mapa e a navegacao do Pi possam tratar como DESCONHECIDO em vez
+    // de engolir 517 cm como se fosse parede medida (EDR-0024).
     _distanciaCm = ALCANCE_MAXIMO_CM;
     _leituraValida = true;
+    _semEco = true;
     _sensorRespondeu = true;
     _ultimaLeituraUs = agora;
     _estagio = Estagio::OCIOSO;
