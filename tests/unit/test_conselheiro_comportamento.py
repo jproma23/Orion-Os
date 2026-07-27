@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,8 +20,25 @@ from orion.mission.conselheiro_comportamento import (
 OPCOES = ["repouso", "atender", "vigilia", "vigilancia_obstaculo"]
 
 
+class _RespostaFalsa:
+    """Imita o objeto devolvido pela OpenAI, que o código lê como
+    `resposta.choices[0].message.content`."""
+
+    def __init__(self, conteudo: str | None) -> None:
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=conteudo))]
+
+
 class _ClienteFalso:
-    """Substitui o Ollama: devolve o que o teste mandar, ou explode."""
+    """Substitui o cliente da IA: devolve o que o teste mandar, ou explode.
+
+    Imita a API da OpenAI/OpenRouter (`cliente.chat.completions.create`), que
+    é a que o `ConselheiroComportamento` usa desde o EDR-0021. Até o merge de
+    2026-07-27 este dublê imitava o Ollama (`cliente.generate`), herdado da
+    versão do GitHub - o resultado era um `AttributeError` engolido pelo
+    `except Exception` do `aconselhar()`, que virava "IA indisponível". Os
+    testes de falha passavam por acidente (esperavam `None` e recebiam `None`
+    pelo motivo errado); os de sucesso falhavam.
+    """
 
     def __init__(self, resposta: str | None = None, erro: Exception | None = None,
                  demora_s: float = 0.0) -> None:
@@ -28,31 +46,42 @@ class _ClienteFalso:
         self._erro = erro
         self._demora_s = demora_s
         self.opcoes_recebidas: list[str] | None = None
+        # Espelha a árvore de atributos do cliente real: cliente.chat.completions.create
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
-    def generate(self, **kwargs):
+    def _create(self, **kwargs):
         import time
 
         if self._demora_s:
             time.sleep(self._demora_s)
         if self._erro:
             raise self._erro
-        esquema = kwargs.get("format") or {}
+        # No Ollama o enum vinha em format["properties"]; no formato estruturado
+        # da OpenAI ele mora dentro de response_format["json_schema"]["schema"].
+        formato = kwargs.get("response_format") or {}
         self.opcoes_recebidas = (
-            esquema.get("properties", {}).get("comportamento", {}).get("enum")
+            formato.get("json_schema", {})
+            .get("schema", {})
+            .get("properties", {})
+            .get("comportamento", {})
+            .get("enum")
         )
-        return {"response": self._resposta}
+        return _RespostaFalsa(self._resposta)
 
 
 def _conselheiro(cliente: _ClienteFalso, timeout_s: float = 8.0) -> ConselheiroComportamento:
-    """Cria o conselheiro sem tocar no Ollama real.
+    """Cria o conselheiro sem falar com nenhuma IA de verdade.
 
-    O __init__ importa a lib `ollama` (que só existe no Notebook), então nos
-    testes o objeto é montado sem passar por ele.
+    O objeto é montado sem passar pelo `__init__` porque ele lê variáveis de
+    ambiente (chave de API). Injetar `_cliente` já pronto também impede que
+    `_chamar()` construa um `OpenAI()` real.
     """
     c = ConselheiroComportamento.__new__(ConselheiroComportamento)
-    c._modelo = "gemma3:1b"
+    c._modelo = "openai/gpt-4o-mini"
     c._temperatura = 0.3
     c._timeout_s = timeout_s
+    c._api_key = "chave-de-teste"
+    c._base_url = None
     c._cliente = cliente
     return c
 
