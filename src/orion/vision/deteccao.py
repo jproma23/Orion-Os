@@ -18,13 +18,26 @@ class Deteccao:
 class DetectorYolo:
     """Roda a inferencia YOLO (bloqueante) numa thread separada."""
 
-    def __init__(self, modelo: str = "yolov8n.pt", confianca_minima: float = 0.55) -> None:
+    def __init__(
+        self,
+        modelo: str = "yolov8n.pt",
+        confianca_minima: float = 0.55,
+        imgsz: int = 640,
+    ) -> None:
         self._modelo = YOLO(modelo)
         self._confianca_minima = confianca_minima
+        # Lado do quadrado para onde o YOLO reescala o quadro antes de inferir.
+        # NAO e a resolucao da camera: o frame chega em 640x480 e o modelo o
+        # reduz para imgsz x imgsz. Custo medido neste Notebook (CPU, sem GPU,
+        # 2026-07-27): 640 -> 258 ms/quadro (3,9 FPS), 320 -> 102 ms (10 FPS).
+        # O preco de baixar e perder alvo pequeno/distante - o objeto ocupa
+        # menos pixels na entrada do modelo. Para seguir pessoa em ambiente
+        # interno 320 basta; para enxergar longe, subir de volta.
+        self._imgsz = imgsz
 
     async def detectar(self, frame: np.ndarray) -> list[Deteccao]:
         def _inferir() -> list[Deteccao]:
-            resultado = self._modelo(frame, verbose=False)[0]
+            resultado = self._modelo(frame, imgsz=self._imgsz, verbose=False)[0]
             deteccoes = []
             for caixa in resultado.boxes:
                 confianca = float(caixa.conf[0])

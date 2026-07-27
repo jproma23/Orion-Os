@@ -180,6 +180,10 @@ class ModuloVisao:
             ),
             publicar_pan_tilt=self._publicar_pan_tilt or self._mover_servos,
             fps=self._conf["fps"],
+            # .get com default 640 para nao quebrar um orion.yaml antigo que
+            # ainda nao tenha a chave (o Pi e o Notebook nem sempre atualizam
+            # a config no mesmo instante).
+            imgsz=self._conf.get("yolo_imgsz", 640),
         )
 
 

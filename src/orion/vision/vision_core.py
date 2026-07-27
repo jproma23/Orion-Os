@@ -45,6 +45,7 @@ class VisionCore:
         reconhecedor: ReconhecedorFacial | None = None,
         timeout_alvo_perdido_s: float = 2.0,
         fps: float = 0.0,
+        imgsz: int = 640,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -55,7 +56,7 @@ class VisionCore:
         # modelo ficava fixo no default do DetectorYolo e a config era
         # ignorada - configuracao morta, contra a regra 6 do CLAUDE.md.
         self._detector = detector or DetectorYolo(
-            modelo=modelo_yolo, confianca_minima=confianca_minima
+            modelo=modelo_yolo, confianca_minima=confianca_minima, imgsz=imgsz
         )
         self._reconhecedor = reconhecedor or ReconhecedorFacial()
         self._rastreador = Rastreador(timeout_perdido_s=timeout_alvo_perdido_s)

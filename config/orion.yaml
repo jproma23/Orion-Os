@@ -77,6 +77,22 @@ vision:
   resolution: [640, 480]
   fps: 15
   yolo_model: "yolov8n"
+  # Lado do quadrado para onde o YOLO reescala o quadro antes de inferir.
+  # NAO e a resolucao da camera (essa e `resolution`, acima): o quadro chega
+  # em 640x480 e o modelo o reduz para imgsz x imgsz.
+  #
+  # Medido neste Notebook em 2026-07-27 (CPU, sem GPU - a placa e uma Intel
+  # UHD integrada, o torch nao acha CUDA):
+  #     imgsz=640 -> 258 ms/quadro  ( 3,9 FPS)
+  #     imgsz=320 -> 102 ms/quadro  (10,0 FPS)
+  # Usar os 4 nucleos em vez de 2 nao mudou nada (263 ms) - o gargalo e banda
+  # de memoria, nao paralelismo.
+  #
+  # 320 escolhido em 2026-07-27: com 640 o `fps: 15` pedido abaixo era
+  # inalcancavel (o teto real era 3,9). PRECO: alvo pequeno ou distante ocupa
+  # menos pixels na entrada do modelo e pode deixar de ser detectado. Se o
+  # Fofao parar de enxergar gente de longe, este e o primeiro numero a subir.
+  yolo_imgsz: 320
   confidence_threshold: 0.55
   pan_limits_degrees: [-80, 80]
   tilt_limits_degrees: [-30, 45]
