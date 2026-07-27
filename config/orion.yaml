@@ -156,7 +156,29 @@ voice:
   # (indice 3) e USB Audio Device (indice 4) - indices de audio mudam
   # conforme o que esta plugado, reconferir com sd.query_devices() se
   # o erro "Nenhum microfone candidato respondeu" voltar
-  microfones_candidatos_indices: [1, 5, 0]   # reconferido 2026-07-25: indices mudaram apos religar (3 e 4 viraram saidas HDMI)
+  # RECONFERIDO 2026-07-27 (terceira vez que isto muda - ver padrao abaixo).
+  # 3 = "USB Audio Device (hw:2,0)", o microfone USB de verdade, 1 canal.
+  # 4 = "pulse" e 5 = "default" ficam como reserva: existem quase sempre, mas
+  # podem capturar SILENCIO em vez de falhar, que e a armadilha desta secao.
+  #
+  # PADRAO QUE JA SE REPETIU 3 VEZES - leia antes de "consertar" isto:
+  # os indices do sounddevice mudam sempre que um dispositivo USB e plugado
+  # ou desplugado. Em 24/07 a 2a webcam saiu e os indices 0/1/5 viraram
+  # saidas HDMI (o servico entrava em crash-loop com "Nenhum microfone
+  # candidato respondeu"). Em 25/07 mudaram de novo ao religar. Em 27/07 a
+  # DV20 (webcam USB, que TEM microfone) foi desconectada durante a
+  # montagem e o indice 3 voltou a ser o mic USB.
+  #
+  # A falha de 27/07 foi PIOR de diagnosticar que a de 24/07, e vale saber
+  # por que: com o indice 5 ("default") na lista, o seletor encontra um
+  # dispositivo VALIDO que nao captura nada. Nao ha excecao, nao ha
+  # crash-loop, o servico fica `active` - e o robo simplesmente nunca ouve.
+  # Falha silenciosa. Sintoma: nenhuma linha "ouvi (rms=...)" no
+  # journalctl, enquanto o resto (IA, avatar, link com o Pi) segue normal.
+  #
+  # Como reconferir: .venv/bin/python -c "import sounddevice as sd; print(sd.query_devices())"
+  # e pegar o que tem max_input_channels > 0 E nome de hardware real.
+  microfones_candidatos_indices: [3, 4, 5]
   # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
   # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
   # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
