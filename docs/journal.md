@@ -2912,3 +2912,86 @@ calma):
   `SET_PAN_TILT`; `OBSTACLE_DETECTED` com o robo suspenso impedindo teste
   de motores; vault do Obsidian vazio; wake word ("FO FÃO" com espaco
   escapa do `DetectorFuzzy`, que filtra tokens com `len < 4`).
+
+## 2026-07-27 (as 3 linhas finalmente iguais + bussola identificada + odometria em projeto)
+
+- **Sessao rodando na maquina Windows de controle**, com SSH para o Notebook
+  (`10.20.20.195`) e o Pi (`10.20.20.196`). O IP do Pi voltou a ser o `.196`.
+- **O merge do GitHub estava na maquina ERRADA.** Uma sessao anterior o
+  resolveu no Windows, que **nao consegue rodar a suite** - o `.venv` da
+  pasta e Linux. Ou seja, 12.677 linhas foram fundidas sem um unico teste
+  executado, contrariando a regra "nenhuma resolucao sem compilar".
+  Preservado em vez de refeito: commitado como `3b031fc`, empurrado ao
+  Notebook por `git push notebook` (SSH, sem passar pelo GitHub) e validado
+  la. Nenhum marcador de conflito ficou no codigo (verificado arquivo a
+  arquivo antes de commitar).
+- **Achados soltos na arvore do Windows, commitados como `04ec281`**: o
+  pan/tilt com sinal invertido nos DOIS eixos (a camera FUGIA do alvo) e o
+  `SERIAL_RX_BUFFER_SIZE` de 256 para 512. Este segundo **fecha o "ACK
+  intermitente do SET_PAN_TILT"** que estava pendente: a mensagem ocupa 255
+  bytes com enquadramento e o buffer tinha 256 - cabia exatamente uma, sem
+  margem. Em rajada a segunda perdia bytes, o CRC falhava e o quadro era
+  descartado em SILENCIO. Falta validar no hardware.
+- **As 5 falhas de teste nao eram bugs de producao** (`007101f`): eram testes
+  vindos do GitHub descrevendo versoes anteriores do codigo.
+  - `test_conselheiro_comportamento` (3): o duble `_ClienteFalso` imitava o
+    Ollama (`cliente.generate`), mas o conselheiro usa a API da OpenAI desde
+    o EDR-0021. O `AttributeError` caia no `except Exception` e virava "IA
+    indisponivel". Efeito colateral que so apareceu agora: os testes de
+    FALHA **passavam por acidente** - esperavam `None` e recebiam `None`
+    pelo motivo errado, sem testar nada.
+  - `test_heartbeat_boot` (2): exigiam silencio eterno para quem nunca
+    conectou. A versao atual da carencia de N falhas e so depois reporta -
+    estritamente melhor. Entrou um teste novo provando que a carencia
+    termina, parte que nenhum teste cobria.
+  - **Nenhuma linha de codigo de producao foi alterada** para zerar as
+    falhas: 431 passando no Notebook.
+- **O Pi tinha uma QUARTA linha divergente**, criada depois de tudo que
+  havia sido reconciliado: branch `fix-trig-echo-2026-07-26` com 2 commits
+  que nao existiam em lugar nenhum (`790c41e` validacao fisica do ultrassom
+  frente/tras, `c5419c7` saida do SAFE_MODE). Puxar o master por cima os
+  teria apagado. Integrados por merge (`1ff4456`); unico conflito foi de
+  COMENTARIOS no `pins.h` - os valores dos pinos ja eram identicos dos dois
+  lados, porque a correcao do GitHub (20/07) e a validacao do Pi (26/07)
+  chegaram ao mesmo resultado por caminhos diferentes. Resolvido preservando
+  as DUAS evidencias (o teste de tapar o sensor e a leitura simultanea mais
+  a cacada da fiacao TRIG/ECHO invertida).
+- **Resultado: Windows, Notebook e Pi todos em `1ff4456`.** A divergencia
+  aberta em 2026-07-19 acabou. Firmware compila (RAM 41%, Flash 17,1%),
+  431 testes no Notebook e 387 (7 skipped) no Pi. Redes de seguranca:
+  `backup-master-antes-merge-2026-07-27` (Notebook) e
+  `backup-pi-antes-merge-2026-07-27` (Pi).
+- **Dependencia faltando no Pi:** as 3 falhas que sobraram la eram
+  `ModuleNotFoundError: No module named 'openai'` - o merge adicionou o
+  pacote ao `pyproject` mas o venv do Pi nao tinha. Instalado; 0 falhas.
+- **Saude do Pi apos desligamento abrupto de ontem a noite:** integro. O
+  "letras subindo na tela preta" que o usuario viu era o ext4 se recuperando
+  (`orphan cleanup on readonly fs`), o mecanismo funcionando. Nenhum
+  `EXT4-fs error`, nenhum remount read-only, nenhum I/O error. 432GB livres.
+- **Modulo desconhecido tirado de um drone, identificado:** e uma **bussola
+  QMC6310** (I2C `0x1C`, CHIPID `0x80`), NAO uma IMU - nao tem giroscopio,
+  acelerometro nem barometro. Testada numa WeMos D1 R1 a parte, lendo o campo
+  terrestre com valor fisicamente correto (~25 uT de amplitude na
+  calibracao, contra ~23 uT reais do Brasil). Projetos de teste em
+  `~/Desktop/i2c_detetive` e `~/Desktop/bussola_orion`. Aprendizados que
+  valem para a montagem no Fofao: motor DC/de passo perto distorce mais que
+  o campo da Terra e a distorcao MUDA com a rotacao (montar longe, tipo
+  mastro); a calibracao e especifica da instalacao, entao so vale a definitiva
+  com tudo montado; e sem acelerometro nao ha compensacao de inclinacao - por
+  isso ela deve dividir o barramento I2C com o MPU6050 (pinos 20/21 do Mega),
+  que ja esta la.
+- **EDR de odometria recebido do usuario** (encoder indutivo LM12-3004NA, 1
+  por roda, 6 chapas com 1 larga de indice). **Erro grave encontrado na
+  especificacao**: ela manda usar D2/INT0 e D3/INT1, que no `pins.h` sao
+  `STEP_ESQUERDO` e `DIR_ESQUERDO` - seguir o documento quebraria a tracao.
+  Correcao: **D18 e D19**, os unicos pinos de interrupcao livres do Mega
+  (2/3 sao motor, 20/21 sao I2C) - e que o proprio `encoder_manager.h` ja
+  reservava. Registrado tambem que 1 sensor por roda **nao mede sentido de
+  giro**, so conta pulsos; o sentido segue inferido do comando de motor, como
+  o proprio EDR admite na limitacao 1. Sentido real exige quadratura (2
+  sensores por roda), que e a v2.0 do documento.
+- **Proximos passos:** validar no hardware o buffer RX e o pan/tilt quando a
+  parte eletrica for remontada; implementar `encoder_manager` de verdade em
+  18/19; criar o `bussola_manager` para o QMC6310; os 3 bugs ALTOS ainda
+  abertos (FOLLOW travando, SQLite concorrente, discovery com KeyError); e o
+  `master` do GitHub, que segue em `73bf557` e ainda nao recebeu nada disso.
