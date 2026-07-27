@@ -106,6 +106,15 @@ function renderizarPosicao(posicao) {
   $('pos-orientacao').textContent = `${posicao.orientacao_graus}°`;
 }
 
+function fmtCm(v) {
+  return v === null || v === undefined ? '—' : `${Number(v).toFixed(1)} cm`;
+}
+
+function renderizarDistancias(frente, tras) {
+  $('dist-frente').textContent = fmtCm(frente);
+  $('dist-tras').textContent = fmtCm(tras);
+}
+
 async function carregarEstadoInicial() {
   const resposta = await fetch('/estado');
   const corpo = await resposta.json();
@@ -114,6 +123,10 @@ async function carregarEstadoInicial() {
     : '';
   redesenhar(corpo.estado.mapa);
   renderizarPosicao(corpo.estado.posicao);
+  renderizarDistancias(
+    corpo.estado.hardware.distancia_frontal_cm,
+    corpo.estado.hardware.distancia_traseira_cm,
+  );
 }
 
 function conectar() {
@@ -135,6 +148,10 @@ function conectar() {
   });
   fonte.addEventListener('motion.position', (evento) => {
     renderizarPosicao(JSON.parse(evento.data));
+  });
+  fonte.addEventListener('comm.mensagem.telemetry', (evento) => {
+    const t = JSON.parse(evento.data);
+    renderizarDistancias(t.distancia_frontal_cm, t.distancia_traseira_cm);
   });
 }
 

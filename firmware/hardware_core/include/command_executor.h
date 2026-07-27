@@ -163,8 +163,21 @@ class CommandExecutor {
       if (!_servoTilt.attached()) _servoTilt.attach(pinos::SERVO_TILT);
       float panGraus = payload["pan_graus"] | 0.0f;
       float tiltGraus = payload["tilt_graus"] | 0.0f;
-      _servoPan.write(constrain(SERVO_CENTRO_GRAUS + panGraus, 0, 180));
-      _servoTilt.write(constrain(SERVO_CENTRO_GRAUS + tiltGraus, 0, 180));
+      // SINAL INVERTIDO nos dois eixos (medido na bancada, 2026-07-26): os
+      // servos estao montados no sentido oposto ao do contrato. Com "+", o
+      // comando pan=+40 ("direita do robo") virava a camera para a ESQUERDA
+      // dele, e tilt=+30 ("cima") ABAIXAVA - as duas coisas confirmadas
+      // segurando uma posicao por 20s e olhando. Efeito: o seguimento de
+      // pessoa FUGIA do alvo em vez de persegui-lo (o Vision Core mandava
+      // "desce" e a camera subia).
+      //
+      // A correcao mora aqui, e nao no pan_tilt.py, porque quem descumpre o
+      // contrato do SET_PAN_TILT (positivo = direita/cima) e o firmware -
+      // ARQUITETURA.txt regra 3: a logica de controle dos servos fica
+      // encapsulada no Arduino. Assim a visao, o testar_pan_tilt.py e
+      // qualquer controle manual futuro ficam certos de uma vez so.
+      _servoPan.write(constrain(SERVO_CENTRO_GRAUS - panGraus, 0, 180));
+      _servoTilt.write(constrain(SERVO_CENTRO_GRAUS - tiltGraus, 0, 180));
       return true;
     }
 

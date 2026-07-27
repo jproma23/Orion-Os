@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 150" role="img"
+     aria-labelledby="rpi-t" fill="none" stroke="currentColor" stroke-width="2">
+  <title id="rpi-t">Raspberry Pi 4B, o Motion Core</title>
+
+  <!-- placa -->
+  <rect x="14" y="14" width="192" height="122" rx="6" opacity=".9"/>
+  <!-- furos de fixacao -->
+  <circle cx="26" cy="26" r="3.5" opacity=".5"/>
+  <circle cx="194" cy="26" r="3.5" opacity=".5"/>
+  <circle cx="26" cy="124" r="3.5" opacity=".5"/>
+  <circle cx="194" cy="124" r="3.5" opacity=".5"/>
+
+  <!-- barra de 40 pinos (GPIO) -->
+  <rect x="40" y="20" width="132" height="11" rx="2"/>
+  <g stroke-width="2.2" opacity=".55">
+    <path d="M45 25.5h3M53 25.5h3M61 25.5h3M69 25.5h3M77 25.5h3M85 25.5h3
+             M93 25.5h3M101 25.5h3M109 25.5h3M117 25.5h3M125 25.5h3M133 25.5h3
+             M141 25.5h3M149 25.5h3M157 25.5h3M165 25.5h3"/>
+  </g>
+
+  <!-- SoC -->
+  <rect x="84" y="56" width="38" height="38" rx="3"/>
+  <rect x="92" y="64" width="22" height="22" rx="1.5" opacity=".45"/>
+
+  <!-- RAM -->
+  <rect x="46" y="60" width="26" height="18" rx="2" opacity=".7"/>
+
+  <!-- USB duplo (direita) -->
+  <rect x="176" y="48" width="30" height="26" rx="2"/>
+  <path d="M176 61h30" opacity=".6"/>
+  <rect x="176" y="82" width="30" height="26" rx="2"/>
+  <path d="M176 95h30" opacity=".6"/>
+
+  <!-- ethernet -->
+  <rect x="176" y="114" width="30" height="22" rx="2" opacity=".8"/>
+
+  <!-- micro-HDMI e USB-C na borda de baixo -->
+  <rect x="44" y="128" width="18" height="8" rx="1.5" opacity=".7"/>
+  <rect x="72" y="128" width="18" height="8" rx="1.5" opacity=".7"/>
+  <rect x="100" y="128" width="12" height="8" rx="1.5" opacity=".7"/>
+
+  <!-- slot do cartao SD -->
+  <rect x="96" y="8" width="34" height="8" rx="1.5" opacity=".6"/>
+
+  <!-- leds -->
+  <circle cx="24" cy="60" r="2.6" fill="currentColor" stroke="none" opacity=".8"/>
+  <circle cx="24" cy="70" r="2.6" fill="currentColor" stroke="none" opacity=".4"/>
+</svg>

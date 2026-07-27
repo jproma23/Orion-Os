@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img"
+     aria-labelledby="nb-t" fill="none" stroke="currentColor" stroke-width="2">
+  <title id="nb-t">Notebook, o Mission Core e a cara do Fofao</title>
+
+  <!-- tampa e tela -->
+  <rect x="34" y="16" width="172" height="106" rx="7"/>
+  <rect x="46" y="28" width="148" height="82" rx="3" opacity=".45"/>
+
+  <!-- o rosto do Fofao na tela: dois olhos e um sorriso -->
+  <g stroke-linecap="round">
+    <circle cx="100" cy="60" r="8.5" fill="currentColor" stroke="none"/>
+    <circle cx="140" cy="60" r="8.5" fill="currentColor" stroke="none"/>
+    <path d="M98 84q22 16 44 0" stroke-width="3.5"/>
+  </g>
+
+  <!-- base do notebook -->
+  <path d="M14 122h212a0 0 0 0 1 0 0l-8 14a6 6 0 0 1-5 3H27a6 6 0 0 1-5-3l-8-14z"/>
+  <!-- trackpad sugerido pelo recorte central -->
+  <path d="M104 128h32" stroke-width="3" opacity=".55" stroke-linecap="round"/>
+
+  <!-- webcam -->
+  <circle cx="120" cy="22" r="2" fill="currentColor" stroke="none" opacity=".7"/>
+</svg>

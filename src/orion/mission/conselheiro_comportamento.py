@@ -4,7 +4,7 @@ A IA OPINA, AS REGRAS MANDAM
 ----------------------------
 Medido em 2026-07-19 com o gemma3:1b e saída estruturada: das 4 situações
 de teste, ele escolheu `repouso` em 3 - inclusive com obstáculo a 34 cm à
-frente, e ignorou um chamado direto da Marah. O schema garantiu resposta
+frente, e ignorou um chamado direto da Ana. O schema garantiu resposta
 VÁLIDA (nenhum nome inventado), mas não resposta CERTA.
 
 Por isso este módulo é um CONSELHEIRO e não um decisor:

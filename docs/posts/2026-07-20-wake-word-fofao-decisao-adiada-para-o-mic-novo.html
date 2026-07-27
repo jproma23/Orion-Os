@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wake word &quot;Fofão&quot; - decisao adiada para o mic novo — ORION OS</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1b19;--suave:#6b6560;--linha:#e3ded8;--realce:#b4501e}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#16151a;--fg:#e8e4de;--suave:#9c948c;--linha:#2e2c33;--realce:#e08a4e}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:44rem;margin:0 auto;padding:3rem 1.25rem 5rem}
+a{color:var(--realce)}
+header.topo{border-bottom:1px solid var(--linha);padding-bottom:1.5rem;margin-bottom:2.5rem}
+header.topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+header.topo p{margin:.4rem 0 0;color:var(--suave)}
+.data{color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+ul.indice{list-style:none;padding:0;margin:0}
+ul.indice li{padding:.9rem 0;border-bottom:1px solid var(--linha)}
+ul.indice a{font-weight:600;text-decoration:none}
+ul.indice a:hover{text-decoration:underline}
+article h2{font-size:1.5rem;margin:.2rem 0 1.5rem;letter-spacing:-.02em}
+article h3,article h4{margin:2rem 0 .5rem;font-size:1.05rem}
+article li{margin:.35rem 0}
+table{border-collapse:collapse;width:100%;margin:1.5rem 0;font-size:.92rem;
+  display:block;overflow-x:auto}
+th,td{border-bottom:1px solid var(--linha);padding:.55rem .7rem;text-align:left;
+  vertical-align:top}
+th{color:var(--suave);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+code{background:var(--linha);padding:.12em .35em;border-radius:4px;font-size:.88em}
+pre{background:var(--linha);padding:1rem;border-radius:8px;overflow-x:auto;font-size:.85rem}
+pre code{background:none;padding:0}
+.voltar{display:inline-block;margin-bottom:2rem;color:var(--suave);text-decoration:none}
+.capa{margin:0 0 2.5rem;border-radius:10px;overflow:hidden;line-height:0}
+.capa img{width:100%;height:auto;display:block}
+.hero{margin:0 0 2.5rem}
+.hero svg{width:100%;height:auto;color:var(--fg)}
+.hero figcaption{color:var(--suave);font-size:.85rem;text-align:center;margin-top:.6rem}
+.pecas{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));
+  gap:1.5rem;margin:0 0 3rem;padding:1.5rem 0;border-block:1px solid var(--linha)}
+.peca{margin:0;text-align:center}
+.peca svg{width:100%;max-width:11rem;height:auto;color:var(--fg);opacity:.9}
+.peca figcaption{color:var(--suave);font-size:.8rem;margin-top:.5rem}
+.peca b{display:block;color:var(--fg);font-size:.9rem}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));
+  gap:1.25rem;margin:0 0 3rem}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:15rem;object-fit:cover;border-radius:8px;
+  background:var(--linha);display:block}
+.galeria figcaption{color:var(--suave);font-size:.82rem;margin-top:.5rem}
+.secao{font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--suave);margin:0 0 1rem}
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--linha);
+  color:var(--suave);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="topo">
+  <h1><a href="../index.html" style="color:inherit;text-decoration:none">ORION OS</a></h1>
+  <p>Diario de bordo da construcao de um robo autonomo</p>
+</header>
+<a class="voltar" href="../index.html">&larr; todos os posts</a>
+<article>
+<p class="data">2026-07-20</p>
+<h2>wake word &quot;Fofão&quot; - decisao adiada para o mic novo</h2>
+<ul>
+<li><strong>Achado:</strong> <code>src/orion/voice/wake_word.py</code> faz casamento EXATO da palavra</li>
+ (<code>\b</code> sobre a transcricao). O Whisper erra fala curta com frequencia
+ (&quot;fofao&quot; -&gt; &quot;fofo&quot;, &quot;fofa&quot;, etc.), entao match exato deixa passar quem
+ chamou. A memoria do projeto dizia &quot;wake fuzzy&quot;, mas o codigo nunca teve
+ fuzzy - ficou so intencao.
+<li><strong>Descartado o fuzzy por similaridade</strong> (difflib com limiar). Motivo: o</li>
+ caso &quot;fogao&quot; da 0.80 de parecenca com &quot;fofao&quot;, igual a mishears legitimas
+ como &quot;fofau&quot; - nao da pra separar por limiar sem ou perder acerto ou
+ acordar o robo toda vez que alguem fala em fogao (palavra de cozinha,
+ dita toda hora).
+<li><strong>Decisao (do dono):</strong> manter match exato e apenas ACRESCENTAR a uma</li>
+ lista as formas que o Whisper realmente cospe errado. Controle palavra a
+ palavra; &quot;fogao&quot;/&quot;fulano&quot; nunca entram na lista de proposito.
+<li><strong>Adiado para 24/07 (missao de audio):</strong> a forma como o Whisper erra</li>
+ depende da voz + mic + ambiente. Montar a lista OUVINDO de verdade com o
+ mic USB novo, nao no chute. Fluxo: robo erra ao vivo -&gt; ver o que apareceu
+ na transcricao -&gt; adicionar aquela forma.
+<li><strong>Aberto:</strong> decidir se a lista fica em <code>config/orion.yaml</code> (editavel sem</li>
+ mexer no codigo) ou fixa no codigo.
+</ul>
+</article>
+<footer>Gerado a partir de <code>docs/journal.md</code> por
+<code>tools/build_blog.py</code>.</footer>
+</div>
+</body>
+</html>

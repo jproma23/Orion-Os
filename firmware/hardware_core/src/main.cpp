@@ -5,9 +5,10 @@
 // binario.
 //
 // Fiacao confirmada nesta montagem (guia de ligacao eletrica, atualizado
-// 2026-07-18): motores (pinos 2-6), ultrassom frontal fixo (22/23),
-// ultrassom traseiro (26/27), IMU I2C (20/21), DHT (24), servo do radar
-// (9) e servos pan/tilt (10/11). Encoders e LED continuam RESERVADOS -
+// 2026-07-20): motores (pinos 2-6), ultrassom frontal (26/27) e traseiro
+// (22/23) - CORRIGIDO 2026-07-20: estavam trocados, tapar o traseiro mexia
+// na distancia frontal; ver nota em pins.h. IMU I2C (20/21), DHT (24),
+// servo do radar (9) e servos pan/tilt (10/11). Encoders e LED RESERVADOS -
 // ver pins.h - ainda nao ligados fisicamente.
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -15,6 +16,7 @@
 #include <avr/wdt.h>
 #include <string.h>
 
+#include "bateria_manager.h"
 #include "command_executor.h"
 #include "dht_manager.h"
 #include "encoder_manager.h"
@@ -43,10 +45,12 @@ orion::EncoderManager encoders;
 orion::RadarManager radar;
 orion::ImuManager imu;
 orion::DhtManager dht;
+orion::BateriaManager bateria;
 orion::SafetyManager safety;
 orion::SensorUltrassonico ultrassomTraseiro;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
-orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro);
+orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
+                                  bateria);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 constexpr unsigned long INTERVALO_TELEMETRIA_MS = 500;
@@ -118,6 +122,20 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
   payload["uptime_ms"] = millis();
   payload["em_movimento"] = motores.emMovimento();
   payload["imu_conectado"] = imu.conectado();
+  payload["imu_calibrado"] = imu.calibrado();
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
+// Congela a orientacao atual como "nivelado" (grava na EEPROM). O robo
+// precisa estar parado e nivelado na hora - ver imu_manager.h.
+void responderCalibrarImu(const char* origem, const char* idMsg) {
+  JsonDocument payload;
+  bool ok = imu.calibrar();
+  payload["ok"] = ok;
+  payload["inclinacao_graus"] = imu.inclinacaoGraus();
+  if (!ok) {
+    payload["erro"] = imu.conectado() ? "leitura_invalida" : "imu_desconectado";
+  }
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
@@ -130,6 +148,20 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   }
   if (strcmp(comando, "RETURN_STATUS") == 0) {
     responderReturnStatus(origem, idMsg);
+    return;
+  }
+  if (strcmp(comando, "SET_IMPACT_THRESHOLD") == 0) {
+    JsonDocument payload;
+    float limite = msg["payload"]["limite_g"] | 0.0f;
+    bool ok = imu.definirLimiteImpacto(limite);
+    payload["ok"] = ok;
+    payload["limite_g"] = imu.limiteImpactoG();
+    if (!ok) payload["erro"] = "fora_da_faixa_valida_1.05_a_7.5";
+    orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+    return;
+  }
+  if (strcmp(comando, "CALIBRATE_IMU") == 0) {
+    responderCalibrarImu(origem, idMsg);
     return;
   }
 
@@ -191,6 +223,7 @@ void setup() {
   radar.iniciar();
   imu.iniciar();
   dht.iniciar();
+  bateria.iniciar(pinos::BATERIA_SENSE);
   ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
 
   // AUTOTESTE DE PRESENCA DO ULTRASSOM (2026-07-25).
@@ -250,6 +283,7 @@ void loop() {
   radar.atualizar();
   ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
+  bateria.atualizar();
 
   unsigned long agora = millis();
 
