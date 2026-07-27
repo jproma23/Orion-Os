@@ -120,6 +120,63 @@ dd {
   grid-column: 1 / -1;
 }
 
+/* ---- Rosa dos ventos ---- */
+
+.painel--bussola { display: flex; flex-direction: column; align-items: center; }
+
+#rosa-ventos {
+  width: 100%;
+  max-width: 230px;
+  height: auto;
+  display: block;
+}
+
+.rosa-aro { fill: none; stroke: var(--borda); stroke-width: 2; }
+.rosa-aro-fino { fill: none; stroke: var(--borda); stroke-width: 1; opacity: .5; }
+.rosa-eixo { fill: var(--texto-fraco); }
+
+.rosa-marca { stroke: var(--texto-fraco); stroke-width: 1; opacity: .55; }
+.rosa-marca--cardeal { stroke: var(--texto-fraco); stroke-width: 2; opacity: .9; }
+
+.rosa-letras text {
+  fill: var(--texto-fraco);
+  font-size: 13px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  letter-spacing: .06em;
+}
+/* O Norte e a referencia de tudo - merece destaque sobre os outros. */
+.rosa-letras text:first-child { fill: var(--texto); font-weight: 700; }
+
+/* A agulha gira; a transicao evita o salto seco entre duas leituras.
+   `transform-box: fill-box` nao serve aqui: a rotacao e em torno da origem
+   do viewBox (0,0), que e o centro da rosa. */
+#rosa-agulha { transition: transform .35s ease-out; }
+
+.agulha-ponta { fill: var(--acento); }
+.agulha-cauda { fill: var(--texto-fraco); opacity: .55; }
+
+/* Sem calibracao a direcao nao vale: a agulha fica em cor de alerta e
+   semitransparente, para ninguem confiar nela sem precisar ler aviso. */
+#rosa-ventos.crua .agulha-ponta { fill: var(--alerta); opacity: .75; }
+#rosa-ventos.crua .agulha-cauda { opacity: .3; }
+#rosa-ventos.ausente { opacity: .25; }
+#rosa-ventos.ausente #rosa-agulha { display: none; }
+
+#bus-aviso {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--texto-fraco);
+  min-height: 1.4em;
+}
+#bus-aviso.alerta { color: var(--alerta); }
+
+@media (prefers-reduced-motion: reduce) {
+  #rosa-agulha { transition: none; }
+}
+
 #lista-eventos {
   list-style: none;
   margin: 0;

@@ -84,8 +84,24 @@ COMANDOS_PERMITIDOS = frozenset(
         "LIGHT_OFF",
         "FAN_ON",
         "FAN_OFF",
+        # Entrou com o joystick (2026-07-27): e a UNICA forma de dar re.
+        # O firmware nao tem "MOVE_BACKWARD" continuo - `andarDistancia`
+        # com distancia NEGATIVA e o caminho da re (motor_manager.h). Usar
+        # distancia limitada em vez de movimento continuo tambem e mais
+        # seguro aqui: a re NAO tem seguranca reativa (o SafetyManager so
+        # olha o sensor frontal), entao um comando continuo dependeria de
+        # alguem lembrar de mandar STOP.
+        "MOVE_DISTANCE",
     }
 )
+
+#: Teto de re por comando. A re nao e coberta pela seguranca reativa do
+#: Mega, entao cada pedido anda um pedaco curto e precisa ser repetido -
+#: soltar o joystick simplesmente para de repetir.
+RE_MAXIMA_CM = 15.0
+
+#: Piso de velocidade: abaixo disto o motor de passo tranca em vez de girar.
+VELOCIDADE_MINIMA_PERCENT = 20.0
 
 #: quantas conversas mostrar na pagina CONVERSA por padrao (Cap 13 s.4)
 CONVERSAS_PADRAO = 30

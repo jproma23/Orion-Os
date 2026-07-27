@@ -53,61 +53,92 @@ function renderizarEstado(estado) {
   // sao mostrados neste dashboard simplificado.
 }
 
-const PONTOS_CARDEAIS = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+// ---- Rosa dos ventos ----
+//
+// Rosa FIXA (Norte sempre em cima) e seta girando: a seta aponta para onde o
+// robo esta virado. A alternativa - girar a rosa e travar a seta - confunde
+// mais do que ajuda em tela de dashboard, onde quem olha quer saber "para
+// onde ele esta olhando em relacao ao Norte".
+//
+// Sem numeros nem angulos escritos, de proposito: o desenho comunica direto.
 
-function pontoCardeal(graus) {
-  return PONTOS_CARDEAIS[Math.round(graus / 45) % 8];
+function desenharMarcasDaRosa() {
+  const grupo = document.getElementById('rosa-marcas');
+  if (!grupo || grupo.childElementCount) return;  // ja desenhadas
+  for (let graus = 0; graus < 360; graus += 15) {
+    const cardeal = graus % 45 === 0;
+    const risco = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    risco.setAttribute('x1', '0');
+    risco.setAttribute('y1', '-88');
+    risco.setAttribute('x2', '0');
+    risco.setAttribute('y2', cardeal ? '-78' : '-83');
+    risco.setAttribute('transform', `rotate(${graus})`);
+    risco.setAttribute('class', cardeal ? 'rosa-marca rosa-marca--cardeal' : 'rosa-marca');
+    grupo.appendChild(risco);
+  }
 }
 
-// Bussola QMC6310. A regra desta tela: NUNCA mostrar um rumo como se fosse
-// direcao confiavel enquanto `rumo_valido` for falso. Sem calibracao o
-// numero existe (o sensor esta lendo), mas ele carrega o offset do ferro do
-// robo junto - os imas permanentes dos motores de passo sao a maior fonte,
-// nao o chassi, que e de aluminio e nao e ferromagnetico.
+// Caminho mais curto entre dois rumos. Sem isto, ir de 350 para 10 graus faz
+// a agulha girar 340 graus para tras em vez de 20 para frente - fica feio e
+// da impressao de leitura errada. Acumula o giro num contador continuo.
+let rumoAcumulado = 0;
+let rumoAnterior = null;
+
+function rotacaoContinua(rumo) {
+  if (rumoAnterior === null) {
+    rumoAnterior = rumo;
+    rumoAcumulado = rumo;
+    return rumoAcumulado;
+  }
+  let delta = rumo - rumoAnterior;
+  while (delta > 180) delta -= 360;
+  while (delta < -180) delta += 360;
+  rumoAcumulado += delta;
+  rumoAnterior = rumo;
+  return rumoAcumulado;
+}
+
 function atualizarBussola(hardware) {
+  desenharMarcasDaRosa();
+
+  const rosa = document.getElementById('rosa-ventos');
+  const agulha = document.getElementById('rosa-agulha');
+  const aviso = $('bus-aviso');
+  if (!rosa || !agulha) return;
+
   const conectada = hardware.bussola_conectada;
+  rosa.classList.remove('crua', 'ausente');
+  aviso.classList.remove('alerta');
 
   if (conectada === undefined || conectada === null) {
-    $('bus-rumo').textContent = '—';
-    $('bus-campo').textContent = '—';
-    $('bus-estado').textContent = 'sem telemetria';
+    rosa.classList.add('ausente');
+    aviso.textContent = 'sem telemetria';
     return;
   }
 
   if (!conectada) {
-    $('bus-rumo').textContent = '—';
-    $('bus-campo').textContent = '—';
-    $('bus-estado').textContent = 'desconectada (não respondeu no I2C 0x1C)';
+    rosa.classList.add('ausente');
+    aviso.classList.add('alerta');
+    aviso.textContent = 'desconectada — não respondeu no I2C 0x1C';
     return;
   }
 
   const rumo = hardware.rumo_graus;
-  const temRumo = rumo !== undefined && rumo !== null;
-
-  if (hardware.bussola_calibrando) {
-    $('bus-estado').textContent = 'calibrando — gire o robô';
-    $('bus-rumo').textContent = 'aguardando calibração';
-  } else if (hardware.rumo_valido && temRumo) {
-    $('bus-estado').textContent = 'calibrada';
-    $('bus-rumo').textContent = `${rumo.toFixed(1)}° ${pontoCardeal(rumo)}`;
-  } else {
-    $('bus-estado').textContent = 'NÃO calibrada — rode CALIBRATE_COMPASS';
-    // mostra o valor cru, mas marcado: some quem acha que ja e direcao boa
-    $('bus-rumo').textContent = temRumo
-      ? `${rumo.toFixed(1)}° (cru, não confiável)`
-      : '—';
+  if (rumo !== undefined && rumo !== null) {
+    agulha.setAttribute('transform', `rotate(${rotacaoContinua(rumo).toFixed(1)})`);
   }
 
-  // O campo tem que ficar PARADO por mais que o robo gire - e o melhor teste
-  // de qualidade que existe. No Brasil o campo da Terra e ~23 uT; muito acima
-  // disso e offset de ferro por perto (hard-iron), que a calibracao remove.
-  const campo = hardware.campo_ut;
-  if (campo === undefined || campo === null) {
-    $('bus-campo').textContent = '—';
+  if (hardware.bussola_calibrando) {
+    rosa.classList.add('crua');
+    aviso.textContent = 'calibrando — gire o robô devagar';
+  } else if (hardware.rumo_valido) {
+    aviso.textContent = '';
   } else {
-    const fora = campo < 15 || campo > 40;
-    $('bus-campo').textContent =
-      `${campo.toFixed(1)} µT` + (fora ? ' (fora da faixa da Terra, ~23 µT)' : '');
+    // Agulha vermelha e apagada: a direcao existe mas carrega o offset dos
+    // imas dos motores junto. O aviso e curto porque o desenho ja diz.
+    rosa.classList.add('crua');
+    aviso.classList.add('alerta');
+    aviso.textContent = 'não calibrada — direção não confiável';
   }
 }
 

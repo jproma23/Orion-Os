@@ -53,13 +53,33 @@
     </dl>
   </section>
 
-  <section class="painel">
+  <section class="painel painel--bussola">
     <h2>Bússola</h2>
-    <dl>
-      <dt>Rumo</dt><dd id="bus-rumo">—</dd>
-      <dt>Campo magnético</dt><dd id="bus-campo">—</dd>
-      <dt>Estado</dt><dd id="bus-estado">—</dd>
-    </dl>
+    <!-- Rosa fixa, seta girando: o Norte fica sempre em cima e a seta
+         aponta para onde o robo esta virado. viewBox centrado no zero para
+         a rotacao da agulha ser um rotate() simples. -->
+    <svg id="rosa-ventos" viewBox="-100 -100 200 200" role="img"
+         aria-label="Rosa dos ventos com a direcao do robo">
+      <circle class="rosa-aro" cx="0" cy="0" r="88" />
+      <circle class="rosa-aro-fino" cx="0" cy="0" r="64" />
+      <g id="rosa-marcas"></g>
+      <g class="rosa-letras">
+        <text x="0"   y="-70">N</text>
+        <text x="49"  y="-49">NE</text>
+        <text x="70"  y="0">L</text>
+        <text x="49"  y="49">SE</text>
+        <text x="0"   y="70">S</text>
+        <text x="-49" y="49">SO</text>
+        <text x="-70" y="0">O</text>
+        <text x="-49" y="-49">NO</text>
+      </g>
+      <g id="rosa-agulha">
+        <path class="agulha-ponta" d="M 0 -56 L 11 10 L 0 0 L -11 10 Z" />
+        <path class="agulha-cauda" d="M 0 56 L 8 8 L 0 0 L -8 8 Z" />
+      </g>
+      <circle class="rosa-eixo" cx="0" cy="0" r="5" />
+    </svg>
+    <p id="bus-aviso"></p>
   </section>
 
   <section class="painel">
