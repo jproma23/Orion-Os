@@ -2995,3 +2995,119 @@ calma):
   18/19; criar o `bussola_manager` para o QMC6310; os 3 bugs ALTOS ainda
   abertos (FOLLOW travando, SQLite concorrente, discovery com KeyError); e o
   `master` do GitHub, que segue em `73bf557` e ainda nao recebeu nada disso.
+
+## 2026-07-27 (continuacao - bussola no barramento, dois bugs de sensor e o baud)
+
+- **Sessao na maquina Windows de controle**, com SSH para o Pi e o Notebook.
+  Firmware gravado 4 vezes no Mega pelo `gravar_firmware_seguro.sh`, sempre
+  a partir do Pi (regra 2).
+
+- **Odometria: decidido NAO usar o encoder indutivo.** O EDR de odometria
+  (LM12-3004NA) fica de fora; a odometria continua sendo a contagem dos
+  pulsos de STEP/PUL que o proprio firmware gera, assinados pelo pino DIR
+  que ele mesmo comanda (`motor_manager.h`: `passosAcumulados +=
+  sentidoFrente ? 1 : -1`). Decisao do usuario. Consequencia registrada: e
+  malha aberta - conta o que MANDOU, nao o que a roda FEZ. Patinacao, roda
+  travada ou fio de driver trocado passam despercebidos, e por isso a
+  validacao externa (ultrassom + bussola) deixa de ser conferencia extra e
+  passa a ser a unica checagem de realidade que o robo tem.
+
+- **EDR-0024 escrito: varredura de horizonte.** Ideia do usuario. O robo
+  gira em torno do proprio eixo em incrementos, e a cada parada registra
+  rumo magnetico + distancia frontal + traseira. Dois produtos de uma
+  varredura: `PASSOS_POR_GRAU` medido (graus da bussola contra passos
+  emitidos) e um mapa polar local em coordenadas absolutas. Sacada do
+  usuario que entrou no EDR: os dois ultrassons apontam a 180 graus um do
+  outro, entao **girar 180 graus cobre os 360** - metade do giro, metade do
+  erro. Gira-PARA-mede de proposito: motor de passo ligado distorce o campo
+  magnetico e a vibracao estraga a leitura do ultrassom.
+
+- **BUG REAL 1 - `sensor_ok` acusava sensor bom de mudo.** No
+  `sensor_ultrassonico.h`, o caminho de sucesso (eco recebido) ligava
+  `_leituraValida` e `_jaRespondeu` mas **nunca** `_sensorRespondeu` - esse
+  so era ligado dentro de `_foraDeAlcance()`. Resultado: sensor funcionando
+  perfeitamente reportava `sensor_ok: false` para sempre. Apareceu na
+  telemetria como contradicao (frontal 173cm e traseiro 102cm, leitura real,
+  os dois marcados como mudos). Corrigido e validado ao vivo com o usuario
+  pondo a mao na frente: frontal 174 -> 61 -> 172cm, `sensor_ok: true` nos
+  dois. **Confirma tambem que o sensor traseiro esta lendo** - duvida do
+  usuario.
+- **O sensor traseiro nao bloqueia o robo** (outra duvida do usuario):
+  conferido no `SafetyManager::avaliar()`, ele so consulta `radar.*` (o
+  frontal); o `ultrassomTraseiro` nem e passado para a funcao. Manobra de re
+  ja estava livre.
+
+- **BUG REAL 2 (parcial) - o valor inventado que o usuario suspeitava
+  existir, existe.** `_foraDeAlcance()` reporta o teto de alcance (517cm)
+  como leitura VALIDA quando nada reflete. Ninguem mediu 517cm. NAO foi
+  removido: tratar silencio como obstaculo travava o robo numa sala vazia
+  (medido em 2026-07-25). Em vez disso ganhou nome - campo `sem_eco` novo na
+  telemetria (`frontal_sem_eco`/`traseiro_sem_eco`), porque de fora "517cm
+  valido" era indistinguivel de uma parede realmente a 517cm. Quem montar
+  mapa (EDR-0024) tem que tratar isso como DESCONHECIDO, nunca como LIVRE.
+
+- **Bussola QMC6310 ligada de verdade no Mega** (`bussola_manager.h`, novo),
+  portada de `~/Desktop/bussola_orion`. Mudou na portagem: sem
+  `Serial.print` (serial e exclusiva do protocolo), calibracao NAO
+  BLOQUEANTE (o `while` de 25s do original seria reset garantido pelo
+  `wdt_enable(WDTO_2S)`) e EEPROM sem `commit()` (coisa de ESP8266).
+  Compensacao de inclinacao reaproveita o acelerometro que a `ImuManager` ja
+  le a cada 50ms - sem segunda leitura I2C. Calibracao na EEPROM em 64 (a
+  IMU usa 0 e 32).
+  - **Correcao propria durante a sessao:** a checagem exigia amplitude nos
+    TRES eixos, herdada do projeto de bancada onde o modulo era girado na
+    mao. Robo terrestre gira so em torno do eixo vertical e o Z fica
+    constante - ela recusaria toda calibracao feita com o robo montado, que
+    e justamente a que importa (o que se quer medir e o ferro do proprio
+    Fofao). Passou a exigir so X e Y; Z so e corrigido se realmente girar.
+
+- **Scanner de I2C no boot** (`escanearI2c()` em `main.cpp`, resultado na
+  telemetria). Motivo: IMU e bussola apareceram mudas juntas e, sem enxergar
+  o barramento, "modulo quebrado", "endereco diferente" e "barramento nao
+  sobe" sao indistinguiveis - cada um pede conserto diferente. **Pagou-se no
+  mesmo dia:**
+  - Primeira hipotese minha estava ERRADA: achei que a bussola de 3,3V
+    estivesse derrubando o barramento de 5V do Mega. Nao era - o usuario
+    tinha soltado o fio do MPU.
+  - Com o fio solto: `i2c_total: 0`, barramento vazio. Depois do conserto:
+    `[0x1C, 0x68]`, os dois presentes.
+  - **Achado bom:** o campo magnetico caiu de **71uT para 18,9uT** no
+    instante em que o MPU voltou ao barramento. Os 71uT eram dado corrompido
+    por barramento sem os pull-ups que a placa do MPU carrega, nao leitura
+    real. 18,9uT ja e a ordem de grandeza certa (~23uT no Brasil); o resto da
+    diferenca e o hard-iron, que so a calibracao remove.
+  - Estado atual: `bussola_conectada: true`, `rumo_graus` lendo,
+    `rumo_valido: false` porque ainda **nao foi calibrada** - correto, o
+    driver se recusa a afirmar rumo confiavel antes disso.
+
+- **Serial do Hardware Core: 115200 -> 250000 baud** (firmware +
+  `communication.arduino.baud_rate`). O pacote de TELEMETRY passa de 600
+  bytes e o buffer de saida do AVR e de 64, entao `Serial.write` bloqueia
+  esperando drenar. A 16MHz, 250000 cai exato no gerador (UBRR=3, erro 0,0%)
+  contra 2,1% do 115200 - a taxa mais alta e tambem a mais confiavel aqui.
+  - **PREVISAO MINHA ERRADA, registrada de proposito:** previ o loop cair
+    de 84ms para ~24ms. Medido: **84ms -> 68ms**. A serial era parcela, nao
+    causa principal. Nao inventar explicacao para os ~40ms restantes;
+    suspeito seguinte e o `Wire.setWireTimeout(25000)` sendo estourado nas
+    leituras da bussola (2 transacoes x 25ms = 50ms, bate com a sobra).
+    Teste barato proposto: baixar o timeout para ~3ms (transacao legitima
+    nesse barramento leva menos de 1ms) e ver se o `loop_max` cai para perto
+    de 30ms.
+  - Por que isso importa: o eco de um obstaculo a 30cm dura 1,7ms. Com o
+    loop em 68-84ms o robo fica **cego em rajadas**, e nenhum mapa por
+    ultrassom se sustenta assim. Vem ANTES da varredura do EDR-0024.
+
+- **Estado do git ao fim da sessao:** 3 commits no Windows (`06cf811`,
+  `b92e46c`, `4063339`), arvore limpa. **Pi e Notebook NAO sincronizados** -
+  o usuario desligou as duas maquinas antes do push. Nada se perdeu: os
+  arquivos copiados por `scp` para o Pi sao identicos aos commitados. O Pi
+  ficou com a arvore suja (esses mesmos arquivos) - ao religar, limpar
+  (`git stash -u` ou `checkout --`) ANTES de puxar o master. GitHub segue em
+  `73bf557`, agora 68 commits atras.
+
+- **Proximos passos:** sincronizar as 3 maquinas; fechar os ~40ms de loop
+  que sobraram (comecar pelo timeout do I2C); calibrar a bussola de verdade
+  com o robo montado (`CALIBRATE_COMPASS`, girar 25s - o campo tem que ficar
+  PARADO por mais que o robo gire, esse e o teste de qualidade); so entao a
+  varredura de horizonte do EDR-0024; e os 3 bugs ALTOS ainda abertos
+  (FOLLOW travando, SQLite concorrente, discovery com KeyError).
