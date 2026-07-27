@@ -126,18 +126,38 @@ class FusaoSensores:
         self._passos_direita_anterior = passos_direita
         self._instante_anterior_s = agora
 
-        if delta_esquerda < 0 or delta_direita < 0:
-            # contador de passos regrediu - so pode ser reinicio do Mega ou
-            # overflow do contador. Nao da pra confiar nesse delta: melhor
-            # resincronizar a base (ja feito acima) e pular esta leitura do
-            # que acumular um deslocamento fantasma em x/y.
+        # REINICIO DO MEGA: os dois contadores voltam a zero no mesmo quadro,
+        # porque `passosAcumulados` e membro do MotorManager e nasce zerado.
+        # Essa e a assinatura que se pode confiar - e nao "delta negativo",
+        # ver o bloco seguinte.
+        if (
+            passos_esquerda == 0
+            and passos_direita == 0
+            and (delta_esquerda != 0 or delta_direita != 0)
+        ):
             logger.warning(
-                "Contagem de passos regrediu (esq=%d dir=%d) - "
-                "resincronizando odometria sem atualizar pose",
+                "Contadores de passo zeraram juntos (delta esq=%d dir=%d) - "
+                "provavel reinicio do Mega, resincronizando sem atualizar pose",
                 delta_esquerda,
                 delta_direita,
             )
             return
+
+        # DELTA NEGATIVO E RE LEGITIMA, nao erro.
+        #
+        # Ate 2026-07-27 este metodo descartava qualquer delta negativo como
+        # "reinicio ou overflow" e voltava sem atualizar a pose. Mas o firmware
+        # DECREMENTA de proposito quando anda para tras
+        # (motor_manager.h: `passosAcumulados += sentidoFrente ? 1 : -1`), o que
+        # significa que TODA marcha a re caia neste return: a pose congelava e o
+        # log enchia de "Contagem de passos regrediu". Desencontro de suposicao
+        # entre as duas camadas - o comentario antigo aqui afirmava que so podia
+        # ser reinicio, e nunca foi verdade.
+        #
+        # O sinal do delta e justamente o que a odometria diferencial precisa: a
+        # conta abaixo ja trata negativo corretamente (anda para tras em x/y e,
+        # se so uma roda inverter, gira). Overflow do `long` de 32 bits nao e
+        # preocupacao pratica: a 4000 passos/m daria mais de 500 km.
 
         if delta_tempo_s <= 0:
             return  # telemetria duplicada ou fora de ordem - evita divisao por zero

@@ -124,15 +124,51 @@ async def test_telemetria_sem_campos_de_encoder_e_ignorada(cenario):
 
 
 @pytest.mark.asyncio
-async def test_contagem_regressiva_de_passos_resincroniza_sem_publicar(cenario):
+async def test_reinicio_do_mega_resincroniza_sem_publicar(cenario):
+    """Reinicio se reconhece pelos DOIS contadores zerando no mesmo quadro.
+
+    Ate 2026-07-27 o criterio era "delta negativo", o que estava errado - ver
+    o teste da marcha a re logo abaixo.
+    """
     await cenario.enviar_telemetria(passos_esquerda=5000, passos_direita=5000)
-    # Mega reiniciou -> contador voltou a zero (delta negativo)
-    await cenario.enviar_telemetria(passos_esquerda=100, passos_direita=100)
+    # Mega reiniciou: passosAcumulados e membro do MotorManager e nasce zerado
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
     assert cenario.posicoes == []
     # a partir daqui a base foi resincronizada - proximo delta funciona normal
-    await cenario.enviar_telemetria(passos_esquerda=4100, passos_direita=4100)
+    await cenario.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
     assert len(cenario.posicoes) == 1
     assert cenario.posicoes[0]["x_m"] == pytest.approx(1.0, abs=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_marcha_a_re_anda_para_tras_em_vez_de_ser_descartada(cenario):
+    """Regressao 2026-07-27: andar de re congelava a pose.
+
+    O firmware DECREMENTA o contador na re
+    (motor_manager.h: `passosAcumulados += sentidoFrente ? 1 : -1`), mas a
+    fusao tratava todo delta negativo como "reinicio ou overflow" e voltava
+    sem atualizar a pose. Na pratica: o robo andava para tras, a posicao
+    congelava e o log enchia de "Contagem de passos regrediu".
+    """
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+    await cenario.enviar_telemetria(passos_esquerda=8000, passos_direita=8000)
+    assert cenario.posicoes[-1]["x_m"] == pytest.approx(2.0, abs=1e-3)
+
+    # 4000 passos de re: tem que VOLTAR para 1 metro, nao congelar em 2
+    await cenario.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
+    assert len(cenario.posicoes) == 2, "a re foi descartada em vez de atualizar a pose"
+    assert cenario.posicoes[-1]["x_m"] == pytest.approx(1.0, abs=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_re_so_de_um_lado_gira_para_o_outro(cenario):
+    """Re assimetrica tem que girar o robo, nao virar deslocamento fantasma."""
+    await cenario.enviar_telemetria(passos_esquerda=2000, passos_direita=2000)
+    # so a direita recua -> gira no sentido horario (orientacao diminui)
+    await cenario.enviar_telemetria(passos_esquerda=2000, passos_direita=800)
+
+    assert len(cenario.posicoes) == 1
+    assert cenario.posicoes[0]["orientacao_graus"] < 0
 
 
 # ---------- seguranca da IMU ----------
