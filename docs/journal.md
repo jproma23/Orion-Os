@@ -689,7 +689,7 @@ passo.
 - Implementado `motion_core/navigation/fusao_sensores.py` (classe
   `FusaoSensores`), retomando a opção (c) deixada em aberto na entrada
   anterior desta mesma data. Módulo separado do `NavigationCore` (regra
-  #9 do CLAUDE.md - uma responsabilidade cada), mas seguindo o mesmo
+  #9 do ARQUITETURA.txt - uma responsabilidade cada), mas seguindo o mesmo
   padrão de construtor/assinatura de eventos: recebe `event_bus` e a
   fatia `config.secao("motion")`, assina `comm.mensagem.telemetry`.
 - **O que faz:**
@@ -717,7 +717,7 @@ passo.
   explicitamente como **PLACEHOLDER** no comentário do YAML: nenhuma
   roda/encoder físico está montado ainda, então é só um valor plausível
   para um chassi pequeno - medir e ajustar quando o chassi for montado
-  de verdade (regra #6 do CLAUDE.md: nada de valor físico fixo no
+  de verdade (regra #6 do ARQUITETURA.txt: nada de valor físico fixo no
   código - pelo menos agora está no YAML, não hardcoded).
 - **Decisão de escopo (documentada no docstring do módulo):** o Cap 12
   s.8 fala em combinar "orientação... da MPU6050" na fusão, mas a
@@ -1038,7 +1038,7 @@ passo.
 
 - **Renomeação:** todo o texto do repositório que dizia "ORION X" (nome
   provisório do robô usado nos e-mails/specs até ontem) foi trocado para
-  **Fofão** - `README.md`, `CLAUDE.md`, `docs/ses/`, `docs/edr/`,
+  **Fofão** - `README.md`, `ARQUITETURA.txt`, `docs/ses/`, `docs/edr/`,
   `config/orion.yaml` (`robot_name`), testes e `docs/hardware/`. Conferido
   antes que `robot_name` só é usado como texto de exibição (logs, web UI),
   sem validação de valor fixo - troca segura. 183 testes passando + 7
@@ -1681,7 +1681,7 @@ servo). Primeira vez testando esses três com hardware real.
 - Cadastrados os 3 moradores por foto (tools/cadastrar_de_fotos.py, fotos
   baixadas no Pi -> scp pro Notebook -> face_recognition no Notebook ->
   memory.remember via TCP com embedding base64): João Paulo (dono, id=1,
-  2 fotos), Marah (dono, id=2, 4 fotos), Kamal (morador, id=3, 3 fotos; 1
+  2 fotos), Ana (dono, id=2, 4 fotos), Bruno (morador, id=3, 3 fotos; 1
   foto sem rosto detectavel, ignorada). Embeddings de 1024 bytes (128
   float64) confirmados na tabela pessoas do SSD. A ponte binaria base64 do
   bridge.py funcionou ponta a ponta.
@@ -1709,6 +1709,829 @@ servo). Primeira vez testando esses três com hardware real.
   barulho de fala (dispararia em conversa/TV) e o VoiceCore ja e dono do
   mic. So faz sentido em "modo ausente" - decisao pendente do usuario.
 
+## 2026-07-19 (Teste do MPU6050 - sensor ok, offset de 9.3 graus)
+
+- **Ferramenta nova:** `tools/testar_imu.py` - monitor ao vivo do MPU6050,
+  mesmo molde do testar_ultrassom.py: inclinacao/impacto vem da TELEMETRY
+  (`comm.mensagem.telemetry`), RETURN_STATUS so serve para o uptime (vigia
+  de reset). Firmware ja publicava tudo (telemetry_manager.h), nao precisou
+  mexer no Arduino.
+- Rodado no Mega real (motion.service parado): handshake ok
+  (0.1.0-fase2), 37 leituras em 25s, `imu_conectado` true, zero reset,
+  zero falha de I2C. **I2C nos pinos 20/21 confirmado funcionando.**
+- **Achado:** parado, a inclinacao le 9.3 graus constante com ruido de so
+  +-0.5 grau. Ruido baixo = sensor saudavel; os 9.3 sao offset fixo
+  (chassi torto ou MPU colado torto). Como LIMITE_INCLINACAO_GRAUS = 20,
+  o robo trava com ~11 graus reais de um lado e aguenta ~29 do outro -
+  assimetria a corrigir (calibrar zero no iniciar() ou reposicionar o
+  modulo). Falta ainda validar o flag de impacto (tapinha no chassi).
+- Nota de execucao: rodar os tools com `.venv/bin/python -u` - sem o `-u`
+  o stdout fica preso no buffer quando a saida e canalizada.
+- **Correcao do offset (mesma sessao):** decidido com o usuario que ele
+  vai colar o MPU reto e o firmware zera os vetores em cima da posicao
+  boa. Implementado em `imu_manager.h`: em vez de subtrair um escalar
+  (errado - a inclinacao e um angulo sem direcao, subtrair furaria pro
+  lado contrario), guarda o VETOR de gravidade lido nivelado e mede o
+  angulo entre a leitura atual e essa referencia (produto escalar +
+  acos). Referencia default (0,0,1) = comportamento antigo.
+- Calibracao persiste na EEPROM (endereco 0, magico 0x0110, com sanidade
+  de norma contra EEPROM corrompida), entao nao precisa regravar firmware
+  se o modulo sair do lugar. Comando novo `CALIBRATE_IMU` (main.cpp) e
+  flag `imu_calibrado` na TELEMETRY e no RETURN_STATUS.
+- `tools/testar_imu.py --calibrar` dispara a calibracao e sai.
+- **Efeito colateral util:** depois de calibrado, leitura longe de 0 com o
+  robo nivelado = o modulo se mexeu. Diagnostico de graca (ideia do usuario).
+- Compilado e GRAVADO no Mega: RAM 33.4%, flash 16.2%. Falta o usuario
+  colar o modulo reto e rodar o --calibrar.
+- Nota de ambiente: o PlatformIO NAO esta no PATH nem no .venv - fica em
+  `/home/jproma23/.platformio-venv/bin/pio`.
+- **CALIBRADO ao vivo:** usuario colou o modulo, rodado `--calibrar`, EEPROM
+  gravada. Verificacao logo depois: **9.3 graus -> 0.3 graus**, ruido de
+  +-0.2 grau. Zero no lugar, limite de 20 graus agora simetrico nos dois
+  lados. Servico orion-motion religado.
+- **PENDENCIA aberta:** durante a verificacao (20s, ~14 leituras) UMA
+  resposta de RETURN_STATUS se perdeu (timeout de 3s). Nao foi reset - o
+  uptime seguiu subindo (4463ms -> 8584ms), so a resposta sumiu. Suspeita:
+  mesmo ACK perdido de 2026-07-18 que motivou SERIAL_*_BUFFER_SIZE=256 no
+  platformio.ini - os buffers reduziram mas nao eliminaram. Investigar
+  antes da Fase 4 fechar; frequencia observada ~1 em 14.
+- Flag de impacto ainda NAO validado (precisa de tapinha no chassi).
+- **Recalibrado:** usuario mexeu no modulo durante o teste de tapa (era a
+  explicacao dos 6.8 graus - o diagnostico "de graca" funcionou na
+  pratica, primeira vez que ele pegou um deslocamento real). Ajeitado e
+  recalibrado: de volta a 0.4 grau.
+- **Bug encontrado e corrigido - flag de impacto invisivel:** o teste de
+  tapa deu ZERO deteccoes. Causa nao era o tapa: `_impactoDetectado` era
+  INSTANTANEO. Tranco dura ~10-20ms, IMU e lido a cada 50ms e a TELEMETRY
+  so sai a cada 500ms - o evento quase sempre morria entre amostras.
+  Enfraquecia tambem o SafetyManager.
+- Correcao: janela de tempo (`JANELA_IMPACTO_MS = 1000`, maior que os
+  500ms da telemetria) em vez de "zerar na leitura". Zerar-na-leitura foi
+  DESCARTADO de proposito: SafetyManager le todo loop e telemetria a cada
+  500ms - quem lesse primeiro roubaria o evento do outro e a telemetria
+  voltaria a nao ver nada. A janela apaga sozinha, sem disputa.
+- Regravado e testado ao vivo: impacto apareceu como SIM em 2 quadros
+  seguidos (a janela de 1s cobrindo dois quadros de 500ms, exatamente o
+  desenhado). **Flag de impacto validado.**
+- Confirmado tambem que a calibracao da EEPROM SOBREVIVE a regravacao do
+  firmware (leituras seguiram em 0.3-0.6 grau depois do upload).
+- **PENDENCIA nova:** so 1 evento detectado em ~3-4 tapas. O mecanismo
+  agora funciona, mas o limiar de 2.5 G parece alto para tapa de mao.
+  Baixar exige cuidado: 2.5 G dispara parada de emergencia, e limiar baixo
+  demais gera falso positivo passando por soleira/desnivel. Calibrar com o
+  robo andando de verdade, nao na bancada.
+
+## 2026-07-19 (CAUSA RAIZ das respostas perdidas: o DHT fantasma)
+
+- Investigada a pendencia da resposta perdida. **Causa raiz achada e
+  corrigida** - e nao era o que o platformio.ini dizia.
+- **O mecanismo:** a biblioteca Adafruit DHT faz bit-banging no pino COM
+  AS INTERRUPCOES DESLIGADAS. Com elas desligadas a ISR que enche o buffer
+  serial nao roda; a 115200 baud chegam ~57 bytes em 5ms e o hardware do
+  ATmega so segura 2-3. O resto se perde e corrompe o quadro em transito.
+  **Buffer maior nao ajuda** - o problema e a ISR parada, nao o tamanho.
+  Isso explica por que SERIAL_*_BUFFER_SIZE=256 (18/07) reduziu mas nunca
+  eliminou o ACK perdido: tratamos sintoma, nao causa.
+- **Agravante:** o DHT NAO ESTA INSTALADO (usuario confirmou). Sensor
+  ausente e PIOR que presente - em vez de responder em ~5ms, a leitura
+  gasta o timeout inteiro esperando um pino que nunca muda.
+- **Como foi provado (metodo vale registrar):** as falhas pareciam
+  aleatorias. Script probe_dht.py rodou 200 requisicoes e imprimiu o
+  uptime de cada falha MODULO 5000ms (o intervalo do DHT). Deu 4757, 4763
+  e 4760 - 6ms de espalhamento. Aleatorio nao faz isso. Hipotese confirmada.
+- **Correcao:** chave `ORION_DHT_INSTALADO` (dht_manager.h), em 0 enquanto
+  o sensor nao existe - nao encosta no pino. Quando instalar, trocar para
+  1 e regravar. Fica tambem uma auto-deteccao (3 falhas seguidas ->
+  `_ausente`, retentativa a cada 60s) para o caso do sensor cair depois.
+- **Resultado medido:** antes 3 falhas/200 (1,5%). Depois **0 falhas/200**.
+  Teste longo de 3000 requisicoes em andamento.
+- Impacto real disso: ~1,5% de TODO comando se perdia silenciosamente,
+  incluindo STOP. Nao era ruido estatistico, era o freio falhando 1 em 66.
+
+## 2026-07-19 (Bateria + integracao cognitiva: modelo de mundo)
+
+- **Sensores termicos aproveitados (`src/orion/diagnostics/sensores_termicos.py`):**
+  le /sys/class/thermal, existe no Pi e no Notebook, sem dependencia nova.
+  Medido: Pi cpu-thermal 66,7 C | Notebook x86_pkg_temp 50,0 / pch 46,0 /
+  acpitz 27,8 C. Cobre o item "temperatura da CPU/SoC" do Cap 16.
+  **NAO substitui o DHT** - esses sensores medem o proprio chip, nao o
+  ambiente, e nenhum mede umidade. Sao complementares.
+- **Notebook NAO TEM BATERIA:** /sys/class/power_supply so lista ADP1 (a
+  fonte, online=1); upower nao enumera nenhum device de bateria. O plano
+  de ler saude da bateria pelo notebook nao tinha como funcionar.
+- **Alimentacao definida pelo usuario:** pack de parafusadeira 18V (max)
+  alimenta motores e notebook; buck reduz para 5V para Pi e sensores. Ele
+  ja tem os modulos buck e buck-booster. (Alertei sobre o notebook em
+  barramento nao regulado; ele disse que os modulos resolvem.)
+- **Bateria no firmware (`bateria_manager.h`):** divisor 100k/27k em A0.
+  18V -> 3,83V no pino; 21V -> 4,46V (ainda seguro); consumo 0,14mA.
+  Limiares 5S Li-ion: aviso 16,5V (3,3V/celula), critica 15,0V (3,0V).
+  Media de 8 amostras. analogRead NAO desliga interrupcoes (ao contrario
+  do DHT), entao pode rodar no loop sem risco para a serial.
+  Chave `ORION_BATERIA_INSTALADA = 0` enquanto o divisor nao existe -
+  mesma licao do DHT: pino solto flutua e reportaria tensao inventada.
+  **ATENCAO na montagem:** exige GND comum Mega<->bateria (os motores sao
+  opto-isolados e nao precisavam; a medicao de tensao precisa).
+- Campos novos na TELEMETRY: bateria_lida / bateria_tensao_v /
+  bateria_percent / bateria_nivel. Firmware gravado no Mega.
+- **Integracao cognitiva - usuario quer as 3 camadas** (modelo de mundo,
+  memoria na decisao, IA decidindo). Elas se empilham; comecei pela base.
+- **Modelo de mundo (`motion_core/behavior/estado_do_mundo.py`):** funde
+  telemetria, estado do hardware, visao, sentinela e voz num RetratoDoMundo
+  unico que os comportamentos consultam, em vez de cada um assinar seus
+  proprios eventos e ver so um pedaco.
+  **Decisao de projeto central:** todo dado tem PRAZO DE VALIDADE. Vencido
+  vira None ("nao sei"), nunca continua sendo servido como atual - senao,
+  com o cabo solto, o quadro diria "obstaculo a 34cm, tudo ok" com dado de
+  5 minutos atras e o maestro decidiria em cima de ficcao. Respeita tambem
+  os flags *_valida do firmware.
+- 12 testes novos (tests/unit/test_estado_do_mundo.py), com foco no
+  envelhecimento. Suite completa: 208 passed, 8 skipped.
+- **PENDENCIA:** teste longo anterior (3000 req) nao concluiu - o timeout
+  cortou antes do resumo. Zero falhas impressas em ~15min, mas sem numero
+  final. Refazendo sobre o firmware definitivo com progresso visivel.
+
+## 2026-07-19 (Serial 3000/3000; comparacao de modelos de IA)
+
+- **Teste longo concluido: 3000 requisicoes, 3000 ok, ZERO falhas**, sobre
+  o firmware definitivo. Antes da correcao do DHT: 1,5%. Causa raiz das
+  respostas perdidas esta enterrada.
+- **Comparacao de modelos (bench com prompts reais do Fofao):**
+  | modelo | RAM | conversa | decisao | alucinou? |
+  |---|---|---|---|---|
+  | gemma3:1b | 880 MB | 10,5s | 10,6s | SIM - "vi a Ana passar" |
+  | llama3.2:3b | 2,6 GB | 34,5s | 25,6s | SIM (pior) - inventou registro as 14h30 |
+  | gemma3:4b | 2,9 GB | 20,2s | 51,5s | NAO - disse que nao teve noticia |
+- **Contraria a percepcao inicial:** o gemma3:4b foi o mais RAPIDO na
+  conversa e o UNICO honesto. O llama3.2:3b ("o que funcionava") foi o
+  mais lento e o que mais inventou. O 1b tambem errou o nome do
+  comportamento ("vigilancia" em vez de "vigilia").
+- **Quantizacao: nao ha ganho a buscar.** Os tres ja sao Q4_K_M (padrao do
+  ollama). Ja estamos em 4-bit.
+- **Diagnostico de fundo:** a alucinacao NAO e problema de modelo. O prompt
+  do bench perguntava da Ana sem dar dado nenhum sobre ela - sem
+  informacao qualquer modelo chuta. Conserto e grounding (entregar os
+  fatos + instruir a dizer "nao sei"), nao troca de modelo.
+- Decisao com o usuario: construir o CONTEXTO primeiro, remedir os modelos
+  depois - com os fatos na mao a tarefa muda e os numeros de hoje (feitos
+  sem contexto) deixam de valer. qwen2.5:3b baixado para entrar no
+  proximo comparativo.
+- **PENDENCIA (achado lateral):** ninguem assina `behavior.reduzir_carga_ia`.
+  O GuardiaoRamNotebook publica o pedido de alivio e o evento morre - so
+  os testes escutam. O guardiao nao protege nada hoje.
+
+## 2026-07-19 (Grounding: a correcao real da alucinacao + troca para gemma3:1b)
+
+- **`src/orion/mission/grounding.py`:** transforma o que o robo sabe num
+  bloco de fatos para o prompt. A ideia central nao e listar o que se sabe,
+  e **dizer em voz alta o que NAO se sabe** - campo ausente vira
+  "nao sei (sem registro)", e lista de observacoes vazia vira "nao tenho
+  NENHUM registro hoje... devo dizer isso". Silencio convida invencao.
+- **Resultado medido - mesma pergunta que fez todos mentirem:**
+  | modelo | SEM contexto | COM contexto | tempo |
+  |---|---|---|---|
+  | gemma3:1b | "Sim, vi! A Ana passou" | "Nao vi." | 16,5s |
+  | llama3.2:3b | inventou registro "as 14h30" | "Nao vi nada, Joao Paulo!" | 41,6s |
+  | qwen2.5:3b | (nao testado sem) | "Nao vejo registros de ninguem hoje." | 43,2s |
+  | gemma3:4b | "nao tive noticia" (ok) | "Nao vi, Joao Paulo." | 48,8s |
+  **Os QUATRO pararam de inventar.** Confirma: nunca foi problema de
+  modelo, era falta de contexto (o usuario tinha razao).
+- **TROCA DE MODELO: gemma3:4b -> gemma3:1b.** So virou possivel por causa
+  do grounding: com os fatos prontos a IA nao deduz, so le e formula.
+  Ganho: 880MB em vez de 2,9GB (RAM do notebook e apertada) e o mais
+  rapido dos quatro com contexto (16,5s contra 48,8s do 4b).
+  Config comentada com o historico e com o aviso: **se voltar a inventar,
+  o suspeito e o grounding ter parado de entregar os fatos, nao o modelo.**
+- `config/prompt_sistema.txt` ganhou a regra anti-invencao explicita.
+- `AiManager._montar_prompt_sistema` agora usa o grounding e injeta o bloco
+  SEMPRE - inclusive vazio, porque contexto vazio ("nao tenho registro de
+  nada") e justamente o que impede a invencao.
+- 11 testes novos (tests/unit/test_grounding.py). Suite: 219 passed, 8 skipped.
+- **RESSALVA:** validado em UM caso (recusar o que nao sabe). Falta testar
+  o caso oposto - quando ele TEM o dado e precisa usa-lo direito. O 1b
+  errou o nome de comportamento antes ("vigilancia" em vez de "vigilia"),
+  entao a camada 3 (IA decidindo) precisa de validacao de saida.
+
+## 2026-07-19 (Camada 3: IA aconselha, regra manda)
+
+- **Saida estruturada testada no gemma3:1b** (ollama 0.32.1 suporta schema
+  JSON com `enum`): 4/4 respostas com nome de comportamento VALIDO. O erro
+  "vigilancia" (que nao existe) acabou - a gramatica nao permite gerar
+  valor fora da lista.
+- **MAS o teste revelou coisa pior: as ESCOLHAS estao erradas.** O 1b
+  escolheu `repouso` em 3 de 4 situacoes:
+  | situacao | escolheu | correto |
+  |---|---|---|
+  | obstaculo a 34cm | repouso | vigilancia_obstaculo |
+  | rosto desconhecido 03:00 | vigilancia_obstaculo | vigilia |
+  | Ana chamou "Fofao" | repouso | atender |
+  | tudo calmo | repouso | ok |
+  **Schema garante resposta valida, nao resposta certa.**
+- **Consequencia de projeto:** a IA virou CONSELHEIRA, nao decisora
+  (`src/orion/mission/conselheiro_comportamento.py`):
+  - seguranca ativa -> a IA NEM E CONSULTADA (regra determinística vence);
+  - `COMPORTAMENTOS_DE_SEGURANCA` nunca entram na lista oferecida a ela -
+    entrar em seguranca e condicao fisica medida, nao opiniao;
+  - toda resposta e validada de novo em Python (cinto e suspensorio, caso
+    o schema falhe);
+  - timeout de 8s: conselho atrasado nao serve, o maestro nao espera.
+  No pior caso (IA burra/lenta/fora do ar) o robo se comporta exatamente
+  como se comportava sem ela.
+- Import de `ollama` ficou preguicoso (dentro do __init__): a lib so existe
+  no Notebook, e o modulo precisa ser importavel no Pi e nos testes.
+- 8 testes novos, todos sobre "a IA nao pode atrapalhar". Suite: 227 passed.
+- **Modelos:** removidos llama3.2:3b e qwen2.5:3b (superados). MANTIDO o
+  gemma3:4b - com o julgamento fraco do 1b, ele e o candidato natural para
+  a camada de decisao. Disco tem 176GB livres, nao ha pressao.
+- **Quantizar o 4b: NAO.** Ja e Q4_K_M. Descer para Q3/Q2 exige gerar com
+  llama.cpp, economiza ~1GB de disco que sobra, e degrada justamente a
+  qualidade de julgamento que e o unico motivo de manter o 4b. Modelo
+  parado tambem nao ocupa RAM - so o carregado ocupa.
+- **PENDENCIA:** conselheiro criado e testado, mas ainda NAO plugado no
+  BehaviorCore. Falta a ponte Pi<->Notebook (o maestro roda no Pi, a IA no
+  Notebook) e decidir em que situacoes vale consultar.
+
+## 2026-07-19 (Conselheiro plugado no maestro - a IA opina, a regra manda)
+
+- **Problema descoberto ao plugar:** os 4 comportamentos existentes sao
+  todos disparados por condicao concreta (voz, alerta, obstaculo). Quando
+  nenhum quer rodar sobra so `repouso` - pedir conselho com UMA opcao e
+  decoracao. Conselho so significa algo se houver escolha real.
+- **`Ronda` (prio 20), primeiro comportamento DISCRICIONARIO:** dar uma
+  olhada em volta quando nao ha nada acontecendo. So olha (pan/tilt +
+  SCAN_FRONT), **NAO anda** - movimento de rodas por iniciativa da IA seria
+  arriscado demais no primeiro passo; olhar e reversivel.
+- **Ponte Pi<->Notebook** (`motion_core/behavior/ponte_conselho.py` +
+  `src/orion/mission/conselho_protocolo.py`): pedido e resposta casados por
+  `id`, senao resposta atrasada de pedido antigo seria confundida com a
+  atual. Timeout de 6s; None significa "decida pela regra", nao erro.
+- **Correcao de arquitetura no meio do caminho:** eu tinha posto o
+  atendente em `motion_core/` e feito o Notebook importar de la. Errado -
+  eles tem deploy separado e a dependencia so anda num sentido
+  (`motion_core` importa `orion`). Protocolo + atendente mudaram para
+  `src/orion/mission/conselho_protocolo.py`.
+- **Gancho no maestro** (`_pode_consultar_ia`): a IA so e consultada na
+  AMBIGUIDADE - ninguem de gatilho concreto no controle e nenhum
+  discricionario ja querendo rodar. Resposta que nao seja o nome exato de
+  um discricionario registrado e ignorada (inclui "repouso", que e um
+  conselho legitimo de nao fazer nada).
+- 9 testes novos, todos sobre "a IA nao pode atrapalhar": Notebook mudo,
+  lento, explodindo, resposta invalida, resposta atrasada de pedido velho,
+  e maestro sem ponte nenhuma. Suite: **236 passed, 8 skipped**.
+- **VALIDADO NO SERVICO REAL:** orion-motion reiniciado, log mostra
+  `comportamentos: vigilancia_obstaculo, atender, vigilia, ronda, repouso`
+  e depois `sem conselho em 6.0s - seguindo pela regra` (o Notebook nao
+  esta rodando conversar_fofao). Degradacao graciosa confirmada em campo,
+  nao so em teste.
+- Limpeza: a lista de comportamentos no log era escrita a mao e ja estava
+  desatualizada; agora vem de `maestro.nomes_registrados`.
+- **PENDENCIA:** falta ver o conselho ACEITO ao vivo - precisa do
+  conversar_fofao rodando no Notebook ao mesmo tempo. E o julgamento do
+  gemma3:1b e fraco (escolheu repouso com obstaculo a 34cm), entao vale
+  medir se ele acerta a escolha ronda-vs-repouso ou se o 4b e necessario
+  aqui.
+
+## 2026-07-19 (Teste ao vivo do conselheiro: DESLIGADO, e por que)
+
+Sequencia de falhas encontradas ao ligar o conselheiro ao vivo, na ordem:
+
+1. **Bug meu:** em conversar_fofao.py escrevi `event_bus` onde a variavel
+   local se chama `bus`. O processo subia mudo e nunca conectava no Pi.
+2. **Evento nao atravessa o link sozinho** (Cap 14 s.7): quem quer mandar
+   um evento ao outro no precisa reencaminhar com `comm.publish(...,
+   local=False)`. Faltava nos dois lados - o Pi perguntava no vazio.
+   Adicionado: Pi repassa TOPICO_PEDIDO, Notebook repassa TOPICO_RESPOSTA.
+3. **Tempestade de requisicoes (causada por mim):** o maestro repergunta a
+   cada timeout (6s) e a inferencia levava >8s. Pedidos empilhavam mais
+   rapido que as respostas; o link TCP caia e reconectava em laco, com
+   **37 conexoes vazadas** na porta 5757. Corrigido com
+   `INTERVALO_CONSULTA_IA_S = 120` (ociosidade nao e urgencia).
+4. **Timeouts invertidos:** Pi esperava 6s, conselheiro do Notebook 8s - o
+   Pi desistia antes de a resposta poder existir. Agora Pi 25s /
+   conselheiro 20s (o de fora tem que ser maior que o de dentro).
+5. **A causa que nao tem conserto por parametro:** cada consulta derrubava
+   o link. Padrao no log: heartbeat perdido -> IA estoura o timeout ->
+   "Link com o Motion Core caiu". A inferencia do gemma3:1b satura os
+   nucleos do notebook por ~20s; o processo Python e preterido, os
+   heartbeats atrasam e o Pi declara o link morto. **asyncio.to_thread
+   protege o event loop de BLOQUEAR, mas nao de FALTA DE CPU.**
+
+- **DECISAO: conselheiro DESLIGADO por padrao** (`behavior.conselho_ia.
+  habilitado: false`). Entregava zero conselhos (a inferencia estourava o
+  timeout) e custava uma queda de link a cada 2 minutos - pior que nao ter.
+  Codigo pronto e testado (236 passed); religar e trocar a flag, depois de
+  resolver a causa. Verificado apos desligar: log em silencio, link estavel.
+- **Heartbeat e o no do problema:** intervalo 1s, limite 3 perdidos = link
+  morto em 3s. Tolerancia curta demais para uma maquina que roda inferencia
+  local. Subir exige config POR LINK - tolerante com o Notebook, rigida com
+  o Mega (onde detectar falha rapido importa de verdade). Trabalho real,
+  nao troca de numero.
+- **Proposta do usuario (mover visao e voz para o Pi, notebook so com IA):
+  NAO recomendada.** O problema nao e onde as coisas rodam, e CPU saturada
+  convivendo com laco sensivel a atraso. Mover para o Pi faz saturar a
+  maquina MAIS FRACA (4GB vs 8GB) e MAIS CRITICA - a que fala com o Arduino
+  e roda a seguranca tatica. Notebook engasgado e chato; Pi engasgado e o
+  robo perdendo o corpo. O caminho e o inverso: o forte fica com o peso, o
+  Pi passa a TOLERAR o notebook engasgar.
+- **PENDENCIA (achado lateral, importante):** vazamento de conexoes TCP -
+  a reconexao do Notebook abre socket novo sem fechar o antigo (37 vivas no
+  pico, 4 depois de estabilizar). Investigar o supervisor de link.
+
+## 2026-07-19 (Vazamento de conexoes TCP: causa e conserto)
+
+- **Duas fugas, nao uma.** `ComunicacaoService.adicionar_link` so
+  sobrescrevia `self._links[nome_peer]`:
+  1. o transporte antigo NUNCA era fechado -> socket vazado;
+  2. `_tarefas_recepcao` era uma LISTA e so crescia -> a tarefa antiga
+     seguia rodando sobre o socket velho.
+- **Por que vazava de verdade (e nao so em teoria):** o link e declarado
+  morto por HEARTBEAT ATRASADO, nao por socket fechado. Quando o Notebook
+  engasgava de CPU (inferencia da IA), o socket continuava perfeitamente
+  vivo - cada "reconexao" deixava mais uma conexao ESTABLISHED para tras.
+  O comentario no conversar_fofao.py afirmava que o antigo era
+  "descartado"; era descartado do dicionario, nunca fechado. Comentario
+  corrigido para nao mentir de novo.
+- **Conserto:** `_tarefas_recepcao` virou dict por peer e
+  `_descartar_link_anterior()` cancela a tarefa e fecha o transporte antes
+  de registrar o novo. Fechamento vai em tarefa propria porque
+  `adicionar_link` e sincrono e `fechar()` e assincrono.
+- **4 testes de regressao** (tests/unit/test_service_reconexao.py), com
+  transporte falso que e GERADOR assincrono (como os de verdade). Validados
+  dos dois lados: reintroduzi o bug de proposito, os 4 falharam; restaurei,
+  os 4 passaram. Teste de regressao que nao falha sem o conserto nao vale.
+  Um deles cobre o risco de o conserto ser agressivo demais: fechar o link
+  antigo de um peer NAO pode derrubar os outros (Arduino intacto).
+- **Provado em campo:** 5 ciclos de restart do Motion Core forcando
+  reconexao - contagem de sockets oscilou entre 0 e 1, sem acumular
+  (antes: 37 no pico). Log do Notebook agora mostra "Link anterior com
+  'motion_core' descartado (socket e tarefa fechados)" a cada reconexao.
+- Suite: **240 passed, 8 skipped**.
+
+## 2026-07-19 (Heartbeat por enlace: paciencia com o Notebook, rigor com o Mega)
+
+- **Problema:** um unico `heartbeats_lost_threshold: 3` governava TODOS os
+  enlaces = link morto apos 3s sem heartbeat. Curto demais para o Notebook
+  (que trava a CPU dezenas de segundos rodando IA local sem estar
+  quebrado), mas afrouxar o global afrouxaria tambem o enlace com o
+  Arduino, que e o caminho da seguranca reativa.
+- **Conserto:** limite POR MODULO.
+  - `_EstadoModuloMonitorado.limite_proprio` (None = herda o global);
+  - `HealthMonitor.timeout_de(nome)` substitui o `timeout_s` fixo em
+    `modulos_com_heartbeat_perdido`;
+  - `MonitorHeartbeat.monitorar(..., heartbeats_perdidos_limite=...)`;
+  - config `communication.heartbeats_lost_threshold_por_link`.
+- **Valores:** mission_core 45 / motion_core 45 / hardware_core no padrao 3.
+  O Arduino fica curto DE PROPOSITO - descobrir tarde que o Mega sumiu e
+  pior que um falso alarme (Cap 18).
+- **Descoberta durante o teste ao vivo (a parte nao obvia):** com apenas
+  `mission_core: 45`, o PI parou de derrubar o link - mas o NOTEBOOK
+  continuava derrubando o dele. Motivo: a maquina afogada nao so ATRASA os
+  proprios heartbeats, ela tambem deixa de LER os que chegam. O Notebook
+  concluia que o Pi tinha morrido sendo que o culpado era ele mesmo.
+  **Tolerancia precisa valer nos DOIS lados** - dai `motion_core: 45`.
+- 8 testes novos (tests/unit/test_heartbeat_por_link.py), incluindo o
+  cenario exato do bug (pausa de 20s: o rigido cai, o tolerante nao), que
+  tolerancia nao e imortalidade (46s derruba o tolerante tambem), e que dar
+  paciencia a um enlace NAO afrouxa os outros. Suite: **248 passed**.
+- **Validado ao vivo, em duas etapas:**
+  1. CPU do notebook travada 15s -> link sobreviveu (antes, 3s matavam);
+  2. conselheiro religado temporariamente: a consulta estourou o timeout de
+     25s e **o link NAO caiu** - a cascata original (consulta -> heartbeat
+     perdido -> link morto -> reconexao) esta eliminada. Log do notebook
+     confirma: "Heartbeat de 'motion_core': tolerancia propria de 45
+     perdidos (45s)".
+  3. Conselheiro desligado de volta; 2 minutos de observacao: ZERO perdas
+     de heartbeat nos dois lados, 1 conexao estavel.
+- **O conselheiro continua desligado e sem entregar conselho** - a
+  inferencia ainda estoura o timeout de 20s. Mas agora o custo dele e zero
+  em vez de derrubar o link. As duas coisas eram problemas separados.
+- **PENDENCIA (pequena):** no boot do Notebook aparece um "Heartbeat
+  perdido: modulo='motion_core'" antes do primeiro heartbeat chegar -
+  falso positivo de partida, seguido de reconexao imediata. Inofensivo,
+  mas sujo: o monitor devia dar carencia inicial ao modulo recem-registrado.
+
+## 2026-07-19 (Falso positivo de heartbeat no boot)
+
+- **Causa (nao era o que eu supus):** a perda aparecia IMEDIATAMENTE apos o
+  registro, com 45s de tolerancia configurados - logo nao vinha do caminho
+  do timeout. Vinha do outro: `iniciar()` chama `enviar_heartbeat` desde a
+  primeira volta, mas no boot o laco comeca ANTES de o supervisor TCP abrir
+  o link. `_resolver_link` levanta "sem rota", e o codigo tratava isso como
+  PERDA. **"Ainda nao conectei" e "perdi a conexao" sao estados
+  diferentes** - o codigo confundia os dois.
+- **Conserto:** `_ja_estabelecidos` (peers com quem a comunicacao ja
+  funcionou pelo menos uma vez, por envio OU por recebimento).
+  `_marcar_perdido` ignora quem nunca conectou; o nivel do log de falha ao
+  enviar acompanha (debug antes do primeiro sucesso, warning depois).
+  Efeito colateral bom: para de disparar reconexao para um link que ja
+  estava sendo aberto.
+- **Teste antigo precisou mudar** (`test_falha_ao_enviar_heartbeat_tambem_
+  gera_comm_module_lost`): ele simulava "link que morreu" simplesmente NAO
+  registrando o link - usando "sem rota" como atalho. O atalho virou
+  ambiguo, porque "sem rota" e tambem o estado do boot; era exatamente a
+  confusao sendo corrigida. Agora o teste usa um transporte que funciona
+  uma vez e depois quebra - o cenario que ele sempre disse cobrir. A
+  INTENCAO do teste foi preservada, so o setup mudou.
+- 4 testes novos (tests/unit/test_heartbeat_boot.py), incluindo o inverso
+  (a carencia acaba no primeiro sucesso - nao pode virar mordaca) e que
+  RECEBER heartbeat tambem estabelece o peer. Validados dos dois lados:
+  bug reintroduzido de proposito -> 2 falharam; restaurado -> passaram.
+- Suite: **252 passed, 8 skipped**.
+- **Confirmado em campo:** boot do Notebook agora vai direto de
+  "tolerancia propria de 45 perdidos (45s)" para "Motion Core conectado",
+  sem "Heartbeat perdido" no meio. Pi: zero falsos positivos.
+
+## 2026-07-19 (behavior.reduzir_carga_ia: alguem finalmente escuta)
+
+- **O buraco:** o GuardiaoRamNotebook (no Pi) publicava
+  `behavior.reduzir_carga_ia` desde que foi escrito, mas NINGUEM assinava -
+  so os testes. A protecao contra travamento por falta de memoria existia
+  so no papel. Passou despercebido porque **publicar evento nao falha**: o
+  guardiao logava "pedindo alivio de carga" e parecia estar funcionando.
+- **Faltavam DUAS pecas, nao uma:**
+  1. o evento nao atravessava o link (mesma armadilha do conselheiro) -
+     Pi agora repassa `behavior.reduzir_carga_ia` e `diagnostic.recuperado`
+     ao Notebook com `local=False`;
+  2. ninguem sabia COMO aliviar - criado `src/orion/mission/alivio_carga.py`.
+- **O que se sacrifica, nessa ordem:**
+  1. modelo de IA sai da RAM (`AiManager.descarregar`, keep_alive=0) - maior
+     ganho pelo menor prejuizo: a proxima pergunta recarrega sozinha;
+  2. Sentinela de visao pausa (`SentinelaVisao.pausar/retomar`, novo) -
+     reconhecimento facial e a parte mais cara; ficar cego alguns minutos e
+     melhor que travar a maquina (travada, fica cego do mesmo jeito).
+  **A VOZ nao se desliga**: se o dono chamar "Fofao" durante o aperto, o
+  robo tem que responder - e a funcao mais basica dele.
+- Cada acao e isolada: falha ao descarregar o modelo NAO impede pausar a
+  visao (alivio parcial > nenhum). Idempotente: pedido repetido pelo link
+  nao alivia duas vezes.
+- 9 testes novos (tests/unit/test_alivio_carga.py), incluindo o ciclo
+  repetido, recuperacao de outra origem sendo ignorada, e o caso de visao
+  desabilitada. Suite: **261 passed, 8 skipped**.
+- **VALIDADO AO VIVO** (limiar critico elevado a 5000MB temporariamente
+  para forcar o disparo, depois restaurado a 700):
+  ```
+  PI:   RAM do Notebook critica: 4152 MB livres (< 5000) - pedindo alivio
+  NOTE: ALIVIO DE CARGA acionado (RAM livre: 4152 MB)
+  NOTE: modelo de IA descarregado da RAM
+  NOTE: Sentinela de visao PAUSADA (alivio de carga)
+  NOTE: RAM do Notebook recuperada (5237 MB) - retomando carga normal
+  NOTE: Sentinela de visao retomada
+  ```
+  **O alivio liberou ~1,1 GB** (4152 -> 5237 MB). O efeito e mensuravel,
+  nao simbolico. Ciclo completo (aliviar + recuperar) confirmado.
+- Cuidado que quase repeti: `sentinela` so existe dentro do `if` de visao
+  habilitada - inicializada como None antes, senao NameError com visao
+  desligada (mesmo tipo de erro do `event_bus`/`bus` de mais cedo).
+
+## 2026-07-19 (Limiar de impacto: instrumentado, nao adivinhado)
+
+- **Nao escolhi um numero novo.** O usuario nao pode ir ate o robo agora, e
+  sem medida trocar 2,5 G por outro valor seria so trocar de chute. O que
+  dava para fazer sem dado eu fiz - e e mais do que parecia.
+- **Instrumentacao (`aceleracao_g` e `pico_g` na TELEMETRY):** antes o
+  `impacto_detectado` era um booleano derivado de um limiar invisivel. Agora
+  da para VER a aceleracao. `pico_g` guarda o maior valor desde o quadro
+  anterior e zera na leitura - o instantaneo quase nunca pega o topo de um
+  tranco de 10-20ms (IMU lido a cada 50ms, telemetria a cada 500ms).
+- **Medido com o robo parado (93 amostras, 60s):** min 1,01 / mediana 1,01 /
+  max 1,02 G. Baseline exatamente na gravidade (confere com a fisica) e
+  **ruido de +-0,01 G**. Ou seja: o limiar nao precisa ser alto por causa de
+  ruido - 2,5 G esta ~150x acima da faixa de ruido parado. Falta medir o
+  piso com o robo ANDANDO (vibracao levanta) e o pico de uma batida real.
+- **BUG ENCONTRADO E CORRIGIDO - o acelerometro estava em ±4 G.** Com teto
+  de 4 G e limiar em 2,5 G sobrava quase nada de faixa util: uma batida de
+  verdade SATURAVA o sensor e o pico saia menor do que foi - esbarrao e
+  pancada forte viravam ambos "4 G". **Isso tornava impossivel escolher
+  limiar por medida**, entao tinha que ser consertado antes de qualquer
+  ajuste. Trocado para ±8 G.
+- Custo da troca: ZERO na pratica. Medido depois: baseline 1,01 G e ruido
+  +-0,01 G, identicos ao de ±4 G (ADC de 16 bits sobra). A inclinacao
+  tambem nao sofre - usa a DIRECAO do vetor normalizado, nao a magnitude.
+- **Limiar agora e ajustavel sem regravar firmware:** comando
+  `SET_IMPACT_THRESHOLD` + `tools/testar_imu.py --limiar 3.0`, gravado na
+  EEPROM em endereco SEPARADO da calibracao do vetor (32, magico 0x0111) -
+  ajustar o limiar nao pode apagar a calibracao feita na bancada. Faixa
+  aceita 1,05 a 7,5 G (abaixo dispararia com a gravidade parada, acima
+  satura). Testado: gravado 3,2 G, resetado o Mega, releu 3,2 G da EEPROM.
+  Restaurado ao default 2,5 G - mudar sem medida seria outro chute.
+- `limite_impacto_g` tambem vai na telemetria (a interface mostra contra o
+  que o pico esta sendo comparado).
+- **PENDENCIA (a que realmente fecha o assunto):** com o robo ANDANDO,
+  rodar `tools/testar_imu.py` e anotar (a) o pico de vibracao normal
+  trafegando, (b) o pico de um esbarrao leve, (c) o pico de uma batida
+  real. Escolher o limiar entre (a) e (b), e gravar com --limiar.
+
+## 2026-07-19 — Fechamento da sessão
+
+Começou como "testar o sensor MPU" e virou uma caçada a bugs escondidos.
+O MPU estava bom desde o início; o teste é que destravou o resto.
+
+**Consertado (com teste de regressão e validação em campo):**
+1. Offset de 9,3° do MPU — vetor de referência na EEPROM (não subtração).
+2. Flag de impacto invisível — janela de 1s em vez de instantâneo.
+3. **DHT fantasma corrompendo a serial** — bit-banging com interrupções
+   desligadas comia ~1,5% de TODO comando, silenciosamente. 3000/3000 ok
+   depois. Era a causa real do "ACK perdido" de 18/07.
+4. Vazamento de conexões TCP — socket e tarefa não fechados na reconexão.
+5. Heartbeat único para todos os enlaces — agora por link.
+6. Falso positivo de heartbeat no boot — "ainda não conectei" ≠ "perdi".
+7. `behavior.reduzir_carga_ia` que ninguém escutava — proteção contra
+   travamento por memória existia só no papel. Libera ~1,1 GB medidos.
+8. Acelerômetro em ±4 G saturando em impactos reais — agora ±8 G.
+
+**Construído:**
+- Integração cognitiva em 3 camadas: modelo de mundo (com prazo de
+  validade em todo dado), grounding (fez 4 modelos pararem de inventar),
+  conselheiro de IA (opina, não manda).
+- Bateria no firmware (divisor 100k/27k, chave desligada até montar).
+- Sensores térmicos de Pi e Notebook.
+
+**Testes: 261 passed, 8 skipped** (eram 208 no início do dia).
+
+**PENDÊNCIAS ABERTAS — em ordem de bloqueio:**
+
+1. **Divisor de tensão da bateria** (físico): montar 100k/27k no A0 com
+   GND comum, trocar `ORION_BATERIA_INSTALADA` para 1 e regravar.
+2. **Limiar de impacto** (físico): medir com o robô ANDANDO — piso de
+   vibração, esbarrão leve, batida real — e gravar com `--limiar`.
+3. **DHT** (físico): quando instalar, `ORION_DHT_INSTALADO` para 1.
+4. **Conselheiro de IA desligado**: a inferência do gemma3:1b não cabe no
+   orçamento de tempo (>20s). Religar exige modelo/hardware mais rápido ou
+   rodar a inferência com nice deixando um núcleo livre. Código pronto.
+5. **Julgamento do gemma3:1b é fraco** para decisão (escolheu repouso com
+   obstáculo a 34cm). Se a camada 3 for religada, avaliar o 4b só para
+   isso — foi por essa razão que ele não foi apagado.
+6. **Camada 2 da cognição (memória na decisão) não foi construída** — o
+   grounding existe, mas quem o alimenta com observações reais ainda não.
+
+**Lição do dia que vale além deste projeto:** dois bugs (o conselheiro e o
+alívio de carga) sobreviveram porque **publicar evento não falha**. O
+código logava que estava trabalhando e ninguém escutava do outro lado.
+Vale desconfiar de todo `publish` cujo consumidor não se consegue apontar.
+
+## 2026-07-20 (Camada 2 da cognicao: o diario - e a licao de testar os DOIS lados)
+
+- **`src/orion/mission/diario.py`:** escuta `vision.person_detected` e
+  `sentinela.alerta`, grava na tabela `eventos` (categoria memoria
+  "eventos", origem "diario") e le de volta em
+  `observacoes_de_hoje()` no formato que o grounding espera. Plugado no
+  MissionPlanner (`contexto["observacoes"]`) e no conversar_fofao.
+  Ate aqui o bloco de observacoes chegava SEMPRE vazio - o robo era
+  honesto por nao ter memoria, nao por ter olhado.
+- **Cuidado principal - nao inundar:** `vision.person_detected` dispara a
+  cada verificacao. Sem janela de silencio (600s por pessoa) seriam
+  centenas de "vi o Joao Paulo" por hora, enchendo o prompt de repeticao -
+  a melhor forma de um modelo pequeno perder o que importa. Teto de 8
+  observacoes no contexto pelo mesmo motivo.
+- 16 testes (tests/unit/test_diario.py).
+
+### O achado que muda a conclusao de ontem
+
+Testei os DOIS lados (com registro e sem) e o 1b **falhou**:
+
+| caso | 1b (enfase em nao inventar) | 1b (enfase em usar fatos) | 4b |
+|---|---|---|---|
+| A) diario TEM a Ana | "Nao vi" ERRADO | "Sim, as 14:30" ok | ok |
+| B) diario VAZIO | "Nao vi" ok | "Sim, a Ana passou" ERRADO | ok |
+| C) diario so com BRUNO | "Nao vi" ok | "Sim, as 09:12" ERRADO | "Sim, vi a Ana as 09:12" **ERRADO** |
+
+- **Ontem eu validei o grounding com UM caso** (o de recusa) e declarei
+  vitoria. Errado da minha parte: testando o caso oposto, o 1b so troca de
+  modo de falha conforme a enfase da instrucao - ele segue o TOM, nao os
+  dados. Reescrever o prompt nao conserta.
+- **O caso C e o pior e derruba os DOIS modelos:** existe um registro com
+  hora, entao respondem "sim, as tal hora" sem conferir DE QUEM e. Atribuir
+  a visita do Bruno a Ana e afirmacao falsa sobre a familia.
+- **Conclusao de projeto: isso nao e tarefa de modelo de linguagem, e
+  consulta a banco.** Perguntas "voce viu o fulano hoje?" passaram a ser
+  respondidas DETERMINISTICAMENTE no MissionPlanner
+  (`_responder_sobre_quem_viu`), por comparacao de nome, seguindo o padrao
+  que ja existia para "que horas sao". A IA fica com conversa livre, que e
+  o que ela faz bem. 18 testes (tests/unit/test_planner_diario.py),
+  incluindo o caso C que os dois modelos erraram.
+- Grounding tambem foi rebalanceado (a regra so punia inventar; agora
+  tambem diz que negar o que esta no diario e erro) e separa
+  "neste exato momento" de "hoje" - o 1b lia "nao estou vendo ninguem
+  agora" e respondia sobre o dia inteiro.
+- **Correcao lateral:** `ai_manager` importava `ollama` no topo, o que
+  tornava o `mission_planner` inimportavel no Pi e nos testes (nenhum teste
+  o importava, por isso ninguem viu). Import preguicoso, igual ao
+  conselheiro.
+- Suite: **295 passed, 8 skipped**.
+- **PENDENCIA:** o modelo continua sendo o gemma3:1b para conversa livre -
+  com o grounding ele nao inventa, e a parte factual agora nao passa por
+  ele. Mas a validacao "os quatro modelos pararam de inventar" do journal
+  de ontem vale so para o caso de RECUSA; nao repetir essa conclusao sem
+  testar os dois lados.
+
+---
+
+## 2026-07-20 (blog publico do projeto no GitHub Pages)
+
+- **Repositorio publicado.** Ate hoje o `~/orion-os` so tinha o remote
+  `notebook` (via ssh) e o `origin` do GitHub estava vazio, sem nenhum
+  branch. Primeiro push do `master` feito hoje: todo o historico foi para
+  https://github.com/jproma23/Orion-Os (repo publico).
+- **Blog criado.** `tools/build_blog.py` gera um site estatico a partir
+  deste proprio journal: quebra o arquivo nas entradas `## <data>`, uma
+  entrada = um post, e escreve `docs/index.html` + `docs/posts/*.html`.
+  53 posts na primeira geracao.
+  - Sem dependencia externa (o conversor de Markdown cobre so o que o
+    journal usa: titulos, listas aninhadas, negrito, codigo inline e
+    blocos). Nada de Jekyll - por isso o `docs/.nojekyll`.
+  - Tema claro/escuro automatico, layout de leitura em coluna unica.
+  - O cabecalho das entradas aparece em dois formatos no journal
+    (`## data (assunto)` e `## data - assunto`); o parser aceita os dois.
+    Sem isso, uma entrada some silenciosamente do indice.
+- **GitHub Pages ligado** em `master` + pasta `/docs`. Site no ar:
+  https://jproma23.github.io/Orion-Os/
+- **Fluxo daqui pra frente:** escrever no journal como sempre, rodar
+  `python3 tools/build_blog.py` e commitar. O blog nao e escrito a mao -
+  ele e uma projecao do journal, entao nao ha dois lugares para manter.
+- **Nota de credencial:** o push exigiu um Personal Access Token
+  *fine-grained* com `Contents: Read and write` de fato marcado em
+  "Permissions" - marcar so "All repositories" em "Repository access"
+  deixa o token somente-leitura, e o erro que aparece e um 403 generico
+  no `git push`, que nao diz qual permissao falta.
+- **Proximo passo:** seguir na missao de audio (mic USB + caixinhas
+  chegando dia 23/07); o blog atualiza junto com o journal.
+
+---
+
+## 2026-07-20 (blog: ilustracoes e as primeiras fotos do hardware)
+
+- **Ilustracoes SVG** dos tres computadores (`docs/assets/`): notebook com o
+  rosto do Fofao na tela, Pi 4B com a barra de 40 pinos, Mega com o canto
+  chanfrado, mais o diagrama `corrente.svg` mostrando quem fala com quem.
+  Sao embutidos no HTML (nao via `<img>`) de proposito: assim herdam
+  `currentColor` e acompanham o tema claro/escuro sozinhos.
+- **Fotos reais do hardware** publicadas em `docs/assets/fotos/`: a torre
+  (webcam no pan/tilt + HC-SR04), o chassi por dentro (Mega, servos,
+  driver) e o avatar rodando no notebook.
+- **Tratamento das fotos antes de subir** (o script esta no journal porque
+  vale repetir): `ImageOps.exif_transpose` para respeitar a orientacao,
+  depois copiar para uma imagem nova - assim nenhum metadado e herdado -
+  redimensionar para 1400px e salvar em WebP q=82. As originais do celular
+  tinham **EXIF com GPS**; o repo e publico, entao isso sai antes do
+  commit. 9,8 MB viraram 286 KB.
+- **Nao publicar rosto.** As fotos de cadastro facial da familia
+  (`~/Downloads/joao paulo|marah|kamall.*`) ficaram de fora por decisao
+  explicita: repo publico, e o que entra no git nao sai do historico.
+  Regra para as proximas sessoes: foto so do projeto.
+- **Proximo passo:** missao de audio (mic USB + caixinhas, 23/07). As fotos
+  do resultado entram na galeria do blog.
+
+---
+
+## 2026-07-20 (perfil do GitHub e capas)
+
+- **Perfil do GitHub montado.** Criado o repo `jproma23/jproma23` (branch
+  `main`) - o README dele e o que aparece em github.com/jproma23. Texto do
+  "sobre mim" escrito pelo proprio Joao Paulo; o README so organizou em
+  secoes, tabela do ORION OS e badges.
+- **Capa** (o poster do projeto) no topo do perfil e tambem no topo do
+  blog, em `docs/assets/capa.webp`.
+- **Limite da API, para nao perder tempo numa proxima vez:** um PAT
+  consegue criar repo e dar push, mas **nao** troca a foto de perfil (o
+  GitHub nao tem endpoint para isso, em nenhum nivel de permissao) nem a
+  bio/status (precisa de permissao de perfil, que o token nao tinha).
+  Essas tres coisas sao manuais em github.com/settings/profile.
+- **Fotos de rosto da familia continuam fora** do repo publico. O poster
+  do perfil e foto do proprio dono, em pagina dele - caso diferente.
+- **Proximo passo:** missao de audio (23/07). Journal como sempre, depois
+  `python3 tools/build_blog.py` e push.
+
+---
+
+## 2026-07-20 (wake word "Fofão" - decisao adiada para o mic novo)
+
+- **Achado:** `src/orion/voice/wake_word.py` faz casamento EXATO da palavra
+  (`\b` sobre a transcricao). O Whisper erra fala curta com frequencia
+  ("fofao" -> "fofo", "fofa", etc.), entao match exato deixa passar quem
+  chamou. A memoria do projeto dizia "wake fuzzy", mas o codigo nunca teve
+  fuzzy - ficou so intencao.
+- **Descartado o fuzzy por similaridade** (difflib com limiar). Motivo: o
+  caso "fogao" da 0.80 de parecenca com "fofao", igual a mishears legitimas
+  como "fofau" - nao da pra separar por limiar sem ou perder acerto ou
+  acordar o robo toda vez que alguem fala em fogao (palavra de cozinha,
+  dita toda hora).
+- **Decisao (do dono):** manter match exato e apenas ACRESCENTAR a uma
+  lista as formas que o Whisper realmente cospe errado. Controle palavra a
+  palavra; "fogao"/"fulano" nunca entram na lista de proposito.
+- **Adiado para 24/07 (missao de audio):** a forma como o Whisper erra
+  depende da voz + mic + ambiente. Montar a lista OUVINDO de verdade com o
+  mic USB novo, nao no chute. Fluxo: robo erra ao vivo -> ver o que apareceu
+  na transcricao -> adicionar aquela forma.
+- **Aberto:** decidir se a lista fica em `config/orion.yaml` (editavel sem
+  mexer no codigo) ou fixa no codigo.
+
+---
+
+## 2026-07-20 (panorâmica por pan/tilt + conserto: repouso agora nivela a cabeça)
+
+- **Modo visão validado no hardware, de ponta a ponta.** Montei uma
+  panorâmica por varredura: o Pi gira o pan de -60° a +60° (a webcam está
+  montada em cima do pan/tilt, então gira junto) e o Notebook fotografa em
+  cada ângulo; o OpenCV costura. Três scripts novos: `tools/panorama.py`
+  (Pi, orquestra), `tools/capturar_frame.py` e `tools/montar_panorama.py`
+  (Notebook). Serial é exclusiva: parar `orion-motion.service` antes,
+  religar depois.
+  - Pegadinha 1: chamei `python3` do sistema no Notebook para capturar;
+    o cv2 está no `.venv`. Corrigido para `~/orion-os/.venv/bin/python`.
+  - A costura funcionou (não caiu no fallback), mas saiu torta: metade da
+    varredura é parede lisa, sem textura para casar bordas. Os frames
+    individuais estão ótimos e nivelados. Fiação do servo está CORRETA -
+    tilt=0 dá visão nivelada, pan varre no sentido certo. NÃO inverter fios.
+- **Bug real encontrado no maestro:** o `Repouso` (comportamentos.py) só
+  publicava status e dormia - nunca comandava pan/tilt. Como toda
+  reconexão serial reseta o Mega, e no reset os servos vão para o padrão do
+  firmware (cabeça baixa), depois de qualquer restart a cabeça ficava
+  apontada para baixo até algo mandá-la subir - e nada mandava.
+  - **Correção:** `Repouso.executar` agora publica `motion.pan_tilt {0,0}`
+    ao assumir. Prontidão é com a cabeça no nível. Sobrevive a resets.
+    Confirmado ao vivo: frame após o restart voltou nivelado. 5 testes de
+    comportamento seguem passando.
+- **Aberto:** panorâmica bonita pede mirar o lado da bancada (textura) ou
+  passos de 10° com mais overlap. Fica para quando quiser.
+
+---
+
+## 2026-07-20 (bug do pan/tilt trocado: diagnóstico limpo + conserto por fio)
+
+- **Sintoma:** ao rodar a panorâmica, o dono viu a cabeça mexer "cima e pra
+  baixo" quando o comando era de pan (lado). Suspeita: pan/tilt trocados.
+- **Diagnóstico controlado, um eixo por vez** (`tools/testar_so_pan.py`,
+  agora aceita `pan|tilt`): SÓ pan → cabeça subia/descia; SÓ tilt → cabeça
+  virava pro lado. Confirmado: os dois canais estavam cruzados.
+- **Confirmação que EU consigo ler** (`tools/diag_pan.py`): captura a vista
+  em pan=-60 e pan=+60. Antes do conserto a vista mudava na vertical;
+  depois, na horizontal (dois pedaços diferentes da sala, mesma altura).
+- **Correção (decisão do dono):** inverter os fios de SINAL dos servos nos
+  pinos 10 e 11 do Mega (`SERVO_PAN=10`, `SERVO_TILT=11` em pins.h). O
+  firmware NÃO mudou; a troca física fez a realidade bater com o código -
+  agora pino 10 aciona o servo horizontal e o 11 o vertical, como o nome diz.
+  Ou seja: o "CONFIRMADO 2026-07-18" do pins.h estava na verdade cruzado;
+  só apareceu agora porque exige mover um eixo isolado pra notar.
+  IMPORTANTE: como foi conserto por fio, NÃO inverter também no firmware -
+  seria dupla inversão, voltaria ao errado.
+- **Panorâmica boa validada** após o conserto: varredura de pan -50°..+20°
+  com tilt -15° mirando a bancada, 8 frames, costurados nos dois modos
+  (`montar_panorama.py` agora gera cilíndrica E plana). Cilíndrica é a certa
+  pra câmera que gira. Captura ganhou 2ª tentativa contra travamento da
+  webcam (`select() timeout` quando o USB é esbarrado).
+- **Privacidade:** os frames/panorâmicas pegaram o dono e o cômodo -
+  mantidos SÓ local (Pi + Notebook), nada publicado no blog.
+
+---
+
+## 2026-07-20 (pins.h corrigido + nível do tilt medido)
+
+- **pins.h:** comentário dos servos pan/tilt atualizado - explicava
+  "CONFIRMADO 2026-07-18", mas naquela data os fios estavam cruzados.
+  Agora registra: pinos certos, fios de sinal invertidos em 2026-07-20,
+  pino 10 = pan (horizontal) e pino 11 = tilt (vertical), validado.
+- **Nível do tilt medido** (`tools/diag_nivel.py`, pan=0 em tilt 0/-10/-20):
+  tilt=0 olha reto (porta e interruptor no centro, bancada abaixo); valores
+  negativos apontam pra cima (o -20 pega o teto). Como o repouso já manda
+  tilt=0, a cabeça no repouso JÁ fica nivelada agora que os fios estão
+  certos. O "olhando pra cima" de antes era o efeito dos canais cruzados,
+  não uma pose errada. Nada a mudar no código.
+
+---
+
+## 2026-07-20 (varredura por voz + ultrassom frente/trás trocado + telemetria na web)
+
+- **Comando de voz "varredura"** adicionado (`mission_planner.py`): padrão
+  varredura|varrer|escanear|scan → SCAN_FRONT, enviado ao Mega. O
+  motion.scan_complete resultante preenche o mapa polar da web.
+- **Bug real na navegação:** `_ao_receber_comando` não tratava SCAN_FRONT -
+  caía no else como "ação desconhecida". A Ronda pede exatamente isso, então
+  a varredura autônoma nunca funcionou. Adicionado o caso → `_escanear_a_frente()`.
+  Conserta a Ronda e habilita o comando de voz. +2 testes.
+- **Ultrassom frente↔trás estava trocado no código** (achado do dono: tapar
+  o sensor traseiro mexia na distancia_frontal_cm - a navegação desviava
+  olhando o sensor errado, que é segurança). Corrigido em `pins.h`: frontal
+  agora 26/27, traseiro 22/23. Comentário do main.cpp atualizado.
+  **Firmware recompilado e regravado no Mega** (pio, RAM 36%, flash 16,6%).
+- **Telemetria que o firmware já mandava mas a web ignorava**, agora exposta
+  na dashboard: distância traseira, aceleração (G) e impacto. Sanity check
+  ao vivo: aceleracao_g ≈ 1,01 parado (= gravidade), traseira lendo 33 cm.
+- **Aceleração:** confirmado que já é medida (MPU6050) - usada para detecção
+  de impacto (limiar 2,5 G, ajustável, EEPROM) e inclinação; agora também
+  visível na tela.
+
+---
+
+## 2026-07-20 (distâncias frente/trás no mapa + cache-bust da web)
+
+- **Mapa da web** agora mostra distância frontal e traseira ao vivo, ao lado
+  do radar polar (o dono fica mais nessa página). `mapa.js` passou a escutar
+  o evento SSE `comm.mensagem.telemetry` (payload direto do Mega) além de
+  motion.position/scan_complete.
+- **Cache-bust** (`?v=20260720`) nos includes de `dashboard.js` e `mapa.js`:
+  o navegador guardava o JS antigo e os campos novos (traseira, aceleração,
+  impacto) não apareciam mesmo com o servidor entregando certo. Agora troca
+  sozinho sem precisar limpar cache.
 ## 2026-07-23 (recuperacao pos-reinstall do Pi + fio da replica ligado + reles)
 
 - **Raspberry reinstalado do zero** (usuario fez backup antes). Projeto

@@ -216,18 +216,18 @@ async def test_memory_nota_escrever_e_buscar_via_comm_request(tmp_path, par_cone
         "motion_core",
         {
             "comando": "memory.nota_escrever",
-            "titulo": "Cor favorita do Kamal",
-            "conteudo": "Kamal gosta de azul.",
+            "titulo": "Cor favorita do Bruno",
+            "conteudo": "Bruno gosta de azul.",
         },
         timeout_s=2,
     )
     assert resposta_escrita.payload["ok"] is True
 
     resposta_busca = await servico_mission.request(
-        "motion_core", {"comando": "memory.nota_buscar", "consulta": "kamal"}, timeout_s=2
+        "motion_core", {"comando": "memory.nota_buscar", "consulta": "bruno"}, timeout_s=2
     )
     assert resposta_busca.payload["ok"] is True
-    assert resposta_busca.payload["resultado"][0]["titulo"] == "Cor favorita do Kamal"
+    assert resposta_busca.payload["resultado"][0]["titulo"] == "Cor favorita do Bruno"
 
     await servico_mission.encerrar()
     await servico_motion.encerrar()
@@ -261,7 +261,7 @@ async def test_memory_nota_sem_vault_responde_ok_falso(tmp_path, par_conectado):
 
     resposta = await servico_mission.request(
         "motion_core",
-        {"comando": "memory.nota_buscar", "consulta": "kamal"},
+        {"comando": "memory.nota_buscar", "consulta": "bruno"},
         timeout_s=2,
     )
     assert resposta.payload["ok"] is False
@@ -285,11 +285,11 @@ def test_recall_embrulha_e_cliente_desembrulha_o_embedding():
     from orion.mission.memory_client import _decodificar_binarios
 
     emb = bytes(range(200)) * 5  # bytes binários arbitrários (com \x00)
-    resultado_api = [{"id": 1, "nome": "Marah", "embedding_face": emb}]
+    resultado_api = [{"id": 1, "nome": "Ana", "embedding_face": emb}]
 
     transportado = _codificar_binarios(resultado_api)  # lado do Pi (bridge)
     assert transportado[0]["embedding_face"]["_bytes_b64"] == base64.b64encode(emb).decode()
 
     recebido = _decodificar_binarios(transportado)  # lado do Notebook (client)
     assert recebido[0]["embedding_face"] == emb
-    assert recebido[0]["nome"] == "Marah"
+    assert recebido[0]["nome"] == "Ana"

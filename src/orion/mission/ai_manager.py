@@ -9,6 +9,10 @@ mesma tolerancia ja usada para Arduino/SSD/Notebook ausentes).
 
 Chave da API (OPENAI_API_KEY) nunca fixa no codigo/config (regra 6 do
 CLAUDE.md) - vem de variavel de ambiente (EDR-0021).
+
+O contexto entregue ao modelo passa pelo grounding
+(orion/mission/grounding.py), que diz explicitamente o que o robo NAO
+sabe - sem isso os modelos inventam observacoes (medido em 2026-07-19).
 """
 from __future__ import annotations
 
@@ -17,13 +21,15 @@ import logging
 import os
 from pathlib import Path
 
+from orion.mission.grounding import montar_contexto
+
 logger = logging.getLogger("orion.mission.ai_manager")
 
 
 class AiManager:
     def __init__(
         self,
-        modelo: str = "llama3.2:3b",
+        modelo: str = "gemma3:1b",
         temperatura: float = 0.6,
         caminho_prompt_sistema: str | Path = "config/prompt_sistema.txt",
         max_tokens_resposta: int | None = None,
@@ -48,6 +54,10 @@ class AiManager:
         # base_url alternativo (ex.: OpenRouter, "https://openrouter.ai/api/v1")
         # - a API e compativel com a da OpenAI, so muda o servidor (EDR-0021).
         self._openai_base_url = openai_base_url
+        # Clientes nascem sob demanda (ver _responder_ollama/_responder_openai),
+        # com os imports DENTRO dos metodos: a lib `ollama` so existe no
+        # Notebook, e sem isso o mission_planner - que importa esta classe -
+        # nao era importavel no Raspberry nem nos testes.
         self._cliente_ollama = None
         self._cliente_openai = None
 
@@ -132,30 +142,59 @@ class AiManager:
         logger.warning("IA sugeriu acao fora do vocabulario: %r", resposta)
         return None
 
+    async def descarregar(self) -> None:
+        """Tira o modelo da RAM do Ollama (keep_alive=0).
+
+        E o alivio de memoria mais direto que o Notebook tem: o gemma3:1b
+        ocupa ~880MB parado por causa do keep_alive de 30min. Nao quebra
+        nada - a proxima pergunta recarrega o modelo sozinha, pagando so o
+        tempo de carga uma vez.
+        """
+
+        def _chamar() -> None:
+            self._cliente.generate(model=self._modelo, prompt="", keep_alive=0)
+
+        await asyncio.to_thread(_chamar)
+
     def _montar_prompt_sistema(self, contexto: dict | None) -> str:
-        if not contexto:
-            return self._prompt_sistema
+        """Prompt fixo + bloco de fatos do grounding.
 
-        partes = []
-        pessoa = contexto.get("pessoa")
-        if pessoa:
-            partes.append(f"Voce esta falando com {pessoa.get('nome', 'alguem')}.")
+        O bloco entra SEMPRE, mesmo sem contexto nenhum: um contexto vazio
+        vira "não tenho registro de nada hoje", que e justamente a
+        informacao que impede a IA de inventar. Omitir o bloco quando nao ha
+        dados seria repetir o erro medido em 2026-07-19, quando o silencio
+        sobre um fato levou os modelos a afirmarem coisas que nunca viram.
+        """
+        contexto = contexto or {}
 
-        conversas = contexto.get("conversas_recentes") or []
-        if conversas:
-            historico = "\n".join(f"{c['papel']}: {c['texto']}" for c in conversas[-5:])
-            partes.append(f"Historico recente da conversa:\n{historico}")
+        pessoa = contexto.get("pessoa") or {}
+        familia = contexto.get("familia")
+        # Quem esta falando conosco tambem e alguem que conhecemos.
+        if pessoa.get("nome") and not familia:
+            familia = [pessoa["nome"]]
+
+        bloco = montar_contexto(
+            retrato=contexto.get("retrato"),
+            familia=familia,
+            observacoes=contexto.get("observacoes"),
+            conversas_recentes=contexto.get("conversas_recentes"),
+        )
+
+        partes = [self._prompt_sistema]
+        if pessoa.get("nome"):
+            partes.append(f"Voce esta falando com {pessoa['nome']}.")
+        partes.append(bloco)
 
         conhecimento = contexto.get("conhecimento_relevante") or []
         if conhecimento:
             fatos = "\n".join(f"- {c['chave']}: {c['valor']}" for c in conhecimento[:5])
-            partes.append(f"Fatos que voce ja sabe:\n{fatos}")
+            partes.append(f"FATOS QUE EU JA SEI:\n{fatos}")
 
         notas = contexto.get("notas_relevantes") or []
         if notas:
             resumo = "\n".join(f"- {n['titulo']}: {n['trecho']}" for n in notas[:5])
             partes.append(f"Notas relevantes da sua memoria de longo prazo:\n{resumo}")
 
-        if not partes:
-            return self._prompt_sistema
-        return self._prompt_sistema + "\n\n" + "\n\n".join(partes)
+        # `partes` ja comeca com self._prompt_sistema (acima) - concatenar de
+        # novo aqui duplicaria o prompt inteiro no pedido ao modelo.
+        return "\n\n".join(partes)

@@ -26,9 +26,12 @@ constexpr uint8_t DIR_DIREITO = 5;
 // mas sem efeito fisico nesta montagem.
 constexpr uint8_t ENABLE_MOTORES = 6;  // compartilhado; NAO CONECTADO
 
-// --- Ultrassonico frontal (CONFIRMADO) - HC-SR04 fixo, sem servo ---
-constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 22;
-constexpr uint8_t ULTRASSOM_FRENTE_ECHO = 23;
+// --- Ultrassonico frontal - HC-SR04 fixo, sem servo ---
+// CORRIGIDO 2026-07-20: frente e tras estavam trocados no codigo. Tapar o
+// sensor traseiro mexia na distancia_frontal_cm (a navegacao desviava
+// olhando o sensor errado). O sensor fisico da FRENTE esta nos pinos 26/27.
+constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 26;
+constexpr uint8_t ULTRASSOM_FRENTE_ECHO = 27;
 
 // --- IMU (CONFIRMADO) - MPU6050/9250, pinos fixos de I2C do Mega ---
 constexpr uint8_t IMU_SDA = 20;
@@ -37,14 +40,21 @@ constexpr uint8_t IMU_SCL = 21;
 // --- Temperatura/umidade (CONFIRMADO) - DHT11/22 ---
 constexpr uint8_t DHT_DATA = 24;
 
-// --- Ultrassonico traseiro (CONFIRMADO 2026-07-18) - HC-SR04 fixo ---
-constexpr uint8_t ULTRASSOM_TRAS_TRIG = 26;
-constexpr uint8_t ULTRASSOM_TRAS_ECHO = 27;
+// --- Ultrassonico traseiro - HC-SR04 fixo ---
+// CORRIGIDO 2026-07-20: ver nota no frontal. O sensor fisico de TRAS esta
+// nos pinos 22/23.
+constexpr uint8_t ULTRASSOM_TRAS_TRIG = 22;
+constexpr uint8_t ULTRASSOM_TRAS_ECHO = 23;
 
 // --- Servo do radar (CONFIRMADO 2026-07-18) - varre o ultrassom frontal ---
 constexpr uint8_t SERVO_RADAR = 9;
 
-// --- Servos pan/tilt (CONFIRMADO 2026-07-18) ---
+// --- Servos pan/tilt ---
+// Os pinos estavam certos, mas os fios de SINAL estavam cruzados na montagem:
+// ate 2026-07-20 o pino 10 acionava o servo vertical e o 11 o horizontal, o
+// que so aparece movendo UM eixo isolado (teste em tools/testar_so_pan.py).
+// Corrigido invertendo os dois fios de sinal (nao o firmware). Agora bate:
+// pino 10 = pan (horizontal), pino 11 = tilt (vertical). VALIDADO 2026-07-20.
 constexpr uint8_t SERVO_PAN = 10;
 constexpr uint8_t SERVO_TILT = 11;
 
@@ -70,6 +80,14 @@ constexpr uint8_t RELE_MOTORES = 12;
 // pino 7 aqui so pra nao colidir com RELE_MOTORES; FAN_ON/FAN_OFF
 // continuam existindo no protocolo, sem efeito fisico ate reconectar.
 constexpr uint8_t RELE_VENTILADOR = 7;
+
+// --- Tensao da bateria (RESERVADO - divisor ainda nao montado) ---
+// Pack de parafusadeira 18V lido por divisor 100k/27k. Ver bateria_manager.h
+// para o esquema de ligacao e a exigencia de GND comum.
+// A0 e entrada analogica dedicada (equivale ao pino 54 no Mega), entao nao
+// disputa numeracao com nenhum pino digital usado acima - conferido pino a
+// pino na integracao de 2026-07-26.
+constexpr uint8_t BATERIA_SENSE = A0;
 
 // --- RESERVADO: nao fisicamente conectado nesta montagem ---
 constexpr uint8_t ENCODER_ESQUERDO = 18;  // interrupt externo do Mega
