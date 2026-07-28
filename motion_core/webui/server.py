@@ -63,6 +63,15 @@ TOPICOS_REPASSADOS = (
     "navigation.target_lost",
     "navigation.error",
     "vision.person_detected",
+    # A POSICAO DA CABECA nunca foi repassada (achado de 2026-07-29): o
+    # pan/tilt se mexia e nada disso chegava na interface nem em qualquer
+    # observador do barramento. Diagnosticar "o pan/tilt esta maluco" era
+    # impossivel por construcao - uma sonda no /eventos media zero mesmo
+    # com a cabeca girando. Mesmo padrao que ja mordeu 3 vezes neste
+    # projeto: alguem publica e ninguem escuta, e publicar nao falha.
+    "motion.pan_tilt",
+    "vision.target_centered",
+    "vision.person_lost",
     "voice.status",
     "diagnostic.error",
     "safety.safe_mode_entered",
