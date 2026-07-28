@@ -3417,3 +3417,64 @@ calma):
   robo em posicao segura e alguem observando; calibrar a bussola com o robo
   montado; camera do pan/tilt segue sem transmitir; varredura de horizonte
   do EDR-0024, que depende dos itens anteriores.
+
+### Fechamento da sessao de 2026-07-27 (noite) + missao pronta para amanha
+
+- **Giro real testado com o robo** (`tools/testar_joystick.py --com-motor`,
+  usuario confirmou posicao segura): `TURN_LEFT` a 25% por ~0,4s seguido de
+  `STOP`, aceito e executado - log confirma o `ControleManual` assumindo o
+  maestro a cada comando (`'controle_manual' assume (prio 95)`) e devolvendo
+  o controle sozinho depois. **Confirmacao visual de que o robo girou de
+  verdade ainda pendente** - o teste prova o pipeline (HTTP -> Event Bus ->
+  maestro -> NavigationCore -> serial -> Mega -> ACK), nao o movimento
+  fisico em si.
+- **Sessao encerrada com Pi e Notebook sincronizados em `1803624`**, arvore
+  limpa nas duas, `orion-motion.service` ativo e saudavel no Pi (restart
+  agora leva ~1s, era ~90s antes da correcao desta sessao).
+- **Limpeza de fim de sessao:** removidos os arquivos de diagnostico
+  temporarios que a investigacao do travamento deixou em `/tmp` do Pi
+  (`sse_out.txt`, `strace_out.txt`, `st.txt` - da tentativa de `strace` que
+  nao teve permissao de ptrace). Nada do codigo do projeto foi tocado nesta
+  limpeza, so arquivos soltos fora do repositorio.
+
+#### Missao de amanha (em ordem, cada item depende do anterior)
+
+1. **Confirmar visualmente o giro do item acima.** Se o robo girou de
+   verdade na direcao certa (TURN_LEFT = sentido anti-horario visto de
+   cima), fechar o item como validado no hardware (mapa de saude:
+   `controle_manual`/`webui /comando` sobe de "giro nao testado" para
+   "giro confirmado"). Se nao girou ou girou errado, e um bug novo -
+   comparar com o firmware (`command_executor.h`, TURN_LEFT/TURN_RIGHT)
+   antes de qualquer outra coisa.
+2. **Testar translacao real** (`MOVE_DISTANCE` para frente/re, ou o
+   joystick de verdade no navegador) - so giro foi testado ate agora. Rodas
+   no chao ou no ar, dependendo do que for seguro medir (contagem de
+   passos vs distancia real, por causa da carencia do rele desta sessao).
+3. **Observar os contadores `frontal_descartes`/`traseiro_descartes`**
+   por uma janela mais longa (a sessao de hoje so confirmou que crescem -
+   27/07 22h: 29/10; depois do teste de giro: 1789/1171). Correlacionar
+   com o log de `vigilancia_obstaculo`: se os ciclos de obstaculo falso
+   (423 registrados antes da correcao) sumirem ou cairem muito, a hipotese
+   do EDR desta sessao (cegueira do loop durante o envio da telemetria)
+   fica confirmada de vez.
+4. **Calibrar a bussola** (`CALIBRATE_COMPASS`) com o robo montado - exige
+   girar o robo em torno do proprio eixo por ~25s continuos, so possivel
+   depois do item 2 confirmar que o movimento comandado bate com o
+   fisico.
+5. **Investigar a camera do pan/tilt** que nao transmite (pendente desde
+   26/07, sem diagnostico ainda - nem se e cabo, driver, indice errado ou
+   coisa fisica).
+6. **So depois de 1-4:** varredura de horizonte do EDR-0024 (precisa de
+   giro confiavel + bussola calibrada + os dois ultrassons lendo sem
+   distorcao do proprio movimento).
+7. **Continuar o mapa de saude** (`docs/ESTADO_DOS_MODULOS.md`): os modulos
+   de infraestrutura (comunicacao, webui, joystick) ganharam evidencia real
+   forte nesta sessao; os modulos de percepcao/navegacao real ainda nao
+   foram tocados por teste de hardware nenhum - e onde a proxima rodada
+   deveria focar.
+
+**Regra para amanha, reforcada por esta sessao:** todo restart de servico
+durante teste deve ser cronometrado (`date +%s` antes/depois) - foi assim
+que o bug do desligamento apareceu. Um restart que demora mais que uns
+poucos segundos NAO e normal, mesmo que systemd eventualmente resolva
+sozinho.
