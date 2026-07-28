@@ -3685,3 +3685,118 @@ assume (prio 45)` e o timeout soltando a cabeca sozinho. 412 testes passam.
   refletia o produtor real).
 - Continua valendo do inicio do dia: causa raiz do falso positivo do YOLO
   (hoje so mitigado com 3 quadros de confirmacao).
+
+
+## Sessao de 2026-07-28 (parte 3) - o pan/tilt SEGUE pessoa pela primeira vez
+
+Fecha o "nao segue ninguem" das partes 1 e 2. Foram CINCO bugs empilhados, e
+nenhum aparecia nos 456 testes - cada um sozinho ja bastava para quebrar o
+seguimento, o que explica por que a descricao do usuario era simplesmente
+"nao funciona".
+
+**Medicao final, com a pessoa parada:**
+
+    10:22:26  erro=  -1   conf=0.97
+    10:22:27  erro=  -2   conf=0.98
+    10:22:28  erro=  -1   conf=0.98
+    ... oito leituras seguidas a +-2px do centro num quadro de 640
+
+E 25 deteccoes novas em 32s. Na medicao imediatamente anterior, mesmo teste:
+UMA. O laco da visao estava sufocado, nao a deteccao.
+
+### Bug 4 - meu proprio cache mentindo sobre o hardware
+
+A primeira versao do assinante de `motion.pan_tilt` (parte 2) descartava o
+comando quando pan/tilt nao tinham mudado 1 grau **em relacao ao ultimo que o
+PI mandou** - copiei do lado da visao, onde faz sentido porque la o mesmo
+emissor manda tudo. Aqui nao: quem move o servo na maior parte do tempo e o
+Vision Core, DIRETO do Notebook, sem passar por este barramento.
+
+Sintoma: a visao levava a camera para um lado atras de uma deteccao, o alvo
+sumia, o `Repouso` pedia (0,0) para nivelar, e o `return` do cache engolia o
+comando por achar que a cabeca "ja estava" la. A camera ficava presa apontada
+para o verso de um monitor, **sem nunca mais voltar**, e o robo nao tinha como
+se desvirar. Removido: limitador so por TEMPO. Cache de estado de hardware que
+enxerga METADE dos comandos e pior que nenhum cache.
+
+### Bug 5 - quadro atrasado: a causa real do "fica maluco"
+
+Num stream MJPEG/HTTP o produtor nao espera o consumidor. O `cv2.VideoCapture`
+le a fila EM ORDEM, entao com o Notebook processando mais devagar que o Pi
+produz, cada `read()` devolvia o quadro MAIS VELHO da fila. Medido: **280KB
+parados na Send-Q, ~2s de atraso permanente**.
+
+O efeito nao e video travado, e pior: o Pan/Tilt vira controle proporcional com
+ATRASO MORTO grande e passa do ponto SEMPRE. Medido com a pessoa parada, antes
+da correcao:
+
+    +202 -> +120 -> +21 -> 0 -> -57 -> -156 -> -80 -> +4 -> +150 -> +197
+
+varrendo de ponta a ponta sem nunca assentar. O usuario relatou como "fica
+maluco indo pra outra direcao" - a direcao estava CERTA, faltava informacao
+nova. Baixar o ganho so deixaria lento e ainda oscilando; a causa era o atraso.
+
+Corrigido em `captura.py`: `descartar_atrasados` usa `grab()` (que nao
+decodifica, e barato) para pular o que envelheceu e so decodifica o quadro
+atual. O criterio de parada e o TEMPO do proprio `grab()` - um que volta na
+hora veio da fila, um que demora esperou o quadro nascer, logo estamos na ponta
+viva. Ligado por padrao so quando a fonte e URL. Resultado: Send-Q de 280KB
+para **0**.
+
+Tambem se baixou o `--desired-fps` do ustreamer de 30 para 6: produzir mais
+rapido do que o consumidor consegue processar so serve para encher fila.
+
+### O espelhamento: eu errei duas vezes antes de medir
+
+`camera_frontal_espelhada: true` estava certo para a camera INTEGRADA do
+notebook (efeito selfie). A camera principal virou a DV20 no pan/tilt, servida
+pela rede - webcam em suporte nao espelha. Troquei para `false` raciocinando
+sobre o tipo de camera; a foto do stream pareceu contradizer (a placa de
+"CUIDADO" saiu invertida) e eu recuei, dizendo que era rotacao fisica. Nenhuma
+das duas conclusoes foi medida.
+
+Quem resolveu foi o teste de eixo isolado, pedido pelo usuario: pan e tilt
+passaram os dois, provando que firmware e fiacao estavam certos. Com o hardware
+descartado, a convergencia do erro (+202 -> 0) provou que `false` era o valor
+certo desde o inicio.
+
+**LICAO: a flag descreve a FONTE da imagem, nao "a camera do robo". Trocar
+`camera_indice_principal` obriga a revisitar essa linha.**
+
+### As 9 ferramentas de bancada estavam quebradas desde 27/07
+
+Todas abriam a serial em `115200` fixo, mas o baud virou `250000` em 27/07 (o
+pacote de telemetria bloqueava 84ms). Elas falham como se o hardware estivesse
+MORTO - `WHO_ARE_YOU` sem resposta em todas as portas - quando o Mega esta
+falando normalmente, so que noutra velocidade. Confirmado escutando a serial
+crua: 5600 bytes em 10s, todos lixo binario.
+
+Isso significa que **todo diagnostico de bancada feito desde 27/07 deu
+falso-negativo**. As duas ferramentas novas desta sessao (`mover_tilt.py`,
+`diag_orientacao.py`) leem o baud do `orion.yaml`. As 8 antigas continuam com
+o numero fixo - PENDENTE.
+
+### PENDENTE
+
+- **`comm.send` espera ACK dentro do laco da visao.** Com `ack_timeout_ms:500`
+  e `max_retries:3`, um comando segura ate 1,5s, e o Vision Core chama isso a
+  cada quadro rastreado. Relato do usuario: "comando espacado passa, varios
+  seguidos buga" - o joystick entra na mesma fila. O certo e desacoplar: a
+  visao manda o alvo mais recente e segue processando quadro, sem esperar o
+  servo confirmar. NAO FEITO.
+- **8 ferramentas de bancada com baud fixo em 115200** (lista acima).
+- **`AcompanharPessoa` sem teste unitario** (vem da parte 2).
+- **Camera torta no suporte** - observado pelo usuario. Enquanto a lente estiver
+  inclinada, o eixo horizontal da imagem nao coincide com o do pan e o
+  seguimento fica na diagonal. E ajuste mecanico, nao software.
+- Causa raiz do falso positivo do YOLO (so mitigado com 3 quadros).
+
+### Nao fazer: YOLOv8 no ESP32
+
+Pedido durante a sessao. Nao roda, e nao e questao de otimizar: YOLOv8n tem
+~3,2M parametros e mais de 6MB de pesos; o ESP32-CAM tem 520KB de SRAM e 4MB de
+PSRAM - nao cabe na memoria, antes de falar de velocidade. O que caberia e
+outra classe de modelo: FOMO (Edge Impulse) devolve CENTROIDE em vez de caixa,
+que e exatamente o que o pan/tilt precisa, a ~5-10fps num ESP32-S3; ou ESP-DL/
+ESP-WHO para rosto. Deteccao na propria camera eliminaria o stream e a latencia
+de rede de uma vez - vale considerar DEPOIS de estabilizar o que existe.
