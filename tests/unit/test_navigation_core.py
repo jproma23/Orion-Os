@@ -343,7 +343,38 @@ async def test_comando_via_event_bus_e_processado(cenario):
 async def test_comando_acao_desconhecida_publica_navigation_error(cenario):
     await cenario.bus.publish("navigation.comando", {"acao": "VOAR"})
     await cenario.bus.aguardar_fila_vazia()
+    # Desde 2026-07-28 a execucao roda FORA do bus (ver _ao_receber_comando):
+    # esvaziar a fila do bus nao basta mais para saber que o comando foi
+    # tratado, e o navigation.error e publicado depois, pela task.
+    await asyncio.sleep(0.05)
+    await cenario.bus.aguardar_fila_vazia()
     assert any(e.topico == "navigation.error" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_comando_manual_mais_recente_descarta_o_anterior(cenario):
+    """Joystick: comando velho e DESCARTADO, nunca executado atrasado.
+
+    Nao ha fila de comandos manuais de proposito. Uma fila faria o robo
+    continuar andando depois de o operador soltar o joystick - inaceitavel na
+    re, que nao tem seguranca reativa (o SafetyManager so olha o sensor
+    frontal). Soltar manda STOP, e o STOP ganha por ser o mais recente.
+
+    Chama o handler direto: nenhum dos dois `await` suspende, entao a task de
+    execucao so comeca depois dos dois - o segundo comando substitui o
+    primeiro antes de qualquer envio. Deterministico, sem depender de tempo.
+    """
+    await cenario.nav._ao_receber_comando(
+        Evento(topico="navigation.comando", dados={"acao": "MANUAL", "comando": "MOVE_FORWARD"})
+    )
+    await cenario.nav._ao_receber_comando(
+        Evento(topico="navigation.comando", dados={"acao": "MANUAL", "comando": "STOP"})
+    )
+    await asyncio.sleep(0.05)
+
+    enviados = cenario.comandos_enviados()
+    assert "STOP" in enviados
+    assert "MOVE_FORWARD" not in enviados
 
 
 @pytest.mark.asyncio

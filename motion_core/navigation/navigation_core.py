@@ -135,6 +135,10 @@ class NavigationCore:
         self._ultima_deteccao_follow_s: float = 0.0
         self._scan_pendente: asyncio.Future[list[dict[str, Any]]] | None = None
         self._estado_hardware = "IDLE"
+        #: Comando aguardando execucao. E UM SO, de proposito: o ULTIMO VENCE.
+        #: Ver _ao_receber_comando para o porque.
+        self._comando_pendente: dict[str, Any] | None = None
+        self._tarefa_comando: asyncio.Task | None = None
 
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_atualizar_telemetria)
@@ -227,24 +231,60 @@ class NavigationCore:
     # ---------- entrada de missao (Cap 12 s.1: recebe missoes do Notebook) ----------
 
     async def _ao_receber_comando(self, evento: Evento) -> None:
-        acao = evento.dados.get("acao")
+        """Aceita o comando e VOLTA NA HORA - a execucao roda fora do bus.
+
+        BUG REAL corrigido em 2026-07-28 (relato: "fica numa fila e isso e
+        ruim"). Antes, este handler executava o comando inteiro aqui dentro, e
+        `executar_manual` chama `_aguardar_ocioso()`, que espera
+        `self._estado_hardware` sair de EXECUTING_MISSION.
+
+        O laco de despacho do Event Bus e SERIAL: ele faz `await` no handler.
+        Mas quem atualiza `_estado_hardware` e o handler de `motion.status`, do
+        MESMO bus. Ou seja, a espera bloqueava a entrega do unico evento capaz
+        de encerra-la: a condicao de saida era impossivel e `_aguardar_ocioso`
+        SEMPRE queimava o timeout inteiro de 10s. Havia 86 dessas no log.
+
+        Nesses 10s o barramento inteiro parava - nenhum evento de nenhum modulo
+        era entregue - e os comandos de joystick se acumulavam para executar
+        atrasados depois, que e o pior comportamento possivel num controle
+        manual.
+
+        O ULTIMO VENCE, e nao ha fila: comando de joystick velho nao deve ser
+        executado atrasado, deve ser DESCARTADO. Soltar o joystick manda STOP,
+        que por ser o mais recente ganha de qualquer movimento pendente. Uma
+        fila faria o robo continuar andando depois de solto - exatamente o que
+        a re, sem seguranca reativa, nao pode fazer (Cap 18).
+        """
+        self._comando_pendente = dict(evento.dados)
+        if self._tarefa_comando is None or self._tarefa_comando.done():
+            self._tarefa_comando = asyncio.create_task(self._executar_pendentes())
+
+    async def _executar_pendentes(self) -> None:
+        """Executa o comando pendente ate nao sobrar nenhum. Fora do bus."""
+        while self._comando_pendente is not None:
+            dados = self._comando_pendente
+            self._comando_pendente = None
+            await self._despachar_comando(dados)
+
+    async def _despachar_comando(self, dados: dict[str, Any]) -> None:
+        acao = dados.get("acao")
         try:
             if acao == "HOLD":
                 await self.definir_modo_hold()
             elif acao == "MANUAL":
                 await self.executar_manual(
-                    evento.dados["comando"],
-                    evento.dados.get("velocidade_percent"),
-                    evento.dados.get("distancia_cm"),
+                    dados["comando"],
+                    dados.get("velocidade_percent"),
+                    dados.get("distancia_cm"),
                 )
             elif acao == "GOTO":
                 await self.executar_goto(
-                    graus=evento.dados.get("graus", 0.0),
-                    distancia_cm=evento.dados.get("distancia_cm", 0.0),
-                    velocidade_percent=evento.dados.get("velocidade_percent"),
+                    graus=dados.get("graus", 0.0),
+                    distancia_cm=dados.get("distancia_cm", 0.0),
+                    velocidade_percent=dados.get("velocidade_percent"),
                 )
             elif acao == "PATROL":
-                await self.executar_patrol(evento.dados["rota"])
+                await self.executar_patrol(dados["rota"])
             elif acao == "FOLLOW":
                 await self.iniciar_follow()
             elif acao == "EXPLORE":
@@ -257,7 +297,7 @@ class NavigationCore:
             else:
                 raise ErroNavegacao(f"acao de navegacao desconhecida: {acao!r}")
         except (ErroNavegacao, ErroComunicacao, KeyError) as erro:
-            logger.warning("Falha ao processar navigation.comando %r: %s", evento.dados, erro)
+            logger.warning("Falha ao processar navigation.comando %r: %s", dados, erro)
             await self._event_bus.publish(
                 "navigation.error", {"acao": acao, "motivo": str(erro)}, prioridade=Prioridade.ALTA
             )
