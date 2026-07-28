@@ -151,20 +151,124 @@ Testes no hardware → Documentação → Commit
 
 ### Mapa de saúde dos módulos
 
-Todo módulo do projeto é classificado em uma de quatro categorias,
-revisadas conforme o ciclo acima avança:
+Todo módulo do projeto é classificado em uma de quatro categorias (🟢🟡🟠🔴),
+mantidas em `docs/ESTADO_DOS_MODULOS.md`. O critério de classificação não é
+opinião de sessão — é a Rubrica abaixo, que é a única fonte de verdade sobre
+o que cada cor significa.
 
-- 🟢 **Estável** — testado (unitário e hardware) e em uso sem problema
-  conhecido.
-- 🟡 **Em validação** — implementado e com testes unitários passando, mas
-  ainda sem a etapa 5 (testes no hardware) confirmada.
-- 🟠 **Em desenvolvimento** — funciona parcialmente; escopo mínimo
-  deliberado ou implementação incompleta, documentado como tal no código.
-- 🔴 **Pendente** — não implementado, ou implementado com problema
-  conhecido e não corrigido.
+## Rubrica do Mapa de Saúde do ORION
 
-Uma correção move o módulo de categoria; o objetivo é o sistema inteiro
-chegar a 🟢.
+Anexo de processo. Define o critério **único** de classificação de status
+dos módulos — preenche o mapa contra um padrão fixo, em vez de improvisar o
+critério a cada sessão. (Decidida em 2026-07-27, junto com o Fluxo de
+trabalho acima.)
+
+### Invariante
+
+**Status é uma afirmação sobre evidência, não sobre intenção.**
+
+Nenhum módulo recebe cor sem que a evidência que justifica a cor esteja
+anexada na mesma linha (suíte de teste, commit ou log de hardware, com
+data). Uma célula sem evidência datada **não tem status** — marca-se `?` e
+trata-se como pendência de verificação, não como verde por omissão.
+
+Isto existe por uma razão medida: o journal listava "3 bugs ALTOS abertos"
+que já estavam todos corrigidos. Status marcado uma vez e nunca reconferido
+apodrece. A rubrica é o antídoto.
+
+### Os quatro estados — condições de entrada estritas
+
+Cada cor tem uma condição objetiva e checável. Não há "quase lá".
+
+| Cor | Nome | Condição de entrada (todas obrigatórias) |
+|---|---|---|
+| 🟢 | Estável | Testes unitários passam **E** validado no hardware físico **E** data da validação de hardware presente na linha. |
+| 🟡 | Em validação | Testes unitários passam. Hardware **não** validado (ou validação vencida). |
+| 🟠 | Em desenvolvimento | Funciona parcialmente. Testes incompletos, falhando, ou ausentes. |
+| 🔴 | Pendente | Stub vazio, não implementado, ou quebrado. |
+
+**A regra que segura tudo:** 🟢 exige log de hardware com data. Testes
+passando são condição necessária, nunca suficiente. Código que só passou em
+teste unitário é 🟡, não 🟢 — porque a odometria é malha aberta e a única
+checagem de realidade do robô é o hardware rodando.
+
+### Teto atual do projeto
+
+Enquanto o robô não se moveu, **nada pode ser 🟢.** O teto de todo o sistema
+hoje é 🟡: código pronto, suíte passando, hardware pendente.
+
+Consequência prática: se uma rodada do mapa sair com qualquer célula verde,
+a rubrica não foi seguida — não existe ainda uma única validação de
+hardware datada cobrindo o sistema em movimento. Um mapa honesto agora é uma
+parede de amarelo com algumas ilhas de laranja e vermelho. Verde é o
+objetivo, não o ponto de partida.
+
+### Formato obrigatório da tabela
+
+Toda linha carrega estas colunas. Nenhuma é opcional.
+
+| Módulo | Status | Últ. verificação | Evidência | Gate faltante |
+|---|---|---|---|---|
+| `motion_core/behavior` | 🟡 | 2026-07-27 | 439 testes, commit `6b8815e` | validação no hardware |
+| `src/orion/memory` | 🔴 | 2026-07-27 | stub vazio (removido) | implementação |
+
+- **Últ. verificação:** data em que a evidência foi conferida NESTA sessão.
+  Não é a data em que o código foi escrito — é a data em que se olhou.
+- **Evidência:** o que sustenta a cor. Suíte + nº de testes, ou commit, ou
+  referência ao log de hardware. Sem isto, a linha é `?`.
+- **Gate faltante:** para tudo que não é 🟢, qual o próximo gate a cumprir.
+  Célula 🟢 é a única que pode deixar esta coluna vazia.
+
+### Regras de rebaixamento automático
+
+O mapa não é um carimbo permanente. Um módulo **perde cor** quando:
+
+1. **O código mudou desde a última verificação.** Qualquer commit que toca
+   o módulo invalida o status anterior — volta para `?` até nova
+   conferência. Verde não sobrevive a um diff não reconferido.
+2. **A validação de hardware venceu.** Uma validação de hardware vale
+   enquanto o hardware relevante e o código do módulo não mudam. Trocou
+   fiação, driver, ou o próprio módulo → o 🟢 cai para 🟡.
+3. **A evidência não pode ser reproduzida.** Se a suíte citada não passa
+   mais, ou o log referenciado não existe, a cor é inválida na hora.
+
+Rebaixamento é automático e não precisa de justificativa. Promoção precisa
+de evidência nova e datada. **Não há promoção por opinião** — um módulo só
+muda de status quando atende aos critérios da rubrica, nunca porque
+"parece pronto". Regressão também é automática: se surgir um bug crítico,
+um módulo pode voltar de 🟢 para 🟡 ou 🟠 na mesma sessão em que o bug foi
+achado. A classificação deve ser **rastreável** — sempre que possível, com
+referência a testes, EDRs, commits ou validações em hardware que a
+justifiquem. **O mapa representa o estado atual do projeto, não o objetivo
+desejado.**
+
+### Procedimento de marcação
+
+1. Antes de marcar qualquer módulo, **conferir no código** o estado real —
+   não confiar no journal, no relatório, nem no status anterior do mapa.
+2. Rodar (ou localizar na sessão) a evidência que sustenta a cor
+   pretendida.
+3. Preencher as cinco colunas. Se faltar evidência, marcar `?` e listar o
+   módulo como pendência de verificação — nunca deduzir a cor.
+4. Nenhuma célula 🟢 sem data de hardware. Na dúvida entre duas cores,
+   escolher a **mais baixa**.
+
+### Relação com o fluxo de desenvolvimento
+
+As cores mapeiam os gates do ciclo formalizado acima:
+
+```
+Problema → Análise → Implementação → Testes unitários → Testes no hardware → Documentação → Commit
+                                     └──── 🟠 vira 🟡 ────┘ └──── 🟡 vira 🟢 ────┘
+```
+
+- Passar do gate de **testes unitários** move 🟠 → 🟡.
+- Passar do gate de **testes no hardware** move 🟡 → 🟢.
+
+O gate de hardware é hoje o único que o projeto não consegue cumprir (o
+robô nunca se moveu). Por isso ele é a fronteira entre amarelo e verde, e
+por isso o mapa inteiro está preso em amarelo até a primeira ligada com
+validação real.
 
 ## Ordem de implementação
 

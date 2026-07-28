@@ -1,84 +1,105 @@
 # ORION OS — Mapa de saúde dos módulos
 
-**Snapshot de:** 2026-07-27 (commit `0dc2b09`)
-**Regra de atualização:** este documento é vivo. A cada correção que segue o
-fluxo de 7 etapas de `ARQUITETURA.txt` ("Fluxo de trabalho"), o módulo tocado
-muda de categoria aqui — na mesma sessão, não depois. Objetivo: o sistema
-inteiro chegar a 🟢.
+**Snapshot de:** 2026-07-27
+**Regra de classificação:** Rubrica do Mapa de Saúde, em `ARQUITETURA.txt`.
+**Reconferido:** todas as linhas abaixo foram checadas no código nesta sessão
+(não copiadas do journal nem de uma versão anterior deste mapa).
 
-## Categorias
+## Teto de política, aplicado
 
-- 🟢 **Estável** — testado (unitário **e** hardware) e em uso sem problema conhecido.
-- 🟡 **Em validação** — implementado, testes unitários passam, falta a etapa 5
-  (testes no hardware).
-- 🟠 **Em desenvolvimento** — funciona parcialmente; escopo mínimo deliberado
-  ou implementação incompleta, e isso está documentado no próprio código.
-- 🔴 **Pendente** — não implementado, ou implementado com problema conhecido
-  e não corrigido.
+**Nada abaixo é 🟢.** O robô ainda não se moveu — esse é o gate que falta
+para qualquer módulo, por definição da rubrica.
 
-Cada linha tem a **evidência** que sustenta a categoria — não é opinião.
+Isso cria uma tensão que vale registrar em vez de esconder: **três módulos
+têm validação de hardware real e datada** que, isoladamente, satisfaria a
+condição técnica de 🟢 — `communication/` (reconexão TCP no Pi real, 25/07),
+`safety_manager.h` (obstáculo real testado com a mão, 27/07) e
+`radar_manager.h`/`motor_manager.h` (calibração física ao vivo, 18–24/07).
+Mantidos em 🟡 mesmo assim, pelo teto de política explícito, não porque a
+evidência citada seja fraca — está marcada em cada linha, com data.
+
+**O firmware C++ não tem suíte de teste automatizada.** Confirmado nesta
+sessão: `find firmware -iname "*test*"` não retorna nada. O harness de
+validação cruzada CRC16 (Python↔C++) citado no journal de 17/07 foi um
+script `g++` avulso, não preservado no repositório — não é evidência
+reproduzível hoje (regra de rebaixamento 3). Por isso, nas tabelas de
+Hardware Core, "Evidência" nunca cita "suíte de N testes" — cita compilação
+(`pio run`) mais validação de bancada com data, ou a ausência de qualquer
+uma das duas.
 
 ---
 
 ## Mission Core (Notebook) — `src/orion/`
 
-| Módulo | Categoria | Evidência |
-|---|---|---|
-| `kernel/` (event_bus, registry, watchdog, boot, config, logger) | 🟢 | Fase 1, mais antiga do projeto. `python -m orion --sim` chega a `system.ready` e encerra limpo. Testado (`test_event_bus`, `test_registry`, `test_watchdog`, `test_boot`, `test_config`, `test_modulos_boot`). |
-| `communication/` (crc, framing, transport, service, discovery, heartbeat) | 🟢 | O módulo mais maduro do projeto. CRC16 validado byte a byte em Python **e** C++. **Validado em produção real no Pi** (25/07): 3 reconexões seguidas → sempre 1 socket ESTABLISHED, `comm.module_lost` publicado uma vez por perda. |
-| `mission/` (ai_manager, mission_planner, grounding, diario) | 🟢 | Fallback OpenAI→Ollama funcionando em produção (log: "OpenRouter 200 OK"). O bug de teste de 27/07 (`conselheiro_comportamento` testava Ollama, código usa OpenAI desde EDR-0021) foi corrigido sem tocar em código de produção — os testes é que mentiam. |
-| `vision/` — núcleo (captura, deteccao, reconhecimento_facial, rastreamento, gestos) | 🟡 | YOLO/reconhecimento facial funcionando com a DV20 (câmera índice corrigida em `a19bd53`). Roda só no Notebook (`numpy`/`cv2` ausentes no Pi, corretamente pulado lá). Sem teste de campo prolongado documentado. |
-| `vision/pan_tilt.py` + câmera do pan/tilt | 🔴 | **Câmera do pan/tilt não transmite** (pendente desde 26/07, sem causa identificada ainda). O sinal do servo foi corrigido no firmware (`04ec281`) mas **"falta validar no hardware"** — texto literal do journal. |
-| `voice/` (captura, VAD, transcrição, síntese) | 🟠 | Responde e fala quando ouve algo — mas a detecção da palavra de ativação **"Fofão" tem falha real e documentada**: variantes do Whisper (`'FO FÃO'` com espaço) escapam do regex/detector fuzzy. Decisão consciente do usuário de não mexer às pressas (24/07, ainda sem correção). Falha de microfone mudo (índice errado) ocorreu 3x, última corrigida 27/07 à noite. |
-| `display/avatar_server.py` | 🟡 | Puro repasse de eventos (SSE), testado (`test_avatar_server.py`). Legenda de fala adicionada 27/07 à noite, sem validação com o avatar rodando na tela de verdade ainda. |
-| `diagnostics/sensores_termicos.py` | 🟠 | **Zero teste dedicado** (nenhum `test_*` cobre este arquivo) — achado desta revisão. Lê `/sys/class/thermal` diretamente; simples, mas sem rede de segurança de teste. |
+| Módulo | Status | Últ. verificação | Evidência | Gate faltante |
+|---|---|---|---|---|
+| `kernel/` (event_bus, registry, watchdog, boot, config) | 🟡 | 2026-07-27 | 439 testes (Notebook). `python -m orion --sim` chega a `system.ready` — mas `--sim` é simulado, não é boot com Arduino/Pi reais. | boot real (sem `--sim`) documentado com data |
+| `communication/` (crc, framing, transport, service, discovery, heartbeat) | 🟡 | 2026-07-27 | 439 testes. Hardware: reconexão TCP validada no Pi real, 3 tentativas seguidas, sempre 1 socket ESTABLISHED (journal 2026-07-25). Código não alterado desde então. | nenhum tecnicamente — mantido 🟡 pelo teto de política (ver acima) |
+| `mission/` (ai_manager, mission_planner, grounding, diario) | 🟡 | 2026-07-27 | 439 testes. Campo: log de produção mostra OpenRouter respondendo 200 OK no Notebook real (data exata não registrada no log lido). | validação de campo com data explícita |
+| `vision/` — núcleo (captura, deteccao, reconhecimento_facial, rastreamento, gestos) | 🟡 | 2026-07-27 | 439 testes no Notebook (roda com `numpy`/`cv2`; corretamente pulado no Pi — `test_vision_*` nos 7 skips). Campo: YOLO/DV20 funcionando após correção do índice de câmera (`a19bd53`, sem data exata de validação registrada). | validação de campo com data explícita |
+| `vision/pan_tilt.py` + câmera física do pan/tilt | 🔴 | 2026-07-27 | Câmera não transmite — pendência aberta desde 26/07, sem causa identificada. Correção de sinal do servo (`04ec281`) existe no código mas está marcada no journal como "falta validar no hardware". | diagnosticar por que a câmera não transmite |
+| `voice/` — captura, VAD, transcrição, síntese | 🟡 | 2026-07-27 | Testes passam (`test_voice_*`, roda completo no Notebook). Falha de microfone mudo (índice errado) corrigida 27/07 à noite, sem validação de campo registrada após a correção. | validação de campo pós-correção do índice |
+| `voice/wake_word.py` — detecção de "Fofão" | 🟠 | 2026-07-27 | 10 testes unitários passam (`test_voice_wake_word.py`), mas **não cobrem a falha real**: transcrições reais do Whisper (`'FO FÃO'` com espaço, `'Fulfo'`, vazio) escapam do detector, testado ao vivo repetidas vezes em 24–25/07. Decisão consciente do usuário de não corrigir às pressas. | corrigir a normalização/tolerância fonética; teste que reproduza os casos reais |
+| `display/avatar_server.py` | 🟡 | 2026-07-27 | 439 testes (`test_avatar_server.py`). Legenda de fala adicionada 27/07 à noite, sem validação com o avatar rodando na tela física depois disso. | validação visual na tela do avatar |
+| `diagnostics/sensores_termicos.py` | 🟠 | 2026-07-27 | **Nenhum arquivo de teste referencia este módulo** — confirmado por busca nesta sessão (nenhum `test_diagnostics*`/`test_sensores*` existe). Nunca mencionado no journal como validado. | escrever teste; validar leitura em `/sys/class/thermal` real |
 
 ---
 
 ## Motion Core (Raspberry Pi) — `motion_core/`
 
-| Módulo | Categoria | Evidência |
-|---|---|---|
-| `behavior/` — maestro (`behavior_core.py`) e comportamentos base (Repouso, Vigilância, Atender, Vigília) | 🟢 | Arbitragem por prioridade validada com testes de preempção cruzada (`test_obstaculo_vence_atender`, etc.) e em produção (log real: 423 ciclos de obstáculo/liberado processados corretamente pela `VigilanciaObstaculo`). |
-| `behavior/comportamentos.py` — `IaEstrategica`, `Mentor` (IA discricionária) | 🟡 | Testado com fakes de IA; nunca visto decidindo em produção com o robô se movendo (o robô **nunca se moveu** ainda, ver `navigation/`). |
-| `behavior/comportamentos.py` — `ControleManual` (novo, 27/07) | 🟡 | Implementado nesta sessão, 439 testes cobrindo arbitragem (vence Atender, perde para Segurança, timeout de inatividade). **Zero teste de hardware** — é a peça central do conserto do joystick, ainda não validada com o robô de verdade. |
-| `navigation/navigation_core.py` — HOLD, MANUAL, GOTO, PATROL | 🟡 | Testados a fundo contra `FakeTransporte` (auto-ACK), nunca contra o Mega físico em movimento. Vocabulário MANUAL ampliado nesta sessão (`MOVE_CONTINUOUS`/`MOVE_DISTANCE`/`FAN_ON`/`FAN_OFF`). |
-| `navigation/navigation_core.py` — FOLLOW, EXPLORE | 🟠 | **Escopo mínimo deliberado**, documentado no próprio módulo: "dependem de dados que só existem com o Vision Core rodando de verdade" (FOLLOW) ou de um algoritmo de exploração mais elaborado (EXPLORE). |
-| `navigation/fusao_sensores.py` | 🟠 | Primeira versão por odometria pura (malha aberta — conta o que mandou, não o que a roda fez), documentado no próprio módulo. Sem encoder físico instalado (decisão do usuário, 27/07: não usar o LM12-3004NA). |
-| `memory/` (database, api, bridge, manutencao, replica, vault) | 🟢 | `asyncio.Lock` + modo WAL resolvem o achado de concorrência da vistoria de 24/07. Backup/réplica testados; a réplica cruzada Pi↔Notebook está documentada e testada, com a ressalva operacional conhecida (backup agendado às 3h, Pi nem sempre ligado nesse horário — não é bug de código). |
-| `webui/server.py` — dashboard, mapa, diagnóstico, configuração | 🟢 | Páginas servidas e testadas; regra "nunca mostrar valor inventado como medida" aplicada de forma consistente (`sem_eco`, rumo em vermelho sem calibração). |
-| `webui/server.py` — `/comando` (joystick) | 🟡 | **Corrigido nesta sessão** (antes pulava o `NavigationCore` inteiro, sem teste nenhum). Agora com 6 testes novos e passando pelo maestro corretamente. **Testes no hardware pendentes** — é o item 1 do fluxo de 7 etapas ainda em aberto. |
+| Módulo | Status | Últ. verificação | Evidência | Gate faltante |
+|---|---|---|---|---|
+| `behavior/behavior_core.py` (maestro — arbitragem) | 🟡 | 2026-07-27 | 439 testes cobrindo preempção cruzada. Campo: 423 ciclos reais de obstáculo/liberado processados corretamente no log do Pi (27/07) — validação de hardware genuína da arbitragem, mas mantida 🟡 pelo teto. | nenhum tecnicamente — mantido 🟡 pelo teto de política |
+| `behavior/comportamentos.py` — `IaEstrategica`, `Mentor` | 🟡 | 2026-07-27 | Testes com fakes de IA passam. Nunca visto decidindo com o robô se movendo de verdade. | validação com movimento real |
+| `behavior/comportamentos.py` — `ControleManual` (novo) | 🟡 | 2026-07-27 | Implementado e testado nesta sessão (6 testes novos: assume, timeout, ignora não-manual, perde para segurança, vence Atender). **Zero validação de hardware** — commit `6b8815e`, mesmo dia. | testar o joystick com o robô ligado |
+| `navigation/navigation_core.py` — HOLD, MANUAL, GOTO, PATROL | 🟡 | 2026-07-27 | 21 testes contra `FakeTransporte` com auto-ACK (nunca contra o Mega físico em movimento). Vocabulário MANUAL ampliado nesta sessão, commit `6b8815e`. | movimento real do robô |
+| `navigation/navigation_core.py` — FOLLOW, EXPLORE | 🟠 | 2026-07-27 | Escopo mínimo **deliberado**, documentado no cabeçalho do módulo: dependem do Vision Core ponta-a-ponta (FOLLOW) ou de algoritmo de exploração ainda não escrito (EXPLORE). | integração real com Vision Core; algoritmo de EXPLORE |
+| `navigation/fusao_sensores.py` | 🟠 | 2026-07-27 | "Primeira versão" por odometria pura, malha aberta (conta o que mandou, não o que a roda fez) — documentado no próprio módulo. Sem encoder físico (decisão do usuário, 27/07, de não instalar o LM12-3004NA). | validação externa (ultrassom+bússola) como checagem de realidade |
+| `memory/` (database, api, bridge, manutencao, replica, vault) | 🟡 | 2026-07-27 | 439 testes. `asyncio.Lock` + WAL resolvem o achado de concorrência de 24/07 — mas sem teste de carga real (webui consultando + backup rodando ao mesmo tempo, no Pi de verdade) depois da correção. | teste de concorrência real no Pi |
+| `webui/server.py` — dashboard, mapa, diagnóstico, configuração | 🟡 | 2026-07-27 | 439 testes. Campo: páginas (rosa dos ventos, radar 360°) conferidas visualmente pelo usuário em 27/07 (mudanças pedidas por ele mesmo após ver o resultado). | validação formal com data registrada |
+| `webui/server.py` — `/comando` (joystick) | 🟡 | 2026-07-27 | Corrigido nesta sessão: antes pulava o `NavigationCore` inteiro e não tinha teste nenhum. 6 testes novos, commit `6b8815e`. **Zero validação de hardware** — é o item que motivou a correção. | testar o joystick com o robô ligado |
 
 ---
 
 ## Hardware Core (Arduino Mega) — `firmware/hardware_core/`
 
-| Módulo | Categoria | Evidência |
-|---|---|---|
-| `safety_manager.h` | 🟢 | Validado ao vivo na bancada (24/07): ponto cego do SCAN_FRONT fechado, `SAFE_MODE` deixou de ser estado sem saída (26/07), watchdog de hardware (`wdt_enable`) ativo. Camada mais crítica do projeto e a mais testada fisicamente. |
-| `motor_manager.h` — geração de passos | 🟢 | `ENABLE_ATIVO_EM_BAIXO` calibrado fisicamente (18/07). Núcleo estável. |
-| `motor_manager.h` — carência do relé (novo, 27/07) | 🟡 | Corrigido nesta sessão (achado do usuário), compilado (RAM 46,3%), **não gravado no Mega ainda**. |
-| `radar_manager.h` | 🟢 | Offset físico calibrado ao vivo com o usuário (`RADAR_OFFSET_GRAUS = -45`), arco de 120° confirmado suficiente na prática. |
-| `sensor_ultrassonico.h` — leitura frontal/traseira | 🟡 | Bug do `sensor_ok` corrigido e validado ao vivo (27/07, mão na frente do sensor). **A correção do descarte por cegueira do loop (nesta sessão) ainda não foi gravada nem medida** — os contadores `frontal_descartes`/`traseiro_descartes` são a validação pendente. |
-| `bussola_manager.h` (QMC6310) | 🟠 | Conectada e lendo (`bussola_conectada: true`), mas **`rumo_valido: false`** — ainda não calibrada com o robô montado. Corretamente recusa afirmar rumo antes disso. |
-| `imu_manager.h` (MPU6050) | 🟢 | Em uso na cadeia de segurança (inclinação crítica, impacto) desde a Fase 4, validado na vistoria de 24/07. |
-| `command_executor.h` — `SET_PAN_TILT` | 🟡 | Sinal invertido nos dois eixos corrigido (`04ec281`, 26/07). **"Falta validar no hardware"** — texto literal do journal, ainda de pé. |
-| `telemetry_manager.h` | 🟢 | Regime duplo (parado/andando) implementado e com raciocínio de custo medido (envio bloqueia 74ms→68ms). O regime de "andando" em si nunca foi testado com o robô se movendo — mas o manager como transporte de dados está maduro. |
-| `encoder_manager.h` | 🔴 *(fora de escopo por decisão)* | Pinos 18/19 reservados, sem hardware físico ligado. Decisão explícita do usuário (27/07): **não usar** o encoder indutivo LM12-3004NA. Não é uma pendência a resolver — é escopo cortado conscientemente. Mantido aqui por transparência, não por expectativa de correção. |
-| `dht_manager.h`, `bateria_manager.h` | 🟡 | Implementados, aparecem na telemetria condicionalmente (`dht_valido`, `bateria_lida`), sem relato de validação física recente no journal. |
+*(Sem suíte automatizada — ver nota no topo. "Evidência" cita compilação + bancada.)*
+
+| Módulo | Status | Últ. verificação | Evidência | Gate faltante |
+|---|---|---|---|---|
+| `safety_manager.h` | 🟡 | 2026-07-27 | Compila (`pio run`, sucesso). Bancada: ponto cego do SCAN_FRONT fechado e SAFE_MODE deixou de ser estado sem saída (24–26/07); obstáculo real testado com a mão em 27/07 (174→61→172cm). | nenhum tecnicamente — mantido 🟡 pelo teto de política |
+| `motor_manager.h` — geração de passos (núcleo) | 🟡 | 2026-07-27 | Compila. `ENABLE_ATIVO_EM_BAIXO` calibrado fisicamente em 18/07. **Arquivo alterado nesta sessão** (carência do relé) — regra de rebaixamento 1: qualquer commit que toca o módulo invalida validação anterior até nova conferência. | gravar no Mega e revalidar a geração de passos |
+| `motor_manager.h` — carência do relé (novo, 27/07) | 🟡 | 2026-07-27 | Compila (RAM 46,3%). Achado do usuário, corrigido nesta sessão, commit `6b8815e`. **Não gravado no Mega.** | gravar e medir com 1000 passos contra parede |
+| `radar_manager.h` | 🟡 | 2026-07-27 | Compila. Offset físico (`RADAR_OFFSET_GRAUS = -45`) e arco de 120° calibrados ao vivo (24/07). **Arquivo alterado nesta sessão** (getter `frontalDescartes()`, não toca a calibração) — mesmo assim invalidado pela regra 1 até nova conferência. | gravar no Mega e revalidar |
+| `sensor_ultrassonico.h` — leitura frontal/traseira (núcleo) | 🟡 | 2026-07-27 | Compila. Bug do `sensor_ok` corrigido e validado ao vivo em 27/07 (mão na frente do sensor, 174→61→172cm). **Arquivo alterado nesta sessão** — invalidado pela regra 1. | gravar e revalidar |
+| `sensor_ultrassonico.h` — descarte por cegueira do loop (novo, 27/07) | 🟡 | 2026-07-27 | Compila. Hipótese fundamentada (423 ciclos de obstáculo/liberado no log, sem varredura), correção aplicada, contadores `*_descartes` adicionados. **Nada disto foi medido no hardware ainda.** | gravar, ler `frontal_descartes`/`traseiro_descartes`, confirmar ou derrubar a hipótese |
+| `bussola_manager.h` (QMC6310) | 🟠 | 2026-07-27 | Compila. Conectada e lendo (`bussola_conectada: true`), mas `rumo_valido: false` — recusa afirmar rumo por falta de calibração, corretamente. Isto é funcionamento parcial por natureza (falta um passo), não risco. | calibrar com o robô montado (`CALIBRATE_COMPASS`) |
+| `imu_manager.h` (MPU6050) | 🟡 | 2026-07-27 | Compila. Em uso na cadeia de segurança desde a Fase 4; validado na vistoria de 24/07 (inclinação 8/20°, sem impacto). Arquivo não alterado nesta sessão. | nenhum tecnicamente — mantido 🟡 pelo teto de política |
+| `command_executor.h` — `SET_PAN_TILT` | 🟡 | 2026-07-27 | Compila. Sinal invertido nos dois eixos corrigido em `04ec281` (26/07). Journal registra literalmente "falta validar no hardware" — ainda de pé. | validar fisicamente o pan/tilt |
+| `telemetry_manager.h` | 🟡 | 2026-07-27 | Compila. Regime duplo (parado/andando) implementado com custo medido (envio 74→68ms). Regime "andando" nunca testado com o robô em movimento. **Arquivo alterado nesta sessão** (campos de descarte). | testar telemetria reduzida com movimento real |
+| `bussola_manager.h`/`imu_manager.h` — I2C físico | 🟡 | 2026-07-27 | Scanner de I2C no boot confirma `[0x1C, 0x68]` presentes (27/07, após religar o fio do MPU). Achado de hard-iron dos motores documentado, sem calibração final. | ver linha da bússola acima |
+| `encoder_manager.h` | 🔴 *(fora de escopo por decisão)* | 2026-07-27 | Pinos 18/19 reservados, sem sensor físico ligado. Decisão explícita do usuário (27/07): não usar o encoder indutivo LM12-3004NA. Não é bug — é escopo cortado conscientemente. | nenhum — reabrir só se a decisão for revertida |
+| `dht_manager.h`, `bateria_manager.h` | 🟠 | 2026-07-27 | Compilam, aparecem condicionalmente na telemetria (`dht_valido`, `bateria_lida`). Nenhuma validação de bancada com data encontrada no journal para nenhum dos dois. | validar leitura real e registrar data |
 
 ---
 
 ## Leitura do mapa
 
-**Padrão que se repete:** boa parte do projeto está em 🟡 pelo mesmo motivo —
-código correto, testado no nível que dá para testar sem o robô andando, e
-**o robô nunca se moveu de verdade ainda**. Isso não é um problema espalhado
-em vários módulos; é **um único gargalo** (testes no hardware, etapa 5 do
-fluxo) que, uma vez destravado, deve mover vários 🟡 para 🟢 de uma vez.
+**Nenhuma célula é 🟢** — correto pelo teto de política: o robô não se moveu.
 
-**Os três 🔴 reais** (câmera do pan/tilt, wake word, sensor_termicos sem
-teste) são independentes entre si e não bloqueiam o robô andar.
+**Onde a evidência é mais forte que a cor sugere:** `communication/`,
+`safety_manager.h`, `imu_manager.h` e a arbitragem do maestro têm validação
+de hardware real e datada. A cor fica em 🟡 pelo teto, não porque falte
+evidência — está registrada em cada linha.
 
-**Próximo passo natural:** gravar o firmware desta sessão no Mega e testar o
-joystick — é o que resolve o gargalo do parágrafo acima.
+**Onde a cor é genuinamente frágil (🟠/🔴):** wake word (falha real
+documentada, não corrigida), câmera do pan/tilt (quebrada), FOLLOW/EXPLORE e
+fusão de sensores (parciais por design), bússola (falta um passo:
+calibração), `sensores_termicos.py` e `dht_manager.h`/`bateria_manager.h`
+(sem validação registrada nenhuma). `encoder_manager.h` é o único 🔴 que não
+é uma pendência — é escopo cortado por decisão.
+
+**O gargalo único:** a maior parte da parede de 🟡 tem a mesma causa —
+código testado no nível que dá para testar sem o robô andando. Uma sessão
+de testes no hardware, seguindo o fluxo de 7 etapas, deve mover vários 🟡
+para 🟢 de uma vez. É o próximo passo natural.
