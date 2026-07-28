@@ -422,16 +422,29 @@ class AtenderGesto(Comportamento):
     nome = "atender_gesto"
     prioridade = 70
 
+    #: Desvio do centro do quadro a partir do qual vale a pena girar antes
+    #: de andar. Abaixo disso a pessoa ja esta praticamente a frente, e
+    #: girar so faria o robo bambear.
+    LIMIAR_CENTRO = 0.12
+    #: Tempo dado ao giro antes de mandar avancar. O firmware para sozinho
+    #: em 5s (TIMEOUT_COMANDO_MS), entao isto e uma pausa, nao um freio.
+    PAUSA_GIRO_S = 0.8
+
     def __init__(self, event_bus: EventBus, duracao_s: float = 8.0) -> None:
         super().__init__(event_bus)
         self._duracao_s = duracao_s
         self._gesto: str | None = None
+        self._centro_x: float = 0.5
         event_bus.subscribe("gesto.detectado", self._ao_ver_gesto)
 
     async def _ao_ver_gesto(self, evento: Evento) -> None:
         tipo = evento.dados.get("tipo")
         if tipo in ("vem", "sim") and self._gesto is None:
             self._gesto = tipo
+            # 0..1 no quadro, 0.5 = centro. Mesma convencao do
+            # vision.person_recognized, para o sentido do giro ser o mesmo
+            # nos dois caminhos.
+            self._centro_x = float(evento.dados.get("centro_x", 0.5))
             self._reavaliar()
 
     def quer_rodar(self) -> bool:
@@ -445,10 +458,30 @@ class AtenderGesto(Comportamento):
         )
         try:
             if gesto == "vem":
-                # Chamou: o robo vai. FOLLOW e o modo que ja sabe se
-                # aproximar de quem ele reconhece - nao se inventa um
-                # caminho novo aqui.
-                await self._event_bus.publish("navigation.comando", {"acao": "FOLLOW"})
+                # Chamou: o robo VAI. Nao serve mandar FOLLOW aqui - o modo
+                # FOLLOW so GIRA para centralizar quem ele reconhece
+                # (_ao_reconhecer_pessoa manda TURN_LEFT/TURN_RIGHT e mais
+                # nada) e NUNCA anda em direcao a pessoa. Foi o erro da
+                # primeira versao deste comportamento: o gesto chegava e as
+                # rodas nao ligavam.
+                #
+                # Entao: gira para quem chamou e avanca. Malha aberta, com a
+                # posicao que veio no proprio gesto - o robo nao tem
+                # realimentacao continua da mao. A camada tatica checa
+                # obstaculo antes de avancar e o freia perto da pessoa.
+                desvio = self._centro_x - 0.5
+                if abs(desvio) >= self.LIMIAR_CENTRO:
+                    await self._event_bus.publish(
+                        "navigation.comando",
+                        {
+                            "acao": "MANUAL",
+                            "comando": "TURN_RIGHT" if desvio > 0 else "TURN_LEFT",
+                        },
+                    )
+                    await asyncio.sleep(self.PAUSA_GIRO_S)
+                await self._event_bus.publish(
+                    "navigation.comando", {"acao": "MANUAL", "comando": "MOVE_FORWARD"}
+                )
             await asyncio.sleep(self._duracao_s)
         finally:
             # Solta o controle mesmo se preemptado no meio, senao o gesto

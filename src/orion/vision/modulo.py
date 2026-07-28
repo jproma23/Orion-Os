@@ -107,7 +107,7 @@ class ModuloVisao:
                 self._nucleo.registrar_observador_de_frame(laco.processar_frame)
                 self._gestos = laco
         except Exception:
-            logger.exception(Gestos indisponiveis - visao segue sem eles)
+            logger.exception("Gestos indisponiveis - visao segue sem eles")
 
     def _ligar_sentinela(self) -> None:
         """A Sentinela agora e uma ouvinte dos eventos do Vision Core.

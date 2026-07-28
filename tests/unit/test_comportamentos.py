@@ -7,6 +7,7 @@ from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     TIMEOUT_INATIVIDADE_MANUAL_S,
     Atender,
+    AtenderGesto,
     ControleManual,
     IaEstrategica,
     Repouso,
@@ -423,6 +424,125 @@ async def test_vigilia_investiga_e_libera_e_perde_para_atender():
     await asyncio.sleep(0.2)
     await _passo(maestro)
     assert maestro.ativo_nome == "repouso"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_gesto_vem_liga_os_motores():
+    """O teste que faltava.
+
+    A primeira versao deste comportamento mandava FOLLOW, e FOLLOW so GIRA
+    para centralizar quem o robo RECONHECE - nunca anda ate a pessoa. Relato
+    do usuario, com o robo na bancada: "chamei com a mao e ele nao ligou os
+    motores". Este teste falha na versao antiga e passa na nova.
+    """
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos = []
+    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(AtenderGesto(bus, duracao_s=0.05))
+    laco = asyncio.create_task(maestro.executar())
+
+    # chamado vindo da DIREITA do quadro (centro_x > 0.5)
+    await bus.publish("gesto.detectado", {"tipo": "vem", "centro_x": 0.9})
+    await asyncio.sleep(0.05)
+    await _passo(maestro)
+    await asyncio.sleep(1.2)
+    await bus.aguardar_fila_vazia()
+
+    enviados = [c.get("comando") for c in comandos if c.get("acao") == "MANUAL"]
+    assert "TURN_RIGHT" in enviados, f"nao girou para a pessoa: {comandos}"
+    assert "MOVE_FORWARD" in enviados, f"nao andou ate a pessoa: {comandos}"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_gesto_vem_da_esquerda_gira_para_a_esquerda():
+    """O sentido do giro segue a mesma convencao do vision.person_recognized
+    (0..1 no quadro, 0.5 no centro) - se os dois caminhos discordassem, o
+    robo viraria para o lado errado num deles."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos = []
+    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(AtenderGesto(bus, duracao_s=0.05))
+    laco = asyncio.create_task(maestro.executar())
+
+    await bus.publish("gesto.detectado", {"tipo": "vem", "centro_x": 0.1})
+    await asyncio.sleep(0.05)
+    await _passo(maestro)
+    await asyncio.sleep(1.2)
+    await bus.aguardar_fila_vazia()
+
+    enviados = [c.get("comando") for c in comandos if c.get("acao") == "MANUAL"]
+    assert "TURN_LEFT" in enviados, f"girou para o lado errado: {comandos}"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_gesto_vem_centralizado_nao_gira_a_toa():
+    """Quem ja esta a frente nao precisa de giro - so de avanco."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos = []
+    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(AtenderGesto(bus, duracao_s=0.05))
+    laco = asyncio.create_task(maestro.executar())
+
+    await bus.publish("gesto.detectado", {"tipo": "vem", "centro_x": 0.5})
+    await asyncio.sleep(0.05)
+    await _passo(maestro)
+    await asyncio.sleep(0.4)
+    await bus.aguardar_fila_vazia()
+
+    enviados = [c.get("comando") for c in comandos if c.get("acao") == "MANUAL"]
+    assert "MOVE_FORWARD" in enviados
+    assert "TURN_RIGHT" not in enviados and "TURN_LEFT" not in enviados
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_gesto_sim_nao_move_o_robo():
+    """Joinha e confirmacao, nao ordem de andar. Um "sim" que fizesse o robo
+    vir seria pior que nao ter gesto nenhum."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos = []
+    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(AtenderGesto(bus, duracao_s=0.05))
+    laco = asyncio.create_task(maestro.executar())
+
+    await bus.publish("gesto.detectado", {"tipo": "sim", "centro_x": 0.9})
+    await asyncio.sleep(0.05)
+    await _passo(maestro)
+    await asyncio.sleep(0.4)
+    await bus.aguardar_fila_vazia()
+
+    assert comandos == [], f"o sim mexeu o robo: {comandos}"
 
     maestro.parar()
     await laco
