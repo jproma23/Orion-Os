@@ -3800,3 +3800,135 @@ outra classe de modelo: FOMO (Edge Impulse) devolve CENTROIDE em vez de caixa,
 que e exatamente o que o pan/tilt precisa, a ~5-10fps num ESP32-S3; ou ESP-DL/
 ESP-WHO para rosto. Deteccao na propria camera eliminaria o stream e a latencia
 de rede de uma vez - vale considerar DEPOIS de estabilizar o que existe.
+
+## Sessao de 2026-07-28 (parte 4) - o joystick travava: dois bugs, um em cada camada
+
+Relato do usuario, o mesmo nas duas vezes: **"quando dou um comando lento entre
+um e outro passa, quando dou varios comandos buga"**. A frase descreve com
+precisao um sistema onde chega mais do que sai - e eram DOIS gargalos
+independentes, em camadas diferentes, que so juntos explicavam o travamento.
+
+### Bug 1 - o transporte cobrava 208ms por comando com ACK (`f1c2501`)
+
+Medido ANTES de mexer: 208ms por comando com ACK (mediana de 20, desvio
+minimo), quando a ida e volta real a 250000 baud e de poucos ms. O joystick do
+dashboard repete a ~150ms, ou seja **6,7 comandos/s entrando num cano que
+vazava 4,8/s**. A fila crescia sem limite: travar era aritmetica, nao azar.
+
+Os 208ms eram dois artefatos de 100ms, um em cada direcao:
+
+1. **`enviar()` entrava na fila do executor atras do `read()` em andamento.**
+   O executor tem uma thread so, e isso e obrigatorio (pyserial corrompe a
+   porta com read/write concorrentes - achado real, com `self.fd` virando
+   `None` no pyserial 3.5). Entao o write esperava o `read()` estourar o
+   `timeout_leitura_s` inteiro.
+
+   Corrigido submetendo o write PRIMEIRO e so entao chamando `cancel_read()`,
+   a mesma tecnica que o `fechar()` ja usava desde 27/07. **A ordem importa:**
+   cancelar antes de submeter abriria janela para o proximo read entrar na
+   frente.
+
+2. **`receber()` chamava `read(4096)`**, que so volta ao juntar 4096 BYTES ou
+   estourar o timeout. Um ACK tem poucas dezenas de bytes - chegava em poucos
+   ms e ficava PARADO os 100ms inteiros esperando um buffer que nunca
+   encheria. Corrigido bloqueando por 1 byte e drenando `in_waiting`.
+
+Medido depois: **208 -> 107 (item 1) -> 37ms (item 2)**. Teto por segundo:
+4,8 -> 26,9. Estresse pelo caminho real do dashboard a 19 comandos/s: POST com
+mediana de 1,8ms, `/estado` seguiu respondendo em 5,4ms, telemetria continuou
+andando, zero erro de navegacao. 412 testes passam.
+
+### Bug 2 - a espera era um impasse consigo mesma (`4344fa6`)
+
+Relato do usuario: *"isso fica numa fila e isso e ruim"*. Estava certo, e a
+causa era pior do que uma fila.
+
+`_ao_receber_comando` executava o comando INTEIRO dentro do handler do Event
+Bus. `executar_manual` chama `_aguardar_ocioso()`, que espera
+`_estado_hardware` sair de `EXECUTING_MISSION`. Mas quem atualiza
+`_estado_hardware` e o handler de `motion.status`, **do MESMO bus** - e o laco
+de despacho e SERIAL (da `await` no handler).
+
+Ou seja: a espera bloqueava a entrega do unico evento capaz de encerra-la. A
+condicao de saida era impossivel e o timeout de 10s queimava INTEIRO, sempre.
+**Havia 88 dessas no log.** Nesses 10s o barramento parava por completo -
+nenhum evento de nenhum modulo era entregue - e os comandos de joystick se
+acumulavam para executar atrasados depois. O pior comportamento possivel num
+controle manual.
+
+Agora o handler so registra o comando e volta na hora; a execucao roda numa
+task, fora do bus. Com isso `motion.status` volta a ser entregue durante a
+espera, e `_aguardar_ocioso` passa a ter condicao de saida alcancavel.
+
+**O ULTIMO VENCE, e nao ha fila:** comando de joystick velho e DESCARTADO, nao
+executado atrasado. Uma fila faria o robo continuar andando depois de o
+operador soltar o botao - inaceitavel na re, que nao tem seguranca reativa (o
+SafetyManager so olha o sensor frontal, Cap 18). Soltar o joystick manda STOP,
+que ganha por ser o mais recente.
+
+**Consequencia para quem chama:** publicar em `navigation.comando` e esvaziar a
+fila do bus NAO garante mais que o comando foi tratado - a execucao e
+assincrona. `test_comando_acao_desconhecida_publica_navigation_error` precisou
+de um settle explicito, como o `test_comando_via_event_bus_e_processado` ja
+tinha.
+
+Teste novo `test_comando_manual_mais_recente_descarta_o_anterior` trava a
+semantica do "ultimo vence" sem depender de tempo: chama o handler direto duas
+vezes (nenhum `await` suspende, entao a task so comeca depois das duas) e
+verifica que `MOVE_FORWARD` nunca foi enviado e `STOP` foi. 413 testes passam.
+
+### Recusado: throttle no botao do joystick
+
+Ideia levantada na bancada. Tratava o sintoma e deixaria o controle pastoso de
+forma PERMANENTE. Se um dia precisar de protecao, o certo e **descartar comando
+velho, nunca atrasar comando novo** - soltar o joystick tem que parar o robo na
+hora, nao executar uma fila. Foi o que o `4344fa6` implementou.
+
+### As 9 ferramentas de bancada, resolvido (`f8f9e69`)
+
+Fecha o PENDENTE da parte 3. A correcao **nao foi trocar o numero - foi tirar o
+numero**: `tools/_serial_bancada.py` le `communication.arduino` do `orion.yaml`
+e exporta `PORTA` e `BAUD`; as ferramentas importam de la. Trocar o baud de
+novo passa a ser uma linha na config, nao uma cacada por arquivo.
+
+A porta tambem saiu do codigo. O valor `"auto"` na config significa descoberta
+por `WHO_ARE_YOU`, que quem faz e o Motion Core - parado durante a bancada.
+Entao o helper pega a primeira `/dev/ttyUSB*` que EXISTE, em vez de um caminho
+chutado. Isso consertou de passagem `girar_radar_manual.py` e
+`centralizar_servo.py`, que apontavam para `ttyUSB1` fixo: quando o CH340
+migrou de volta para `ttyUSB0`, elas passaram a abrir um device inexistente.
+
+Foram NOVE arquivos, nao os oito da lista - `centralizar_servo.py` tinha o
+`115200` embutido na chamada do `SerialTransport` e nao aparecia numa busca
+por `BAUD`.
+
+**Verificado por IMPORT de verdade, nao por `py_compile`:** os 8 modulos com
+guarda de `__main__` foram importados e imprimiram `PORTA=/dev/ttyUSB0
+BAUD=250000`. `py_compile` nao pegaria um import quebrado - a mesma armadilha
+que ja tinha mordido no merge de 26/07.
+
+### PENDENTE (atualizado)
+
+- **Joystick com as RODAS NO AR - unico item sem prova real.** O `4344fa6` e
+  correto por construcao e passou 413 testes, mas o teste de carga usou
+  `LIGHT_ON`/`LIGHT_OFF`, que **nao passam** por `_aguardar_ocioso()` - so
+  comandos de `COMANDOS_DE_MOVIMENTO` passam. O caminho do bug nao foi
+  exercitado com movimento real.
+- **Nao ha como escolher o modo de navegacao.** Os 6 modos existem (`HOLD
+  MANUAL GOTO PATROL FOLLOW EXPLORE`) mas `COMANDOS_PERMITIDOS` em
+  `motion_core/webui/server.py` so tem movimento manual, luz e ventilador. O
+  robo fica preso em MANUAL porque **ninguem nunca pede outro modo**. Nao e
+  bug, e funcionalidade que falta. Distincao que confunde: o **maestro
+  (Behavior Core) ja e autonomo** e decide sozinho; o **modo de navegacao** e
+  outra camada - quem manda nas rodas. O robo ja "pensa" sozinho, mas nao ha
+  como autoriza-lo a ANDAR sozinho.
+- **`comm.send` espera ACK dentro do laco da visao** - continua verdade, mas
+  agora custa 37ms em vez de 208ms. O `f1c2501` deixou a espera BARATA; nao
+  desacoplou. Com `ack_timeout_ms:500` e `max_retries:3` um comando ainda pode
+  segurar ate 1,5s no pior caso. Baixou de urgente para incomodo.
+- **`AcompanharPessoa` sem teste unitario** (vem da parte 2).
+- **Camera torta no suporte** - ajuste mecanico, nao software.
+- Causa raiz do falso positivo do YOLO (so mitigado com 3 quadros).
+- **Modulos orfaos, nao apagar:** `AlivioCarga` e `DiarioObservacoes` (usados
+  so pelo `conversar_fofao.py` da raiz, que nao e o de producao). Entender por
+  que existem antes de integrar, arquivar ou remover.
