@@ -9,7 +9,6 @@ from motion_core.behavior.comportamentos import (
     Atender,
     ControleManual,
     IaEstrategica,
-    Mentor,
     Repouso,
     Vigilia,
     VigilanciaObstaculo,
@@ -58,7 +57,9 @@ class _ComunicacaoFalsa:
         self.pedidos.append(payload)
         if self._falha:
             raise TimeoutError("Notebook inalcancavel (simulado)")
-        return _RespostaFalsa({"ok": True, "acao": self._acao})
+        # Protocolo do conselheiro (`behavior.aconselhar`), que a IA passou a
+        # usar na fusao de 2026-07-28: resposta com enum + motivo.
+        return _RespostaFalsa({"ok": True, "comportamento": self._acao, "motivo": "teste"})
 
 
 @pytest.mark.asyncio
@@ -85,7 +86,12 @@ async def test_ia_estrategica_assume_com_acao_valida():
 
 
 @pytest.mark.asyncio
-async def test_ia_estrategica_descansar_nao_disputa_o_controle():
+async def test_ia_estrategica_fora_do_contrato_nao_disputa_o_controle():
+    """Regra 6 do contrato: resposta fora do catalogo vira abstencao, nunca
+    chute. "descansar" saiu do vocabulario em 2026-07-28 (decisao do usuario:
+    nao existe descansar no diretorio do maestro), entao serve de amostra de
+    resposta invalida - e o robo tem que seguir como se a IA nao tivesse
+    falado nada."""
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     maestro = BehaviorCore(bus)
@@ -96,7 +102,8 @@ async def test_ia_estrategica_descansar_nao_disputa_o_controle():
 
     await ia_estrategica._consultar()
     await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "repouso"  # "descansar" = nao assume o controle
+    assert maestro.ativo_nome == "repouso"
+    assert ia_estrategica.quer_rodar() is False
 
     maestro.parar()
     await laco
@@ -120,117 +127,6 @@ async def test_ia_estrategica_sem_notebook_nao_derruba_o_maestro():
     await asyncio.sleep(0.05)
     assert maestro.ativo_nome == "repouso"
     assert ia_estrategica.quer_rodar() is False
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-class _ComunicacaoFalsaMentor:
-    """Fake de ComunicacaoService so para Mentor._consultar() - resposta no
-    formato de behavior.aconselhar (comportamento/motivo), diferente do
-    formato de mission.decidir (acao) usado por _ComunicacaoFalsa acima."""
-
-    def __init__(self, comportamento: str | None = "observar_ambiente", falha: bool = False) -> None:
-        self._comportamento = comportamento
-        self._falha = falha
-        self.pedidos: list[dict] = []
-
-    async def request(self, destino, payload, timeout_s=None):
-        self.pedidos.append(payload)
-        if self._falha:
-            raise TimeoutError("Notebook inalcancavel (simulado)")
-        if self._comportamento is None:
-            return _RespostaFalsa({"ok": False})
-        return _RespostaFalsa(
-            {"ok": True, "comportamento": self._comportamento, "motivo": "teste"}
-        )
-
-
-@pytest.mark.asyncio
-async def test_mentor_assume_com_conselho_aceito():
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    mentor = Mentor(bus, _ComunicacaoFalsaMentor(comportamento="observar_ambiente"))
-    maestro.registrar(mentor)
-    laco = asyncio.create_task(maestro.executar())
-
-    await _passo(maestro)
-    assert maestro.ativo_nome == "repouso"  # ainda sem conselho
-
-    await mentor._consultar()
-    await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "mentor"
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-@pytest.mark.asyncio
-async def test_mentor_descansar_nao_disputa_o_controle():
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    mentor = Mentor(bus, _ComunicacaoFalsaMentor(comportamento="descansar"))
-    maestro.registrar(mentor)
-    laco = asyncio.create_task(maestro.executar())
-
-    await mentor._consultar()
-    await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "repouso"
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-@pytest.mark.asyncio
-async def test_mentor_perde_para_ia_estrategica_quando_as_duas_opinam():
-    """Prioridade do Mentor (35) e menor que a da IaEstrategica (40) de
-    proposito - a resposta mais rapida/atual vence quando as duas tem
-    opiniao (ver docstring de Mentor)."""
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    mentor = Mentor(bus, _ComunicacaoFalsaMentor(comportamento="observar_ambiente"))
-    ia_estrategica = IaEstrategica(bus, _ComunicacaoFalsa(acao="observar_ambiente"))
-    maestro.registrar(mentor)
-    maestro.registrar(ia_estrategica)
-    laco = asyncio.create_task(maestro.executar())
-
-    await mentor._consultar()
-    await ia_estrategica._consultar()
-    await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "ia_estrategica"
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-@pytest.mark.asyncio
-async def test_mentor_sem_notebook_nao_derruba_o_maestro():
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    mentor = Mentor(bus, _ComunicacaoFalsaMentor(falha=True))
-    maestro.registrar(mentor)
-    laco = asyncio.create_task(maestro.executar())
-
-    await mentor._consultar()
-    await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "repouso"
-    assert mentor.quer_rodar() is False
 
     maestro.parar()
     await laco

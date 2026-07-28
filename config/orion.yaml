@@ -357,23 +357,13 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     habilitado: true
     prioridade: 40
     intervalo_s: 30
-    acoes_validas: ["descansar", "observar_ambiente", "avancar"]
-    # Primeiro verbo de MOVIMENTO do maestro (2026-07-25). Curto e
-    # devagar de proposito: e a primeira vez que o robo decide se mover
-    # sozinho, e ele nao tem encoder nem sensor de precipicio.
-    distancia_avanco_cm: 30
-    velocidade_avanco_percent: 40
+    # O VOCABULARIO NAO MORA AQUI (2026-07-28, EDR-0026). O que a IA pode
+    # fazer esta em motion_core/behavior/contrato.py, em codigo: e o limite
+    # da autoridade dela sobre o robo, e limite de autoridade nao e
+    # parametro de ajuste. Um acoes_validas no YAML deixaria qualquer edicao
+    # de config alargar o poder da IA sem passar por revisao.
     pasta_fotos: "data/sentinela"
-  # Mentor de comportamento (ligado em 2026-07-24) - camada de reflexao
-  # mais profunda e mais lenta que a ia_estrategica acima, complementar a
-  # ela (nao substituta): consulta IA remota (OpenAI/OpenRouter, ver
-  # ai.mentor_model) em vez de Ollama local - decisao do usuario, Ollama
-  # local trava o Notebook ao carregar um modelo (mesmo achado do
-  # EDR-0021). Prioridade menor que ia_estrategica de proposito - a
-  # resposta mais rapida/atual vence quando as duas tem opiniao; o Mentor
-  # so assume quando a ia_estrategica esta "descansando".
-  mentor:
-    habilitado: true
-    prioridade: 35
-    intervalo_s: 90
-    acoes_validas: ["descansar", "observar_ambiente"]
+  # O Mentor foi FUNDIDO na ia_estrategica em 2026-07-28 (EDR-0026). Era a
+  # mesma IA, no mesmo provedor (OpenRouter), perguntada de novo mais
+  # devagar - e o conselho dele nunca virava acao. Com autoridade motora,
+  # duas instancias da mesma IA disputariam as rodas em ritmos diferentes.

@@ -28,7 +28,6 @@ from motion_core.behavior.comportamentos import (
     Atender,
     ControleManual,
     IaEstrategica,
-    Mentor,
     Repouso,
     Ronda,
     Vigilia,
@@ -411,9 +410,6 @@ async def principal() -> None:
             event_bus,
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
-            acoes_validas=tuple(conf_ia_estrategica["acoes_validas"]),
-            distancia_avanco_cm=conf_ia_estrategica.get("distancia_avanco_cm", 30.0),
-            velocidade_avanco_percent=conf_ia_estrategica.get("velocidade_avanco_percent", 40.0),
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
@@ -427,22 +423,10 @@ async def principal() -> None:
         maestro.registrar(ia_estrategica)
         tarefa_ia_estrategica = ia_estrategica.iniciar()
 
-    conf_mentor = config.secao("behavior").get("mentor", {})
-    tarefa_mentor = None
-    if conf_mentor.get("habilitado"):
-        mentor = Mentor(
-            event_bus,
-            comm,
-            intervalo_s=conf_mentor["intervalo_s"],
-            acoes_validas=tuple(conf_mentor["acoes_validas"]),
-        )
-        mentor.prioridade = conf_mentor["prioridade"]
-        assert mentor.prioridade < VigilanciaObstaculo.prioridade, (
-            "behavior.mentor.prioridade nao pode ser >= "
-            "VigilanciaObstaculo.prioridade (seguranca nunca e arbitrada)"
-        )
-        maestro.registrar(mentor)
-        tarefa_mentor = mentor.iniciar()
+    # O Mentor foi FUNDIDO na IaEstrategica em 2026-07-28 (EDR-0026): era a
+    # mesma IA, no mesmo provedor, perguntada de novo mais devagar - e o
+    # conselho dele nunca virava acao. Some junto a `tarefa_mentor`, que era
+    # criada aqui e nunca cancelada no desligamento (pendencia de 26/07).
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(

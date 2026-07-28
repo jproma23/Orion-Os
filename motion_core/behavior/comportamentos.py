@@ -10,6 +10,7 @@ import asyncio
 import logging
 import time
 
+from motion_core.behavior import contrato
 from motion_core.behavior.comportamento import Comportamento
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 
@@ -266,22 +267,35 @@ class Vigilia(Comportamento):
         self._reavaliar()
 
 
-ACOES_VALIDAS_PADRAO = ("descansar", "observar_ambiente")
-
-
 class IaEstrategica(Comportamento):
-    """IA estrategica (prio 40, EDR-0022) - ocupa a vaga da antiga
-    "Patrulha agendada" (EDR-0020, nunca implementada) com uma decisao
-    informada em vez de so horario fixo.
+    """A IA do Fofao no comando (prio 40) - EDR-0022 + EDR-0026.
 
-    Consulta a IA (AiManager no Notebook, via comm.request ao "mission_core")
-    em ritmo proprio (`iniciar()` roda um laco de fundo a cada
-    `intervalo_s`) - NUNCA no tick de 200ms do maestro (behavior_core.py),
-    uma chamada de API leva segundos. Escolhe entre um vocabulario FECHADO
-    de acoes: a IA nunca aciona hardware direto, so escolhe entre opcoes
-    que o robo ja sabe executar com seguranca (Cap 18). Sem
-    internet/Notebook, simplesmente nao tem opiniao neste ciclo - o
-    maestro segue pro proximo da escada (Repouso) normalmente (Cap 6 s.8).
+    **Uma personalidade so.** Ate 2026-07-28 havia duas: esta e o `Mentor`
+    (prio 35). A separacao fazia sentido quando o Mentor era um modelo LOCAL
+    (gemma3:1b no Notebook, sem internet) e esta era a remota - segunda
+    opiniao de verdade, com modo de falha independente. Isso acabou em
+    2026-07-24, quando o Ollama local saiu por travar o Notebook: desde entao
+    **as duas falavam com o mesmo provedor**, e o Mentor virou a mesma IA
+    perguntada de novo, mais devagar. Pior: `Mentor.executar()` so publicava
+    status e dormia - o conselho nunca virava acao nenhuma.
+
+    Enquanto nenhuma das duas movia o robo, isso era redundancia inutil. Com
+    autoridade motora (EDR-0026) viraria perigo: duas instancias da mesma IA
+    disputando as rodas em ritmos diferentes (30s e 90s), uma preemptando a
+    outra no meio do movimento. Nas palavras do usuario: *"nao podemos ter
+    duas personalidades no controle, uma so assume tudo"*.
+
+    Ficou esta, herdando o que o Mentor tinha de melhor:
+
+    - **Protocolo do conselheiro** (`behavior.aconselhar`): saida JSON com
+      enum, que nunca inventa nome de acao. O caminho antigo
+      (`mission.decidir`) casava a resposta por SUBSTRING - e "parar" casa
+      dentro de "preparar".
+    - **Motivo junto da decisao**, que vai para o log e para a interface.
+    - **Guarda de seguranca**: enquanto um comportamento de seguranca quiser
+      o controle, nem se pergunta a IA.
+
+    O que ela pode fazer esta em `contrato.py` - nao aqui, e nunca no prompt.
     """
 
     nome = "ia_estrategica"
@@ -292,142 +306,15 @@ class IaEstrategica(Comportamento):
         event_bus: EventBus,
         comm,
         intervalo_s: float = 30.0,
-        acoes_validas: tuple[str, ...] = ACOES_VALIDAS_PADRAO,
-        distancia_avanco_cm: float = 30.0,
-        velocidade_avanco_percent: float = 40.0,
+        acoes_validas: tuple[str, ...] = contrato.NOMES,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
-        self._acoes_validas = acoes_validas
-        # Curto e devagar de proposito: e a PRIMEIRA vez que o robo decide
-        # se mover sozinho, e ele nao tem encoder nem sensor de precipicio.
-        # Valores vem do orion.yaml (regra 6) - ver behavior.ia_estrategica.
-        self._distancia_avanco_cm = distancia_avanco_cm
-        self._velocidade_avanco_percent = velocidade_avanco_percent
-        self._acao_atual: str | None = None
-        self._executando = False
-
-    def iniciar(self) -> asyncio.Task:
-        """Inicia o laco de consulta em segundo plano - chamar uma vez no
-        boot do Motion Core, fora do tick do maestro."""
-        self._executando = True
-        return asyncio.create_task(self._loop_consulta())
-
-    def parar(self) -> None:
-        self._executando = False
-
-    async def _loop_consulta(self) -> None:
-        while self._executando:
-            await self._consultar()
-            await asyncio.sleep(self._intervalo_s)
-
-    async def _consultar(self) -> None:
-        estado = {"comportamento_ativo": self._maestro.ativo_nome if self._maestro else None}
-        try:
-            resposta = await self._comm.request(
-                "mission_core",
-                {
-                    "comando": "mission.decidir",
-                    "estado": estado,
-                    "acoes_validas": list(self._acoes_validas),
-                },
-                timeout_s=15.0,
-            )
-            acao = resposta.payload.get("acao") if resposta.payload.get("ok") else None
-        except Exception:
-            logger.debug("IA estrategica indisponivel (sem internet/Notebook?)", exc_info=True)
-            acao = None
-
-        if acao == "descansar":
-            acao = None  # "descansar" = nao disputa o controle, Repouso assume
-
-        mudou = acao != self._acao_atual
-        self._acao_atual = acao
-        if mudou:
-            self._reavaliar()
-
-    def quer_rodar(self) -> bool:
-        return self._acao_atual is not None
-
-    async def _avancar(self) -> None:
-        """Primeiro verbo de MOVIMENTO do maestro (2026-07-25).
-
-        Ate aqui o vocabulario da IA era ["descansar", "observar_ambiente"] -
-        nenhum dos dois movia nada, entao o maestro podia decidir o dia
-        inteiro sem que uma roda girasse.
-
-        Usa MOVE_DISTANCE e nao MOVE_FORWARD de proposito: a distancia e
-        limitada e o proprio firmware para ao completa-la. Comando continuo
-        dependeria de alguem lembrar de mandar STOP - e o robo NAO tem
-        encoders, entao nao sabe quanto andou nem onde esta.
-
-        Enviado UMA vez por ativacao, nunca em laco: repetir empurraria o
-        robo indefinidamente enquanto a IA mantivesse a mesma decisao.
-
-        A seguranca reativa do Mega continua por cima - se houver obstaculo
-        ou o sensor nao for confiavel, o comando e recusado no firmware
-        (Cap 18). Este metodo PEDE para andar; quem autoriza e o Arduino.
-        """
-        try:
-            await self._comm.send(
-                "hardware_core",
-                {
-                    "comando": "MOVE_DISTANCE",
-                    "distancia_cm": self._distancia_avanco_cm,
-                    "velocidade_percent": self._velocidade_avanco_percent,
-                },
-            )
-            logger.info("maestro: avancando %.0f cm", self._distancia_avanco_cm)
-        except Exception:
-            # Cap 6 s.8: Arduino ausente ou recusa por seguranca nao pode
-            # derrubar o maestro - ele so nao anda desta vez.
-            logger.warning("maestro: falha ao comandar avanco", exc_info=True)
-
-    async def executar(self) -> None:
-        acao = self._acao_atual
-        await self._event_bus.publish("behavior.status", {"estado": "ia_estrategica", "acao": acao})
-        logger.info("maestro: IA estrategica decidiu '%s'", acao)
-        if acao == "avancar":
-            await self._avancar()
-        try:
-            while True:
-                await asyncio.sleep(1.0)
-        except asyncio.CancelledError:
-            logger.info("maestro: IA estrategica preemptada")
-            raise
-
-
-class Mentor(Comportamento):
-    """Mentor de comportamento (prio 35, ligado em 2026-07-24) - camada de
-    reflexao mais profunda, complementar a IaEstrategica (prio 40), nao
-    substituta: IaEstrategica e a resposta rapida/ambiente (Ollama via
-    OpenRouter na nuvem, a cada 30s por padrao); o Mentor consulta
-    `ConselheiroComportamento` (Ollama LOCAL no Notebook, gemma3:1b, sem
-    depender de internet) num ritmo mais lento e deliberado - decisao
-    do usuario, nao pedido tecnico. Prioridade abaixo da IaEstrategica de
-    proposito: quando as duas tem opiniao, a mais rapida/atual vence; o
-    Mentor so assume quando a IaEstrategica esta em 'descansar' (sem
-    opiniao) e o Repouso venceria por padrao.
-
-    Mesmo padrao arquitetural de IaEstrategica: nunca aciona hardware
-    direto (Cap 18), vocabulario FECHADO, consulta feita em laco proprio
-    (`iniciar()`), nunca no tick de 200ms do maestro.
-    """
-
-    nome = "mentor"
-    prioridade = 35
-
-    def __init__(
-        self,
-        event_bus: EventBus,
-        comm,
-        intervalo_s: float = 90.0,
-        acoes_validas: tuple[str, ...] = ACOES_VALIDAS_PADRAO,
-    ) -> None:
-        super().__init__(event_bus)
-        self._comm = comm
-        self._intervalo_s = intervalo_s
+        #: O vocabulario vem do CONTRATO, nao do orion.yaml: e o limite da
+        #: autoridade da IA sobre o robo, e limite de autoridade nao e
+        #: parametro de ajuste. Continua injetavel para os testes poderem
+        #: estreitar o catalogo, nunca para alarga-lo.
         self._acoes_validas = acoes_validas
         self._acao_atual: str | None = None
         self._motivo_atual: str = ""
@@ -435,7 +322,7 @@ class Mentor(Comportamento):
 
     def iniciar(self) -> asyncio.Task:
         """Inicia o laco de consulta em segundo plano - chamar uma vez no
-        boot do Motion Core, fora do tick do maestro."""
+        boot do Motion Core, fora do tick de 200ms do maestro."""
         self._executando = True
         return asyncio.create_task(self._loop_consulta())
 
@@ -449,6 +336,8 @@ class Mentor(Comportamento):
 
     async def _consultar(self) -> None:
         nome_ativo = self._maestro.ativo_nome if self._maestro else None
+        # Seguranca nao se negocia: com a vigilancia de obstaculo no comando,
+        # nem se pergunta a IA (Cap 18, regra 3 do contrato).
         seguranca_ativa = nome_ativo == "vigilancia_obstaculo"
         estado = {"comportamento_ativo": nome_ativo}
         try:
@@ -460,20 +349,23 @@ class Mentor(Comportamento):
                     "opcoes": list(self._acoes_validas),
                     "seguranca_ativa": seguranca_ativa,
                 },
-                timeout_s=25.0,  # inferencia local (gemma3:1b) leva 10-20s
+                timeout_s=25.0,
             )
-            acao = resposta.payload.get("comportamento") if resposta.payload.get("ok") else None
-            motivo = resposta.payload.get("motivo", "") if resposta.payload.get("ok") else ""
+            ok = resposta.payload.get("ok")
+            escolha = resposta.payload.get("comportamento") if ok else None
+            motivo = resposta.payload.get("motivo", "") if ok else ""
         except Exception:
-            logger.debug("Mentor indisponivel (sem Notebook/Ollama local?)", exc_info=True)
-            acao = None
-            motivo = ""
+            logger.debug("IA indisponivel (sem Notebook/internet?)", exc_info=True)
+            escolha, motivo = None, ""
 
-        if acao == "descansar":
-            acao = None  # "descansar" = nao disputa o controle, Repouso assume
+        acao = contrato.resolver(escolha)
+        if escolha and acao is None:
+            # Regra 6 do contrato: fora do catalogo nunca vira chute.
+            logger.info("maestro: IA respondeu %r, fora do contrato - abstendo", escolha)
 
-        mudou = acao != self._acao_atual
-        self._acao_atual = acao
+        nome_acao = acao.nome if acao is not None else None
+        mudou = nome_acao != self._acao_atual
+        self._acao_atual = nome_acao
         self._motivo_atual = motivo
         if mudou:
             self._reavaliar()
@@ -482,16 +374,26 @@ class Mentor(Comportamento):
         return self._acao_atual is not None
 
     async def executar(self) -> None:
-        acao = self._acao_atual
+        acao = contrato.resolver(self._acao_atual)
         await self._event_bus.publish(
-            "behavior.status", {"estado": "mentor", "acao": acao, "motivo": self._motivo_atual}
+            "behavior.status",
+            {"estado": self.nome, "acao": self._acao_atual, "motivo": self._motivo_atual},
         )
-        logger.info("maestro: Mentor aconselhou '%s' (%s)", acao, self._motivo_atual)
+        logger.info("maestro: IA decidiu '%s' (%s)", self._acao_atual, self._motivo_atual)
+        if acao is not None:
+            # UMA vez por ativacao, nunca em laco: repetir empurraria o robo
+            # indefinidamente enquanto a IA mantivesse a mesma decisao.
+            #
+            # E sempre por EVENTO, nunca comm.send direto ao Mega: movimento
+            # autonomo passa pela navegacao, que checa obstaculo antes de
+            # avancar (regra 2 do contrato). O `_avancar` que existia aqui
+            # ate 2026-07-28 falava direto com o Arduino e pulava essa camada.
+            await self._event_bus.publish(acao.topico, dict(acao.dados))
         try:
             while True:
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
-            logger.info("maestro: Mentor preemptado")
+            logger.info("maestro: IA preemptada")
             raise
 
 
