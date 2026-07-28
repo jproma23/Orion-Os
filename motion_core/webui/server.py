@@ -153,6 +153,9 @@ class WebUIServer:
         self._config = config
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
+        #: sinaliza os handlers SSE de longa duracao (_handler_sse) para
+        #: saírem do loop na hora do encerrar() - ver comentario la.
+        self._encerrando = asyncio.Event()
 
         # estado agregado (Cap 13 s.5): so o ultimo valor de cada coisa,
         # nunca logica de decisao - so cache pra quem acabou de conectar
@@ -403,7 +406,25 @@ class WebUIServer:
         self._clientes.add(resposta)
         try:
             while True:
-                await asyncio.sleep(_INTERVALO_PING_S)
+                # BUG REAL (2026-07-27, vistoria pos-gravacao de firmware):
+                # `await asyncio.sleep(_INTERVALO_PING_S)` puro nao acorda
+                # por sinal nenhum - so pelo relogio. `AppRunner.cleanup()`
+                # (chamado em encerrar()) espera os handlers em andamento
+                # TERMINAREM SOZINHOS antes de retornar; com um cliente
+                # conectado de verdade (o proprio dashboard no navegador),
+                # este handler nunca termina sozinho - e um `while True`
+                # de proposito, para manter o SSE vivo. Resultado medido:
+                # o desligamento gracioso do Motion Core travava ate 90s
+                # (o padrao do systemd), so resolvido por SIGKILL.
+                # `wait_for` sobre `self._encerrando` faz o mesmo papel do
+                # sleep, mas acorda NA HORA quando encerrar() sinaliza -
+                # mesmo padrao ja usado em BehaviorCore.executar() para o
+                # tick do maestro.
+                try:
+                    await asyncio.wait_for(self._encerrando.wait(), timeout=_INTERVALO_PING_S)
+                    break  # encerrando foi sinalizado - sai sem mandar mais ping
+                except asyncio.TimeoutError:
+                    pass  # timeout normal - hora do ping
                 await resposta.write(b": ping\n\n")
         except (ConnectionResetError, asyncio.CancelledError):
             pass
@@ -477,6 +498,12 @@ class WebUIServer:
                 # sensor_ultrassonico.h e EDR-0024).
                 "frontal_sem_eco",
                 "traseiro_sem_eco",
+                # Amostras descartadas por cegueira do loop durante o eco
+                # (2026-07-27, sensor_ultrassonico.h) - contador ACUMULADO
+                # desde o boot, para achar quem bloqueia o loop (hoje, o
+                # envio da telemetria), nao para acusar sensor ruim.
+                "frontal_descartes",
+                "traseiro_descartes",
             ):
                 # `if campo in dados` tambem cobre o pacote REDUZIDO que o
                 # firmware manda com o robo em movimento: campo ausente
@@ -530,5 +557,9 @@ class WebUIServer:
         logger.info("Interface web servida em http://%s:%d", self._host, self._port)
 
     async def encerrar(self) -> None:
+        # Sinaliza PRIMEIRO: precisa acontecer antes do cleanup() para os
+        # handlers SSE em andamento acordarem e saírem do loop - ver
+        # comentario em _handler_sse.
+        self._encerrando.set()
         if self._runner is not None:
             await self._runner.cleanup()

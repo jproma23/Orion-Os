@@ -157,3 +157,49 @@ async def test_serial_transport_enviar_converte_serial_exception_em_erro_transpo
 
     await transporte.fechar()
     os.close(mestre_fd)
+
+
+@pytest.mark.asyncio
+async def test_serial_transport_fechar_nao_espera_read_pendente():
+    """Achado real (2026-07-27, vistoria pos-gravacao de firmware no Mega):
+    fechar() mandava self._serial.close para o MESMO executor de 1 thread
+    que receber() usa para o read() bloqueante (ver comentario no
+    __init__) - se o read() estivesse em andamento, close() ficava na fila
+    atras dele. Em producao isso travou o desligamento gracioso do Motion
+    Core por mais de 80s (o read() nao voltou nem apos seu proprio timeout
+    configurado), so resolvido quando o systemd matou o processo a forca
+    (SIGKILL, sem TimeoutStopSec configurado -> ~90s de default) e
+    `Restart=always` subiu um processo novo.
+
+    Reproduzido aqui com um timeout de leitura de 3s (bem maior que o
+    padrao de producao, 0.1s) e nenhum dado chegando no pty - sem
+    cancel_read(), fechar() ficaria bloqueado ate o read() estourar esse
+    timeout sozinho. Com cancel_read(), tem que retornar quase na hora,
+    porque a leitura pendente e interrompida de fora, sem depender do
+    timeout dela."""
+    mestre_fd, escravo_fd = os.openpty()
+    caminho_escravo = os.ttyname(escravo_fd)
+
+    transporte = SerialTransport(
+        caminho_escravo, baud_rate=115200, timeout_leitura_s=3.0, atraso_reset_s=0
+    )
+    await transporte.conectar()
+
+    async def _consumir() -> None:
+        async for _ in transporte.receber():
+            pass
+
+    tarefa_leitura = asyncio.create_task(_consumir())
+    await asyncio.sleep(0.1)  # garante que a tarefa ja esta bloqueada no read()
+
+    inicio = asyncio.get_running_loop().time()
+    await asyncio.wait_for(transporte.fechar(), timeout=1.0)
+    duracao = asyncio.get_running_loop().time() - inicio
+    assert duracao < 1.0  # nao esperou os 3s do timeout de leitura
+
+    tarefa_leitura.cancel()
+    try:
+        await tarefa_leitura
+    except asyncio.CancelledError:
+        pass
+    os.close(mestre_fd)

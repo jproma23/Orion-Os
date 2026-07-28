@@ -208,6 +208,39 @@ async def test_evento_e_repassado_para_cliente_sse(cenario):
         assert linha_dados == b'data: {"modo": "PATROL"}\n'
 
 
+@pytest.mark.asyncio
+async def test_encerrar_nao_trava_com_cliente_sse_conectado():
+    """BUG REAL (2026-07-27, vistoria pos-gravacao de firmware no Mega):
+    `_handler_sse` e um `while True` de proposito (mantem o SSE vivo
+    enquanto o cliente - o dashboard no navegador - estiver conectado).
+    `encerrar()` chamava so `AppRunner.cleanup()`, que espera os handlers
+    em andamento TERMINAREM SOZINHOS antes de retornar - com um cliente
+    de verdade conectado, esse handler nunca termina sozinho. Em producao
+    isso travou o desligamento gracioso do Motion Core por ate 90s (o
+    padrao do systemd), so resolvido por SIGKILL - com o dashboard aberto
+    numa aba do navegador, bastava isso para travar TODO restart do
+    servico.
+
+    Reproduzido aqui com um cliente SSE de verdade ainda conectado
+    (dentro do `async with`) no momento de chamar encerrar() - tem que
+    retornar rapido, nao esperar o proximo ping (15s, _INTERVALO_PING_S)."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    servidor = WebUIServer(bus)
+
+    async with TestClient(TestServer(servidor._app)) as http:
+        async with http.get("/eventos") as resposta:
+            assert resposta.status == 200
+            assert len(servidor._clientes) == 1  # cliente de verdade conectado
+
+            await asyncio.wait_for(servidor.encerrar(), timeout=2.0)
+
+    bus.parar()
+    tarefa_bus.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await tarefa_bus
+
+
 
 # ---------- /comando (controle manual, Cap 13 s.4) ----------
 #

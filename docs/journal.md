@@ -3305,3 +3305,115 @@ calma):
   obstaculo; (3) atraso do rele (~20ms apos `_ligarRele()`), que afeta toda a
   odometria; depois calibrar a bussola com o robo montado e so entao a varredura
   do EDR-0024. GitHub segue em `73bf557`, agora bem atras.
+
+## 2026-07-27 (gravacao no Mega + teste no hardware do joystick + bug real de desligamento)
+
+- **Sessao na maquina Windows de controle.** Aplicado o fluxo de 7 etapas
+  pela primeira vez de ponta a ponta: firmware gravado no Mega
+  (`tools/gravar_firmware_seguro.sh`, RAM 46,3%/Flash 19,4%, compilando e
+  verificando limpo), depois testes no hardware de verdade contra o
+  `orion-motion.service` real - nao simulado.
+
+- **Novo `tools/testar_joystick.py`**: bate no HTTP da webui (mesmo caminho
+  do joystick do navegador), em fases de risco crescente - LIGHT_ON/OFF
+  primeiro (prova o pipeline inteiro sem tocar motor nenhum), STOP depois,
+  giro real so com `--com-motor` explicito. **LIGHT_ON/OFF/STOP confirmados
+  funcionando ponta a ponta em producao**: log real mostra
+  `maestro: 'controle_manual' assume (prio 95)` - a primeira prova de que o
+  `ControleManual` desta sessao funciona com o Mega de verdade, nao so em
+  teste unitario. Giro real com motor NAO testado ainda - decisao consciente,
+  sem confirmacao visual de que o robo estava em posicao segura (rodas no ar
+  ou espaco livre).
+
+- **BUG REAL GRAVE encontrado: `systemctl --user restart orion-motion.service`
+  travava por ~90s, toda vez**, preso em `deactivating (stop-sigterm)` ate o
+  systemd desistir do SIGTERM e mandar SIGKILL (sem `TimeoutStopSec`
+  configurado, o padrao aplica). Reproduzido e resolvido em tres camadas,
+  cada uma provada com teste antes de seguir para a proxima (desativando a
+  correcao, confirmando que o teste FALHA, reativando):
+
+  1. **`SerialTransport.fechar()`** (`transport.py`): o `close()` da porta
+     entrava na fila do MESMO executor de 1 thread que `receber()` usa para
+     o `read()` bloqueante (pyserial e sincrono) - se o read() estivesse em
+     andamento, `close()` ficava preso atras dele. Corrigido com
+     `self._serial.cancel_read()` (API do pyserial feita exatamente pra
+     interromper um read() de outra thread) ANTES do close(). Teste novo em
+     `test_transport.py` reproduz com um pty sem ninguem escrevendo.
+
+  2. **`ComunicacaoService.encerrar()`** (`service.py`): cancelava e
+     ESPERAVA a tarefa de recepcao terminar ANTES de fechar o transporte -
+     ordem que so funciona pra TCP (`StreamReader.read()` e nativo do
+     asyncio, cancelavel de verdade). Este mesmo arquivo ja documentava a
+     licao no simulador (`test_fase2_comunicacao.py`, comentario de
+     `arduino_simulado`: "um read() bloqueante numa thread do executor nao e
+     interrompido por task.cancel()") mas nunca tinha sido aplicada ao
+     encerrar() de producao. Corrigido invertendo a ordem: fecha os links
+     primeiro, so depois cancela+espera as tarefas. Teste novo de integracao
+     (`test_encerrar_nao_trava_com_leitura_serial_pendente`) com pty real e
+     timeout de leitura de 5s.
+
+  2b. **Achado honesto, registrado para ninguem repetir:** o teste de
+      integracao do item 2, isolado, passou mesmo com a correcao revertida -
+      o `cancel_read()` do item 1 sozinho ja bastava naquele cenario de
+      teste. A necessidade da correcao 2 em ISOLAMENTO ficou tecnicamente
+      NAO PROVADA por teste (so a 1 e a 3 tem prova direta de deteccao).
+      Mantida mesmo assim por ser ordem mais robusta objetivamente (fechar
+      recurso antes de esperar quem o consome), sem custo.
+
+  3. **A causa real e dominante: `WebUIServer._handler_sse` / `encerrar()`**
+     (`webui/server.py`). O handler de `/eventos` (SSE, usado pelo dashboard
+     no navegador) e um `while True` de proposito, pra manter a conexao viva
+     enquanto o cliente quiser. `encerrar()` so chamava
+     `AppRunner.cleanup()`, que ESPERA os handlers em andamento TERMINAREM
+     SOZINHOS antes de retornar - com um cliente de verdade conectado (o
+     proprio dashboard aberto numa aba), esse handler nunca termina sozinho.
+     **Esta e a causa dominante do travamento de 90s**, confirmada de forma
+     definitiva: um teste unitario com `TestClient`/`TestServer` NAO
+     discriminou o bug (a ferramenta de teste nao reproduz fielmente o
+     `cleanup()` do `AppRunner`+`TCPSite` real de producao) - so o teste com
+     hardware/producao real provou. Corrigido com um `asyncio.Event`
+     (`self._encerrando`) que o loop do SSE escuta via `wait_for` no lugar
+     de um `sleep` puro - acorda na hora quando `encerrar()` sinaliza, em
+     vez de esperar o proximo ping (15s) ou o cliente desconectar sozinho.
+
+  - **Medido, nao suposto:** com um cliente SSE real conectado (`curl -sN`
+    simulando a aba do navegador), `systemctl restart` foi de **~91s para
+    1s**. Confirmado no log ponta a ponta: a sequencia completa de
+    desligamento (`webui.encerrar` -> `comm.encerrar` -> `servidor_tcp.close`
+    -> cancelar+esperar heartbeat/maestro/event_bus/ia_estrategica/manutencao)
+    ate `Motion Core encerrado`, sem travar em lugar nenhum.
+
+  - **Impacto real:** qualquer sessao anterior que reiniciou o servico com o
+    dashboard aberto numa aba do navegador sofreu este travamento sem saber
+    a causa - so parecia "o Pi demora pra religar o servico". Ninguem tinha
+    percebido porque as sessoes anteriores nao tinham motivo pra medir o
+    tempo de restart com precisao.
+
+- **Contadores `frontal_descartes`/`traseiro_descartes` (correcao de
+  sensor_ultrassonico.h da sessao anterior) confirmados vivos em producao**:
+  27-29 descartes frontais e 10 traseiros acumulados em poucos minutos de
+  uptime - a hipotese de que o envio da telemetria cega o loop durante o eco
+  do ultrassom, com frequencia suficiente pra importar, esta CONFIRMADA por
+  dado real, nao mais so por raciocinio. (Achado colateral desta mesma
+  sessao: os dois campos nao apareciam no `/estado` porque a webui tinha uma
+  lista fixa de campos repassados da telemetria e eu tinha esquecido de
+  adicionar os dois novos nela - corrigido tambem.)
+
+- **Metodologia que vale registrar:** a ferramenta de teste unitario
+  (`aiohttp.test_utils.TestServer`/`TestClient`) NAO reproduz fielmente o
+  comportamento de desligamento do `AppRunner`+`TCPSite` real. Um teste que
+  passa com `TestClient` nao prova que o mesmo cenario esta resolvido em
+  producao - only o teste contra o servico rodando de verdade (ou contra
+  hardware real) e prova final. Ficou provado ao vivo nesta sessao: o mesmo
+  teste "passava" com a correcao ativada E desativada quando rodado via
+  `TestClient`.
+
+- **Estado do git ao fim da sessao:** Pi e Notebook sincronizados,
+  arvore limpa, `docs/ESTADO_DOS_MODULOS.md` atualizado com a validacao de
+  hardware de hoje (ainda sob o teto de politica: nada vira verde ate o robo
+  se mover de verdade).
+
+- **Proximos passos:** testar o giro real do joystick (`--com-motor`), com o
+  robo em posicao segura e alguem observando; calibrar a bussola com o robo
+  montado; camera do pan/tilt segue sem transmitir; varredura de horizonte
+  do EDR-0024, que depende dos itens anteriores.

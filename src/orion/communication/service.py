@@ -376,7 +376,29 @@ class ComunicacaoService:
             logger.warning("Falha ao encaminhar mensagem para '%s'", mensagem.destino)
 
     async def encerrar(self) -> None:
-        """Desligamento seguro: para as tarefas de recepcao e fecha os links."""
+        """Desligamento seguro: fecha os links primeiro, so depois para as
+        tarefas de recepcao.
+
+        BUG REAL (2026-07-27, vistoria pos-gravacao de firmware): a ordem
+        era invertida - cancelar+esperar a tarefa de recepcao PRIMEIRO,
+        fechar o transporte DEPOIS. Funciona para TCP (StreamReader.read()
+        e nativo do asyncio, `task.cancel()` interrompe de verdade), mas
+        NAO para a serial: `SerialTransport.receber()` le com
+        run_in_executor (pyserial e sincrono, ver transport.py), e
+        `task.cancel()` NAO interrompe uma chamada ja em andamento numa
+        thread de executor - so passa a valer quando aquele read() retornar
+        sozinho. Com o read() preso, o `await tarefa` do primeiro loop
+        travava para sempre, e o codigo nunca chegava em
+        `transporte.fechar()` (que e quem chama cancel_read() e destrava
+        de verdade). Em producao isso travou o desligamento gracioso do
+        Motion Core por >80s, so resolvido pelo SIGKILL do systemd.
+        Fechar primeiro garante que a leitura pendente e interrompida antes
+        de esperarmos a tarefa terminar - seguro tambem para TCP (fechar o
+        socket com uma leitura pendente e o caminho normal de
+        `_consumir_mensagens`/`_loop_recepcao`, que ja trata OSError/
+        ErroTransporte como link caido)."""
+        for transporte in self._links.values():
+            await transporte.fechar()
         tarefas = list(self._tarefas_recepcao.values())
         for tarefa in tarefas:
             tarefa.cancel()
@@ -385,5 +407,3 @@ class ComunicacaoService:
                 await tarefa
             except asyncio.CancelledError:
                 pass
-        for transporte in self._links.values():
-            await transporte.fechar()

@@ -141,6 +141,48 @@ async def test_raspberry_conversa_com_arduino_via_serial_pty():
 
 
 @pytest.mark.asyncio
+async def test_encerrar_nao_trava_com_leitura_serial_pendente():
+    """BUG REAL (2026-07-27, vistoria pos-gravacao de firmware no Mega):
+    `ComunicacaoService.encerrar()` cancelava e ESPERAVA a tarefa de
+    recepcao terminar ANTES de fechar o transporte. Para TCP tudo bem
+    (StreamReader.read() e nativo do asyncio, cancelavel de verdade) - mas
+    para a serial, `SerialTransport.receber()` le via run_in_executor
+    (pyserial e sincrono), e a linha 77-79 deste MESMO arquivo ja registrava
+    o porque isso importa: "um os.read() bloqueante numa thread do executor
+    nao e interrompido por task.cancel()". A licao existia no simulador mas
+    nunca tinha sido aplicada ao ComunicacaoService.encerrar() de verdade.
+
+    Em producao, com o link real (nao um pty respondendo rapido como no
+    teste acima) sem trafego no momento do desligamento, isso travou o
+    Motion Core por mais de 80s - so resolvido quando o systemd, sem
+    resposta ao SIGTERM, mandou SIGKILL.
+
+    Reproduzido aqui: pty SEM ninguem escrevendo do outro lado (leitura
+    fica genuinamente pendente) e timeout_leitura_s bem maior que qualquer
+    desligamento aceitavel. encerrar() tem que retornar bem antes disso -
+    prova que o transporte e fechado (cancel_read(), ver transport.py)
+    ANTES de esperarmos a tarefa de recepcao, nao depois."""
+    master_fd, escravo_fd = os.openpty()
+    caminho_escravo = os.ttyname(escravo_fd)
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    servico = ComunicacaoService("motion_core", bus, versao_modulo="test-0.1")
+    transporte = SerialTransport(
+        caminho_escravo, baud_rate=115200, timeout_leitura_s=5.0, atraso_reset_s=0
+    )
+    await transporte.conectar()
+    servico.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
+    await asyncio.sleep(0.1)  # garante que a tarefa de recepcao ja esta bloqueada no read()
+
+    await asyncio.wait_for(servico.encerrar(), timeout=1.0)  # bem menor que os 5s do read()
+
+    os.close(master_fd)
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
 async def test_perda_de_heartbeat_gera_module_lost_com_transporte_tcp_real():
     """Fecha a conexao do outro lado (sem avisar) e confere que o
     MonitorHeartbeat detecta a perda mesmo sobre um transporte real."""

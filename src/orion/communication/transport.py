@@ -241,6 +241,20 @@ class SerialTransport:
     async def fechar(self) -> None:
         self._parar_leitura = True
         if self._serial is not None:
+            # BUG REAL (2026-07-27, vistoria pos-gravacao de firmware): o
+            # executor tem UMA thread so (comentario em __init__). Se
+            # receber() estiver bloqueado dentro de self._serial.read() -
+            # legitimo, e o estado normal entre bytes - o close() abaixo
+            # entra na FILA atras dele, porque e o mesmo executor. Na
+            # bancada isso travou o desligamento gracioso do Motion Core por
+            # mais de 80s (o read() nao voltou nem apos seu proprio timeout
+            # configurado), ate o systemd mandar SIGKILL e o
+            # `Restart=always` subir um processo novo. cancel_read() existe
+            # exatamente para isto: interrompe um read() em andamento sendo
+            # chamado de OUTRA thread (aqui, a do event loop), sem precisar
+            # entrar na fila do executor - so depois disso o close() e
+            # submetido, com a thread ja livre.
+            self._serial.cancel_read()
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(self._executor, self._serial.close)
         self._executor.shutdown(wait=False)
