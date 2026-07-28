@@ -31,8 +31,8 @@ from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.communication.transport import SerialTransport
 from orion.kernel.event_bus import EventBus
 
-PORTA = "/dev/ttyUSB0"
-BAUD = 115200
+from _serial_bancada import BAUD, PORTA
+
 INTERVALO_S = 0.5
 
 

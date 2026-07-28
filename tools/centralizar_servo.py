@@ -1,14 +1,14 @@
-﻿import asyncio
+import asyncio
 from orion.communication.service import ComunicacaoService
 from orion.communication.transport import SerialTransport
 from orion.kernel.event_bus import EventBus
 
-PORTA = "/dev/ttyUSB1"
+from _serial_bancada import BAUD, PORTA
 
 async def main():
     bus = EventBus()
     svc = ComunicacaoService("motion_core", bus)
-    transporte = SerialTransport(PORTA, 115200)
+    transporte = SerialTransport(PORTA, BAUD)
     tarefa_bus = asyncio.create_task(bus.iniciar())
     print("Conectando (aguardando reset do Mega, ~2s)...")
     await transporte.conectar()

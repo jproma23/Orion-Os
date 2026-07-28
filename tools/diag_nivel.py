@@ -11,7 +11,8 @@ from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.communication.transport import SerialTransport
 from orion.kernel.event_bus import EventBus
 
-PORTA, BAUD = "/dev/ttyUSB0", 115200
+from _serial_bancada import BAUD, PORTA
+
 NOTEBOOK = "jproma23@10.20.20.195"
 PASTA_NB = "/tmp/orion_pano"
 CAP = "~/orion-os/.venv/bin/python ~/orion-os/tools/capturar_frame.py"

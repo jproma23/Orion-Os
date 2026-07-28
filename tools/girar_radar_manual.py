@@ -8,8 +8,7 @@ from orion.communication.service import ComunicacaoService
 from orion.communication.transport import SerialTransport
 from orion.kernel.event_bus import EventBus
 
-PORTA = "/dev/ttyUSB1"
-BAUD = 115200
+from _serial_bancada import BAUD, PORTA
 
 
 async def main() -> int:

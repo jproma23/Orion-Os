@@ -18,8 +18,8 @@ from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.communication.transport import SerialTransport
 from orion.kernel.event_bus import EventBus
 
-PORTA = "/dev/ttyUSB0"
-BAUD = 115200
+from _serial_bancada import BAUD, PORTA
+
 
 NOTEBOOK = "jproma23@10.20.20.195"
 PASTA_NB = "/tmp/orion_pano"          # onde os frames ficam no Notebook
