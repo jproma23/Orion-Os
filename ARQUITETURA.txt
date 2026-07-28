@@ -119,6 +119,53 @@ cd firmware/hardware_core && pio run -t upload # gravar no Mega
 - Firmware: máquina de estados do Cap 10 seção 4; nunca bloquear o loop
   principal (sem `delay()` em código de produção).
 
+## Fluxo de trabalho (decidido em 2026-07-27)
+
+Toda mudança de código segue este ciclo, nesta ordem. Nada vai para o
+`master` sem passar pelas sete etapas:
+
+```
+Problema → Análise → Implementação → Testes unitários →
+Testes no hardware → Documentação → Commit
+```
+
+1. **Problema** — o que está quebrado ou faltando, com evidência (log,
+   comportamento observado), não suposição.
+2. **Análise** — ler o código relevante antes de mexer; entender a causa
+   antes de propor a correção.
+3. **Implementação** — um arquivo por vez (ver "Protocolo de integração"
+   abaixo); nenhuma resolução de conflito ou mudança sem compilar/rodar
+   os testes em seguida.
+4. **Testes unitários** — cobrindo o problema original (regra já existente:
+   "todo bug corrigido ganha teste de regressão"). Rodar a suíte inteira,
+   não só o arquivo tocado.
+5. **Testes no hardware** — validação física no Pi/Mega/robô de verdade.
+   Testes unitários provam que o código faz o que foi escrito para fazer;
+   só o hardware prova que o que foi escrito resolve o problema físico.
+   **Uma correção sem este passo é "em validação", não "pronta"** — ver
+   o mapa de saúde abaixo.
+6. **Documentação** — `docs/journal.md` (o que mudou e por quê) e, se for
+   decisão de arquitetura, um EDR novo em `docs/edr/`.
+7. **Commit** — mensagem no formato `[modulo] descrição`, com o raciocínio
+   no corpo. Só depois disto o código está pronto para o `master`.
+
+### Mapa de saúde dos módulos
+
+Todo módulo do projeto é classificado em uma de quatro categorias,
+revisadas conforme o ciclo acima avança:
+
+- 🟢 **Estável** — testado (unitário e hardware) e em uso sem problema
+  conhecido.
+- 🟡 **Em validação** — implementado e com testes unitários passando, mas
+  ainda sem a etapa 5 (testes no hardware) confirmada.
+- 🟠 **Em desenvolvimento** — funciona parcialmente; escopo mínimo
+  deliberado ou implementação incompleta, documentado como tal no código.
+- 🔴 **Pendente** — não implementado, ou implementado com problema
+  conhecido e não corrigido.
+
+Uma correção move o módulo de categoria; o objetivo é o sistema inteiro
+chegar a 🟢.
+
 ## Ordem de implementação
 
 Siga `PLANO_IMPLEMENTACAO.md`. Resumo: Fase 0 (esqueleto) → Fase 1 (Kernel +
