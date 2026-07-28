@@ -24,6 +24,7 @@ from pathlib import Path
 from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     Atender,
+    ControleManual,
     IaEstrategica,
     Mentor,
     Repouso,
@@ -333,6 +334,7 @@ async def principal() -> None:
     maestro.registrar(Ronda(event_bus), discricionario=True)
     maestro.registrar(Atender(event_bus))
     maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
+    maestro.registrar(ControleManual(event_bus))
     maestro.registrar(VigilanciaObstaculo(event_bus))
 
     conf_ia_estrategica = config.secao("behavior")["ia_estrategica"]
@@ -408,7 +410,6 @@ async def principal() -> None:
         port=conf_web["port"],
         memory_api=memory_api,
         config=config,
-        comm=comm,
     )
     await webui.iniciar()
 

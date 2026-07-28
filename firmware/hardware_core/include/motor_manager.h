@@ -28,6 +28,24 @@ constexpr long PASSOS_POR_SEGUNDO_MINIMO = 50;
 // (true), sinal classico de driver permanentemente desabilitado.
 constexpr bool ENABLE_ATIVO_EM_BAIXO = false;
 
+// Carencia entre fechar o rele dos motores e o primeiro pulso de STEP.
+//
+// ACHADO DO MANTENEDOR (2026-07-27): `_configurarRoda` marcava
+// `ultimoPassoUs = micros()` no MESMO instante em que `_ligarRele()` fechava o
+// contato. Mas o rele quica por ~5-10 ms e o TB6600 ainda leva alguns ms para
+// acordar depois de energizado - entao os primeiros pulsos de CADA movimento
+// eram emitidos sem haver driver para executa-los, e o firmware contava todos
+// em `passosAcumulados`.
+//
+// Por que isso e pior que patinacao: o erro e SISTEMATICO, sempre no mesmo
+// sentido (conta mais do que andou) e sempre do mesmo tamanho. Patinacao e
+// aleatoria e tende a se diluir; este erro se ACUMULA a cada arranque. Como a
+// odometria e malha aberta (conta o que mandou, nao o que a roda fez), nada
+// depois corrige isso.
+//
+// 20 ms cobre o quique do rele com folga sem ser perceptivel ao operador.
+constexpr unsigned long ATRASO_RELE_US = 20000;
+
 struct EstadoRoda {
   uint8_t pinoStep;
   uint8_t pinoDir;
@@ -36,6 +54,8 @@ struct EstadoRoda {
   unsigned long ultimoPassoUs = 0;
   long passosRestantes = 0;  // -1 = continuo (ate parar() ser chamado)
   long passosAcumulados = 0; // odometria simples (sem encoder)
+  //: nenhum pulso antes deste instante - carencia do rele (ATRASO_RELE_US).
+  unsigned long naoPulsarAntesUs = 0;
 };
 
 class MotorManager {
@@ -125,8 +145,14 @@ class MotorManager {
   EstadoRoda _esquerda;
   EstadoRoda _direita;
 
+  //: instante em que o rele foi fechado pela ultima vez - base da carencia.
+  unsigned long _releLigadoUs = 0;
+
   // Rele ativo em LOW (pins.h) - liga/desliga a energia real dos TB6600.
-  static void _ligarRele() { digitalWrite(pinos::RELE_MOTORES, LOW); }
+  void _ligarRele() {
+    digitalWrite(pinos::RELE_MOTORES, LOW);
+    _releLigadoUs = micros();
+  }
   static void _desligarRele() { digitalWrite(pinos::RELE_MOTORES, HIGH); }
 
   static long _intervaloParaVelocidade(float velocidadePercent) {
@@ -137,17 +163,25 @@ class MotorManager {
     return 1000000L / passosPorSegundo;
   }
 
-  static void _configurarRoda(EstadoRoda& roda, bool sentidoFrente, float velocidadePercent,
-                               long passos) {
+  void _configurarRoda(EstadoRoda& roda, bool sentidoFrente, float velocidadePercent,
+                        long passos) {
     roda.sentidoFrente = sentidoFrente;
     digitalWrite(roda.pinoDir, sentidoFrente ? HIGH : LOW);
     roda.intervaloUs = _intervaloParaVelocidade(velocidadePercent);
     roda.passosRestantes = passos;
     roda.ultimoPassoUs = micros();
+    // Todos os movimentos chamam _ligarRele() antes de chegar aqui, entao
+    // _releLigadoUs e sempre desta partida.
+    roda.naoPulsarAntesUs = _releLigadoUs + ATRASO_RELE_US;
   }
 
   static void _atualizarRoda(EstadoRoda& roda, unsigned long agora) {
     if (roda.passosRestantes == 0) return;
+    // Carencia do rele: nenhum pulso enquanto o contato quica e o driver
+    // acorda. Comparacao COM SINAL de proposito - `micros()` da a volta a cada
+    // ~71 minutos, e uma comparacao sem sinal trataria "ainda nao chegou a
+    // hora" como "ja passou faz muito tempo" na volta do contador.
+    if (static_cast<long>(agora - roda.naoPulsarAntesUs) < 0) return;
     if (agora - roda.ultimoPassoUs < static_cast<unsigned long>(roda.intervaloUs)) return;
 
     digitalWrite(roda.pinoStep, HIGH);

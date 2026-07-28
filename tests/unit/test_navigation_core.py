@@ -179,6 +179,52 @@ async def test_manual_comando_desconhecido_levanta_erro(cenario):
         await cenario.nav.executar_manual("VOAR")
 
 
+# ---------- vocabulario manual ampliado (2026-07-27) ----------
+#
+# MOVE_CONTINUOUS, MOVE_DISTANCE, FAN_ON e FAN_OFF entraram em COMANDOS_MANUAIS
+# para bater com o que a webui ja aceitava (COMANDOS_PERMITIDOS) - ate aqui o
+# /comando falava com o Hardware Core direto, sem passar por executar_manual,
+# entao esse descompasso nunca tinha sido pego por teste nenhum.
+
+
+@pytest.mark.asyncio
+async def test_manual_move_continuous_e_bloqueado_por_obstaculo(cenario):
+    # o joystick usa MOVE_CONTINUOUS (nao MOVE_FORWARD) para andar para
+    # frente - precisa da MESMA checagem tatica de obstaculo.
+    await cenario.injetar_telemetria(distancia_frontal_cm=10)
+    await cenario.nav.executar_manual("MOVE_CONTINUOUS")
+    await cenario.bus.aguardar_fila_vazia()
+    comandos = cenario.comandos_enviados()
+    assert "MOVE_CONTINUOUS" not in comandos
+    assert "STOP" in comandos
+    assert any(e.topico == "navigation.obstacle_avoided" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_manual_move_distance_nao_e_bloqueado_por_obstaculo_frontal(cenario):
+    # a re (MOVE_DISTANCE negativo) nao tem sensor traseiro na seguranca
+    # reativa - checar obstaculo A FRENTE antes de andar PARA TRAS nao faz
+    # sentido, e bloquear aqui deixaria o joystick sem re nenhuma quando
+    # o robo estivesse parado perto de algo na frente.
+    await cenario.injetar_telemetria(distancia_frontal_cm=10)
+    await cenario.nav.executar_manual("MOVE_DISTANCE", distancia_cm=-8.0)
+    assert "MOVE_DISTANCE" in cenario.comandos_enviados()
+
+
+@pytest.mark.asyncio
+async def test_manual_move_distance_encaminha_distancia_cm(cenario):
+    await cenario.nav.executar_manual("MOVE_DISTANCE", velocidade_percent=40, distancia_cm=-8.0)
+    ultimo = Mensagem.from_bytes(cenario.transporte.enviados[-1])
+    assert ultimo.payload.get("distancia_cm") == -8.0
+    assert ultimo.payload.get("velocidade_percent") == 40
+
+
+@pytest.mark.asyncio
+async def test_manual_fan_on_e_aceito(cenario):
+    await cenario.nav.executar_manual("FAN_ON")
+    assert "FAN_ON" in cenario.comandos_enviados()
+
+
 @pytest.mark.asyncio
 async def test_goto_completa_segmento_sem_obstaculo(cenario):
     concluido = await cenario.nav.executar_goto(graus=90, distancia_cm=50)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from motion_core.behavior.comportamento import Comportamento
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
@@ -446,3 +447,69 @@ class VigilanciaObstaculo(Comportamento):
         except asyncio.CancelledError:
             logger.info("maestro: obstáculo liberado - saindo da vigilância")
             raise
+
+
+#: Tempo máximo sem um comando manual novo antes do maestro considerar que o
+#: operador soltou o controle. Bem acima do intervalo de repetição do
+#: joystick (300ms, dashboard.js) e bem abaixo do timeout de segurança do
+#: próprio Mega (5s, TIMEOUT_COMANDO_MS em safety_manager.h) - assim o
+#: maestro libera o robô para a autonomia antes que a rede de segurança
+#: reativa precise agir.
+TIMEOUT_INATIVIDADE_MANUAL_S = 1.5
+
+
+class ControleManual(Comportamento):
+    """Controle manual via dashboard (prio 95): entre Segurança (100) e
+    Atender (80) - o operador dirigindo tem prioridade sobre qualquer
+    decisão autônoma, mas nunca sobre a segurança reativa.
+
+    Até 2026-07-27 o endpoint /comando da webui falava com o Hardware Core
+    DIRETO (comm.send), pulando o NavigationCore inteiro: o modo nunca virava
+    MANUAL e o maestro não sabia que alguém tinha assumido o controle pelo
+    dashboard, então um comportamento autônomo podia mandar comando por cima
+    do joystick a qualquer momento sem que ninguém soubesse (achado real -
+    era a razão do joystick não mover o robô no primeiro teste). Agora o
+    endpoint publica em navigation.comando (acao=MANUAL) como qualquer outro
+    módulo (regra 1: tudo pelo Event Bus); o NavigationCore executa, e este
+    comportamento aqui SÓ acompanha a presença do operador para arbitrar com
+    o maestro - não fala com o hardware."""
+
+    nome = "controle_manual"
+    prioridade = 95
+
+    def __init__(self, event_bus: EventBus) -> None:
+        super().__init__(event_bus)
+        #: 0.0 = nenhum comando manual ainda nesta execução (ver quer_rodar).
+        self._ultimo_comando_monotonic = 0.0
+        event_bus.subscribe("navigation.comando", self._ao_receber_comando)
+
+    async def _ao_receber_comando(self, evento: Evento) -> None:
+        if evento.dados.get("acao") != "MANUAL":
+            return
+        ja_ativo = self.quer_rodar()
+        self._ultimo_comando_monotonic = time.monotonic()
+        if not ja_ativo:
+            self._reavaliar()  # acorda o maestro para assumir a prioridade
+
+    def quer_rodar(self) -> bool:
+        if self._ultimo_comando_monotonic == 0.0:
+            return False
+        return time.monotonic() - self._ultimo_comando_monotonic < TIMEOUT_INATIVIDADE_MANUAL_S
+
+    async def executar(self) -> None:
+        await self._event_bus.publish("behavior.status", {"estado": "controle_manual"})
+        logger.info("maestro: controle manual assumiu (dashboard)")
+        try:
+            while self.quer_rodar():
+                await asyncio.sleep(0.3)
+            # Operador soltou (sem comando novo por TIMEOUT_INATIVIDADE_MANUAL_S)
+            # - devolve o controle a autonomia. O joystick já manda STOP ao
+            # soltar (ver dashboard.js), então isto é rede de segurança para o
+            # caso de o navegador travar/fechar sem enviar o release: garante
+            # que o robô para mesmo sem depender só do timeout do Mega.
+            await self._event_bus.publish("navigation.comando", {"acao": "HOLD"})
+        except asyncio.CancelledError:
+            logger.info("maestro: controle manual preemptado")
+            raise
+        finally:
+            self._reavaliar()

@@ -22,6 +22,15 @@ class SensorUltrassonico {
 
   void atualizar() {
     unsigned long agora = micros();
+    // Quanto tempo passou desde a ULTIMA vez que olhamos os pinos. Esta e a
+    // medida da nossa propria cegueira: as bordas do ECHO sao detectadas por
+    // sondagem, entao qualquer transicao que acontecer dentro deste intervalo
+    // e vista com atraso - e o atraso vira erro de distancia (58 us = 1 cm).
+    // No loop normal isso e ~79 us (1,4 cm, irrelevante); quando o envio da
+    // telemetria bloqueia o loop, chega a 24 ms (mais de 4 metros de erro).
+    unsigned long intervaloDeSondagem = agora - _ultimaChamadaUs;
+    _ultimaChamadaUs = agora;
+
     switch (_estagio) {
       case Estagio::OCIOSO:
         if (agora - _ultimaLeituraUs >= INTERVALO_ENTRE_LEITURAS_US) {
@@ -35,6 +44,26 @@ class SensorUltrassonico {
 
       case Estagio::AGUARDANDO_SUBIDA:
         if (digitalRead(_pinoEcho) == HIGH) {
+          // BUG REAL (2026-07-27): se o loop ficou cego por mais que
+          // SONDAGEM_MAXIMA_US, esta subida pode ter acontecido LA ATRAS, e
+          // `agora` nao e o inicio do eco - e o fim de uma cegueira nossa.
+          // Cronometrar a partir daqui produz uma duracao CURTA DEMAIS: uma
+          // parede a 174 cm vira "obstaculo a 2 cm", o SafetyManager trava e o
+          // CommandExecutor passa a recusar todo comando de movimento (foi o
+          // que deixou o joystick sem resposta, com 423 ciclos de
+          // obstaculo/liberado no log do Pi).
+          //
+          // Nao da para consertar a medida: o instante da borda se perdeu. Da
+          // para NAO INVENTAR - a amostra e descartada e o valor anterior
+          // continua valendo ate a proxima leitura, 60 ms depois. Mesma regra
+          // ja adotada no resto do projeto: nunca reportar valor inventado
+          // como medida.
+          if (intervaloDeSondagem > SONDAGEM_MAXIMA_US) {
+            _descartes++;
+            _ultimaLeituraUs = agora;
+            _estagio = Estagio::OCIOSO;
+            break;
+          }
           _inicioEchoUs = agora;
           _estagio = Estagio::AGUARDANDO_DESCIDA;
         } else if (agora - _inicioEsperaUs > TIMEOUT_US) {
@@ -47,6 +76,21 @@ class SensorUltrassonico {
 
       case Estagio::AGUARDANDO_DESCIDA:
         if (digitalRead(_pinoEcho) == LOW) {
+          // Mesma cegueira, direcao oposta e mais perigosa: se o loop travou
+          // durante o eco, a descida so e vista depois, a duracao sai LONGA
+          // demais e um obstaculo a 30 cm e reportado a 4 metros - caminho
+          // "livre" com a parede na frente (fail-open, o lado errado para
+          // falhar). Tambem descartado.
+          if (intervaloDeSondagem > SONDAGEM_MAXIMA_US) {
+            _descartes++;
+            // O eco existiu (vimos ECHO subir e descer), entao o modulo esta
+            // vivo - isso continua valendo mesmo sem a medida.
+            _sensorRespondeu = true;
+            _jaRespondeu = true;
+            _ultimaLeituraUs = agora;
+            _estagio = Estagio::OCIOSO;
+            break;
+          }
           unsigned long duracao = agora - _inicioEchoUs;
           _distanciaCm = duracao / 58.0f;  // formula padrao do HC-SR04
           _leituraValida = true;
@@ -98,11 +142,23 @@ class SensorUltrassonico {
   //: para que ninguem confunda esse numero com uma medicao - de fora, 517cm
   //: "valido" era indistinguivel de uma parede realmente a 517cm.
   bool semEco() const { return _semEco; }
+  //: quantas amostras foram jogadas fora por o loop ter ficado cego durante o
+  //: eco (ver SONDAGEM_MAXIMA_US). Vai para a telemetria: numero alto aqui
+  //: aponta para quem esta bloqueando o loop, nao para sensor ruim.
+  unsigned long descartes() const { return _descartes; }
 
  private:
   enum class Estagio { OCIOSO, AGUARDANDO_SUBIDA, AGUARDANDO_DESCIDA };
   static constexpr unsigned long INTERVALO_ENTRE_LEITURAS_US = 60000;  // 60ms (datasheet)
   static constexpr unsigned long TIMEOUT_US = 30000;  // ~5m de alcance maximo
+  //: Cegueira maxima tolerada entre duas sondagens do pino ECHO para que a
+  //: borda detectada ainda valha como medida. 58 us = 1 cm, entao 600 us
+  //: limita o erro desta origem a ~10 cm - grosseiro para mapa, mas suficiente
+  //: para o limiar de seguranca de 25 cm, que e o que importa aqui. Folga de
+  //: 7x sobre a volta normal do loop (79 us medidos), entao em operacao
+  //: saudavel nada e descartado; quando a telemetria bloqueia o loop por
+  //: ~24 ms, tudo naquela janela e.
+  static constexpr unsigned long SONDAGEM_MAXIMA_US = 600;
 
   uint8_t _pinoTrig = 0;
   uint8_t _pinoEcho = 0;
@@ -122,6 +178,11 @@ class SensorUltrassonico {
   //: fecha no primeiro eco de verdade e nunca mais abre - e a prova de que
   //: existe um modulo ligado nestes pinos. Ver _semResposta.
   bool _jaRespondeu = false;
+  //: instante da chamada anterior de atualizar(), para medir a nossa propria
+  //: cegueira entre duas sondagens. Comeca em 0: na primeira chamada o estagio
+  //: e OCIOSO, que nao consulta o intervalo, entao nao ha leitura falsa.
+  unsigned long _ultimaChamadaUs = 0;
+  unsigned long _descartes = 0;
 
   //: distancia reportada quando nada reflete dentro do alcance. Derivada do
   //: proprio TIMEOUT_US (30 ms / 58 = ~517 cm) para os dois nunca saírem de

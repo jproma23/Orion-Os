@@ -139,7 +139,6 @@ class WebUIServer:
         port: int = 8080,
         memory_api: MemoryAPI | None = None,
         config: ConfigurationManager | None = None,
-        comm: object | None = None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -152,9 +151,6 @@ class WebUIServer:
         self._port = port
         self._memory_api = memory_api
         self._config = config
-        # enlace com o Hardware Core, usado so pelo controle manual.
-        # Opcional: sem ele o endpoint responde 503 em vez de quebrar.
-        self._comm = comm
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
 
@@ -205,20 +201,34 @@ class WebUIServer:
             event_bus.subscribe(topico, self._fazer_manipulador(topico))
 
     async def _handler_comando(self, request: web.Request) -> web.Response:
-        """Controle manual: pede um comando ao Hardware Core.
+        """Controle manual: pede um comando ao Hardware Core, via navegacao.
 
         Existe porque ate 2026-07-25 a UNICA forma de comandar o robo era a
         voz. Uma transcricao errada deixava o operador sem NENHUM caminho
         para dar uma ordem - nem para mandar PARAR. Isso e falha de
         seguranca, nao so de conveniencia.
 
+        Ate 2026-07-27 este handler falava com o Hardware Core DIRETO
+        (comm.send), pulando o NavigationCore inteiro - violava a regra 1
+        (toda comunicacao entre modulos passa pelo Event Bus) e tinha uma
+        consequencia concreta: o modo de navegacao nunca virava MANUAL, o
+        maestro (Behavior Core) nunca sabia que alguem tinha assumido o
+        controle pelo dashboard, e um comportamento autonomo podia mandar
+        comando por cima do joystick a qualquer momento - foi a causa real
+        do joystick nao mover o robo no primeiro teste (2026-07-27). Agora
+        publica em navigation.comando como qualquer outro modulo; o
+        NavigationCore executa (com a checagem tatica de obstaculo,
+        Cap 12 s.6) e o comportamento ControleManual usa o mesmo evento so
+        para saber que o operador esta ativo e arbitrar com o maestro.
+
+        A resposta HTTP confirma que o pedido foi ACEITO e encaminhado, nao
+        que o robo ja se moveu - a execucao e assincrona. Falhas reais
+        (obstaculo, Arduino ausente) chegam pelo canal de eventos que a
+        pagina ja escuta via SSE (navigation.error, navigation.obstacle_avoided).
+
         Nao enfraquece nada: a seguranca reativa do Mega continua vetando
         movimento enquanto houver perigo, e o vocabulario e fechado.
         """
-        if self._comm is None:
-            return web.json_response(
-                {"erro": "sem enlace com o Hardware Core"}, status=503
-            )
         try:
             corpo = await request.json()
         except Exception:
@@ -267,11 +277,7 @@ class WebUIServer:
                 return web.json_response({"erro": "distancia_cm obrigatoria"}, status=400)
             payload["distancia_cm"] = max(-RE_MAXIMA_CM, min(distancia, RE_MAXIMA_CM))
 
-        try:
-            await self._comm.send("hardware_core", payload)
-        except Exception as erro:  # noqa: BLE001
-            # o Arduino pode estar ausente (Cap 6 s.8) ou recusar por seguranca
-            return web.json_response({"erro": str(erro)}, status=502)
+        await self._event_bus.publish("navigation.comando", {"acao": "MANUAL", **payload})
         return web.json_response({"ok": True, "comando": comando})
 
     async def _handler_index(self, request: web.Request) -> web.FileResponse:

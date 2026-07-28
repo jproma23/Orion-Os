@@ -208,6 +208,100 @@ async def test_evento_e_repassado_para_cliente_sse(cenario):
         assert linha_dados == b'data: {"modo": "PATROL"}\n'
 
 
+
+# ---------- /comando (controle manual, Cap 13 s.4) ----------
+#
+# Ate 2026-07-27 este endpoint chamava comm.send("hardware_core", ...)
+# DIRETO, sem teste nenhum cobrindo o caminho - foi por isso que o
+# descompasso (webui aceitava MOVE_CONTINUOUS/MOVE_DISTANCE, mas
+# NavigationCore.executar_manual so aceitava MOVE_FORWARD) passou
+# despercebido. Agora o endpoint so publica no Event Bus (regra 1); quem
+# fala com o hardware e o NavigationCore, testado a parte em
+# test_navigation_core.py.
+
+
+@pytest.mark.asyncio
+async def test_comando_nao_permitido_e_rejeitado(cenario):
+    http, bus = cenario
+    comandos_nav = []
+    bus.subscribe("navigation.comando", lambda e: comandos_nav.append(e.dados))
+
+    resposta = await http.post("/comando", json={"comando": "AUTODESTRUIR"})
+    assert resposta.status == 400
+    corpo = await resposta.json()
+    assert corpo["erro"] == "comando nao permitido"
+    assert comandos_nav == []  # nada foi publicado
+
+
+@pytest.mark.asyncio
+async def test_comando_corpo_invalido_e_rejeitado(cenario):
+    http, _ = cenario
+    resposta = await http.post("/comando", data="isto nao e json")
+    assert resposta.status == 400
+
+
+@pytest.mark.asyncio
+async def test_comando_valido_publica_navigation_comando_manual(cenario):
+    http, bus = cenario
+    comandos_nav = []
+    bus.subscribe("navigation.comando", lambda e: comandos_nav.append(e.dados))
+
+    resposta = await http.post("/comando", json={"comando": "stop"})  # minusculo, tolerado
+    assert resposta.status == 200
+    corpo = await resposta.json()
+    assert corpo == {"ok": True, "comando": "STOP"}
+
+    await bus.aguardar_fila_vazia()
+    assert {"acao": "MANUAL", "comando": "STOP"} in comandos_nav
+
+
+@pytest.mark.asyncio
+async def test_comando_velocidade_e_limitada_pelo_piso_e_teto():
+    from orion.kernel.config import ConfigurationManager
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos_nav = []
+    bus.subscribe("navigation.comando", lambda e: comandos_nav.append(e.dados))
+    config = ConfigurationManager("config/orion.yaml").carregar()
+    servidor = WebUIServer(bus, config=config)
+    teto = float(config.secao("motion")["max_speed_percent"])
+
+    async with TestClient(TestServer(servidor._app)) as http:
+        resposta = await http.post(
+            "/comando", json={"comando": "MOVE_CONTINUOUS", "velocidade_percent": 999}
+        )
+        assert resposta.status == 200
+        await bus.aguardar_fila_vazia()
+        assert comandos_nav[-1]["velocidade_percent"] == teto  # nunca acima do config
+
+    bus.parar()
+    tarefa_bus.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_comando_move_distance_limita_re_maxima(cenario):
+    http, bus = cenario
+    comandos_nav = []
+    bus.subscribe("navigation.comando", lambda e: comandos_nav.append(e.dados))
+
+    resposta = await http.post(
+        "/comando", json={"comando": "MOVE_DISTANCE", "distancia_cm": -500}
+    )
+    assert resposta.status == 200
+    await bus.aguardar_fila_vazia()
+    assert comandos_nav[-1]["distancia_cm"] == -15.0  # RE_MAXIMA_CM
+
+
+@pytest.mark.asyncio
+async def test_comando_move_distance_sem_distancia_e_rejeitado(cenario):
+    http, _ = cenario
+    resposta = await http.post("/comando", json={"comando": "MOVE_DISTANCE"})
+    assert resposta.status == 400
+
+
 @pytest.mark.asyncio
 async def test_topico_nao_repassado_e_ignorado():
     bus = EventBus()

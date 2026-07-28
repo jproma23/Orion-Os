@@ -61,12 +61,39 @@ ANGULOS_FRONTAIS = (60, 90, 120)
 
 #: comandos manuais que o modo MANUAL repassa direto ao Hardware Core
 #: (Cap 10 s.5) - qualquer outro nome e rejeitado com navigation.error.
+#: MOVE_CONTINUOUS, MOVE_DISTANCE, FAN_ON e FAN_OFF entraram em 2026-07-27
+#: para bater com o vocabulario que a webui ja aceitava (COMANDOS_PERMITIDOS
+#: em motion_core/webui/server.py) - antes o joystick e o /comando falavam
+#: com o Hardware Core direto, sem passar por aqui, entao a lista nunca
+#: precisou cobrir esses comandos.
 COMANDOS_MANUAIS = frozenset(
-    {"MOVE_FORWARD", "TURN_LEFT", "TURN_RIGHT", "STOP", "LIGHT_ON", "LIGHT_OFF", "DOCK"}
+    {
+        "MOVE_FORWARD",
+        "MOVE_CONTINUOUS",
+        "MOVE_DISTANCE",
+        "TURN_LEFT",
+        "TURN_RIGHT",
+        "STOP",
+        "LIGHT_ON",
+        "LIGHT_OFF",
+        "FAN_ON",
+        "FAN_OFF",
+        "DOCK",
+    }
 )
 #: destes, quais avancam o robo para frente - sao os unicos sujeitos a
 #: checagem de obstaculo antes de serem enviados (Cap 12 s.6, camada tatica).
-COMANDOS_QUE_AVANCAM = frozenset({"MOVE_FORWARD"})
+#: MOVE_DISTANCE fica de fora de proposito: e o comando da re do joystick
+#: (distancia negativa), e a re nao tem sensor traseiro na seguranca reativa
+#: (SafetyManager so olha o radar frontal) - checar obstaculo A FRENTE antes
+#: de andar PARA TRAS não faria sentido.
+COMANDOS_QUE_AVANCAM = frozenset({"MOVE_FORWARD", "MOVE_CONTINUOUS"})
+#: comandos manuais que movimentam o robo (giram rodas) - esperam o Hardware
+#: Core ficar ocioso antes de seguir, para nao empilhar sobre um movimento em
+#: andamento (mesmo motivo do GOTO/PATROL, ver INTERVALO_CHECAGEM_OCIOSO_S).
+COMANDOS_DE_MOVIMENTO = COMANDOS_QUE_AVANCAM | frozenset(
+    {"MOVE_DISTANCE", "TURN_LEFT", "TURN_RIGHT"}
+)
 
 
 class ModoNavegacao(str, Enum):
@@ -206,7 +233,9 @@ class NavigationCore:
                 await self.definir_modo_hold()
             elif acao == "MANUAL":
                 await self.executar_manual(
-                    evento.dados["comando"], evento.dados.get("velocidade_percent")
+                    evento.dados["comando"],
+                    evento.dados.get("velocidade_percent"),
+                    evento.dados.get("distancia_cm"),
                 )
             elif acao == "GOTO":
                 await self.executar_goto(
@@ -254,7 +283,12 @@ class NavigationCore:
 
     # ---------- MANUAL ----------
 
-    async def executar_manual(self, comando: str, velocidade_percent: float | None = None) -> None:
+    async def executar_manual(
+        self,
+        comando: str,
+        velocidade_percent: float | None = None,
+        distancia_cm: float | None = None,
+    ) -> None:
         """Repassa um comando direto do usuario ao Hardware Core (Cap 12 s.3),
         com a checagem de obstaculo da camada tatica antes de qualquer
         comando que avance o robo (Cap 12 s.6)."""
@@ -269,10 +303,12 @@ class NavigationCore:
             return
 
         payload: dict[str, Any] = {"comando": comando}
-        comando_de_movimento = comando in COMANDOS_QUE_AVANCAM or comando in ("TURN_LEFT", "TURN_RIGHT")
+        comando_de_movimento = comando in COMANDOS_DE_MOVIMENTO
         if comando_de_movimento:
             payload["velocidade_percent"] = velocidade_percent or self._velocidade_padrao
             await self._aguardar_ocioso()  # nao empilha comando de movimento sobre outro em andamento
+        if comando == "MOVE_DISTANCE" and distancia_cm is not None:
+            payload["distancia_cm"] = distancia_cm
         await self._comm.send(DESTINO_HARDWARE, payload)
 
     # ---------- GOTO / segmentos (base tambem usada pelo PATROL) ----------

@@ -61,6 +61,9 @@ class RadarManager {
   //: true quando a distancia frontal atual nao foi medida (pulso saiu, nada
   //: voltou) - ver SensorUltrassonico::semEco.
   bool frontalSemEco() const { return _ultrassom.semEco(); }
+  //: amostras descartadas por o loop ter ficado cego durante o eco - ver
+  //: SensorUltrassonico::descartes.
+  unsigned long frontalDescartes() const { return _ultrassom.descartes(); }
   //: para onde o radar aponta AGORA (angulo logico, 90 = frente). Sem ele a
   //: distancia frontal e um numero sem contexto e o mapa nao pode ser montado.
   uint8_t anguloAtual() const { return _anguloAtual; }

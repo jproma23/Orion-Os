@@ -95,6 +95,15 @@ class TelemetryManager {
     destino["traseiro_sensor_ok"] = _ultrassomTraseiro.sensorRespondeu();
     destino["traseiro_sem_eco"] = _ultrassomTraseiro.semEco();
 
+    // Amostras jogadas fora por o loop ter ficado cego durante o eco
+    // (SensorUltrassonico::SONDAGEM_MAXIMA_US). Contadores ACUMULADOS desde o
+    // boot, de proposito: o que interessa e a tendencia. Numero que sobe
+    // depressa nao acusa sensor ruim - acusa quem esta bloqueando o loop
+    // (hoje, o envio da telemetria). Enquanto isso subir, o mapa do EDR-0024
+    // nao tem base para existir.
+    destino["frontal_descartes"] = _radar.frontalDescartes();
+    destino["traseiro_descartes"] = _ultrassomTraseiro.descartes();
+
     // Angulo para onde o radar aponta. Sem isto, a distancia frontal e um
     // numero sem significado (nao se sabe o que foi medido), e o mapa nunca
     // pode ser construido - por isso mapa.leituras vive vazio.
