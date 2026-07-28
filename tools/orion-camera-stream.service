@@ -1,0 +1,61 @@
+# Stream da camera do pan/tilt (DV20 USB) para o Vision Core, via MJPEG/HTTP.
+#
+# O Vision Core (Mission Core, roda no Notebook - ver ARQUITETURA.txt Cap 8)
+# precisa da camera do pan/tilt, mas o cabo dela so alcanca fisicamente o
+# Raspberry Pi (2026-07-28). Em vez de mover o cabo, o Pi reexpoe a camera
+# na rede e o Notebook abre com cv2.VideoCapture(url) exatamente como abriria
+# um indice local - camera_indice_principal no orion.yaml e a URL
+# http://pi-os.local:8091/stream.
+#
+# POR QUE NAO E MAIS ffmpeg (2026-07-28, para ninguem repetir):
+# a primeira versao deste servico usava `ffmpeg -listen 1`. O `-listen 1`
+# atende UM cliente e ENCERRA quando ele desconecta. Enquanto o teste foi uma
+# unica conexao continua (os ~36fps medidos mais cedo em 28/07) pareceu
+# perfeito; na operacao real o Vision Core reconecta, e a PRIMEIRA reconexao
+# derrubava o ffmpeg:
+#     Error submitting a packet to the muxer: Connection reset by peer
+#     Task finished with error code: -104 (Connection reset by peer)
+# O Restart=always subia outro ffmpeg, que reabria a camera do zero. Depois de
+# alguns ciclos rapidos a Jieli travava no meio da abertura (VIDIOC_QBUF: Bad
+# file descriptor, 17 ocorrencias no log), e o processo ficava VIVO segurando
+# /dev/video0 sem nunca chegar a abrir a porta 8091 - o systemctl dizia
+# "active" com a porta 8091 morta, e o pan/tilt simplesmente nao seguia
+# ninguem. A camera nunca teve defeito: fora do servico ela captura 30 quadros
+# e sai com codigo 0.
+#
+# O ustreamer e feito para este uso: mantem o dispositivo aberto, aceita
+# cliente entrando e saindo quantas vezes for, e nao recodifica (le o MJPEG
+# nativo da camera). Serve em /stream, o mesmo caminho de antes - o orion.yaml
+# nao muda. Validado em 2026-07-28 com 3 conexoes seguidas com desconexao no
+# meio (~1,5MB cada) e pela rede a partir do Notebook (1,89MB, reconexao
+# 1,91MB) - exatamente o cenario que matava o ffmpeg.
+#
+# --persistent: nao reinicializa o dispositivo a cada timeout de leitura, que
+# era justamente o gatilho do travamento descrito acima.
+#
+# Caminho por-id (nao /dev/video0): o indice pode mudar se os cabos USB forem
+# replugados em outra ordem - mesma classe de bug ja vista com o CH340 do
+# Arduino migrando de ttyUSB0 para ttyUSB1 (ver docs/journal.md).
+#
+# Instalacao (no Pi):
+#   sudo apt-get install -y ustreamer
+#   cp tools/orion-camera-stream.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now orion-camera-stream.service
+[Unit]
+Description=Fofão - stream MJPEG da camera do pan/tilt (para o Vision Core no Notebook)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/ustreamer --host 0.0.0.0 --port 8091 --device /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0 --format MJPEG --resolution 640x480 --desired-fps 30 --persistent
+Restart=always
+RestartSec=5
+
+# LOG EM ARQUIVO pelo mesmo motivo do orion-motion.service: o
+# systemd-journald --user esta inativo neste Pi.
+ExecStartPre=/bin/mkdir -p %h/orion-os/data/logs
+StandardOutput=append:%h/orion-os/data/logs/camera_stream.log
+StandardError=append:%h/orion-os/data/logs/camera_stream.log
+
+[Install]
+WantedBy=default.target

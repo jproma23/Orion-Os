@@ -104,23 +104,23 @@ vision:
   pan_limits_degrees: [-80, 80]
   tilt_limits_degrees: [-30, 45]
   servo_max_speed_deg_s: 60
-  # 2 = webcam USB DEDICADA a visao (DV20 USB, a que fica no pan/tilt).
-  # NAO trocar por 0: o 0 e a camera INTEGRADA do notebook, que e fixa na
-  # tampa e nao acompanha os servos - com ela o seguimento de pessoa nao
-  # funciona, por mais que a deteccao funcione.
+  # A DV20 (webcam USB dedicada a visao, no pan/tilt) so alcanca fisicamente
+  # o Raspberry Pi (2026-07-28) - o Notebook, que roda o Vision Core, nao
+  # tem como usar um indice de camera local pra ela. Por isso o Pi reexpoe
+  # a DV20 na rede: servico `orion-camera-stream.service` (ffmpeg lendo o
+  # MJPEG nativo da camera, sem recodificar) escutando em 8091. O
+  # `cv2.VideoCapture` aceita URL exatamente como aceitaria um indice local
+  # (src/orion/vision/captura.py), entao o valor abaixo virou string.
+  # Latencia medida em 2026-07-28: ~36 fps efetivo, gap medio 28ms, sem
+  # acumulo ao longo de 8s continuos.
   #
-  # HISTORIA (2026-07-27, para ninguem repetir): a DV20 foi desconectada
-  # fisicamente em 24/07. Com ela fora, o indice 2 deixou de existir e a
-  # captura falhava com "Camera index out of range (index is 2, must be less
-  # than 2)" - o VisionCore nunca recebia quadro e o YOLOv8n parecia "nao
-  # funcionar". Falha em SILENCIO, porque o codigo tolera camera ausente de
-  # proposito (Cap 6 s.8). Cheguei a mudar para 0 achando que a config e que
-  # estava velha; ao reconectar a DV20 o log mostrou o contrario:
-  #     10:53:36  orion.vision.captura: Camera 2 aberta (640x480)
-  #     10:54:11  SENTINELA: 1 rosto(s) desconhecido(s) - alerta!
-  # O `conversar_fofao.py` reabre a camera em laco, entao ele pegou a DV20 no
-  # segundo em que ela foi plugada. A config estava certa; faltava o hardware.
-  camera_indice_principal: 2   # webcam USB dedicada a visao (Cap 8 s.2)
+  # HISTORIA (2026-07-24 a 27, para ninguem repetir): antes desta mudanca o
+  # valor era um indice /dev/videoN local, e a fonte de bugs era a DV20
+  # sumir ou trocar de indice ao ser replugada - mesma classe do bug do
+  # CH340 do Arduino migrando de ttyUSB0 para ttyUSB1 (ver docs/journal.md).
+  # A URL fixa evita essa classe inteira de problema; so muda se a porta do
+  # servico no Pi mudar.
+  camera_indice_principal: "http://pi-os.local:8091/stream"
   camera_indice_luminosidade: 0 # camera integrada do notebook (estimativa de brilho)
   # NOTA: camera_indice_luminosidade nao e lido por nenhum codigo hoje
   # (verificado por grep em 2026-07-27) - e config morta, mantida so para

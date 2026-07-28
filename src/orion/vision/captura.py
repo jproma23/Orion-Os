@@ -4,9 +4,12 @@ cv2.VideoCapture e bloqueante (abrir e ler frame) - cada chamada roda em
 thread separada via `asyncio.to_thread`, para nao travar o Event Bus nem
 os demais modulos do Mission Core.
 
-Duas cameras fisicas confirmadas nesta montagem: a integrada do notebook
-("PC Camera", indice 0/1) e a webcam USB externa dedicada a visao
-computacional ("DV20 USB", indice 2/3). `abrir()` descarta os primeiros
+A camera integrada do notebook ("PC Camera") fica em indice local (0/1).
+A webcam dedicada a visao computacional ("DV20 USB", no pan/tilt) so
+alcanca fisicamente o Raspberry Pi - o Pi a reexpoe na rede via
+`orion-camera-stream.service` (MJPEG/HTTP), e aqui ela e aberta por URL
+em vez de indice; `cv2.VideoCapture` aceita os dois formatos igual.
+`abrir()` descarta os primeiros
 frames de propósito - na pratica, o primeiro frame lido logo apos abrir a
 porta costuma vir quase preto (a camera ainda ajustando exposicao/balanco
 de branco), confirmado com a webcam real desta montagem.
@@ -36,7 +39,7 @@ class ErroCamera(Exception):
 class CapturaCamera:
     def __init__(
         self,
-        indice: int = 0,
+        indice: int | str = 0,
         largura: int = 640,
         altura: int = 480,
         frames_aquecimento: int = 15,
@@ -65,7 +68,7 @@ class CapturaCamera:
             return captura
 
         self._captura = await asyncio.to_thread(_abrir)
-        logger.info("Camera %d aberta (%dx%d)", self._indice, self._largura, self._altura)
+        logger.info("Camera %s aberta (%dx%d)", self._indice, self._largura, self._altura)
 
     async def ler_frame(self) -> np.ndarray:
         if not self.aberta:
@@ -85,4 +88,4 @@ class CapturaCamera:
         if self._captura is not None:
             await asyncio.to_thread(self._captura.release)
             self._captura = None
-            logger.info("Camera %d fechada", self._indice)
+            logger.info("Camera %s fechada", self._indice)
