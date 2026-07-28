@@ -113,12 +113,26 @@ voice:
   # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
-  saida_audio_indice: 2
+  # CORRIGIDO 2026-07-28 (noite): estava 2, que hoje e "HDA Intel PCH: HDMI 2"
+  # - o robo falava pra TV. Ao instalar o alto-falante USB os indices do
+  # sounddevice andaram, exatamente como o aviso acima previa. Medido com
+  # `python -m sounddevice` no Notebook: o UNICO dispositivo de audio real e
+  # o indice 3, "USB Audio Device (hw:2,0)", com 1 entrada e 2 saidas.
+  # Os indices 0,1,2 sao HDMI (zero canais de entrada); 4 e 5 sao pulse e
+  # default, que roteiam pelo PulseAudio.
+  saida_audio_indice: 3
   # indices de entrada (sounddevice) reconferidos em 2026-07-20: indice 4 =
   # "USB Audio Device" (headset USB, mic dedicado) adicionado - antes so
   # [0,1,5] e o seletor caia na webcam (mic ruim, transcricao errada). O
   # indice 1 (HDMI, 0 canais de entrada) foi removido - nunca foi mic.
-  microfones_candidatos_indices: [4, 0, 5]
+  # CORRIGIDO 2026-07-28 (noite): a lista antiga era [4, 0, 5] e nao
+  # descrevia mais a maquina - o indice 0 hoje e HDMI com ZERO canais de
+  # entrada, nunca foi microfone, e o 4 virou "pulse". A ordem agora e:
+  # 3 = USB Audio Device (mic dedicado, quando houver algo plugado no
+  # conector rosa dele), depois pulse e default como reserva, que caem na
+  # fonte padrao do sistema (hoje o mic da webcam, medido com RMS 0,10
+  # contra 0,003 do USB vazio).
+  microfones_candidatos_indices: [3, 4, 5]
   # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
   # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
   # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
