@@ -3478,3 +3478,210 @@ durante teste deve ser cronometrado (`date +%s` antes/depois) - foi assim
 que o bug do desligamento apareceu. Um restart que demora mais que uns
 poucos segundos NAO e normal, mesmo que systemd eventualmente resolva
 sozinho.
+
+
+## Sessao de 2026-07-28 - camera do pan/tilt resolvida + FOLLOW so reconhecidos
+
+Retomando o bloqueio deixado em 26/07 ("a camera do pan/tilt nao transmite").
+
+**Diagnostico:** hardware da DV20 estava bom (`v4l2-ctl` capturava frames
+MJPEG reais direto do `/dev/video0` no Pi) - o problema real e novo, ainda
+nao documentado antes de hoje: **o cabo da DV20 so alcanca fisicamente o
+Raspberry**, mas o Vision Core (Cap 8) roda no Notebook. Antes disso nunca
+tinha sido confirmado ponta a ponta com os dois presos na mesma bancada.
+
+**Solucao: stream de rede em vez de indice local.** Novo servico
+`orion-camera-stream.service` no Pi (`tools/orion-camera-stream.service`,
+`systemctl --user`) - ffmpeg le o MJPEG nativo da DV20 via
+`/dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0`
+(por-id, nao `/dev/video0` - mesma licao do CH340 mudando de porta) e
+serve HTTP multipart (`-f mpjpeg -listen 1`, porta 8091) sem recodificar
+(`-c:v copy`). `config/orion.yaml` (`vision.camera_indice_principal`) virou
+a URL (`http://pi-os.local:8091/stream`) em vez do indice `2` -
+`cv2.VideoCapture` aceita os dois formatos, entao `captura.py`/
+`vision_core.py` so precisaram soltar o type hint pra `int | str`.
+
+**Latencia medida (nao suposta):** ~36 fps efetivo lendo o stream, gap
+medio 28ms entre frames, sem acumulo ao longo de 8s continuos - dentro da
+margem do `fps: 15` configurado e do rate-limit de 150ms do
+`_mover_servos`.
+
+**Validado com pessoa real, nao so com script:** YOLO detectando ate 0.96
+de confianca; pan/tilt calculado bateu com a posicao real na imagem
+(pessoa a direita do centro -> pan positivo, testado e fotografado);
+comandos `SET_PAN_TILT` chegando no Arduino e o servo fisico girando de
+verdade acompanhando a pessoa (log temporario confirmou envio bem
+sucedido, sem falha de ACK).
+
+**Achado colateral grave - `FOLLOW` (andar atras de alguem) estava morto
+em producao:** `NavigationCore._ao_detectar_pessoa` esperava
+`evento.dados["centro_x"]` (0..1), mas `vision.person_detected` nunca
+publicou esse campo (so `caixa`) - o `.get(..., 0.5)` sempre caia no
+default "centralizado", entao o robo NUNCA girava atras de ninguem em modo
+FOLLOW, mesmo com o Vision Core funcionando perfeitamente. O teste
+existente (`test_follow_gira_em_direcao_a_pessoa_descentralizada`) nunca
+pegou isso porque publicava um evento sintetico com `centro_x` direto,
+sem passar pelo VisionCore real - dublê e produtor real tinham contratos
+diferentes.
+
+**Corrigido, e junto com um pedido explicito do usuario:** o robo so deve
+ANDAR atras de gente que ele RECONHECE, nunca de qualquer pessoa
+detectada (a camera pode olhar/seguir qualquer um, isso e seguro; as
+rodas nao). `VisionCore.processar_um_frame` agora inclui `centro_x`
+normalizado no payload de `vision.person_recognized` (que so publica
+quando `alvo.pessoa_id is not None`), e `NavigationCore` trocou a
+assinatura de `vision.person_detected` para `vision.person_recognized`
+(`_ao_reconhecer_pessoa`). Teste novo
+(`test_follow_ignora_pessoa_nao_reconhecida`) cobre o gating.
+
+**Mitigacao de falso positivo do YOLO:** observado ao vivo o pan/tilt
+saltando pra um angulo sem ninguem na frente ("angulo aleatorio").
+Hipotese: deteccao espuria de um unico quadro virando alvo imediatamente.
+`Rastreador` ganhou `frames_confirmacao` (default 1, sem mudar
+comportamento de quem nao passar o parametro) - so promove uma deteccao
+nova a alvo depois de N quadros seguidos na MESMA regiao (IoU > 0.5).
+`ModuloVisao` liga isso com `frames_confirmacao_alvo=3`. Nao reproduzido
+de novo apos a correcao, mas a causa raiz exata (qual objeto/sombra virou
+"pessoa") nao foi identificada - se voltar a acontecer, logar a
+`caixa`/confianca da deteccao fantasma ajudaria a achar o objeto real.
+
+**Estado final:** 444 testes passando no Notebook, 400 passando + 7
+skipped no Pi (mesma suite, itens que exigem hardware especifico do Pi).
+Mudancas feitas nas DUAS maquinas (Notebook e Pi tem copia do monorepo),
+AINDA NAO COMMITADAS em nenhuma das duas - ficou pendente pra quem revisar
+antes.
+
+**Pendencia para a proxima sessao:** achar a causa raiz do falso
+positivo do YOLO (hoje so mitigado, nao eliminado); confirmar
+visualmente que o FOLLOW anda de verdade atras de pessoa reconhecida
+(hoje so testado por unidade, nao na bancada com o robo se movendo);
+commitar as mudancas de hoje.
+
+
+## Sessao de 2026-07-28 (continuacao) - "o pan/tilt nao segue ninguem": tres fios soltos, a mesma familia de bug
+
+Sintoma do usuario, cru: *"o tilt e pan nao ta seguindo ninguem, simplesmente
+nao funciona"*. E, depois de meia correcao: *"ele ate parece funcionar, depois
+se perde"*. As duas frases descrevem bugs DIFERENTES - foi preciso separar.
+
+Nada disso aparecia em teste: 412 testes passavam no inicio e no fim da
+sessao, sem um unico vermelho. Os tres bugs sao **da mesma familia**:
+alguem publica um evento e ninguem escuta - e publicar evento NAO FALHA.
+Esta e a terceira vez que este sistema e mordido por isso (as anteriores:
+guardiao de RAM ate 19/07, pan/tilt da visao ate 25/07). Vale como padrao a
+procurar, nao como acidente.
+
+**Bug 1 - `ffmpeg -listen 1` servia UM cliente e morria.** O servico da
+camera criado mais cedo hoje media "36 fps, gap 28ms" - medicao real, porem
+de UMA conexao continua de 8s. Na operacao o Vision Core reconecta, e a
+PRIMEIRA reconexao derrubava o ffmpeg:
+
+    Error submitting a packet to the muxer: Connection reset by peer
+    Task finished with error code: -104
+
+`Restart=always` subia outro, que reabria a camera do zero; depois de alguns
+ciclos rapidos a Jieli travava no meio da abertura (`VIDIOC_QBUF: Bad file
+descriptor`, 17 vezes no log) e o processo ficava VIVO segurando
+`/dev/video0` **sem nunca abrir a porta 8091**. `systemctl` dizia `active`
+com a porta morta. A camera nunca teve defeito - fora do servico ela
+capturava 30 quadros e saia com codigo 0.
+
+Trocado por **ustreamer** (`apt install ustreamer`), feito para este uso:
+mantem o dispositivo aberto, aceita cliente entrando e saindo quantas vezes
+for, nao recodifica, e serve em `/stream` - o mesmo caminho, entao o
+`orion.yaml` nao mudou. Validado com 3 conexoes seguidas com desconexao no
+meio e pela rede a partir do Notebook (1,89MB / reconexao 1,91MB). Depois,
+**em producao**, o log registrou um `Disconnected ... clients now: 0`
+seguido de `Registered client ... clients now: 1` - exatamente o evento que
+matava o ffmpeg, agora sobrevivido.
+
+**Bug 2 - `motion.pan_tilt` nao tinha assinante no Pi.** Os comportamentos
+publicavam no vazio: `Repouso` manda `pan=0,tilt=0` ("cabeca nivelada") e
+`Ronda`/`observar_ambiente` varre `-60 -> +60 -> 0`. Nenhum desses movimentos
+NUNCA aconteceu. O log ainda mentia junto - `Repouso` escreve "cabeca
+nivelada" com `logger.info` ao lado do publish que ninguem consumia.
+
+Consequencia que fechou o circulo: com a camera apontada para uma parede o
+robo **nao tinha como se desvirar**. O unico emissor real de `SET_PAN_TILT`
+era o Vision Core do Notebook, que so manda quando JA rastreia alguem - e
+nao via ninguem por estar olhando para a parede. A varredura que existia
+para resolver isso publicava no vazio.
+
+Ligado em `motion_core/__main__.py` com o mesmo limitador de taxa do lado da
+visao (150ms / 1 grau) e pelo mesmo motivo medido: um comando por quadro
+afoga a serial e atrasa os heartbeats. **A falha vai em WARNING, nao em
+debug** - de proposito: foi um `logger.debug` que escondeu esta classe de
+falha do lado da visao. Prova fisica: foto do stream antes (parede branca
+lisa) e depois do restart (o comodo, prateleira e janela) - o servo girou.
+
+**Bug 3 - eventos de visao nunca atravessavam para o Pi.**
+`tools/conversar_fofao.py` encaminhava so 4 topicos (`TOPICO_RESPOSTA`,
+`voice.wake_detected`, `voice.response_finished`, `sentinela.alerta`).
+`vision.person_detected` e `vision.person_lost` nao. Mas o `EstadoDoMundo`
+do Pi ASSINA os dois - ou seja, `pessoa_presente` era sempre falso e o
+conselheiro de IA decidia como se a sala estivesse permanentemente vazia.
+
+**Custo metodologico deste bug, registrado para ninguem repetir:** usei
+`estado.visao.ultima_deteccao` como sonda para saber se o YOLO estava vendo
+o usuario, e pedi que ele ficasse na frente da camera com base nela. A sonda
+media um canal morto - `None` ali nunca significou "nao detectou". Sonda que
+nunca mudou de valor nao e sonda; antes de usar uma, provar que ela SABE
+mudar.
+
+Encaminhado, **estrangulado a 1/s de proposito**: `vision.person_detected` e
+publicado uma vez POR PESSOA POR QUADRO (ate 15x/s) e despejar isso no link
+TCP repetiria o erro que a telemetria completa cometeu com o ultrassom
+(27/07). `vision.person_lost` nao e estrangulado - ja e unico, e atrasar
+"perdi" e pior que atrasar "ainda esta aqui".
+
+**Bug 4 (o "parece funcionar e se perde") - dois comandantes, zero
+arbitragem.** Com o bug 2 corrigido, `Repouso` passou a recentrar a cabeca
+DE VERDADE toda vez que assume - e o maestro volta ao repouso a cada
+preempcao da vigilancia de obstaculo, que pisca sozinha com qualquer coisa a
+frente. A visao centralizava na pessoa, o repouso arrancava a cabeca de
+volta para 0,0, a pessoa saia do quadro, alvo perdido. A visao comandava o
+servo DIRETO do Notebook, por fora do maestro; os comportamentos comandavam
+pelo barramento do Pi. Ninguem arbitrava.
+
+Novo comportamento **`AcompanharPessoa` (prio 45)**: nao comanda pan/tilt -
+so SEGURA o controle enquanto a visao rastreia, impedindo outro
+comportamento de mexer na cabeca. 45 fica acima do discricionario (ronda 20,
+mentor 35, IA estrategica 40 - esta ultima varre -60/+60 em
+`observar_ambiente`, o que arrancaria a camera de cima da pessoa) e abaixo
+do que deve vencer: vigilia 60, atender 80, manual 95, seguranca 100.
+
+Tem **timeout proprio de 3s** e isso e essencial: `vision.person_lost` so e
+publicado se o rastreador chegou a CONFIRMAR um alvo (3 quadros), entao uma
+deteccao que nunca confirma nao gera "perdi" nenhum - sem o timeout o
+comportamento seguraria a cabeca para sempre e o `Repouso` nunca mais
+nivelaria. Seria trocar um bug por outro pior.
+
+**Uma hipotese minha morreu, registrada para ninguem repetir.** Vendo o
+centro da caixa ir 132 -> 176 -> 429 -> 459 -> perdido, afirmei que o laco
+de controle passava do ponto (ganho alto ou eixo invertido). Errado: o
+usuario estava ANDANDO porque eu tinha pedido, e o movimento dele estava
+misturado ao erro do controle. Medido depois com ele parado: `centro_x=317`
+(erro -3) e `centro_x=290` (erro -30) num quadro de 640. **O controle
+centraliza.** Regra: nao diagnosticar laco de controle com o alvo em
+movimento.
+
+**Estado ao final:** cadeia inteira viva pela primeira vez - camera -> YOLO
+no Notebook -> evento atravessa -> maestro entrega a cabeca a visao -> servo
+centraliza a pessoa. Log de producao com `conf=0.91`, `'acompanhar_pessoa'
+assume (prio 45)` e o timeout soltando a cabeca sozinho. 412 testes passam.
+
+**PENDENTE:**
+
+- **Obstrucao fisica (nao e software).** A camera aponta para o verso de um
+  monitor a poucos centimetros - metade do quadro e um painel preto e a
+  pessoa so entra numa fresta. E a causa da deteccao vir em rajadas. Nenhum
+  ajuste de codigo conserta lente bloqueada; precisa reposicionar a bancada.
+- **`Send-Q` com 259KB entupidos** na conexao 8091 Pi->Notebook: o Vision
+  Core nao drena o stream na velocidade que ele chega, entao processa quadro
+  velho. Nao bloqueia, mas explica latencia e merece medicao (a carga do
+  Notebook estava em 2,87 com whisper + YOLO + chamadas ao OpenRouter).
+- **`AcompanharPessoa` nao tem teste unitario.** Coberto so por teste em
+  campo - exatamente o buraco que mordeu o FOLLOW ontem (o dublê nao
+  refletia o produtor real).
+- Continua valendo do inicio do dia: causa raiz do falso positivo do YOLO
+  (hoje so mitigado com 3 quadros de confirmacao).
