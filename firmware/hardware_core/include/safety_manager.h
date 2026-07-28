@@ -35,13 +35,13 @@ class SafetyManager {
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
   bool avaliar(MotorManager& motores, RadarManager& radar, ImuManager& imu,
                unsigned long ultimoComandoMs) {
-    // Cap 18: "em duvida, para" - continua valendo. O que mudou em 29/07 e
+    // Cap 18: "em duvida, para" - continua valendo. O que mudou mais tarde em 28/07 e
     // O QUE CONTA COMO DUVIDA. Leitura invalida (sensor solto, fio, ruido)
     // e duvida e para o robo, como desde a vistoria de 2026-07-24. Ja o
     // servo do radar apontado pro lado durante um SCAN_FRONT (~2,1s) NAO e
     // duvida quando a frente acabou de ser medida e estava vazia - ver o
     // bloco abaixo.
-    // CORRIGIDO 2026-07-29 (bug de prioridade maxima do journal de 28/07).
+    // CORRIGIDO 2026-07-28 (bug de prioridade maxima do journal de 28/07).
     // A regra antiga era `!radar.apontandoParaFrente() || ...`: enquanto o
     // radar varria, a seguranca declarava OBSTACULO FRONTAL. Medido ao vivo:
     // o radar passa 47% do tempo fora dos 90 graus e o firmware passava

@@ -4002,7 +4002,7 @@ segurança, as rodas passam.
 - **DHT mudo:** `temperatura_c` e `umidade_percent` vêm `None`, como o
   EDR-0026 já registrou na atribuição "Zelador".
 
-## RESOLVIDO — `OBSTACLE_DETECTED` era o próprio radar varrendo (2026-07-29)
+## RESOLVIDO — `OBSTACLE_DETECTED` era o próprio radar varrendo (2026-07-28)
 
 Fecha o BUG ABERTO de 28/07, que estava marcado como prioridade máxima.
 **A hipótese registrada era errada**: não havia latch nenhum. O commit
@@ -4079,7 +4079,7 @@ a memória frontal funcionando. 432 testes passando antes e depois.
 
 - **`vigilancia_obstaculo` não desvia, só congela.** Diante de um obstáculo
   REAL ela toma o controle e dorme em `while True: sleep(1.0)`. Decisão do
-  usuário em 29/07: *"nenhum obstáculo tem q bloquear, o robô tem q desviar
+  usuário mais tarde em 28/07: *"nenhum obstáculo tem q bloquear, o robô tem q desviar
   do obstáculo"*. A parada reativa do Mega continua sendo o piso de
   segurança; o que falta é a camada de cima planejar o contorno em vez de
   ficar parada.

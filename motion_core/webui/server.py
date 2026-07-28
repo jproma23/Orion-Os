@@ -63,7 +63,7 @@ TOPICOS_REPASSADOS = (
     "navigation.target_lost",
     "navigation.error",
     "vision.person_detected",
-    # A POSICAO DA CABECA nunca foi repassada (achado de 2026-07-29): o
+    # A POSICAO DA CABECA nunca foi repassada (achado de 2026-07-28): o
     # pan/tilt se mexia e nada disso chegava na interface nem em qualquer
     # observador do barramento. Diagnosticar "o pan/tilt esta maluco" era
     # impossivel por construcao - uma sonda no /eventos media zero mesmo

@@ -33,7 +33,7 @@ class RadarManager {
 
   void atualizar() {
     _ultrassom.atualizar();
-    // Memoria da ultima leitura FRONTAL boa (achado medido em 2026-07-29):
+    // Memoria da ultima leitura FRONTAL boa (achado medido em 2026-07-28):
     // a varredura desvia ESTE MESMO sensor por ~2,1s, e ate 28/07 esse
     // intervalo inteiro contava como obstaculo. Nao e obstaculo: a frente
     // nao ficou desconhecida, ficou nao-observada por um instante. Guardar

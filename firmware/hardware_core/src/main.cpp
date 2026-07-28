@@ -433,7 +433,7 @@ void loop() {
     // coisa que ver um obstaculo - e o radar estar olhando pro lado sem
     // medida recente da frente. Os dois viram OBSTACLE_DETECTED porque e o
     // estado que freia; QUAL dos dois foi vai na telemetria, em
-    // seguranca_motivo, para o diagnostico parar de mentir (2026-07-29).
+    // seguranca_motivo, para o diagnostico parar de mentir (2026-07-28).
     bool ehObstaculo = strcmp(safety.motivo(), "obstaculo_frontal") == 0 ||
                        strcmp(safety.motivo(), "frente_desconhecida") == 0;
     estados.transicionarPara(ehObstaculo ? orion::Estado::OBSTACLE_DETECTED
