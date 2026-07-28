@@ -346,23 +346,33 @@ async def principal() -> None:
     # Limitador de taxa igual ao de la e pelo mesmo motivo medido: um comando
     # por quadro afoga a serial e atrasa os heartbeats, que e justamente como
     # o sistema detecta falha.
-    ultimo_pan_tilt: dict[str, float | None] = {"ts": 0.0, "pan": None, "tilt": None}
+    #
+    # SO POR TEMPO, NUNCA POR VALOR IGUAL (2026-07-28, bug real):
+    # a primeira versao disto tambem descartava o comando quando pan/tilt nao
+    # tinham mudado mais que 1 grau em relacao ao ULTIMO QUE O PI MANDOU -
+    # copiado do lado da visao, onde faz sentido porque la o mesmo emissor
+    # manda tudo. Aqui NAO faz: quem move o servo na maior parte do tempo e o
+    # Vision Core, DIRETO do Notebook, sem passar por este barramento. Entao
+    # este cache mentia sobre a posicao real da cabeca. O sintoma foi exato:
+    # a visao levava a camera para um lado atras de uma deteccao, o alvo
+    # sumia, o Repouso pedia (0,0) para nivelar e este `return` engolia o
+    # comando por achar que a cabeca "ja estava" em (0,0) - a camera ficava
+    # presa apontada para onde a visao a deixou, sem nunca mais voltar.
+    #
+    # Cache de estado de hardware que so ve METADE dos comandos e pior que
+    # nenhum cache. O limitador por TEMPO continua, e sozinho ja basta: no
+    # barramento do Pi so entram comandos de COMPORTAMENTO (Repouso ao
+    # assumir, Ronda varrendo), que sao raros - nao existe aqui a enxurrada
+    # de 15 quadros/s que motivou a deduplicacao original.
+    ultimo_pan_tilt = {"ts": 0.0}
 
     async def _mover_servos_do_maestro(evento: Evento) -> None:
         pan = float(evento.dados.get("pan", 0.0))
         tilt = float(evento.dados.get("tilt", 0.0))
         agora = time.monotonic()
-        if agora - float(ultimo_pan_tilt["ts"] or 0.0) < 0.15:
+        if agora - ultimo_pan_tilt["ts"] < 0.15:
             return
-        anterior_pan, anterior_tilt = ultimo_pan_tilt["pan"], ultimo_pan_tilt["tilt"]
-        if (
-            anterior_pan is not None
-            and anterior_tilt is not None
-            and abs(pan - anterior_pan) < 1.0
-            and abs(tilt - anterior_tilt) < 1.0
-        ):
-            return
-        ultimo_pan_tilt.update(ts=agora, pan=pan, tilt=tilt)
+        ultimo_pan_tilt["ts"] = agora
         try:
             await comm.send(
                 "hardware_core",
