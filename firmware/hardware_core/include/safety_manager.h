@@ -16,30 +16,66 @@ namespace orion {
 constexpr float DISTANCIA_MINIMA_FRENTE_CM = 25.0f;  // default motion.min_front_distance_cm
 constexpr unsigned long TIMEOUT_COMANDO_MS = 5000;
 
+// Por quanto tempo uma leitura frontal boa continua valendo depois que o
+// radar desviou. Uma varredura completa leva ~2,1s (7 angulos x 300ms de
+// assentamento), entao 2500ms cobre uma varredura inteira com folga.
+constexpr unsigned long VALIDADE_FRONTAL_MS = 2500;
+
+// Folga EXTRA exigida para andar com a leitura de memoria em vez da leitura
+// ao vivo. Andar apoiado numa medida de ate 2,5s atras so e aceitavel se
+// aquela medida mostrava MUITO espaco: 25cm de limiar + 75cm de margem =
+// so libera com mais de 1 metro livre. Assim a memoria nunca substitui o
+// sensor perto de um obstaculo - so cobre o caso de sala aberta, que e
+// exatamente onde a varredura travava o robo.
+constexpr float MARGEM_FRONTAL_CEGO_CM = 75.0f;
+
 class SafetyManager {
  public:
   // Chamar todo loop(). Retorna true no instante em que uma parada de
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
   bool avaliar(MotorManager& motores, RadarManager& radar, ImuManager& imu,
                unsigned long ultimoComandoMs) {
-    // Cap 18: "em duvida, para". Dois casos em que NAO da pra confiar que
-    // a frente esta livre - os dois contam como obstaculo (fail-safe) em
-    // vez de "livre pra andar" (fail-open), achados reais da vistoria de
-    // 2026-07-24:
-    //  1) leitura invalida (sensor desconectado, fio solto, ruido);
-    //  2) o servo do radar esta apontado pro lado (SCAN_FRONT em
-    //     andamento, ~2,1s) - o MESMO sensor ultrassonico e usado pela
-    //     varredura e pela checagem frontal, entao uma leitura valida
-    //     "de lado" nao diz nada sobre o que tem na frente de verdade.
-    bool obstaculoFrontal = !radar.apontandoParaFrente() ||
-                            !radar.distanciaFrontalValida() ||
-                            radar.distanciaFrontalCm() < DISTANCIA_MINIMA_FRENTE_CM;
+    // Cap 18: "em duvida, para" - continua valendo. O que mudou em 29/07 e
+    // O QUE CONTA COMO DUVIDA. Leitura invalida (sensor solto, fio, ruido)
+    // e duvida e para o robo, como desde a vistoria de 2026-07-24. Ja o
+    // servo do radar apontado pro lado durante um SCAN_FRONT (~2,1s) NAO e
+    // duvida quando a frente acabou de ser medida e estava vazia - ver o
+    // bloco abaixo.
+    // CORRIGIDO 2026-07-29 (bug de prioridade maxima do journal de 28/07).
+    // A regra antiga era `!radar.apontandoParaFrente() || ...`: enquanto o
+    // radar varria, a seguranca declarava OBSTACULO FRONTAL. Medido ao vivo:
+    // o radar passa 47% do tempo fora dos 90 graus e o firmware passava
+    // EXATAMENTE os mesmos 47% em OBSTACLE_DETECTED, com a frente marcando
+    // 199cm validos o tempo todo. Pior, isso se retroalimentava: o
+    // comportamento `vigilancia_obstaculo` (prioridade 100) tomava o
+    // controle 46 vezes em 100s, e o robo nunca conseguia andar. NAO era o
+    // latch do a82d112 - nao ha latch nenhum aqui, _pararAtivo reseta certo.
+    //
+    // A correcao nao afrouxa a seguranca, separa dois casos que eram um so:
+    //  - olhando pra frente: decide pela leitura ao vivo, como sempre;
+    //  - olhando pro lado: vale a ultima leitura frontal de verdade, se for
+    //    recente E tiver mostrado mais de 1 metro livre (margem acima);
+    //  - olhando pro lado sem memoria recente: PARA, como antes (Cap 18,
+    //    "em duvida, para") - mas agora reportando o motivo certo.
+    const bool cegoParaFrente = !radar.apontandoParaFrente();
+    bool frenteDesconhecida = false;
+    bool obstaculoFrontal = false;
+    if (!cegoParaFrente) {
+      obstaculoFrontal = !radar.distanciaFrontalValida() ||
+                         radar.distanciaFrontalCm() < DISTANCIA_MINIMA_FRENTE_CM;
+    } else if (radar.temFrontalRecente(VALIDADE_FRONTAL_MS)) {
+      obstaculoFrontal = radar.frontalRecenteCm() <
+                         (DISTANCIA_MINIMA_FRENTE_CM + MARGEM_FRONTAL_CEGO_CM);
+    } else {
+      frenteDesconhecida = true;
+    }
     bool inclinacaoCritica = imu.conectado() && imu.inclinacaoCritica();
     bool impacto = imu.conectado() && imu.impactoDetectado();
     bool timeoutComando =
         motores.emMovimento() && (millis() - ultimoComandoMs) > TIMEOUT_COMANDO_MS;
 
-    bool deveParar = obstaculoFrontal || inclinacaoCritica || impacto || timeoutComando;
+    bool deveParar = obstaculoFrontal || frenteDesconhecida || inclinacaoCritica ||
+                     impacto || timeoutComando;
 
     if (deveParar) {
       // Reforca a parada TODO ciclo de loop() enquanto o perigo persistir,
@@ -54,10 +90,15 @@ class SafetyManager {
       // daquela outra checagem.
       motores.parar();
       if (!_pararAtivo) {
-        _motivo = obstaculoFrontal   ? "obstaculo_frontal"
-                  : inclinacaoCritica ? "inclinacao_critica"
-                  : impacto           ? "impacto"
-                                      : "timeout_comando";
+        // Motivos distintos de proposito: ate 28/07 "radar olhando pro
+        // lado" era reportado como "obstaculo_frontal", e o diagnostico
+        // mentia - dizia que havia um obstaculo que os proprios sensores
+        // desmentiam. Quem le a telemetria agora sabe qual dos dois e.
+        _motivo = obstaculoFrontal    ? "obstaculo_frontal"
+                  : frenteDesconhecida ? "frente_desconhecida"
+                  : inclinacaoCritica  ? "inclinacao_critica"
+                  : impacto            ? "impacto"
+                                       : "timeout_comando";
         _pararAtivo = true;
         return true;
       }

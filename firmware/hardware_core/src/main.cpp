@@ -52,7 +52,7 @@ orion::SensorUltrassonico ultrassomTraseiro;
 orion::BussolaManager bussola;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
 orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
-                                  bateria, bussola);
+                                  bateria, bussola, safety);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 // DOIS REGIMES DE TELEMETRIA (2026-07-27, pedido do usuario a partir da
@@ -429,7 +429,13 @@ void loop() {
 
   bool acionouParadaAgora = safety.avaliar(motores, radar, imu, ultimoComandoRecebido);
   if (acionouParadaAgora) {
-    bool ehObstaculo = strcmp(safety.motivo(), "obstaculo_frontal") == 0;
+    // "frente_desconhecida" tambem bloqueia o movimento, mas nao e a mesma
+    // coisa que ver um obstaculo - e o radar estar olhando pro lado sem
+    // medida recente da frente. Os dois viram OBSTACLE_DETECTED porque e o
+    // estado que freia; QUAL dos dois foi vai na telemetria, em
+    // seguranca_motivo, para o diagnostico parar de mentir (2026-07-29).
+    bool ehObstaculo = strcmp(safety.motivo(), "obstaculo_frontal") == 0 ||
+                       strcmp(safety.motivo(), "frente_desconhecida") == 0;
     estados.transicionarPara(ehObstaculo ? orion::Estado::OBSTACLE_DETECTED
                                           : orion::Estado::SAFE_MODE);
   } else if (!safety.pararAtivo() && !motores.emMovimento() &&

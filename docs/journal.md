@@ -4001,3 +4001,88 @@ segurança, as rodas passam.
   resolver sozinha assim que puder agir.
 - **DHT mudo:** `temperatura_c` e `umidade_percent` vêm `None`, como o
   EDR-0026 já registrou na atribuição "Zelador".
+
+## RESOLVIDO — `OBSTACLE_DETECTED` era o próprio radar varrendo (2026-07-29)
+
+Fecha o BUG ABERTO de 28/07, que estava marcado como prioridade máxima.
+**A hipótese registrada era errada**: não havia latch nenhum. O commit
+`a82d112` não tem participação nisso, e `_pararAtivo` sempre resetou
+corretamente a cada ciclo.
+
+### A causa, medida
+
+`safety_manager.h` decidia obstáculo assim:
+
+    bool obstaculoFrontal = !radar.apontandoParaFrente() || ...
+
+E `apontandoParaFrente()` é `_anguloAtual == 90`. Durante um `SCAN_FRONT` o
+servo do radar passa ~2,1s fora dos 90° — e nesse intervalo inteiro a
+segurança **declarava obstáculo frontal**, por construção, com a frente
+medindo 199 cm válidos.
+
+Medido ao vivo, 89 amostras de telemetria:
+
+    radar fora dos 90°     42 de 89  (47%)
+    OBSTACLE_DETECTED      42 de 89  (47%)
+
+**A mesma contagem.** O estado era obstáculo se e somente se o radar estava
+olhando pro lado.
+
+### Por que nunca saía: o laço se retroalimentava
+
+1. A IA pede `SCAN_FRONT` (está no catálogo do `contrato.py`).
+2. A varredura gira a cabeça pra fora dos 90°.
+3. A segurança declara `OBSTACLE_DETECTED`.
+4. `vigilancia_obstaculo` — **prioridade 100, a mais alta de todas** — toma
+   o controle de todo mundo e só fica em `sleep(1.0)`, sem fazer nada.
+5. A varredura acaba, volta a IDLE, a vigilância solta, a IA volta e pede
+   outra varredura.
+
+Medido: **46 tomadas de controle por obstáculo em 100 s**, alternando com
+`ia_estrategica` (42). É exatamente o "alterna obstáculo à frente /
+obstáculo liberado sem nunca sair do estado" registrado em 28/07. O robô
+estava perseguindo o próprio rabo — daí "estático desde q ligou o cérebro
+ao motor".
+
+### A correção (não afrouxa a segurança)
+
+`RadarManager` passou a guardar a última leitura frontal **de verdade**
+(radar em 90° e leitura válida) com a hora dela. `SafetyManager` separou
+dois casos que eram um só:
+
+- olhando pra frente → decide pela leitura ao vivo, como sempre;
+- olhando pro lado, com leitura frontal de menos de 2,5 s **que mostrava
+  mais de 1 metro livre** (25 cm de limiar + 75 cm de margem) → segue;
+- olhando pro lado sem memória recente → **para**, como antes.
+
+A margem de 75 cm é o ponto: a memória nunca substitui o sensor perto de um
+obstáculo, só cobre o caso de sala aberta — que é onde a varredura travava.
+
+### O diagnóstico mentia, e agora não mente
+
+O motivo da parada **não existia na telemetria**. O Pi via
+`OBSTACLE_DETECTED` e não tinha como saber se era obstáculo real ou o radar
+olhando pro lado — isso custou uma sessão inteira de diagnóstico às cegas.
+Agora vão no pacote: `seguranca_motivo`, `seguranca_parada_ativa`,
+`radar_apontando_frente` e `frontal_idade_ms`. O motivo
+`frente_desconhecida` é distinto de `obstaculo_frontal`.
+
+### Resultado, mesma sonda, mesmo tamanho de amostra
+
+    antes:  OBSTACLE_DETECTED 42/89 (47%)  |  IDLE 47 (53%)
+    depois: OBSTACLE_DETECTED  0/89  (0%)  |  IDLE 89 (100%)
+
+Nas 2 amostras em que o radar ainda estava desviado, o estado seguiu IDLE —
+a memória frontal funcionando. 432 testes passando antes e depois.
+
+### PENDENTE que este bug revelou
+
+- **`vigilancia_obstaculo` não desvia, só congela.** Diante de um obstáculo
+  REAL ela toma o controle e dorme em `while True: sleep(1.0)`. Decisão do
+  usuário em 29/07: *"nenhum obstáculo tem q bloquear, o robô tem q desviar
+  do obstáculo"*. A parada reativa do Mega continua sendo o piso de
+  segurança; o que falta é a camada de cima planejar o contorno em vez de
+  ficar parada.
+- **Bússola sem auto-calibração** (`rumo_valido: false`). Não tem relação
+  com este bug — medido, a causa era o servo do radar. Mas o usuário quer
+  que ela **se auto-calibre**; `calibrar_bussola` já está no contrato da IA.

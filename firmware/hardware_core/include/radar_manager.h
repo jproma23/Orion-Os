@@ -33,6 +33,17 @@ class RadarManager {
 
   void atualizar() {
     _ultrassom.atualizar();
+    // Memoria da ultima leitura FRONTAL boa (achado medido em 2026-07-29):
+    // a varredura desvia ESTE MESMO sensor por ~2,1s, e ate 28/07 esse
+    // intervalo inteiro contava como obstaculo. Nao e obstaculo: a frente
+    // nao ficou desconhecida, ficou nao-observada por um instante. Guardar
+    // a ultima medida boa COM A HORA dela deixa a seguranca decidir com
+    // informacao real em vez de com o pior caso imaginario.
+    if (apontandoParaFrente() && _ultrassom.leituraValida()) {
+      _ultimaFrontalCm = _ultrassom.distanciaCm();
+      _ultimaFrontalMs = millis();
+      _temUltimaFrontal = true;
+    }
     if (_varrendo) _atualizarVarredura();
   }
 
@@ -73,6 +84,17 @@ class RadarManager {
   // Manager confiava na leitura como se fosse sempre frontal, criando um
   // ponto cego de seguranca durante a varredura.
   bool apontandoParaFrente() const { return _anguloAtual == 90; }
+  //: true se existe uma leitura frontal DE VERDADE (radar em 90 e leitura
+  //: valida) com menos de `janelaMs` de idade. E o que permite distinguir
+  //: "tem coisa na frente" de "estou olhando pro lado agora".
+  bool temFrontalRecente(unsigned long janelaMs) const {
+    return _temUltimaFrontal && (millis() - _ultimaFrontalMs) <= janelaMs;
+  }
+  float frontalRecenteCm() const { return _ultimaFrontalCm; }
+  //: idade da ultima leitura frontal boa; 0xFFFFFFFF se nunca houve uma.
+  unsigned long idadeFrontalMs() const {
+    return _temUltimaFrontal ? (millis() - _ultimaFrontalMs) : 0xFFFFFFFFUL;
+  }
 
  private:
   // membro de instancia normal (nao static) - evita a exigencia de uma
@@ -103,6 +125,9 @@ class RadarManager {
   uint8_t _indiceAtual = 0;
   unsigned long _momentoComandoServo = 0;
   uint8_t _anguloAtual = 90;
+  float _ultimaFrontalCm = 0.0f;
+  unsigned long _ultimaFrontalMs = 0;
+  bool _temUltimaFrontal = false;
   LeituraRadar _leituras[RADAR_QUANTIDADE_ANGULOS];
 
   static uint8_t _paraFisico(uint8_t anguloLogico) {

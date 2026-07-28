@@ -12,6 +12,7 @@
 #include "imu_manager.h"
 #include "motor_manager.h"
 #include "radar_manager.h"
+#include "safety_manager.h"
 #include "sensor_ultrassonico.h"
 
 namespace orion {
@@ -20,8 +21,9 @@ class TelemetryManager {
  public:
   TelemetryManager(MotorManager& motores, RadarManager& radar, ImuManager& imu, DhtManager& dht,
                     MaquinaDeEstados& estados, SensorUltrassonico& ultrassomTraseiro,
-                    BateriaManager& bateria, BussolaManager& bussola)
-      : _motores(motores),
+                    BateriaManager& bateria, BussolaManager& bussola, SafetyManager& safety)
+      : _safety(safety),
+        _motores(motores),
         _radar(radar),
         _imu(imu),
         _dht(dht),
@@ -52,6 +54,13 @@ class TelemetryManager {
     destino["frontal_sensor_ok"] = _radar.sensorFrontalRespondeu();
     destino["frontal_sem_eco"] = _radar.frontalSemEco();
     destino["radar_angulo_graus"] = _radar.anguloAtual();
+    // POR QUE a seguranca parou o robo. Ate 28/07 isto nao existia na
+    // telemetria: o Pi via OBSTACLE_DETECTED e nao tinha como saber se era
+    // um obstaculo de verdade ou o radar olhando pro lado. Custou uma
+    // sessao inteira de diagnostico as cegas.
+    destino["radar_apontando_frente"] = _radar.apontandoParaFrente();
+    destino["seguranca_parada_ativa"] = _safety.pararAtivo();
+    if (_safety.pararAtivo()) destino["seguranca_motivo"] = _safety.motivo();
 
     destino["distancia_traseira_cm"] = _ultrassomTraseiro.distanciaCm();
     destino["distancia_traseira_valida"] = _ultrassomTraseiro.leituraValida();
@@ -104,6 +113,13 @@ class TelemetryManager {
     destino["frontal_descartes"] = _radar.frontalDescartes();
     destino["traseiro_descartes"] = _ultrassomTraseiro.descartes();
 
+    // Mesmo diagnostico do pacote reduzido, mais a idade da ultima leitura
+    // frontal de verdade - e ela que autoriza andar durante uma varredura.
+    destino["radar_apontando_frente"] = _radar.apontandoParaFrente();
+    destino["frontal_idade_ms"] = _radar.idadeFrontalMs();
+    destino["seguranca_parada_ativa"] = _safety.pararAtivo();
+    if (_safety.pararAtivo()) destino["seguranca_motivo"] = _safety.motivo();
+
     // Angulo para onde o radar aponta. Sem isto, a distancia frontal e um
     // numero sem significado (nao se sabe o que foi medido), e o mapa nunca
     // pode ser construido - por isso mapa.leituras vive vazio.
@@ -155,6 +171,7 @@ class TelemetryManager {
   }
 
  private:
+  SafetyManager& _safety;
   MotorManager& _motores;
   RadarManager& _radar;
   ImuManager& _imu;
