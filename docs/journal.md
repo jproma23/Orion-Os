@@ -3932,3 +3932,72 @@ que ja tinha mordido no merge de 26/07.
 - **Modulos orfaos, nao apagar:** `AlivioCarga` e `DiarioObservacoes` (usados
   so pelo `conversar_fofao.py` da raiz, que nao e o de producao). Entender por
   que existem antes de integrar, arquivar ou remover.
+
+## BUG ABERTO — `OBSTACLE_DETECTED` travado com o caminho livre (2026-07-28)
+
+**PRIORIDADE MÁXIMA da próxima sessão.** Este bug bloqueia TUDO que foi
+construído em 28/07: a IA decide, o gesto chega ao maestro, o comando sai —
+e a segurança reativa veta o movimento, baseada num estado que os próprios
+sensores do Mega desmentem.
+
+### A contradição, medida na interface web
+
+    hw.estado                = OBSTACLE_DETECTED
+    hw.distancia_frontal_cm  = 199.59
+    mapa (radar, 30°→150°)   = 199.6 | 198.2 | 198.8 | 199.3 | 199.7 | 199.4
+                               todas com valida: true
+
+**Sete ângulos do radar e o sensor frontal reportam ~2 metros livres, e o
+firmware afirma obstáculo.** A frente estava fisicamente desimpedida — o
+usuário confirmou ("frente liberada sempre").
+
+### O que já foi descartado
+
+- **Não é obstáculo físico.** Confirmado pelo usuário e pelo radar inteiro.
+- **Não é falta de eco.** `frontal_sem_eco: false`, todas as leituras do
+  radar marcadas `valida: true`.
+- **Não é a diferença entre leitura crua e filtrada.** Esta foi a minha
+  primeira hipótese: a telemetria filtraria o ruído e o `SafetyManager`
+  reagiria à leitura crua. Cai por terra porque o próprio estado do
+  firmware convive com suas próprias leituras dizendo 200 cm.
+
+### Hipótese principal: o latch não libera
+
+Existe no histórico o commit `a82d112` — *"latch de presença do ultrassom"*.
+Se esse latch não for liberado corretamente, **uma única** leitura espúria
+prende o robô em `OBSTACLE_DETECTED` para sempre, mesmo com tudo limpo
+depois. O log do maestro é consistente com isso: alterna
+`obstáculo à frente` / `obstáculo liberado` em ciclo, sem nunca sair de
+verdade do estado.
+
+Vale olhar junto: `frontal_descartes` cresce ~3,4 por segundo (11.770 →
+11.821 em 15 s) e `traseiro_descartes` está em 8.963. Descarte nessa
+frequência é normal em ultrassom, mas é a fonte provável da leitura
+espúria que arma o latch.
+
+### Onde mexer
+
+`firmware/hardware_core/include/safety_manager.h`. Compilar e gravar **pelo
+Pi** (regra arquitetural: só a instância do Pi enxerga o Arduino).
+
+Direção provável: exigir leituras CONSECUTIVAS abaixo do limiar para
+declarar obstáculo, e garantir liberação simétrica quando o caminho limpar.
+Isso **não enfraquece a segurança** — obstáculo real persiste por muitas
+leituras seguidas; ruído não.
+
+### Por que importa tanto
+
+Em 28/07 ligamos a IA aos motores (EDR-0026), fundimos o mentor numa
+personalidade só e fizemos o gesto chegar às rodas. O gesto chegou a girar
+o robô de verdade. Mas **o avanço nunca aconteceu em nenhum momento**, e
+por este bug — não por defeito de nada que foi construído. Enquanto ele
+existir, o Fofão só mexe pan e tilt: a cabeça não passa pela camada de
+segurança, as rodas passam.
+
+### Achados menores da mesma inspeção
+
+- **Bússola não calibrada:** `bussola_calibrada: false`, `rumo_valido:
+  false`. A IA já tem `calibrar_bussola` no catálogo do contrato — ela pode
+  resolver sozinha assim que puder agir.
+- **DHT mudo:** `temperatura_c` e `umidade_percent` vêm `None`, como o
+  EDR-0026 já registrou na atribuição "Zelador".
