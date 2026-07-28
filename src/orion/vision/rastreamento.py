@@ -45,10 +45,34 @@ def _caixa_mais_proxima(caixas: list[Caixa], referencia: Caixa) -> Caixa:
     return min(caixas, key=_distancia_quadrada)
 
 
+def _iou(a: Caixa, b: Caixa) -> float:
+    """Intersection over Union: 0 (nao se tocam) a 1 (identicas)."""
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    intersecao = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    if intersecao == 0:
+        return 0.0
+    uniao = _area(a) + _area(b) - intersecao
+    return intersecao / uniao if uniao > 0 else 0.0
+
+
 class Rastreador:
-    def __init__(self, timeout_perdido_s: float = 2.0) -> None:
+    def __init__(self, timeout_perdido_s: float = 2.0, frames_confirmacao: int = 1) -> None:
         self._timeout_perdido_s = timeout_perdido_s
+        # Exige a MESMA regiao detectada em N quadros seguidos antes de
+        # assumir um alvo novo (default 1 = sem exigencia, compatível com o
+        # comportamento anterior). Mitigacao para falso positivo do YOLO
+        # (2026-07-28): um objeto/sombra confundido com "pessoa" por um unico
+        # quadro nao chegava a durar o suficiente para virar alvo de verdade,
+        # mas ainda assim fazia o pan/tilt saltar para aquela posicao - a
+        # correcao NAO exige uma pessoa real parada, so exige que a MESMA
+        # deteccao (IoU > 0.5) se repita por `frames_confirmacao` quadros.
+        self._frames_confirmacao = max(1, frames_confirmacao)
         self._alvo: Alvo | None = None
+        self._candidata: Caixa | None = None
+        self._candidata_contagem = 0
 
     def atualizar(
         self,
@@ -60,17 +84,32 @@ class Rastreador:
         identidades = identidades or {}
 
         if not caixas_candidatas:
+            self._candidata = None
+            self._candidata_contagem = 0
             if self._alvo is not None and (agora - self._alvo.ultima_atualizacao) > self._timeout_perdido_s:
                 self._alvo = None
             return self._alvo
 
-        escolhida = (
-            _maior_caixa(caixas_candidatas)
-            if self._alvo is None
-            else _caixa_mais_proxima(caixas_candidatas, self._alvo.caixa)
-        )
-        pessoa_id, nome = identidades.get(escolhida, (None, None))
-        self._alvo = Alvo(caixa=escolhida, pessoa_id=pessoa_id, nome=nome, ultima_atualizacao=agora)
+        if self._alvo is not None:
+            escolhida = _caixa_mais_proxima(caixas_candidatas, self._alvo.caixa)
+            pessoa_id, nome = identidades.get(escolhida, (None, None))
+            self._alvo = Alvo(caixa=escolhida, pessoa_id=pessoa_id, nome=nome, ultima_atualizacao=agora)
+            return self._alvo
+
+        candidata = _maior_caixa(caixas_candidatas)
+        if self._candidata is not None and _iou(candidata, self._candidata) > 0.5:
+            self._candidata_contagem += 1
+        else:
+            self._candidata = candidata
+            self._candidata_contagem = 1
+
+        if self._candidata_contagem < self._frames_confirmacao:
+            return None
+
+        pessoa_id, nome = identidades.get(candidata, (None, None))
+        self._alvo = Alvo(caixa=candidata, pessoa_id=pessoa_id, nome=nome, ultima_atualizacao=agora)
+        self._candidata = None
+        self._candidata_contagem = 0
         return self._alvo
 
     @property

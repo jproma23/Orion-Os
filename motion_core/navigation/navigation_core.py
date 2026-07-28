@@ -138,7 +138,7 @@ class NavigationCore:
 
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_atualizar_telemetria)
-        event_bus.subscribe("vision.person_detected", self._ao_detectar_pessoa)
+        event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("motion.scan_complete", self._ao_completar_scan)
         event_bus.subscribe("motion.status", self._ao_atualizar_estado_hardware)
 
@@ -389,8 +389,14 @@ class NavigationCore:
 
     async def iniciar_follow(self) -> None:
         """Versao minima do Cap 12 s.5: fica em modo FOLLOW reagindo a
-        vision.person_detected (publicado pelo Vision Core no Notebook) via
-        _ao_detectar_pessoa. O calculo de correcao proporcional completo e a
+        vision.person_recognized (publicado pelo Vision Core no Notebook,
+        so quando o alvo bate com alguem cadastrado) via
+        _ao_reconhecer_pessoa. Escolha deliberada (2026-07-28): o robo NAO
+        anda atras de qualquer pessoa, so de quem ele reconhece - antes disso
+        reagia a vision.person_detected (qualquer pessoa), que alem de nao
+        ser o comportamento desejado nunca tinha "centro_x" no payload real
+        (so "caixa"), entao o giro estava morto em producao mesmo com o modo
+        FOLLOW ativo. O calculo de correcao proporcional completo e a
         rotacao de busca apos perda (s.5 passo 5) ficam para quando o Vision
         Core estiver de fato integrado ponta-a-ponta com este modulo - por
         ora so o timeout de perda esta implementado."""
@@ -400,7 +406,7 @@ class NavigationCore:
             self._tarefa_follow.cancel()
         self._tarefa_follow = asyncio.create_task(self._monitorar_perda_de_alvo())
 
-    async def _ao_detectar_pessoa(self, evento: Evento) -> None:
+    async def _ao_reconhecer_pessoa(self, evento: Evento) -> None:
         if self._modo != ModoNavegacao.FOLLOW:
             return
         self._ultima_deteccao_follow_s = time.monotonic()

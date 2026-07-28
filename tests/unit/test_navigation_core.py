@@ -288,9 +288,20 @@ async def test_patrol_para_apos_esgotar_tentativas_com_obstaculo(cenario):
 @pytest.mark.asyncio
 async def test_follow_gira_em_direcao_a_pessoa_descentralizada(cenario):
     await cenario.nav.iniciar_follow()
-    await cenario.bus.publish("vision.person_detected", {"centro_x": 0.9})
+    await cenario.bus.publish("vision.person_recognized", {"centro_x": 0.9})
     await cenario.bus.aguardar_fila_vazia()
     assert "TURN_RIGHT" in cenario.comandos_enviados()
+
+
+@pytest.mark.asyncio
+async def test_follow_ignora_pessoa_nao_reconhecida(cenario):
+    """FOLLOW so anda atras de quem o Vision Core reconhece (2026-07-28) -
+    vision.person_detected (qualquer pessoa, reconhecida ou nao) nao deve
+    mover o robo; so vision.person_recognized move."""
+    await cenario.nav.iniciar_follow()
+    await cenario.bus.publish("vision.person_detected", {"caixa": (500, 100, 600, 300)})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.comandos_enviados() == []
 
 
 @pytest.mark.asyncio

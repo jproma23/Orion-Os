@@ -34,7 +34,7 @@ class VisionCore:
     def __init__(
         self,
         event_bus: EventBus,
-        indice_camera: int = 0,
+        indice_camera: int | str = 0,
         camera_espelhada: bool = False,
         confianca_minima: float = 0.55,
         modelo_yolo: str = "yolov8n.pt",
@@ -44,6 +44,7 @@ class VisionCore:
         detector: DetectorYolo | None = None,
         reconhecedor: ReconhecedorFacial | None = None,
         timeout_alvo_perdido_s: float = 2.0,
+        frames_confirmacao_alvo: int = 1,
         fps: float = 0.0,
         imgsz: int = 640,
     ) -> None:
@@ -59,7 +60,9 @@ class VisionCore:
             modelo=modelo_yolo, confianca_minima=confianca_minima, imgsz=imgsz
         )
         self._reconhecedor = reconhecedor or ReconhecedorFacial()
-        self._rastreador = Rastreador(timeout_perdido_s=timeout_alvo_perdido_s)
+        self._rastreador = Rastreador(
+            timeout_perdido_s=timeout_alvo_perdido_s, frames_confirmacao=frames_confirmacao_alvo
+        )
         self._pan_tilt = CalculadoraPanTilt(limites_pan_tilt)
         self._publicar_pan_tilt = publicar_pan_tilt
         self._executando = False
@@ -152,14 +155,22 @@ class VisionCore:
 
         if alvo is not None:
             self._tinha_alvo = True
-            if alvo.pessoa_id is not None:
-                await self._event_bus.publish(
-                    "vision.person_recognized",
-                    {"pessoa_id": alvo.pessoa_id, "nome": alvo.nome, "timestamp": agora},
-                )
-
             altura, largura = frame.shape[:2]
             cx, cy = self._centro_caixa(alvo.caixa)
+            if alvo.pessoa_id is not None:
+                # centro_x normalizado (0..1, 0.5 = centralizado): o FOLLOW
+                # do NavigationCore (Pi) so anda atras de gente RECONHECIDA -
+                # por isso ele escuta este evento, e nao vision.person_detected
+                # (que dispara para qualquer pessoa, reconhecida ou nao).
+                await self._event_bus.publish(
+                    "vision.person_recognized",
+                    {
+                        "pessoa_id": alvo.pessoa_id,
+                        "nome": alvo.nome,
+                        "centro_x": cx / largura,
+                        "timestamp": agora,
+                    },
+                )
             pan, tilt = self._pan_tilt.calcular_correcao(cx, cy, largura, altura, intervalo_s)
             # publica sempre (mesmo sem callback de hardware) - o avatar
             # (Cap 13) reflete a direcao calculada independente do robo
