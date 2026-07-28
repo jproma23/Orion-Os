@@ -26,6 +26,7 @@ from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
     Atender,
+    AtenderGesto,
     ControleManual,
     IaEstrategica,
     Repouso,
@@ -400,6 +401,7 @@ async def principal() -> None:
     # recentrar o pan/tilt por baixo do rastreamento (2026-07-28).
     maestro.registrar(AcompanharPessoa(event_bus))
     maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
+    maestro.registrar(AtenderGesto(event_bus))
     maestro.registrar(ControleManual(event_bus))
     maestro.registrar(VigilanciaObstaculo(event_bus))
 

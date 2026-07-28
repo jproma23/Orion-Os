@@ -397,6 +397,66 @@ class IaEstrategica(Comportamento):
             raise
 
 
+class AtenderGesto(Comportamento):
+    """Reage a gesto de mao (prio 70) - ligado em 2026-07-28.
+
+    Os gestos ja eram reconhecidos desde 20/07 (`orion/vision/gestos.py`, o
+    canal do Kamal, que tem 3 anos e nao digita), mas morriam no barramento
+    do Notebook: ninguem no maestro escutava `gesto.detectado`, e o repasse
+    ao Pi nem existia. O robo via o gesto e nao fazia nada.
+
+    Vocabulario (definido pelo dono):
+
+    - **vem** (mao aberta balancando) -> o robo VAI ate quem chamou, entrando
+      em FOLLOW. E o unico gesto com consequencia motora.
+    - **sim** (joinha) -> confirmacao. Hoje nao ha nada pendente para
+      confirmar, entao so registra e avisa: quando existir uma pergunta em
+      aberto ("posso ir ate ai?"), e aqui que ela sera respondida.
+
+    Prioridade 70: acima da Vigilia (60), porque uma pessoa chamando vale
+    mais que ronda de vigilancia; abaixo do Atender por voz (80), porque
+    quem fala esta pedindo algo explicito, e abaixo de controle manual (95)
+    e seguranca (100), que ganham sempre.
+    """
+
+    nome = "atender_gesto"
+    prioridade = 70
+
+    def __init__(self, event_bus: EventBus, duracao_s: float = 8.0) -> None:
+        super().__init__(event_bus)
+        self._duracao_s = duracao_s
+        self._gesto: str | None = None
+        event_bus.subscribe("gesto.detectado", self._ao_ver_gesto)
+
+    async def _ao_ver_gesto(self, evento: Evento) -> None:
+        tipo = evento.dados.get("tipo")
+        if tipo in ("vem", "sim") and self._gesto is None:
+            self._gesto = tipo
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._gesto is not None
+
+    async def executar(self) -> None:
+        gesto = self._gesto
+        logger.info("maestro: GESTO '%s' - atendendo", gesto)
+        await self._event_bus.publish(
+            "behavior.status", {"estado": self.nome, "gesto": gesto}, prioridade=Prioridade.ALTA
+        )
+        try:
+            if gesto == "vem":
+                # Chamou: o robo vai. FOLLOW e o modo que ja sabe se
+                # aproximar de quem ele reconhece - nao se inventa um
+                # caminho novo aqui.
+                await self._event_bus.publish("navigation.comando", {"acao": "FOLLOW"})
+            await asyncio.sleep(self._duracao_s)
+        finally:
+            # Solta o controle mesmo se preemptado no meio, senao o gesto
+            # ficaria pendurado pedindo a vez para sempre.
+            self._gesto = None
+            self._reavaliar()
+
+
 class VigilanciaObstaculo(Comportamento):
     """Segurança tática (prio 100): assume o controle quando o Hardware Core
     reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus

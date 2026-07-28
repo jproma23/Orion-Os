@@ -4,7 +4,13 @@ O canal do Kamal (3 anos): ele não digita e a escuta por voz saiu - então
 a mão fala. Vocabulário definido pelo dono:
 
     joinha (polegar pra cima)        = SIM
-    dedo indicador balançando        = NÃO
+    mão aberta balançando            = VEM CÁ
+
+O "não" (dedo indicador balançando) foi SUBSTITUÍDO pelo chamado em
+2026-07-28, a pedido do dono. Consequência que vale dizer em voz alta: o
+Kamal fica sem gesto para dizer NÃO - o canal ficou com "sim" e "vem cá".
+Se o não fizer falta, é só escolher outra pose (mão espalmada parada, por
+exemplo) e ligar aqui.
 
 Duas peças, separadas de propósito:
 
@@ -61,13 +67,18 @@ def eh_joinha(pontos: list[Ponto]) -> bool:
     return polegar_para_cima and quatro_dobrados
 
 
-def indicador_apontando(pontos: list[Ponto]) -> bool:
-    """Indicador esticado com médio/anelar/mindinho dobrados - a pose base
-    do "não" (o balanço é decidido pelo DetectorGestos, no tempo)."""
+def mao_aberta(pontos: list[Ponto]) -> bool:
+    """Quatro dedos esticados - a pose base do "vem cá" (o balanço é
+    decidido pelo DetectorGestos, no tempo).
+
+    O polegar fica de fora da conta de propósito: ao chamar alguém a mão
+    raramente abre o polegar por completo, e exigir isso fazia o gesto
+    falhar justamente em quem chama de verdade."""
     if len(pontos) < 21:
         return False
-    return _esticado(pontos, 8, 6) and all(
-        _dobrado(pontos, ponta, pip) for ponta, pip in ((12, 10), (16, 14), (20, 18))
+    return all(
+        _esticado(pontos, ponta, pip)
+        for ponta, pip in ((8, 6), (12, 10), (16, 14), (20, 18))
     )
 
 
@@ -75,9 +86,14 @@ class DetectorGestos:
     """Decide SIM/NÃO a partir da sequência de mãos vistas.
 
     - SIM: joinha estável (maioria dos últimos frames) - gesto parado.
-    - NÃO: indicador apontando + a ponta dele balançando na horizontal
-      (>= `balancos_minimos` trocas de direção com amplitude real dentro
-      da janela). É o movimento que separa "não" de só apontar pra tela.
+    - VEM: mão aberta + balançando (>= `balancos_minimos` trocas de direção
+      com amplitude real dentro da janela). O movimento é o que separa
+      "chamando" de uma mão aberta parada no quadro - sem ele, qualquer
+      pessoa com a mão levantada chamaria o robô sem querer.
+
+      Conta o balanço nos DOIS eixos e fica com o maior: chamar com a mão
+      é vertical para uns e horizontal para outros, e exigir um eixo só
+      deixaria metade das pessoas de fora.
     Depois de emitir, um cooldown segura repetições (criança adora repetir).
     """
 
@@ -94,20 +110,22 @@ class DetectorGestos:
         self._balancos_minimos = balancos_minimos
         self._frames_joinha = frames_joinha
         self._cooldown_s = cooldown_s
-        self._historico: list[tuple[float, bool, bool, float]] = []
-        # (quando, era_joinha, era_indicador, x_da_ponta_do_indicador)
+        self._historico: list[tuple[float, bool, bool, float, float]] = []
+        # (quando, era_joinha, era_mao_aberta, x_da_ponta_do_medio, y_dela)
         self._ultimo_emitido = 0.0
 
     def alimentar(self, pontos: list[Ponto] | None, agora: float | None = None) -> str | None:
         """Um frame novo (pontos=None quando nenhuma mão no quadro).
-        Devolve "sim", "nao" ou None."""
+        Devolve "sim", "vem" ou None."""
         agora = time.monotonic() if agora is None else agora
 
         if pontos is None:
-            self._historico.append((agora, False, False, 0.0))
+            self._historico.append((agora, False, False, 0.0, 0.0))
         else:
+            # ponta do dedo médio (12): o ponto mais central da mão aberta,
+            # menos sujeito a sumir do quadro que o indicador na borda.
             self._historico.append(
-                (agora, eh_joinha(pontos), indicador_apontando(pontos), pontos[8][0])
+                (agora, eh_joinha(pontos), mao_aberta(pontos), pontos[12][0], pontos[12][1])
             )
         corte = agora - self._janela_s
         self._historico = [h for h in self._historico if h[0] >= corte]
@@ -119,29 +137,33 @@ class DetectorGestos:
             self._ultimo_emitido = agora
             self._historico.clear()
             return "sim"
-        if self._eh_nao():
+        if self._eh_chamando():
             self._ultimo_emitido = agora
             self._historico.clear()
-            return "nao"
+            return "vem"
         return None
 
     def _eh_sim(self) -> bool:
         joinhas = [h for h in self._historico if h[1]]
         return len(joinhas) >= self._frames_joinha
 
-    def _eh_nao(self) -> bool:
-        apontando = [h for h in self._historico if h[2]]
-        if len(apontando) < 4:
+    def _eh_chamando(self) -> bool:
+        abertas = [h for h in self._historico if h[2]]
+        if len(abertas) < 4:
             return False
-        xs = [h[3] for h in apontando]
-        # trocas de direção com deslocamento significativo entre extremos
-        deltas = [b - a for a, b in zip(xs, xs[1:]) if abs(b - a) > 0.005]
+        # o eixo que mais balançou decide - chamar com a mão é vertical
+        # para uns e horizontal para outros.
+        return any(
+            self._balancou([h[indice] for h in abertas]) for indice in (3, 4)
+        )
+
+    def _balancou(self, valores: list[float]) -> bool:
+        """Trocas de direção com deslocamento significativo entre extremos."""
+        deltas = [b - a for a, b in zip(valores, valores[1:]) if abs(b - a) > 0.005]
         if len(deltas) < 2:
             return False
-        trocas = sum(
-            1 for a, b in zip(deltas, deltas[1:]) if (a > 0) != (b > 0)
-        )
-        amplitude = max(xs) - min(xs)
+        trocas = sum(1 for a, b in zip(deltas, deltas[1:]) if (a > 0) != (b > 0))
+        amplitude = max(valores) - min(valores)
         return trocas >= self._balancos_minimos and amplitude >= self._amplitude_minima
 
 

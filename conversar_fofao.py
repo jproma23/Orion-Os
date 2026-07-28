@@ -295,6 +295,13 @@ async def principal() -> None:
     # e precisa CHEGAR ao Pi para aparecer na dashboard.
     bus.subscribe("chat.resposta_robo", _repassar_ao_pi)
 
+    # Gestos nascem aqui (a camera e o MediaPipe rodam no Notebook) e o
+    # maestro que reage a eles roda no Pi. Ate 2026-07-28 este repasse NAO
+    # existia: o LacoGestos publicava gesto.detectado num barramento onde
+    # ninguem escutava, entao o robo reconhecia o gesto e nada acontecia.
+    # Mesma familia de bug que ja mordeu 3 vezes - publicar nao falha.
+    bus.subscribe("gesto.detectado", _repassar_ao_pi)
+
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
         assert comm is not None
