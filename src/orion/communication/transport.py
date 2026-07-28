@@ -216,9 +216,41 @@ class SerialTransport:
             raise ErroTransporte("Transporte serial nao conectado")
         loop = asyncio.get_running_loop()
         try:
-            await loop.run_in_executor(
+            # O executor tem UMA thread (ver __init__: serializar read/write e
+            # obrigatorio, pyserial corrompe a porta com acesso concorrente).
+            # Consequencia: este write entra na FILA atras do read() que o
+            # receber() mantem em andamento - e esse read so volta quando chega
+            # byte ou quando estoura o timeout_leitura_s.
+            #
+            # MEDIDO (2026-07-28): isso custava ~100ms para o write sair, mais
+            # ~100ms para o ACK ser lido no ciclo seguinte. Um comando com ACK
+            # levava 208ms (mediana de 20, desvio minimo) quando a ida e volta
+            # real a 250000 baud e de poucos ms. O joystick do dashboard repete
+            # a cada ~150ms: como CADA comando custava mais que o intervalo de
+            # chegada do proximo, a fila crescia sem limite e o operador via
+            # "trava quando dou varios comandos seguidos".
+            #
+            # A correcao e a MESMA ja usada no fechar() (achado de 2026-07-27):
+            # cancel_read() interrompe o read() em andamento sendo chamado de
+            # OUTRA thread (aqui, a do event loop) sem precisar entrar na fila
+            # do executor - e sem quebrar a serializacao, porque continua tudo
+            # na mesma thread de I/O.
+            #
+            # ORDEM IMPORTA: submeter o write PRIMEIRO (ele fica na fila logo
+            # atras do read atual) e so entao cancelar a leitura. O executor e
+            # FIFO, entao o write roda assim que o read volta, antes de o laco
+            # de receber() submeter o proximo. Cancelar antes de submeter
+            # abriria a janela para o read seguinte entrar na frente.
+            #
+            # Nao perde quadro: o decodificador e alimentado byte a byte e
+            # guarda estado, entao um read() que volta com dado parcial e
+            # exatamente o caso normal entre bytes.
+            futuro = loop.run_in_executor(
                 self._executor, self._serial.write, codificar_serial(payload)
             )
+            if not self._parar_leitura:
+                self._serial.cancel_read()
+            await futuro
         except serial.SerialException as erro:
             # Mesmo achado do TcpTransport.enviar() (vistoria de 2026-07-24):
             # o Arduino pode ser desconectado/resetado no meio do envio -
@@ -229,8 +261,25 @@ class SerialTransport:
         if self._serial is None:
             raise ErroTransporte("Transporte serial nao conectado")
         loop = asyncio.get_running_loop()
+
+        def _ler_disponivel() -> bytes:
+            # read(N) so volta quando junta N BYTES ou quando estoura o
+            # timeout. Pedir 4096 de uma vez - como se fazia ate 2026-07-28 -
+            # significa que um quadro pequeno (um ACK tem poucas dezenas de
+            # bytes) ficava PARADO ate o timeout inteiro de 100ms, mesmo tendo
+            # chegado em poucos ms. Era metade do custo de um comando com ACK.
+            #
+            # Bloquear por 1 byte e depois drenar o que ja esta no buffer
+            # devolve o quadro assim que ele chega, sem espera artificial e sem
+            # spin: a espera continua sendo no read(), nao num laco ocupado.
+            primeiro = self._serial.read(1)
+            if not primeiro:
+                return b""
+            restante = self._serial.in_waiting
+            return primeiro + self._serial.read(restante) if restante else primeiro
+
         while not self._parar_leitura:
-            dados: bytes = await loop.run_in_executor(self._executor, self._serial.read, 4096)
+            dados: bytes = await loop.run_in_executor(self._executor, _ler_disponivel)
             if not dados:
                 continue  # timeout de leitura - normal, so verifica se deve parar
             for byte in dados:
