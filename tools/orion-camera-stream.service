@@ -47,7 +47,7 @@ Description=Fofão - stream MJPEG da camera do pan/tilt (para o Vision Core no N
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/ustreamer --host 0.0.0.0 --port 8091 --device /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0 --format MJPEG --resolution 640x480 --desired-fps 30 --persistent
+ExecStart=/usr/bin/ustreamer --host 0.0.0.0 --port 8091 --device /dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0 --format MJPEG --resolution 640x480 --desired-fps 6 --persistent
 Restart=always
 RestartSec=5
 

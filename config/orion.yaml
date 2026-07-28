@@ -129,10 +129,28 @@ vision:
   # indices de /dev/videoN podem mudar se os cabos USB forem replugados em
   # outra ordem - conferir com `v4l2-ctl --list-devices` se a visao parecer
   # estar usando a camera errada.
-  camera_frontal_espelhada: true
-  # a webcam frontal entrega o frame no efeito "selfie" (espelhado) - sem
-  # desfazer isso na captura, o Pan/Tilt gira para o lado errado ao seguir
-  # uma pessoa (esquerda/direita reais ficam trocadas na imagem).
+  camera_frontal_espelhada: false
+  # Era `true` ate 2026-07-28, e estava CERTO enquanto a camera principal era
+  # a INTEGRADA do notebook: aquela entrega o frame no efeito "selfie"
+  # (espelhado), e `captura.py` desfazia com cv2.flip. Sem desfazer, o Pan/Tilt
+  # giraria para o lado errado ao seguir uma pessoa.
+  #
+  # Hoje a camera principal e a DV20 montada no PAN/TILT, servida pela rede
+  # (ver camera_indice_principal acima). Webcam USB em suporte NAO espelha
+  # nada - o quadro ja chega correto. Com a flag em `true` o codigo espelhava
+  # um frame que estava certo, e o bug que o comentario antigo descrevia
+  # acontecia ao contrario: o usuario a ESQUERDA aparecia em cx=442 (direita
+  # do quadro, erro +122 medido com conf=0.91), a visao mandava girar para a
+  # direita, o firmware obedecia, e a camera FUGIA da pessoa. O relato foi
+  # "fica maluco indo pra outra direcao".
+  #
+  # LICAO: esta flag descreve a FONTE da imagem, nao "a camera do robo".
+  # Trocar camera_indice_principal obriga a revisitar esta linha - foi
+  # exatamente o que nao se fez ao migrar para o stream de rede.
+  #
+  # A inversao dos servos NAO se resolve aqui: ela ja e tratada no firmware
+  # (command_executor.h, SET_PAN_TILT, medida na bancada em 26/07), e o .hex
+  # gravado no Mega e posterior a essa correcao. Nao inverter nos dois lugares.
 
 voice:
   wake_word: "fofão"
