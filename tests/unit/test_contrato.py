@@ -18,18 +18,29 @@ def test_catalogo_nao_alcanca_comando_proibido():
 
 
 def test_a_re_nunca_esta_ao_alcance_da_ia():
-    """MOVE_DISTANCE e o comando da re (distancia negativa) e a re nao tem
-    seguranca reativa - o SafetyManager so olha o sensor frontal (Cap 18).
-    Andar para tras sozinho e andar cego."""
+    """Decisao do usuario (2026-07-28): "ele nao precisa dar re, so basta
+    girar no seu proprio eixo". Girar no eixo resolve o mesmo problema sem
+    andar para tras - e a re e o unico movimento sem seguranca reativa
+    nenhuma (o SafetyManager so olha o radar frontal, Cap 18)."""
     assert "MOVE_DISTANCE" in contrato.PROIBIDO_PARA_IA
     comandos = {a.dados.get("comando") for a in contrato.ACOES.values()}
     assert "MOVE_DISTANCE" not in comandos
 
 
-def test_a_ia_nao_mexe_na_propria_seguranca():
-    """Quem e vigiado nao ajusta o vigia."""
-    for proibido in ("CALIBRATE_IMU", "CALIBRATE_COMPASS", "SET_IMPACT_THRESHOLD"):
-        assert proibido in contrato.PROIBIDO_PARA_IA
+def test_a_ia_nao_mexe_no_limiar_da_propria_seguranca():
+    """Calibrar o robo PODE (auto-ajuste, pedido do usuario) - mexer no
+    LIMIAR da seguranca nao. Calibrar e o sensor se reorientar; afrouxar o
+    limiar de impacto e o vigiado ajustando o vigia."""
+    assert "SET_IMPACT_THRESHOLD" in contrato.PROIBIDO_PARA_IA
+    comandos = {a.dados.get("comando") for a in contrato.ACOES.values()}
+    assert "SET_IMPACT_THRESHOLD" not in comandos
+
+
+def test_a_ia_pode_se_auto_ajustar():
+    """A outra metade: calibrar bussola e inclinacao esta liberado, porque
+    auto-ajuste foi pedido explicitamente."""
+    comandos = {a.dados.get("comando") for a in contrato.ACOES.values()}
+    assert {"CALIBRATE_COMPASS", "CALIBRATE_IMU"} <= comandos
 
 
 def test_todo_movimento_passa_pela_navegacao():

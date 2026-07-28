@@ -63,24 +63,36 @@ class Acao:
 
 #: Comandos de firmware que a IA NUNCA alcanca, por mais que decida.
 #:
-#: Nao e desconfianca do modelo - e que estes quatro grupos tem consequencia
-#: que o robo nao consegue desfazer sozinho:
+#: A lista encolheu em 2026-07-28, por decisao do usuario. Cada saida veio com
+#: a rede correspondente montada, nao no grito:
 #:
-#: - `MOVE_DISTANCE` e o comando da RE (distancia negativa). A re nao tem
-#:   seguranca reativa: o SafetyManager so olha o sensor frontal (Cap 18).
-#:   Andar para tras sozinho e andar cego.
-#: - `MOVE_CONTINUOUS` so para quando alguem manda parar. Depender de a IA
-#:   lembrar de mandar STOP e depender de a proxima chamada de API dar certo.
-#: - `CALIBRATE_*` e `SET_IMPACT_THRESHOLD` mexem na propria seguranca do
-#:   robo. Quem e vigiado nao ajusta o vigia.
+#: - `MOVE_CONTINUOUS` (manobrar) e auto-limitado pelo PROPRIO firmware:
+#:   `TIMEOUT_COMANDO_MS = 5000` em safety_manager.h para os motores sozinho
+#:   se nenhum comando novo chegar em 5s. Minha objecao original - "so para
+#:   se alguem lembrar de mandar STOP" - estava errada: o Mega lembra.
+#: - `CALIBRATE_IMU` e `CALIBRATE_COMPASS` sao o robo refazer a referencia dos
+#:   proprios sensores, que e auto-ajuste - exatamente o que foi pedido.
+#:
+#: `MOVE_DISTANCE` (a RE) continua fora, mas por decisao do usuario e nao por
+#: risco: *"na verdade ele nao precisa dar re, so basta girar no seu proprio
+#: eixo"*. Girar no eixo resolve o mesmo problema sem andar para tras - e a re
+#: e o unico movimento sem seguranca reativa nenhuma (o SafetyManager so olha
+#: o radar frontal, Cap 18), entao evita-la de graca e o melhor negocio que
+#: aparece aqui.
+#:
+#: Os outros dois nao sao teimosia, sao categorias diferentes do que foi
+#: liberado:
+#:
+#: - `SET_IMPACT_THRESHOLD` nao e calibrar, e mexer no LIMIAR da propria
+#:   seguranca. Calibrar e o sensor se reorientar; afrouxar o limiar e o
+#:   vigiado ajustando o vigia. Se for para liberar, que seja dito com todas
+#:   as letras, e nao de carona numa frase sobre calibracao.
 #: - `DOCK` existe no firmware e nunca foi usado por ninguem, nem a mao. Nao
-#:   se estreia comando de acoplamento por decisao autonoma.
+#:   se estreia comando de acoplamento por decisao autonoma: a primeira vez
+#:   tem que ter alguem olhando.
 PROIBIDO_PARA_IA = frozenset(
     {
         "MOVE_DISTANCE",
-        "MOVE_CONTINUOUS",
-        "CALIBRATE_IMU",
-        "CALIBRATE_COMPASS",
         "SET_IMPACT_THRESHOLD",
         "DOCK",
     }
@@ -122,6 +134,25 @@ _CATALOGO: tuple[Acao, ...] = (
         topico="navigation.comando",
         dados={"acao": "MANUAL", "comando": "TURN_RIGHT"},
         move_rodas=True,
+    ),
+    Acao(
+        nome="manobrar",
+        descricao="andar para a frente sem parada marcada, para se posicionar",
+        topico="navigation.comando",
+        dados={"acao": "MANUAL", "comando": "MOVE_CONTINUOUS"},
+        move_rodas=True,
+    ),
+    Acao(
+        nome="calibrar_bussola",
+        descricao="refazer a referencia da bussola",
+        topico="navigation.comando",
+        dados={"acao": "MANUAL", "comando": "CALIBRATE_COMPASS"},
+    ),
+    Acao(
+        nome="calibrar_inclinacao",
+        descricao="refazer a referencia do sensor de inclinacao",
+        topico="navigation.comando",
+        dados={"acao": "MANUAL", "comando": "CALIBRATE_IMU"},
     ),
     Acao(
         nome="seguir_pessoa",

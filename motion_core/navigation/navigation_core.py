@@ -79,6 +79,11 @@ COMANDOS_MANUAIS = frozenset(
         "FAN_ON",
         "FAN_OFF",
         "DOCK",
+        # Auto-ajuste (2026-07-28, pedido do usuario: calibracao ele tem que
+        # fazer, se auto ajustar). Nao movem o robo - mandam o Mega refazer a
+        # referencia dos proprios sensores.
+        "CALIBRATE_IMU",
+        "CALIBRATE_COMPASS",
     }
 )
 #: destes, quais avancam o robo para frente - sao os unicos sujeitos a
