@@ -303,9 +303,26 @@ class NavigationCore:
             )
 
     async def _mudar_modo(self, novo_modo: ModoNavegacao) -> None:
-        if novo_modo != self._modo:
-            self._modo = novo_modo
-            await self._event_bus.publish("navigation.mode_changed", {"modo": novo_modo.value})
+        if novo_modo == self._modo:
+            return
+        # Sair de FOLLOW tem que MATAR o vigia de perda de alvo por QUALQUER
+        # caminho, nao so pelo HOLD. Ate 2026-07-28 so o definir_modo_hold
+        # cancelava, e isso passava despercebido porque nenhum outro modo era
+        # alcancavel pela interface. Com o seletor de modo o vazamento fica a
+        # um toque: quem esta em FOLLOW e pega o joystick vira MANUAL, mas o
+        # vigia continua vivo e, passado o follow_lost_timeout_s sem deteccao,
+        # manda STOP e forca HOLD - o robo morre na mao do operador, e nada na
+        # tela explica por que.
+        #
+        # O `is not tarefa_atual` existe porque o proprio vigia chama isto ao
+        # perder o alvo: cancelar a si mesmo levantaria CancelledError dentro
+        # do publish abaixo e o navigation.mode_changed nunca sairia.
+        if self._modo == ModoNavegacao.FOLLOW and self._tarefa_follow is not None:
+            if self._tarefa_follow is not asyncio.current_task():
+                self._tarefa_follow.cancel()
+                self._tarefa_follow = None
+        self._modo = novo_modo
+        await self._event_bus.publish("navigation.mode_changed", {"modo": novo_modo.value})
 
     # ---------- HOLD ----------
 

@@ -386,3 +386,48 @@ async def test_comando_scan_front_avulso_faz_varredura(cenario):
     await asyncio.sleep(0.05)  # o scan roda como task do handler do bus
     assert "SCAN_FRONT" in cenario.comandos_enviados()
     assert not any(e.topico == "navigation.error" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_sair_de_follow_pelo_joystick_mata_o_vigia_de_perda_de_alvo(cenario):
+    """Ate 2026-07-28 so o definir_modo_hold cancelava _tarefa_follow, e isso
+    nao doia porque nenhum modo alem do MANUAL era alcancavel pela interface.
+    Com o seletor de modo o vazamento fica a um toque.
+
+    Cenario: operador em FOLLOW pega o joystick. O modo vira MANUAL, mas o
+    vigia continuava vivo e, passado o follow_lost_timeout_s sem deteccao,
+    mandava STOP e forcava HOLD - o robo morria na mao do operador, sem nada
+    na tela explicando por que.
+    """
+    await cenario.nav.iniciar_follow()
+    vigia = cenario.nav._tarefa_follow
+    assert vigia is not None
+
+    await cenario.nav.executar_manual("TURN_LEFT")
+    assert cenario.nav.modo is ModoNavegacao.MANUAL
+
+    # passa do timeout de perda de alvo: e aqui que o vigia vazado agiria
+    await asyncio.sleep(CONFIG_NAVIGATION["follow_lost_timeout_s"] + 0.5)
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert vigia.done()
+    assert cenario.nav._tarefa_follow is None
+    # o modo continua sendo do operador, e ninguem anunciou perda de alvo
+    assert cenario.nav.modo is ModoNavegacao.MANUAL
+    assert not any(e.topico == "navigation.target_lost" for e in cenario.eventos)
+
+
+@pytest.mark.asyncio
+async def test_follow_perdendo_alvo_ainda_sai_para_hold(cenario):
+    """Contraprova do teste acima: o cancelamento do vigia ao trocar de modo
+    nao pode quebrar o caminho em que o PROPRIO vigia troca o modo. Ele chama
+    _mudar_modo(HOLD) de dentro de si - cancelar a si mesmo ali levantaria
+    CancelledError no meio do publish e o mode_changed nunca sairia."""
+    await cenario.nav.iniciar_follow()
+    await asyncio.sleep(CONFIG_NAVIGATION["follow_lost_timeout_s"] + 0.5)
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert cenario.nav.modo is ModoNavegacao.HOLD
+    assert any(e.topico == "navigation.target_lost" for e in cenario.eventos)
+    modos = [e.dados["modo"] for e in cenario.eventos if e.topico == "navigation.mode_changed"]
+    assert "HOLD" in modos  # o anuncio da troca sobreviveu
