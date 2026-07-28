@@ -53,6 +53,9 @@ class VisionCore:
         # sem precisar de camera/modelos de verdade.
         self._event_bus = event_bus
         self._captura = captura or CapturaCamera(indice=indice_camera, espelhado=camera_espelhada)
+        #: Quem quer ver os frames sem abrir a camera (EDR-0023 s.3: so o
+        #: dono da camera tem o frame). Hoje: o detector de gestos.
+        self._observadores_de_frame: list = []
         # modelo_yolo vem do orion.yaml (vision.yolo_model). Antes o nome do
         # modelo ficava fixo no default do DetectorYolo e a config era
         # ignorada - configuracao morta, contra a regra 6 do CLAUDE.md.
@@ -99,6 +102,16 @@ class VisionCore:
             )
             raise
 
+    def registrar_observador_de_frame(self, callback) -> None:
+        """Recebe cada frame lido, sem abrir um segundo leitor do device.
+
+        Existe porque o EDR-0023 fez o ModuloVisao dono da camera, e o
+        detector de gestos - que ANTES era a fonte de frames da casa - ficou
+        orfao: a classe existia, com testes e modelo baixado, e nunca era
+        instanciada. Nenhum gesto chegou a ser produzido em producao.
+        """
+        self._observadores_de_frame.append(callback)
+
     async def processar_um_frame(self):
         """Uma iteracao do pipeline (Cap 8 s.3). Retorna o frame lido (BGR,
         formato OpenCV) - util para quem quiser exibir/depurar."""
@@ -115,6 +128,16 @@ class VisionCore:
                 "vision.camera_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
             )
             raise
+
+        # Observadores do frame (EDR-0023 s.3: só o dono da câmera tem o
+        # frame). Existe para o detector de gestos poder trabalhar sem abrir
+        # um segundo leitor do dispositivo. Falha de observador NUNCA derruba
+        # a visão - é acessório reagindo a um frame que já foi lido.
+        for observador in self._observadores_de_frame:
+            try:
+                await observador(frame)
+            except Exception:
+                logger.debug("observador de frame falhou", exc_info=True)
 
         deteccoes = await self._detector.detectar(frame)
         pessoas_detectadas = DetectorYolo.pessoas(deteccoes)

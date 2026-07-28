@@ -64,6 +64,7 @@ class ModuloVisao:
         # camera - "sem imagem" nao e o mesmo que "modulo quebrado".
         await self._carregar_familia()
         self._ligar_sentinela()
+        await self._ligar_gestos()
         self._tarefa = asyncio.create_task(self._nucleo.executar())
         logger.info("Vision Core ativo (dono da camera %s)", self._conf["camera_indice_principal"])
 
@@ -87,6 +88,26 @@ class ModuloVisao:
             return
         self._nucleo.carregar_pessoas_conhecidas(conhecidos)
         logger.info("Vision Core: %d rosto(s) conhecido(s) carregado(s)", len(conhecidos))
+
+    async def _ligar_gestos(self) -> None:
+        """Gestos de mao alimentados pelos frames de quem ja le a camera.
+
+        Ate 2026-07-28 o LacoGestos nao era instanciado em lugar NENHUM do
+        projeto - ele nasceu (20/07) como dono da camera, e o EDR-0023 passou
+        esse papel para ca sem trazer os gestos junto. Resultado: modelo
+        baixado, testes passando, e nenhum gesto jamais produzido.
+
+        Falhar aqui nao pode derrubar a visao: gesto e acessorio.
+        """
+        from orion.vision.gestos import LacoGestos
+
+        try:
+            laco = LacoGestos(self._event_bus, captura=None)
+            if await laco.preparar():
+                self._nucleo.registrar_observador_de_frame(laco.processar_frame)
+                self._gestos = laco
+        except Exception:
+            logger.exception(Gestos indisponiveis - visao segue sem eles)
 
     def _ligar_sentinela(self) -> None:
         """A Sentinela agora e uma ouvinte dos eventos do Vision Core.

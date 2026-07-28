@@ -329,6 +329,12 @@ async def principal() -> None:
     # Pi, onde a Vigília (maestro) assume.
     bus.subscribe("sentinela.alerta", _repassar_ao_pi)
 
+    # Gestos nascem aqui (camera + MediaPipe rodam no Notebook) e o maestro
+    # que reage a eles roda no Pi. Sem este repasse o evento ficava preso no
+    # barramento do Notebook - a mesma familia de bug de "publicar no vazio"
+    # que ja mordeu 3 vezes: publicar nunca falha, entao nada denuncia.
+    bus.subscribe("gesto.detectado", _repassar_ao_pi)
+
     # Presenca de pessoa para o Pi: o comportamento AcompanharPessoa (segura a
     # cabeca enquanto a visao rastreia) e o EstadoDoMundo (contexto que a IA
     # le) dependem disto.

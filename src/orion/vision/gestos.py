@@ -204,22 +204,22 @@ class LacoGestos:
         except Exception:
             logger.exception("Gestos desativados: erro no laço")
 
-    async def _executar(self) -> None:
+    async def preparar(self) -> bool:
+        """Carrega o MediaPipe e o modelo, SEM abrir câmera.
+
+        Separado de `_executar` em 2026-07-28 para o laço poder ser
+        alimentado por quem já é dono da câmera (o `ModuloVisao`, EDR-0023),
+        em vez de disputar o dispositivo. Devolve False se faltar alguma
+        peça - gesto é acessório, nunca derruba a visão nem a conversa.
+        """
         try:
-            import cv2
             import mediapipe as mp
             from mediapipe.tasks import python as mp_python
             from mediapipe.tasks.python import vision as mp_vision
         except ImportError:
             logger.warning("Gestos desativados: mediapipe/cv2 não instalados")
-            return
+            return False
         self._mp = mp
-
-        try:
-            await self._captura.abrir()
-        except Exception:
-            logger.warning("Gestos desativados: câmera indisponível", exc_info=True)
-            return
 
         # API nova (Tasks, mediapipe >= 0.10.x): precisa do arquivo de
         # modelo baixado (data/modelos/hand_landmarker.task, ~7,8 MB - ver
@@ -239,10 +239,47 @@ class LacoGestos:
             logger.exception(
                 "Gestos desativados: falha ao carregar o modelo %s", self._caminho_modelo
             )
-            await self._captura.fechar()
+            return False
+        logger.info("Gestos ativos: joinha = SIM, mão aberta balançando = VEM CÁ")
+        return True
+
+    async def processar_frame(self, frame_bgr) -> None:
+        """Um quadro vindo de FORA (do dono da câmera).
+
+        Respeita o `intervalo_s` por conta própria: o laço da visão roda bem
+        mais rápido que os ~5 fps que o gesto precisa, e rodar o MediaPipe em
+        todo quadro da visão só queimaria CPU do Notebook.
+
+        Nunca deixa exceção subir: quem chama é o laço da visão, e derrubar a
+        visão por causa de um gesto seria trocar o essencial pelo acessório.
+        """
+        if self._maos is None:
+            return
+        agora = time.monotonic()
+        if agora - self.momento_ultimo_frame < self._intervalo_s:
+            return
+        try:
+            import cv2
+
+            await self._analisar(cv2, frame_bgr)
+        except Exception:
+            logger.debug("falha ao processar frame de gesto", exc_info=True)
+
+    async def _executar(self) -> None:
+        try:
+            import cv2
+        except ImportError:
+            logger.warning("Gestos desativados: cv2 não instalado")
+            return
+        if not await self.preparar():
             return
 
-        logger.info("Gestos ativos: joinha = SIM, indicador balançando = NÃO")
+        try:
+            await self._captura.abrir()
+        except Exception:
+            logger.warning("Gestos desativados: câmera indisponível", exc_info=True)
+            return
+
         try:
             while True:
                 inicio = time.monotonic()
@@ -261,6 +298,9 @@ class LacoGestos:
             logger.debug("falha ao ler frame (gestos)", exc_info=True)
             await asyncio.sleep(1.0)
             return
+        await self._analisar(cv2, frame_bgr)
+
+    async def _analisar(self, cv2, frame_bgr) -> None:
         self.ultimo_frame_bgr = frame_bgr
         self.momento_ultimo_frame = time.monotonic()
 
@@ -278,8 +318,16 @@ class LacoGestos:
 
         gesto = self._detector.alimentar(pontos)
         if gesto is not None:
-            logger.info("GESTO detectado: %s", gesto.upper())
-            await self._event_bus.publish("gesto.detectado", {"tipo": gesto})
+            # ONDE a mão estava importa tanto quanto o gesto: sem isso o robô
+            # sabe que foi chamado e não sabe para que lado virar. Ponto 9
+            # (base do dedo médio) = centro da palma, o mais estável da mão.
+            # Mesma convenção do `vision.person_recognized`: 0..1 no quadro,
+            # 0.5 é o centro.
+            centro_x = pontos[9][0] if pontos else 0.5
+            logger.info("GESTO detectado: %s (centro_x=%.2f)", gesto.upper(), centro_x)
+            await self._event_bus.publish(
+                "gesto.detectado", {"tipo": gesto, "centro_x": centro_x}
+            )
 
 
 class CameraCompartilhada:
