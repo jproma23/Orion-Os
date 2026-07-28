@@ -89,6 +89,89 @@ class Ronda(Comportamento):
             self._reavaliar()
 
 
+class AcompanharPessoa(Comportamento):
+    """Segurar o controle enquanto a visão está rastreando alguém (prio 45).
+
+    NÃO comanda o pan/tilt: quem move o servo é o Vision Core, no Notebook,
+    que calcula a correção quadro a quadro. Este comportamento existe só para
+    IMPEDIR que outro comportamento mexa na cabeça no meio do rastreamento.
+
+    Sem ele o sintoma era exatamente "segue e depois se perde" (relatado em
+    2026-07-28): `Repouso` publica `pan=0, tilt=0` toda vez que ASSUME, e o
+    maestro volta ao repouso a cada preempção da vigilância de obstáculo -
+    que pisca sozinha quando há qualquer coisa à frente. A cada volta a
+    cabeça era recentrada por baixo do rastreamento, a pessoa saía do quadro
+    e o alvo se perdia. Dois comandantes disputavam o mesmo servo sem
+    ninguém arbitrando; agora a disputa passa pelo maestro, como manda o
+    EDR-0020.
+
+    Prioridade 45: acima do que é DISCRICIONÁRIO (ronda 20, mentor 35, IA
+    estratégica 40 - esta última chega a varrer -60/+60 em `observar_ambiente`,
+    o que arrancaria a câmera de cima da pessoa), e abaixo do que é mais
+    importante que olhar alguém: vigília de rosto desconhecido (60), atender
+    o dono (80), controle manual (95) e segurança (100).
+
+    Gatilhos vêm do Notebook: vision.person_detected e vision.person_lost.
+    Eles SÓ chegam aqui porque `conversar_fofao.py` os encaminha - até
+    2026-07-28 não encaminhava, e todo assinante de visão no Pi (inclusive
+    o EstadoDoMundo) esperava por um evento que nunca vinha.
+    """
+
+    nome = "acompanhar_pessoa"
+    prioridade = 45
+
+    #: Solta a cabeça se parar de chegar notícia de pessoa por este tempo.
+    #: NÃO depende de `vision.person_lost` chegar: aquele evento só é
+    #: publicado se o rastreador chegou a CONFIRMAR um alvo (3 quadros), então
+    #: uma detecção que nunca confirma não gera "perdi" nenhum. Sem este
+    #: timeout o comportamento seguraria a cabeça para sempre e o Repouso
+    #: nunca mais nivelaria - troca de um bug por outro pior.
+    TIMEOUT_SEM_NOTICIA_S = 3.0
+
+    def __init__(self, event_bus: EventBus, timeout_s: float | None = None) -> None:
+        super().__init__(event_bus)
+        self._timeout_s = timeout_s if timeout_s is not None else self.TIMEOUT_SEM_NOTICIA_S
+        self._vendo = False
+        self._ultimo_visto = 0.0
+        event_bus.subscribe("vision.person_detected", self._ao_ver)
+        event_bus.subscribe("vision.person_lost", self._ao_perder)
+
+    async def _ao_ver(self, evento: Evento) -> None:
+        self._ultimo_visto = time.monotonic()
+        if not self._vendo:
+            self._vendo = True
+            self._reavaliar()
+
+    async def _ao_perder(self, evento: Evento) -> None:
+        # Caminho rápido: a visão avisou que perdeu, não espera o timeout.
+        if self._vendo:
+            self._vendo = False
+            self._reavaliar()
+
+    def quer_rodar(self) -> bool:
+        return self._vendo
+
+    async def executar(self) -> None:
+        await self._event_bus.publish("behavior.status", {"estado": "acompanhando"})
+        logger.info("maestro: acompanhando pessoa - cabeça entregue à visão")
+        try:
+            while True:
+                await asyncio.sleep(0.5)
+                if time.monotonic() - self._ultimo_visto > self._timeout_s:
+                    logger.info(
+                        "maestro: %.1fs sem notícia de pessoa - soltando a cabeça",
+                        self._timeout_s,
+                    )
+                    self._vendo = False
+                    self._reavaliar()
+                    return
+        except asyncio.CancelledError:
+            # Ao soltar o controle o Repouso assume e nivela a cabeça - que é
+            # o comportamento certo quando não há mais ninguém para seguir.
+            logger.info("maestro: parei de acompanhar - cabeça volta ao maestro")
+            raise
+
+
 class Atender(Comportamento):
     """Atender o dono (prio 80): quando alguém chama "Fofão", o robô para o
     que estava fazendo e fica à disposição até a resposta terminar. A

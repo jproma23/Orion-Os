@@ -34,6 +34,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 _RAIZ_PROJETO = Path(__file__).resolve().parent.parent
@@ -327,6 +328,45 @@ async def principal() -> None:
     # alerta de rosto desconhecido nasce aqui (Sentinela de visão) e vai ao
     # Pi, onde a Vigília (maestro) assume.
     bus.subscribe("sentinela.alerta", _repassar_ao_pi)
+
+    # Presenca de pessoa para o Pi: o comportamento AcompanharPessoa (segura a
+    # cabeca enquanto a visao rastreia) e o EstadoDoMundo (contexto que a IA
+    # le) dependem disto.
+    #
+    # Ate 2026-07-28 NADA de visao era encaminhado. O EstadoDoMundo do Pi
+    # assinava vision.person_detected/vision.person_lost e nunca recebia nada,
+    # entao `pessoa_presente` era sempre falso e o conselheiro decidia como se
+    # a sala estivesse permanentemente vazia - sem nenhum erro no log, porque
+    # assinar um topico que ninguem publica nao falha.
+    #
+    # ESTRANGULADO A 1/s DE PROPOSITO: vision.person_detected e publicado uma
+    # vez POR PESSOA POR QUADRO (ate 15x/s). Despejar isso no link TCP afogaria
+    # o enlace e atrasaria os heartbeats - que e exatamente como o sistema
+    # detecta falha, e o mesmo erro que a telemetria completa cometeu com o
+    # ultrassom (docs/journal.md, 2026-07-27). Quem precisa do dado quer saber
+    # "tem alguem ai?", nao a caixa de cada quadro.
+    #
+    # vision.person_lost NAO e estrangulado: ele ja e publicado uma unica vez,
+    # na transicao, e atrasar "perdi a pessoa" e pior que atrasar "ainda esta
+    # aqui".
+    INTERVALO_PRESENCA_S = 1.0
+    ultimo_repasse_presenca = {"ts": 0.0}
+
+    async def _repassar_presenca(evento) -> None:
+        agora = time.monotonic()
+        if agora - ultimo_repasse_presenca["ts"] < INTERVALO_PRESENCA_S:
+            return
+        ultimo_repasse_presenca["ts"] = agora
+        await _repassar_ao_pi(evento)
+
+    async def _repassar_perda(evento) -> None:
+        # Zera o estrangulador: a proxima pessoa que aparecer deve chegar ao
+        # Pi na hora, sem esperar o intervalo da deteccao anterior.
+        ultimo_repasse_presenca["ts"] = 0.0
+        await _repassar_ao_pi(evento)
+
+    bus.subscribe("vision.person_detected", _repassar_presenca)
+    bus.subscribe("vision.person_lost", _repassar_perda)
 
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""

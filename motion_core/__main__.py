@@ -19,10 +19,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import time
 from pathlib import Path
 
 from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
+    AcompanharPessoa,
     Atender,
     ControleManual,
     IaEstrategica,
@@ -323,6 +325,58 @@ async def principal() -> None:
     event_bus.subscribe(TOPICO_PEDIDO_ALIVIO, _repassar_ao_notebook)
     event_bus.subscribe(TOPICO_RECUPERADO, _repassar_ao_notebook)
 
+    # Pan/tilt vindo dos COMPORTAMENTOS (Repouso nivela a cabeca em 0,0;
+    # ObservarAmbiente varre -60 -> +60 -> 0). Eles publicam `motion.pan_tilt`
+    # no barramento do Pi e, ate 2026-07-28, NINGUEM assinava esse topico
+    # aqui - o mesmo "publicar no vazio" do guardiao de RAM logo acima, e
+    # publicar evento nao falha, entao nada denunciava.
+    #
+    # O sintoma foi caro: com a camera apontada para uma parede o robo nao
+    # tinha COMO se desvirar. O unico emissor real de SET_PAN_TILT era o
+    # Vision Core do Notebook, que so manda quando JA esta rastreando alguem
+    # - e ele nao via ninguem justamente por estar olhando para a parede.
+    # A varredura que existia para resolver isso publicava no vazio.
+    #
+    # O log ainda mentia junto: Repouso escreve "cabeca nivelada" com
+    # logger.info ao lado de um publish que ninguem consumia, afirmando uma
+    # acao que nunca acontecia.
+    #
+    # Metade deste fio ja tinha sido ligada em 2026-07-25, no lado da visao
+    # (src/orion/vision/modulo.py `_mover_servos`); esta e a outra metade.
+    # Limitador de taxa igual ao de la e pelo mesmo motivo medido: um comando
+    # por quadro afoga a serial e atrasa os heartbeats, que e justamente como
+    # o sistema detecta falha.
+    ultimo_pan_tilt: dict[str, float | None] = {"ts": 0.0, "pan": None, "tilt": None}
+
+    async def _mover_servos_do_maestro(evento: Evento) -> None:
+        pan = float(evento.dados.get("pan", 0.0))
+        tilt = float(evento.dados.get("tilt", 0.0))
+        agora = time.monotonic()
+        if agora - float(ultimo_pan_tilt["ts"] or 0.0) < 0.15:
+            return
+        anterior_pan, anterior_tilt = ultimo_pan_tilt["pan"], ultimo_pan_tilt["tilt"]
+        if (
+            anterior_pan is not None
+            and anterior_tilt is not None
+            and abs(pan - anterior_pan) < 1.0
+            and abs(tilt - anterior_tilt) < 1.0
+        ):
+            return
+        ultimo_pan_tilt.update(ts=agora, pan=pan, tilt=tilt)
+        try:
+            await comm.send(
+                "hardware_core",
+                {"comando": "SET_PAN_TILT", "pan_graus": pan, "tilt_graus": tilt},
+            )
+        except ErroComunicacao:
+            # Mega ausente nao derruba o maestro (Cap 6 s.8), mas isto vai em
+            # WARNING e NAO em debug de proposito: foi exatamente um
+            # `logger.debug` que escondeu esta mesma classe de falha no lado
+            # da visao - o servo nao se mexia e o log ficava limpo.
+            logger.warning("nao consegui mover o pan/tilt (pan=%.1f tilt=%.1f)", pan, tilt)
+
+    event_bus.subscribe("motion.pan_tilt", _mover_servos_do_maestro)
+
     maestro = BehaviorCore(
         event_bus,
         ponte_conselho=ponte_conselho,
@@ -333,6 +387,9 @@ async def principal() -> None:
     # Discricionario: e entre este e o repouso que a IA opina (EDR-0020).
     maestro.registrar(Ronda(event_bus), discricionario=True)
     maestro.registrar(Atender(event_bus))
+    # Segura a cabeça enquanto a visão rastreia alguém, para o Repouso não
+    # recentrar o pan/tilt por baixo do rastreamento (2026-07-28).
+    maestro.registrar(AcompanharPessoa(event_bus))
     maestro.registrar(Vigilia(event_bus, config.secao("behavior")["vigilia"]["duracao_alerta_s"]))
     maestro.registrar(ControleManual(event_bus))
     maestro.registrar(VigilanciaObstaculo(event_bus))
