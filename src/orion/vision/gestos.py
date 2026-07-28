@@ -97,12 +97,25 @@ class DetectorGestos:
     Depois de emitir, um cooldown segura repetições (criança adora repetir).
     """
 
+    #: A janela de 1,6s do projeto original (20/07) assumia ~5 quadros/s,
+    #: quando o LacoGestos tinha camera propria. Ao passar a consumir os
+    #: frames do VisionCore (2026-07-28) o ritmo real caiu para ~1,65 q/s -
+    #: medido: 738 quadros em 448s. Nessa cadencia a janela de 1,6s comporta
+    #: 2,6 quadros, e o balanco exige 4 para ter duas trocas de direcao:
+    #: virou MATEMATICAMENTE impossivel disparar. Sintoma relatado pelo
+    #: usuario: \"fiz varias vezes e nada\".
+    #:
+    #: Com 4s o gesto disparou de ponta a ponta pela primeira vez (28/07).
+    #:
+    #: LICAO: estes limiares sao contados em QUADROS, entao dependem do ritmo
+    #: de quem alimenta o detector. Se a fonte de frames mudar de velocidade,
+    #: eles precisam ser revistos junto.
     def __init__(
         self,
-        janela_s: float = 1.6,
+        janela_s: float = 4.0,
         amplitude_minima: float = 0.03,
         balancos_minimos: int = 2,
-        frames_joinha: int = 3,
+        frames_joinha: int = 2,
         cooldown_s: float = 3.0,
     ) -> None:
         self._janela_s = janela_s
