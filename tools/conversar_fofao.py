@@ -63,6 +63,7 @@ from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
+from orion.voice.ouvidos_esp32 import OuvidosESP32  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
 from orion.voice.vad import DetectorAtividadeSonora  # noqa: E402
@@ -164,10 +165,47 @@ async def principal() -> None:
     seletor = SeletorMicrofone(secao_voz["microfones_candidatos_indices"])
     indice_mic = await seletor.escolher_melhor()
 
+    # OS OUVIDOS DE VERDADE: os dois mics I2S no ESP32, por WiFi (2026-07-29).
+    #
+    # Ate hoje o ESP32 transmitia e NINGUEM lia - o robo escutava uma placa
+    # local do Notebook enquanto o dono falava no ESP32. O microfone local fica
+    # como RESERVA, nao como principal: se o ESP32 nao aparecer, e melhor um
+    # ouvido paliativo que nenhum (Cap 6 s.8).
+    ouvidos_esp32 = None
+    gravar_audio = None
+    conf_ouvidos = secao_voz.get("ouvidos_esp32") or {}
+    if conf_ouvidos.get("habilitado"):
+        ouvidos_esp32 = OuvidosESP32(conf_ouvidos["host"], conf_ouvidos["porta"])
+        await ouvidos_esp32.iniciar()
+        # Espera curta e ATIVA: `iniciar` nao levanta se o ESP32 estiver
+        # ausente (ele pode aparecer depois), entao aqui se decide com quem
+        # subir. A reconexao segue tentando em segundo plano nos dois casos.
+        limite = time.monotonic() + float(conf_ouvidos.get("timeout_boot_s", 6.0))
+        while not ouvidos_esp32.conectado and time.monotonic() < limite:
+            await asyncio.sleep(0.2)
+        if ouvidos_esp32.conectado:
+            gravar_audio = ouvidos_esp32.gravar
+            logger.info(
+                "OUVIDOS: os dois mics I2S do ESP32 (%s:%d)",
+                conf_ouvidos["host"], conf_ouvidos["porta"],
+            )
+        else:
+            logger.warning(
+                "OUVIDOS: ESP32 (%s:%d) nao respondeu - caindo para o microfone "
+                "local %d. Ele assume sozinho quando aparecer? NAO: e preciso "
+                "reiniciar, porque a fonte e escolhida aqui, uma vez.",
+                conf_ouvidos["host"], conf_ouvidos["porta"], indice_mic,
+            )
+
+    # Freios contra invencao (ver transcricao.py). `.get` com default para nao
+    # quebrar um orion.yaml mais antigo que ainda nao tenha a secao.
+    conf_transcricao = secao_voz.get("transcricao") or {}
     logger.info("Carregando Whisper '%s' (a primeira vez demora)...", secao_voz["whisper_model"])
-    transcritor = TranscritorComLog(modelo=secao_voz["whisper_model"])
+    transcritor = TranscritorComLog(modelo=secao_voz["whisper_model"], **conf_transcricao)
     logger.info("Carregando Whisper '%s' (vigia da wake word)...", secao_voz["whisper_model_ativacao"])
-    transcritor_ativacao = TranscritorComLog(modelo=secao_voz["whisper_model_ativacao"])
+    transcritor_ativacao = TranscritorComLog(
+        modelo=secao_voz["whisper_model_ativacao"], **conf_transcricao
+    )
 
     sintetizador = Sintetizador(
         secao_voz["piper_voice_path"],
@@ -489,6 +527,10 @@ async def principal() -> None:
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
         detector_atividade=detector_atividade,
+        # None = usa `indice_microfone` (o mic local). Preenchido quando os
+        # ouvidos do ESP32 responderam - a assinatura e a mesma, por isso o
+        # VoiceCore nao precisa saber de onde vem o som.
+        gravar_audio=gravar_audio,
     )
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
@@ -608,6 +650,11 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
+        # Fecha o socket dos ouvidos e mata a tarefa de drenagem. Sem isto
+        # ficaria uma tarefa órfã tentando reconectar para sempre - o mesmo
+        # defeito que a `tarefa_mentor` teve no Motion Core.
+        if ouvidos_esp32 is not None:
+            await ouvidos_esp32.encerrar()
         await modulo_visao.encerrar()
         tarefa_link.cancel()
         heartbeat.parar()

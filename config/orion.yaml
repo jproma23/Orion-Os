@@ -252,6 +252,57 @@ voice:
   # Como reconferir: .venv/bin/python -c "import sounddevice as sd; print(sd.query_devices())"
   # e pegar o que tem max_input_channels > 0 E nome de hardware real.
   microfones_candidatos_indices: [3, 4, 5]
+  # PORTAO ANTI-INVENCAO do Whisper (2026-07-29). Pedido do dono: "quando o
+  # whisper nao entende ele inventa, isso e ruim" - e ele tem razao. Um
+  # transcritor que fabrica e PIOR que um que cala, porque o robo AGE sobre a
+  # invencao: decide, fala e se move a partir de uma frase que ninguem disse.
+  #
+  # Medido no mesmo dia: sobre ruido sem voz, este Whisper devolveu
+  # 'O que e isso? O que e isso?' - frase gravada no banco desde 25/07. Ele
+  # repetiu o passado, e a causa e o default `condition_on_previous_text=True`
+  # da lib, agora desligado no codigo.
+  #
+  # Ate hoje a chamada era `transcribe(audio, language="pt")` e nada mais:
+  # todos os freios que a lib oferece estavam desligados.
+  transcricao:
+    # Silero corta o que nao e fala ANTES de o modelo ver. Sem ruido para
+    # interpretar, nao ha o que inventar. E o freio mais eficaz.
+    vad_filter: true
+    # Acima disto o proprio modelo diz "isto nao e fala" - segmento descartado.
+    no_speech_threshold: 0.6
+    # Log-probabilidade media por token; abaixo disto ele esta adivinhando.
+    log_prob_threshold: -1.0
+    # Texto repetitivo em laco tem razao de compressao alta - assinatura
+    # classica da alucinacao.
+    compression_ratio_threshold: 2.4
+    # Diz ao modelo que esta palavra e esperada. Nao inventa nada: desempata
+    # a favor dela quando o som esta no limite.
+    hotwords: "Fofao"
+  # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
+  # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
+  #
+  # Ligado em 2026-07-29. Antes desta data o ESP32 transmitia corretamente -
+  # medido, 768000 bytes em exatos 12,0 s - e NENHUMA LINHA do orion-os lia
+  # esse socket: `grep` por "esp32", "9100" e "ouvidos" no projeto dava zero.
+  # O robo ouvia os `microfones_candidatos_indices` acima, que sao placas
+  # locais do Notebook, enquanto o dono falava no ESP32. Estava surdo por dois
+  # caminhos ao mesmo tempo: a fonte certa sem leitor e o leitor na fonte
+  # errada.
+  #
+  # `host` e NOME, nao IP, de proposito: o IP muda. Em 2026-07-29 o
+  # 10.20.20.101 anotado no journal ja era o celular de alguem, e o ESP32
+  # estava no .104 - quem procura por IP fixo encontra o aparelho errado.
+  #
+  # `habilitado: false` volta para os microfones locais sem tocar em codigo.
+  ouvidos_esp32:
+    habilitado: true
+    host: "ouvidos.local"
+    porta: 9100
+    # Quanto se espera o ESP32 aparecer no boot antes de cair para o
+    # microfone local. Curto: se ele nao esta na rede agora, e melhor subir
+    # com o mic paliativo do que atrasar o robo inteiro - e a reconexao
+    # continua tentando em segundo plano de qualquer forma.
+    timeout_boot_s: 6.0
   # Portao de atividade sonora (VAD) na frente do Whisper de vigilancia
   # (src/orion/voice/vad.py): janela de escuta sem som acima do ruido de
   # fundo nao e transcrita - poupa a CPU que o Whisper continuo consumia
