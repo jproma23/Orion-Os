@@ -35,6 +35,7 @@ from motion_core.behavior.comportamentos import (
     VigilanciaObstaculo,
 )
 from motion_core.behavior.estado_do_mundo import EstadoDoMundo
+from motion_core.behavior.instintos import InstintoBussola
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.behavior.ponte_conselho import PonteConselhoIA
 from orion.mission.alivio_carga import TOPICO_PEDIDO_ALIVIO, TOPICO_RECUPERADO
@@ -282,6 +283,22 @@ async def principal() -> None:
     # Modelo de mundo: um retrato unico que o conselheiro de IA le para
     # opinar com o quadro inteiro em vez de sinais soltos.
     mundo = EstadoDoMundo(event_bus)
+
+    # Instinto da bussola: percebe que o rumo esta oscilando demais com o robo
+    # parado e avisa que nao da para confiar nele. Assina a telemetria; nao
+    # tem task propria. Ver motion_core/behavior/instintos.py para por que
+    # isto nasceu (o fio do servo do radar solto, em 2026-07-29, com o
+    # firmware reportando angulo com total confianca).
+    conf_bussola = config.secao("behavior").get("bussola") or {}
+    if conf_bussola:
+        InstintoBussola(
+            event_bus,
+            dispersao_maxima_graus=conf_bussola["dispersao_maxima_graus"],
+            amostras=conf_bussola["amostras"],
+            tentativas_max=conf_bussola["tentativas_max"],
+            intervalo_minimo_s=conf_bussola["intervalo_minimo_s"],
+            pedir_calibracao=conf_bussola["pedir_calibracao"],
+        )
 
     # Conselheiro de IA: desligado por padrao (ver config/orion.yaml,
     # behavior.conselho_ia) - a inferencia local saturava a CPU do Notebook

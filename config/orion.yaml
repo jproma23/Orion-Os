@@ -373,6 +373,31 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
   # orienta-se para a origem, pede foto e notifica - antes de liberar.
   vigilia:
     duracao_alerta_s: 8
+  # INSTINTOS (2026-07-29, ideia do mantenedor): o robo olha para o proprio
+  # sensor e diz se da para confiar, ANTES de decidir qualquer coisa com ele.
+  #
+  # A calibracao da bussola e gravada na EEPROM do Mega e sobrevive a reset -
+  # calibra-se UMA vez por montagem. Este instinto nao recalibra de tempos em
+  # tempos; ele percebe que a calibracao GUARDADA deixou de valer (bussola
+  # movida, metal novo por perto, chassi trocado).
+  bussola:
+    # Limiar arbitrado pelo mantenedor: metade da oscilacao medida em
+    # 2026-07-29 com a bussola SEM calibrar (8,18 e 12,36 graus de dispersao,
+    # robo parado, motores desligados). Acerta no caso conhecido - hoje o
+    # instinto dispararia, corretamente.
+    #
+    # O QUE AINDA NAO SE SABE: se uma bussola CALIBRADA nesta montagem fica
+    # abaixo de 6. Ninguem mediu, porque o robo esta preso a cabos e nao pode
+    # girar. Por isso o valor vem acompanhado das travas abaixo - com elas, um
+    # limiar errado vira aviso repetido em vez de robo girando para sempre.
+    dispersao_maxima_graus: 6.0
+    amostras: 12                  # janela de medida, so com o robo parado
+    tentativas_max: 2             # depois disto, avisa e para de tentar
+    intervalo_minimo_s: 600       # 10 min entre tentativas de calibracao
+    # DESLIGADO por padrao: pedir calibracao faz o robo GIRAR 25 s sozinho.
+    # So ligar quando houver espaco confirmado em volta e o robo estiver solto
+    # (sem cabos) - hoje ele nao esta.
+    pedir_calibracao: false
   # Detector de rosto desconhecido (roda no Notebook, Cap 8): olha um frame
   # a cada intervalo_s; rosto que nao casa com a familia -> sentinela.alerta
   # + foto salva. cooldown_s evita repetir o alerta com o estranho no quadro.
