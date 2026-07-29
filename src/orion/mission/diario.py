@@ -72,7 +72,25 @@ class DiarioObservacoes:
         #: última vez que cada pessoa virou registro (nome -> datetime)
         self._ultimo_registro: dict[str, datetime] = {}
 
-        event_bus.subscribe("vision.person_detected", self._ao_ver_pessoa)
+        # `vision.person_recognized`, NAO `vision.person_detected` (corrigido
+        # em 2026-07-29).
+        #
+        # O BUG: `person_detected` e publicado para QUALQUER pessoa que o YOLO
+        # ve, e o payload real dele e `{classe, confianca, caixa, timestamp}` -
+        # nao tem `nome`. O nome so existe em `person_recognized`, que o Vision
+        # Core so publica quando o rosto casa com alguem cadastrado
+        # (vision_core.py: `if alvo.pessoa_id is not None`).
+        #
+        # Resultado: `nome` era sempre None, o `if not nome: return` abaixo
+        # disparava toda vez, e **nenhuma pessoa reconhecida jamais entrou no
+        # diario em producao**. O robo via o dono todo dia e o diario ficava
+        # vazio - e o grounding, honestamente, reportava "nao tenho registro".
+        #
+        # Por que nenhum teste pegou: eles publicavam um evento sintetico com
+        # `nome` dentro, um payload que o produtor real nunca emitiu. Dube e
+        # produtor com contratos diferentes - a mesma armadilha que deixou o
+        # FOLLOW morto em 2026-07-28.
+        event_bus.subscribe("vision.person_recognized", self._ao_ver_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
 
     # ----- escrita -----

@@ -252,3 +252,88 @@ async def test_registro_com_timestamp_corrompido_e_pulado() -> None:
     observacoes = await _diario(memoria).observacoes_de_hoje()
 
     assert [o["o_que"] for o in observacoes] == ["vi Ana"]
+
+
+# ----- o contrato com o PRODUTOR real (regressao de 2026-07-29) -----
+#
+# Os testes acima chamam `_ao_ver_pessoa` direto e montam o payload a mao.
+# Isso testa a logica interna, e passava com o diario ligado no topico ERRADO -
+# foi exatamente assim que o bug sobreviveu: o dube tinha um contrato que o
+# produtor real nunca cumpriu.
+#
+# Os daqui para baixo publicam PELO BARRAMENTO, com os payloads que o
+# `VisionCore.processar_um_frame` de fato emite. Se alguem trocar o topico
+# assinado, ou o Vision Core mudar o payload, eles quebram.
+
+
+def _payload_person_detected() -> dict:
+    """O que o VisionCore publica de verdade em vision.person_detected.
+
+    Copiado de src/orion/vision/vision_core.py - repare que NAO existe `nome`
+    aqui. Era esse o bug: o diario lia um campo que este evento nunca teve.
+    """
+    return {
+        "classe": "person",
+        "confianca": 0.91,
+        "caixa": (120, 80, 300, 460),
+        "timestamp": 1785321875.0,
+    }
+
+
+def _payload_person_recognized(nome: str = "João Paulo") -> dict:
+    """O que o VisionCore publica em vision.person_recognized - so quando o
+    rosto casa com alguem cadastrado (`if alvo.pessoa_id is not None`)."""
+    return {
+        "pessoa_id": 1,
+        "nome": nome,
+        "centro_x": 0.52,
+        "timestamp": 1785321875.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_pessoa_reconhecida_entra_no_diario_pelo_barramento() -> None:
+    """A REGRESSAO. Antes de 2026-07-29 o diario assinava
+    `vision.person_detected` e lia `nome` dali - campo que aquele evento nunca
+    carregou. Resultado: nenhuma pessoa reconhecida jamais entrou no diario em
+    producao, e o grounding reportava "nao tenho registro" com toda a razao.
+    """
+    import asyncio
+
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+    memoria = _MemoriaFalsa()
+    DiarioObservacoes(bus, memoria, agora=lambda: AGORA)
+
+    await bus.publish("vision.person_recognized", _payload_person_recognized())
+    await bus.aguardar_fila_vazia()
+
+    assert len(memoria.gravados) == 1, "o dono passou na frente do robo e nao foi registrado"
+    _, dados = memoria.gravados[0]
+    assert json.loads(dados["payload_json"])["nome"] == "João Paulo"
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_deteccao_sem_identidade_nao_vira_registro_pelo_barramento() -> None:
+    """Contraprova: ver "uma pessoa" sem saber quem e NAO e registro de visita.
+
+    Quem cuida de estranho e o alerta da sentinela; gravar nos dois lugares
+    faria a mesma pessoa contar como duas visitas.
+    """
+    import asyncio
+
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+    memoria = _MemoriaFalsa()
+    DiarioObservacoes(bus, memoria, agora=lambda: AGORA)
+
+    await bus.publish("vision.person_detected", _payload_person_detected())
+    await bus.aguardar_fila_vazia()
+
+    assert memoria.gravados == []
+
+    bus.parar()
+    await tarefa

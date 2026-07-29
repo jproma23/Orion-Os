@@ -126,20 +126,37 @@ async def test_bateria_so_aparece_quando_lida(mundo: EstadoDoMundo) -> None:
 
 @pytest.mark.asyncio
 async def test_pessoa_conhecida_e_desconhecida(mundo: EstadoDoMundo) -> None:
-    await mundo._ao_ver_pessoa(Evento("vision.person_detected", {"nome": "João Paulo"}))
+    """CORRIGIDO em 2026-07-29 - este teste protegia um bug.
+
+    A versão anterior publicava `vision.person_detected` com `{"nome": ...}`
+    dentro, e passava. Só que o `VisionCore` NUNCA emitiu `nome` nesse evento:
+    o payload real é `{classe, confianca, caixa, timestamp}`. O dublê cumpria
+    um contrato que o produtor não cumpria, e por isso ninguém percebia que
+    `pessoa_conhecida` era falso para todo mundo em produção, inclusive para
+    os donos da casa.
+
+    Agora cada evento responde só o que ele de fato responde: `person_detected`
+    diz que há ALGUÉM, `person_recognized` diz QUEM.
+    """
+    await mundo._ao_ver_pessoa(
+        Evento("vision.person_detected", {"classe": "person", "confianca": 0.9})
+    )
     r = mundo.retrato()
     assert r.pessoa_presente is True
+    assert r.pessoa_nome is None  # detecção não identifica
+    assert r.pessoa_conhecida is False
+
+    await mundo._ao_reconhecer_pessoa(
+        Evento("vision.person_recognized", {"pessoa_id": 1, "nome": "João Paulo"})
+    )
+    r = mundo.retrato()
     assert r.pessoa_nome == "João Paulo"
     assert r.pessoa_conhecida is True
-
-    # Rosto sem nome = não reconhecido.
-    await mundo._ao_ver_pessoa(Evento("vision.person_detected", {}))
-    assert mundo.retrato().pessoa_conhecida is False
 
 
 @pytest.mark.asyncio
 async def test_pessoa_perdida_some_na_hora(mundo: EstadoDoMundo) -> None:
-    await mundo._ao_ver_pessoa(Evento("vision.person_detected", {"nome": "Ana"}))
+    await mundo._ao_reconhecer_pessoa(Evento("vision.person_recognized", {"nome": "Ana"}))
     await mundo._ao_perder_pessoa(Evento("vision.person_lost", {}))
     assert mundo.retrato().pessoa_presente is None
 
@@ -212,3 +229,63 @@ async def test_medida_real_aparece_no_retrato():
     )
 
     assert mundo.retrato().obstaculo_frente_cm == 34.0
+
+
+# ----- quem esta na frente do robo, e nao so que ha alguem (2026-07-29) -----
+
+
+@pytest.mark.asyncio
+async def test_pessoa_detectada_sem_identidade_nao_vira_conhecida():
+    """`vision.person_detected` nao carrega `nome` - o payload real e
+    `{classe, confianca, caixa, timestamp}`. Ate 2026-07-29 o EstadoDoMundo
+    lia `nome` dali, entao `pessoa_conhecida` era falso para TODO MUNDO,
+    inclusive para os donos da casa."""
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+
+    await mundo._ao_ver_pessoa(
+        Evento(
+            topico="vision.person_detected",
+            dados={"classe": "person", "confianca": 0.91, "caixa": (1, 2, 3, 4)},
+        )
+    )
+
+    retrato = mundo.retrato()
+    assert retrato.pessoa_presente is True
+    assert retrato.pessoa_nome is None
+    assert retrato.pessoa_conhecida is False
+
+
+@pytest.mark.asyncio
+async def test_pessoa_reconhecida_traz_o_nome():
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+
+    await mundo._ao_reconhecer_pessoa(
+        Evento(
+            topico="vision.person_recognized",
+            dados={"pessoa_id": 1, "nome": "João Paulo", "centro_x": 0.5},
+        )
+    )
+
+    retrato = mundo.retrato()
+    assert retrato.pessoa_nome == "João Paulo"
+    assert retrato.pessoa_conhecida is True
+
+
+@pytest.mark.asyncio
+async def test_deteccao_nao_apaga_a_identidade_ja_conhecida():
+    """A visao publica `person_detected` a cada quadro e `person_recognized` so
+    quando identifica. Se a deteccao sobrescrevesse o nome, o robo esqueceria
+    quem esta na frente dele ate 15 vezes por segundo."""
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+
+    await mundo._ao_reconhecer_pessoa(
+        Evento(topico="vision.person_recognized", dados={"nome": "Marah"})
+    )
+    await mundo._ao_ver_pessoa(
+        Evento(topico="vision.person_detected", dados={"classe": "person"})
+    )
+
+    assert mundo.retrato().pessoa_nome == "Marah"

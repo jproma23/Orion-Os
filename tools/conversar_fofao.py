@@ -374,6 +374,39 @@ async def principal() -> None:
     bus.subscribe("vision.person_detected", _repassar_presenca)
     bus.subscribe("vision.person_lost", _repassar_perda)
 
+    # QUEM e a pessoa - e nao so que ha uma. Ligado em 2026-07-29, e a falta
+    # dele deixava TRES coisas mortas ao mesmo tempo no Pi:
+    #
+    #   - FOLLOW: `NavigationCore._ao_reconhecer_pessoa` assina exatamente este
+    #     topico desde 2026-07-28, quando o modo foi corrigido para so andar
+    #     atras de gente RECONHECIDA. So que ninguem encaminhava o evento, e o
+    #     handler nunca rodou uma vez sequer. A correcao de 28/07 trocou o
+    #     assinante e esqueceu o produtor - o mesmo erro que ela mesma
+    #     consertava.
+    #   - `EstadoDoMundo.pessoa_conhecida`, que ficava falso ate para os donos
+    #     da casa, e a IA decidia achando que so entravam estranhos.
+    #   - o Diario, que so grava quem tem nome.
+    #
+    # Estrangulado como a presenca, e pelo mesmo motivo medido em 27/07: este
+    # evento sai uma vez por quadro rastreado (ate 15x/s) e despeja-lo no link
+    # TCP atrasa os heartbeats, que e como o sistema detecta falha.
+    #
+    # RESSALVA HONESTA: 1/s e grosseiro para o FOLLOW, que usa o `centro_x`
+    # daqui para decidir o giro - a 1 leitura por segundo o robo corrige a
+    # direcao devagar. Nao inventei um numero melhor porque nenhum foi medido;
+    # se o seguimento ficar lento na bancada, este e o numero a revisitar, com
+    # medicao e nao com palpite.
+    ultimo_repasse_identidade = {"ts": 0.0}
+
+    async def _repassar_identidade(evento) -> None:
+        agora = time.monotonic()
+        if agora - ultimo_repasse_identidade["ts"] < INTERVALO_PRESENCA_S:
+            return
+        ultimo_repasse_identidade["ts"] = agora
+        await _repassar_ao_pi(evento)
+
+    bus.subscribe("vision.person_recognized", _repassar_identidade)
+
     async def enviar_comando_hardware(comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
         assert comm is not None

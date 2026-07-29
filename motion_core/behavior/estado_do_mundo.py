@@ -128,7 +128,21 @@ class EstadoDoMundo:
         # Situação do Hardware Core (IDLE / OBSTACLE_DETECTED / SAFE_MODE...).
         event_bus.subscribe("motion.status", self._ao_receber_estado)
         # Mundo lá fora: visão roda no Notebook e chega encaminhada.
+        #
+        # DOIS eventos, de propósito (corrigido em 2026-07-29): eles respondem
+        # perguntas diferentes e só juntos dão o quadro.
+        #
+        #   person_detected   -> "tem ALGUÉM aí" (qualquer pessoa que o YOLO vê)
+        #   person_recognized -> "é o João Paulo" (só quando o rosto casa com
+        #                        alguém cadastrado)
+        #
+        # Até esta data só o primeiro era assinado, e `_ao_ver_pessoa` lia
+        # `evento.dados["nome"]` dele - campo que aquele evento NUNCA carregou
+        # (o payload real é `{classe, confianca, caixa, timestamp}`). Então
+        # `pessoa_conhecida` era falso para todo mundo, inclusive para os donos
+        # da casa, e a IA decidia achando que só entravam estranhos.
         event_bus.subscribe("vision.person_detected", self._ao_ver_pessoa)
+        event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("vision.person_lost", self._ao_perder_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
         # Interação por voz.
@@ -147,13 +161,26 @@ class EstadoDoMundo:
             self._estado_hardware.escrever(estado)
 
     async def _ao_ver_pessoa(self, evento: Evento) -> None:
+        """Alguém apareceu. Este evento NÃO diz quem - ver _ao_reconhecer_pessoa.
+
+        Não sobrescreve um nome já conhecido: a visão publica `person_detected`
+        a cada quadro para cada pessoa, e `person_recognized` só quando o rosto
+        é identificado. Se este handler apagasse o nome, a identidade duraria
+        um quadro e o robô esqueceria quem está na frente dele a 15 vezes por
+        segundo.
+        """
+        atual = self._pessoa.ler(VALIDADE_VISAO_S) or {}
         self._pessoa.escrever(
             {
-                "nome": evento.dados.get("nome"),
-                # Sem nome = rosto que a visão não reconheceu.
-                "conhecida": bool(evento.dados.get("nome")),
+                "nome": atual.get("nome"),
+                "conhecida": bool(atual.get("nome")),
             }
         )
+
+    async def _ao_reconhecer_pessoa(self, evento: Evento) -> None:
+        """Agora sim sabemos QUEM é - só este evento carrega `nome`."""
+        nome = evento.dados.get("nome")
+        self._pessoa.escrever({"nome": nome, "conhecida": bool(nome)})
 
     async def _ao_perder_pessoa(self, evento: Evento) -> None:
         # Vence na hora: sumiu de vista, não há mais ninguém presente.
