@@ -42,10 +42,39 @@ ORIGEM = "diario"
 #: Tipos gravados no diário. Nomes curtos porque vão para dentro do prompt.
 TIPO_PESSOA_VISTA = "pessoa_vista"
 TIPO_DESCONHECIDO = "desconhecido_visto"
+#: DIÁRIO AMPLO (2026-07-29, pedido do dono: *"um diário capaz de cobrir tudo
+#: o que possamos solicitar"*, junto com *"tem que ensinar a usar a câmera para
+#: ver o ambiente"*).
+#:
+#: `vision.object_detected` era publicado a cada quadro pelo Vision Core e
+#: NINGUÉM assinava - a câmera já classificava cadeira, copo, celular, e essa
+#: informação evaporava. Sem isto o robô convive com a casa todos os dias e não
+#: sabe dizer uma única coisa que existe nela.
+TIPO_OBJETO_VISTO = "objeto_visto"
+#: O que foi PEDIDO a ele. Sem isto ele não consegue responder "o que eu te
+#: pedi hoje?", nem perceber que já lhe pediram a mesma coisa três vezes.
+TIPO_PEDIDO_OUVIDO = "pedido_ouvido"
 
 #: Janela de silêncio por pessoa. Ver o João Paulo de novo 2 minutos depois
 #: não é fato novo - é a mesma presença continuando.
 JANELA_SILENCIO_S = 600.0
+
+#: Janela por CLASSE de objeto, e ela é longa de propósito.
+#:
+#: `vision.object_detected` dispara por objeto E por quadro: a 10 quadros por
+#: segundo com cinco coisas no campo de visão são 50 eventos por segundo. Sem
+#: uma janela larga o diário viraria um despejo de "vi uma cadeira" e empurraria
+#: tudo o que importa para fora da janela do prompt.
+#:
+#: Meia hora porque móvel é MÓVEL: a cadeira que ele viu às 14h continua sendo
+#: a mesma cadeira às 14h05. O fato novo é ver uma classe que ele ainda não
+#: tinha visto - e isso a janela por classe captura.
+JANELA_OBJETO_S = 1800.0
+
+#: Confiança mínima para um objeto valer registro. Abaixo disto o YOLO chuta, e
+#: um diário com chute é pior que um diário curto: a IA passa a afirmar que a
+#: casa tem coisas que nunca existiram.
+CONFIANCA_MINIMA_OBJETO = 0.60
 
 #: Teto de registros lidos para montar o contexto. O bloco vai inteiro para
 #: dentro do prompt de um modelo de 1B com janela pequena: melhor poucos
@@ -64,10 +93,12 @@ class DiarioObservacoes:
         janela_silencio_s: float = JANELA_SILENCIO_S,
         agora=None,
         apenas_leitura: bool = False,
+        janela_objeto_s: float = JANELA_OBJETO_S,
     ) -> None:
         self._bus = event_bus
         self._memoria = memory_client
         self._janela_silencio_s = janela_silencio_s
+        self._janela_objeto_s = janela_objeto_s
         # injetável para os testes não dependerem do relógio real
         self._agora = agora or datetime.now
         #: última vez que cada pessoa virou registro (nome -> datetime)
@@ -102,6 +133,20 @@ class DiarioObservacoes:
         # FOLLOW morto em 2026-07-28.
         event_bus.subscribe("vision.person_recognized", self._ao_ver_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
+        # Os DOIS abaixo rodam no Notebook, e o diário também - conferido antes
+        # de assinar. Assinar tópico que nunca chega é o defeito que mais se
+        # repete neste projeto, e ele não denuncia: `subscribe` não falha.
+        #
+        #   vision.object_detected  <- src/orion/vision/vision_core.py:200
+        #   voice.command_received  <- src/orion/voice/voice_core.py:165
+        #
+        # NÃO estão aqui, de propósito: `navigation.segment_completed` e
+        # `navigation.obstacle_avoided` ("andei 30 cm", "desviei de algo"), que
+        # seriam ótimos no diário mas são publicados no PI. Assiná-los aqui
+        # criaria exatamente o órfão descrito acima. Entram quando alguém
+        # encaminhar os dois pelo link - anotado, não fingido.
+        event_bus.subscribe("vision.object_detected", self._ao_ver_objeto)
+        event_bus.subscribe("voice.command_received", self._ao_ouvir_pedido)
 
     # ----- escrita -----
 
@@ -123,11 +168,38 @@ class DiarioObservacoes:
             return
         await self._gravar(TIPO_DESCONHECIDO, {})
 
-    def _passou_a_janela(self, chave: str) -> bool:
+    async def _ao_ver_objeto(self, evento: Evento) -> None:
+        """A câmera vendo o ambiente - móveis, objetos, o que existe na casa."""
+        classe = evento.dados.get("classe")
+        if not classe:
+            return
+        confianca = float(evento.dados.get("confianca") or 0.0)
+        if confianca < CONFIANCA_MINIMA_OBJETO:
+            return
+        # Janela POR CLASSE: ver a mesma cadeira de novo não é fato novo; ver
+        # uma classe inédita é.
+        if not self._passou_a_janela(f"objeto:{classe}", self._janela_objeto_s):
+            return
+        await self._gravar(TIPO_OBJETO_VISTO, {"classe": classe})
+
+    async def _ao_ouvir_pedido(self, evento: Evento) -> None:
+        """O que lhe pediram. Guardar o PEDIDO, não a resposta: é o pedido que
+        ele precisa lembrar para saber o que já lhe foi cobrado hoje."""
+        texto = (evento.dados.get("texto") or "").strip()
+        if not texto:
+            return  # "não entendi" não é pedido, e o portão do Whisper produz isso
+        # Dedup pelo próprio texto: repetir o comando porque ele não obedeceu
+        # da primeira vez não são dois pedidos diferentes.
+        if not self._passou_a_janela(f"pedido:{texto.lower()[:40]}"):
+            return
+        await self._gravar(TIPO_PEDIDO_OUVIDO, {"texto": texto[:120]})
+
+    def _passou_a_janela(self, chave: str, janela_s: float | None = None) -> bool:
         agora = self._agora()
+        limite = self._janela_silencio_s if janela_s is None else janela_s
         anterior = self._ultimo_registro.get(chave)
         if anterior is not None:
-            if (agora - anterior).total_seconds() < self._janela_silencio_s:
+            if (agora - anterior).total_seconds() < limite:
                 return False
         self._ultimo_registro[chave] = agora
         return True
@@ -235,6 +307,10 @@ def _descrever(registro: dict[str, Any]) -> str:
         return f"vi {dados.get('nome', 'alguém')}"
     if tipo == TIPO_DESCONHECIDO:
         return "vi uma pessoa que não reconheci"
+    if tipo == TIPO_OBJETO_VISTO:
+        return f"vi um objeto da classe '{dados.get('classe', '?')}' pela câmera"
+    if tipo == TIPO_PEDIDO_OUVIDO:
+        return f"me pediram: \"{dados.get('texto', '?')}\""
     return str(tipo)
 
 

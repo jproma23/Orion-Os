@@ -97,6 +97,7 @@ class MissionPlanner:
         enviar_comando_hardware: CallbackComandoHardware | None = None,
         memory_client: MemoryClient | None = None,
         diario=None,
+        familia: list[dict] | None = None,
     ) -> None:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
@@ -105,6 +106,15 @@ class MissionPlanner:
         # lista vazia e o robo responde "nao tenho registro de hoje" - que
         # e correto, so que ele nunca teria registro de nada.
         self._diario = diario
+        #: Quem sao as pessoas da casa e o que elas sao PARA ELE - vem da secao
+        #: `familia` do orion.yaml (Joao Paulo e o criador, Kamal e como um
+        #: irmao de 3 anos, Marah e como uma mae cuidadora).
+        #:
+        #: Ligado aqui em 2026-07-29 a pedido do dono ("poe contexto familiar
+        #: para entender tudo"). A secao ja chegava a IA que DECIDE (no Pi) e
+        #: NAO chegava a IA que CONVERSA - o robo decidia sabendo de quem se
+        #: tratava e conversava sem saber, com a mesma pessoa, no mesmo minuto.
+        self._familia = familia
 
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
@@ -126,6 +136,13 @@ class MissionPlanner:
 
     async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
         contexto: dict = {}
+
+        # A familia entra SEMPRE, e primeiro: nao depende de rede, de banco nem
+        # de diario, e e o que faz ele falar com uma pessoa em vez de com um
+        # usuario. Vem da config, entao nao ha por que arriscar perde-la numa
+        # falha de qualquer uma das consultas abaixo.
+        if self._familia:
+            contexto["familia"] = self._familia
 
         if self._memory_client is not None:
             try:

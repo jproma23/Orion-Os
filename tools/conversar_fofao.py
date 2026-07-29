@@ -476,6 +476,16 @@ async def principal() -> None:
     # planner le de volta para o grounding. Sem ele o bloco de observacoes
     # chegava sempre vazio - o robo era honesto por nao ter memoria, nao
     # por ter olhado.
+    # Quem vive nesta casa e o que cada um e PARA ELE. Carregado AQUI, antes
+    # de tudo o que consome: a saudacao, a conversa (MissionPlanner) e a IA
+    # estrategica usam a MESMA lista - uma fonte so, para o robo nao ter duas
+    # ideias de quem mora aqui.
+    try:
+        familia_conf = config.secao("familia")
+    except Exception:
+        familia_conf = []
+        logger.warning("secao `familia` ausente no orion.yaml - o robo fala sem saber de quem")
+
     diario = DiarioObservacoes(bus, MemoryClient(comm))
 
     planner = MissionPlanner(
@@ -483,6 +493,9 @@ async def principal() -> None:
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),
         diario=diario,
+        # A mesma `familia` que a saudacao e a IA estrategica usam - uma fonte
+        # so, para o robo nao ter duas ideias de quem vive nesta casa.
+        familia=familia_conf,
     )
 
     def limpar_para_fala(texto: str) -> str:
@@ -579,11 +592,6 @@ async def principal() -> None:
     # ver me cumprimentar"). So foi possivel hoje: ate esta sessao o nome da
     # pessoa nao chegava a lugar nenhum - o robo via o dono todo dia e
     # registrava "vi uma pessoa que nao reconheci".
-    try:
-        familia_conf = config.secao("familia")
-    except Exception:
-        familia_conf = []
-        logger.warning("secao `familia` ausente no orion.yaml - cumprimento generico")
     async def _compor_saudacao(
         nome: str, descricao: str, contexto: str, evitar: list[str]
     ) -> str:

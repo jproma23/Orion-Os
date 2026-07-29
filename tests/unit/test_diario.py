@@ -428,3 +428,126 @@ async def test_diario_normal_CONTINUA_gravando() -> None:
 
     bus.parar()
     tarefa.cancel()
+
+
+# ----- DIARIO AMPLO: a camera vendo o ambiente (2026-07-29) -----
+#
+# Pedido do dono: "um diario capaz de cobrir tudo o que possamos solicitar" e
+# "tem que ensinar a usar a camera pra ver o ambiente".
+#
+# `vision.object_detected` era publicado a cada quadro e NINGUEM assinava: a
+# camera classificava cadeira, copo, celular, e a informacao evaporava.
+#
+# O risco destes registros NAO e faltar - e INUNDAR. O evento sai por objeto E
+# por quadro: a 10 fps com 5 coisas no campo sao 50 por segundo.
+
+
+def _diario_amplo(memoria, agora=AGORA, **kw):
+    return DiarioObservacoes(EventBus(), memoria, agora=lambda: agora, **kw)
+
+
+@pytest.mark.asyncio
+async def test_objeto_visto_pela_camera_entra_no_diario() -> None:
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    await diario._ao_ver_objeto(Evento("vision.object_detected",
+                                       {"classe": "chair", "confianca": 0.91}))
+
+    assert len(memoria.gravados) == 1
+    assert memoria.gravados[0][1]["tipo"] == "objeto_visto"
+    assert "chair" in memoria.gravados[0][1]["payload_json"]
+
+
+@pytest.mark.asyncio
+async def test_mesma_classe_NAO_inunda_o_diario() -> None:
+    """O teste que mais importa: a mesma cadeira vista 60 vezes e UM registro.
+    Sem isto o prompt viraria um deposito de 'vi uma cadeira'."""
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    for _ in range(60):
+        await diario._ao_ver_objeto(Evento("vision.object_detected",
+                                           {"classe": "chair", "confianca": 0.9}))
+
+    assert len(memoria.gravados) == 1
+
+
+@pytest.mark.asyncio
+async def test_classes_DIFERENTES_sao_fatos_diferentes() -> None:
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    for classe in ("chair", "cup", "cell phone"):
+        await diario._ao_ver_objeto(Evento("vision.object_detected",
+                                           {"classe": classe, "confianca": 0.9}))
+
+    assert len(memoria.gravados) == 3
+
+
+@pytest.mark.asyncio
+async def test_objeto_com_confianca_BAIXA_e_ignorado() -> None:
+    """Diario com chute e pior que diario curto: a IA passaria a afirmar que a
+    casa tem coisas que nunca existiram."""
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    await diario._ao_ver_objeto(Evento("vision.object_detected",
+                                       {"classe": "banana", "confianca": 0.2}))
+
+    assert memoria.gravados == []
+
+
+@pytest.mark.asyncio
+async def test_pedido_ouvido_entra_no_diario() -> None:
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    await diario._ao_ouvir_pedido(Evento("voice.command_received",
+                                         {"texto": "acende a luz da sala"}))
+
+    assert len(memoria.gravados) == 1
+    assert "acende a luz" in memoria.gravados[0][1]["payload_json"]
+
+
+@pytest.mark.asyncio
+async def test_pedido_vazio_NAO_entra() -> None:
+    """O portao anti-invencao do Whisper devolve string vazia quando nao
+    entende - e "nao entendi" nao e um pedido."""
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    await diario._ao_ouvir_pedido(Evento("voice.command_received", {"texto": "   "}))
+
+    assert memoria.gravados == []
+
+
+@pytest.mark.asyncio
+async def test_pedido_repetido_conta_UMA_vez() -> None:
+    """Repetir o comando porque ele nao obedeceu nao sao dois pedidos."""
+    memoria = _MemoriaFalsa()
+    diario = _diario_amplo(memoria)
+
+    for _ in range(4):
+        await diario._ao_ouvir_pedido(Evento("voice.command_received",
+                                             {"texto": "anda pra frente"}))
+
+    assert len(memoria.gravados) == 1
+
+
+@pytest.mark.asyncio
+async def test_os_tipos_novos_viram_frase_em_portugues() -> None:
+    """O texto vai DIRETO para dentro do prompt - tipo cru ('objeto_visto')
+    nao serve, a IA narraria o nome interno."""
+    memoria = _MemoriaFalsa([
+        _registro("objeto_visto", AGORA, classe="chair"),
+        _registro("pedido_ouvido", AGORA, texto="acende a luz"),
+    ])
+    diario = _diario_amplo(memoria)
+
+    obs = await diario.observacoes_de_hoje()
+    textos = " | ".join(o["o_que"] for o in obs)
+
+    assert "chair" in textos and "câmera" in textos
+    assert "acende a luz" in textos
+    assert "objeto_visto" not in textos, "nome interno nao pode chegar ao prompt"
