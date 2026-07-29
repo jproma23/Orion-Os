@@ -337,3 +337,31 @@ async def test_deteccao_sem_identidade_nao_vira_registro_pelo_barramento() -> No
 
     bus.parar()
     await tarefa
+
+
+@pytest.mark.asyncio
+async def test_registro_com_fuso_nao_quebra_a_leitura() -> None:
+    """REGRESSAO de 2026-07-29, vista em producao.
+
+    O banco guarda o horario COM fuso (`...+00:00`); `self._agora()` e um
+    `datetime.now()` SEM fuso. Comparar os dois levantava
+    `TypeError: can't compare offset-naive and offset-aware datetimes` e
+    derrubava o `_consultar_contexto` inteiro do MissionPlanner - a conversa
+    perdia o bloco de observacoes justamente no dia em que ele deixou de vir
+    vazio. Ficou escondido porque a lista sempre chegava sem registros.
+    """
+    from datetime import timezone
+
+    quando = AGORA.replace(hour=10, tzinfo=timezone.utc)
+    registro = {
+        "origem": ORIGEM,
+        "tipo": TIPO_PESSOA_VISTA,
+        "payload_json": json.dumps({"nome": "João Paulo"}),
+        "timestamp": quando.isoformat(),
+    }
+    diario = _diario(_MemoriaFalsa([registro]))
+
+    observacoes = await diario.observacoes_de_hoje()  # nao pode levantar
+
+    assert len(observacoes) == 1
+    assert "João Paulo" in observacoes[0]["o_que"]

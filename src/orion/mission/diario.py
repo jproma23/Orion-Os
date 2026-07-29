@@ -160,7 +160,9 @@ class DiarioObservacoes:
         observacoes: list[dict[str, str]] = []
 
         for registro in registros:
-            quando = _parse_timestamp(registro.get("timestamp"))
+            quando = _comparavel_com(
+                _parse_timestamp(registro.get("timestamp")), inicio_do_dia
+            )
             if quando is None or quando < inicio_do_dia:
                 continue  # ontem não conta como "hoje"
             observacoes.append(
@@ -173,6 +175,33 @@ class DiarioObservacoes:
         # cronológica é mais natural de ler (e de a IA narrar).
         observacoes.reverse()
         return observacoes
+
+
+def _comparavel_com(quando: datetime | None, referencia: datetime) -> datetime | None:
+    """Deixa `quando` na mesma natureza de fuso que `referencia`.
+
+    BUG REAL (2026-07-29), e ele só apareceu quando o diário voltou a gravar:
+    o banco guarda o horário COM fuso (`...+00:00`) e `self._agora()` é um
+    `datetime.now()` SEM fuso. Comparar os dois levanta
+
+        TypeError: can't compare offset-naive and offset-aware datetimes
+
+    e derrubava `_consultar_contexto` inteiro no MissionPlanner - ou seja, a
+    conversa perdia o bloco de observações justamente no dia em que ele deixou
+    de vir vazio. Ficou escondido desde sempre porque a lista chegava sem
+    registros e o laço nunca executava esta comparação.
+
+    Converte para a hora LOCAL antes de tirar o fuso. Descartar o `tzinfo`
+    direto trataria 10:45 UTC como 10:45 local e jogaria as observações da
+    madrugada para o dia errado - um erro silencioso, que é o pior tipo.
+    """
+    if quando is None:
+        return None
+    if quando.tzinfo is not None and referencia.tzinfo is None:
+        return quando.astimezone().replace(tzinfo=None)
+    if quando.tzinfo is None and referencia.tzinfo is not None:
+        return quando.replace(tzinfo=referencia.tzinfo)
+    return quando
 
 
 def _parse_timestamp(valor: Any) -> datetime | None:
