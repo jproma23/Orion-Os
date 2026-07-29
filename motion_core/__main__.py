@@ -358,6 +358,15 @@ async def principal() -> None:
     event_bus.subscribe(TOPICO_PEDIDO_ALIVIO, _repassar_ao_notebook)
     event_bus.subscribe(TOPICO_RECUPERADO, _repassar_ao_notebook)
 
+    # Pedido de FOTO: nasce aqui (a Vigilia ao assumir um alerta, e a acao
+    # `fotografar` do contrato, que a IA estrategica pode escolher) e quem tem
+    # a camera e o Notebook. Ate 2026-07-29 este topico era publicado no
+    # barramento do Pi e nao tinha assinante em NENHUMA das duas maquinas: o
+    # robo decidia "registrar evidencia" e nada era registrado. A terceira
+    # ocorrencia do mesmo padrao neste mesmo bloco - por isso o repasse mora
+    # junto dos outros dois, onde a proxima pessoa vai olhar.
+    event_bus.subscribe("sentinela.capturar_foto", _repassar_ao_notebook)
+
     # Pan/tilt vindo dos COMPORTAMENTOS (Repouso nivela a cabeca em 0,0;
     # ObservarAmbiente varre -60 -> +60 -> 0). Eles publicam `motion.pan_tilt`
     # no barramento do Pi e, ate 2026-07-28, NINGUEM assinava esse topico

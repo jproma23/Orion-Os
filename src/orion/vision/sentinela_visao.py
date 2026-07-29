@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Callable
 
 from orion.kernel.event_bus import EventBus, Prioridade
 
@@ -54,6 +54,16 @@ class SentinelaVisao:
         """Assina o evento do Vision Core. Substitui o antigo executar()."""
         self._pasta_fotos.mkdir(parents=True, exist_ok=True)
         self._event_bus.subscribe("vision.faces_desconhecidas", self._ao_ver_desconhecido)
+        # `sentinela.capturar_foto` nasce no Pi: a Vigília pede foto ao assumir
+        # um alerta, e `fotografar` é uma das ações do contrato que a IA
+        # estratégica pode escolher. Até 2026-07-29 NINGUÉM assinava este
+        # tópico em NENHUMA das duas máquinas - o robô "registrava evidência"
+        # e nada era registrado. Mesmo padrão do guardião de RAM e do
+        # pan/tilt: publicar evento não falha, então nada denunciava.
+        #
+        # O consumidor é aqui porque a foto exige o frame, e o frame é do dono
+        # da câmera (EDR-0023 s.3) - a Sentinela já tem o `salvar_foto` dele.
+        self._event_bus.subscribe("sentinela.capturar_foto", self._ao_pedir_foto)
         logger.info("Sentinela de visão ativa - ouvindo o Vision Core")
 
     def pausar(self) -> None:
@@ -94,14 +104,45 @@ class SentinelaVisao:
             prioridade=Prioridade.ALTA,
         )
 
-    def _pedir_foto(self) -> str | None:
+    async def _ao_pedir_foto(self, evento) -> None:
+        """Atende um pedido EXPLÍCITO de foto (Vigília ou ação da IA).
+
+        Três decisões que valem explicar:
+
+        - **não respeita o cooldown**: ele existe para não repetir alerta
+          enquanto o mesmo estranho continua no quadro. Aqui alguém PEDIU a
+          foto; recusar seria ignorar uma ordem por causa de uma regra que
+          trata de outro assunto.
+        - **atende mesmo pausado**: o alívio de carga pausa os alertas porque
+          reconhecimento facial é caro. Gravar um frame que já está na memória
+          é um `imwrite` - não é o que sobrecarrega o Notebook.
+        - **não publica evento de volta.** Seria fácil anunciar
+          `sentinela.foto_salva`, e seria exatamente o bug que este handler
+          corrige: um tópico sem assinante. Pior, um evento daqui que voltasse
+          como `sentinela.alerta` faria a Vigília pedir foto outra vez, em
+          laço. O caminho fica no log, que é quem hoje tem leitor.
+        """
+        motivo = evento.dados.get("motivo", "sem_motivo")
+        caminho = self._pedir_foto(prefixo=motivo)
+        if caminho is None:
+            logger.warning("pedido de foto '%s' NÃO gravou (sem frame?)", motivo)
+            return
+        logger.info("foto gravada a pedido de '%s': %s", motivo, caminho)
+
+    def _pedir_foto(self, prefixo: str = "estranho") -> str | None:
         """Falha ao salvar a foto NÃO cancela o alerta: saber que há um
-        estranho vale mais que ter a imagem dele."""
+        estranho vale mais que ter a imagem dele.
+
+        `prefixo` entra no nome do arquivo para que, olhando a pasta, se saiba
+        POR QUE cada foto existe - alerta de rosto desconhecido, vigília ou
+        decisão da IA saem com nomes diferentes.
+        """
         if self._salvar_foto is None:
             return None
-        nome = f"estranho_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
+        seguro = "".join(c if c.isalnum() or c in "-_" else "_" for c in prefixo) or "foto"
+        nome = f"{seguro}_{time.strftime('%Y%m%d_%H%M%S')}.jpg"
         try:
             return self._salvar_foto(str(self._pasta_fotos / nome))
         except Exception:  # noqa: BLE001
-            logger.warning("Falha ao salvar a foto do estranho", exc_info=True)
+            logger.warning("Falha ao salvar a foto ('%s')", prefixo, exc_info=True)
             return None
