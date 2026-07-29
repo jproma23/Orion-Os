@@ -87,6 +87,10 @@ class SaudacaoEspontanea:
     TIMEOUT_COMPOR_S = 8.0
     #: Cumprimento e uma frase, nao um discurso.
     MAX_CARACTERES = 160
+    #: Quantas frases anteriores o compositor recebe como "nao repita estas".
+    #: Tres e o bastante para forcar palavra nova sem encher o prompt - e sem
+    #: pedir o impossivel, que seria nunca repetir nada.
+    MAX_FRASES_LEMBRADAS = 3
 
     def __init__(
         self,
@@ -133,6 +137,18 @@ class SaudacaoEspontanea:
         self._escolher = escolher_frase or random.choice
         #: nome -> instante do último cumprimento
         self._cumprimentados: dict[str, float] = {}
+        #: nome -> as últimas frases já ditas àquela pessoa.
+        #:
+        #: Existe porque as duas exigências do dono brigam entre si: *"não
+        #: relate o horário"* e *"não repita as frases"*. Sem poder falar de
+        #: nada concreto, o modelo só pode variar a escolha de palavras numa
+        #: tarefa de seis palavras - e aí ele converge. Medido em 2026-07-29:
+        #: cinco chamadas seguidas deram "Que bom te ver" quatro vezes.
+        #:
+        #: Dizer a ele o que JÁ FOI DITO força palavra nova sem que nenhum
+        #: fato precise ser recitado. Só isto ataca a repetição sem
+        #: reintroduzir o relatório de dados.
+        self._frases_usadas: dict[str, list[str]] = {}
         #: True entre "Fofão" e o fim da resposta - não se fala por cima de
         #: uma conversa em andamento. Cumprimentar alguém no meio da própria
         #: frase é pior do que não cumprimentar.
@@ -173,6 +189,7 @@ class SaudacaoEspontanea:
     async def _cumprimentar(self, nome: str, anterior: float | None = None) -> None:
         frase = await self._escrever_frase(nome, anterior)
         logger.info("saudação espontânea para %s: %r", nome, frase)
+        self._lembrar_frase(nome, frase)
         # Publica ANTES de falar: o avatar reage ao evento, e a fala bloqueia
         # por segundos. Se publicasse depois, a legenda apareceria quando a
         # voz já tivesse terminado.
@@ -245,6 +262,16 @@ class SaudacaoEspontanea:
 
         return "\n".join(f"- {p}" for p in partes)
 
+    def _lembrar_frase(self, nome: str, frase: str) -> None:
+        """Guarda o que foi dito, para não ser dito de novo na próxima vez.
+
+        Guarda o que SAIU de fato - venha da IA ou da lista de reserva. O que
+        importa é o que a pessoa ouviu, não de onde veio.
+        """
+        usadas = self._frases_usadas.setdefault(nome, [])
+        usadas.append(frase)
+        del usadas[: -self.MAX_FRASES_LEMBRADAS]
+
     def _frase_da_lista(self, nome: str) -> str:
         relacao = self._relacao_de.get(nome, "")
         return self._escolher(FRASES_POR_RELACAO.get(relacao, FRASES)).format(nome=nome)
@@ -264,6 +291,7 @@ class SaudacaoEspontanea:
                     nome,
                     self._descricao_de.get(nome, ""),
                     await self._contexto_do_momento(nome, anterior),
+                    list(self._frases_usadas.get(nome, ())),
                 ),
                 timeout=self.TIMEOUT_COMPOR_S,
             )

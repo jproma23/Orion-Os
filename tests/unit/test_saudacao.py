@@ -213,7 +213,7 @@ async def test_anuncia_no_barramento_para_o_avatar(bus):
 async def test_ia_escreve_o_cumprimento(bus):
     """Pedido do dono: "deixa a IA ver as palavras que melhor se adaptem ao
     contexto". Uma lista fixa nao soa como alguem falando."""
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         return f"Que saudade, {nome}! Como foi o seu dia?"
 
     _, ditas = _montar(bus, compor=compor)
@@ -226,7 +226,7 @@ async def test_ia_escreve_o_cumprimento(bus):
 async def test_ia_fora_do_ar_cai_na_frase_de_reserva(bus):
     """A rede embaixo. Cumprimentar de forma comum e melhor que ficar mudo
     porque a internet caiu."""
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         raise RuntimeError("sem internet")
 
     _, ditas = _montar(bus, compor=compor)
@@ -238,7 +238,7 @@ async def test_ia_fora_do_ar_cai_na_frase_de_reserva(bus):
 
 @pytest.mark.asyncio
 async def test_resposta_vazia_da_ia_cai_na_reserva(bus):
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         return "   "
 
     _, ditas = _montar(bus, compor=compor)
@@ -251,7 +251,7 @@ async def test_resposta_vazia_da_ia_cai_na_reserva(bus):
 async def test_cumprimento_longo_e_cortado(bus):
     """Cumprimento e uma frase, nao um discurso - sem teto, um modelo prolixo
     faria o robo falar por 30s toda vez que alguem entrasse na sala."""
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         return "ola " * 200
 
     _, ditas = _montar(bus, compor=compor)
@@ -280,7 +280,7 @@ async def test_contexto_leva_o_momento_do_dia_mas_NAO_o_relogio(bus):
     (muda o tom); o relogio sai (so daria um numero para recitar)."""
     recebidos = []
 
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         recebidos.append(contexto)
         return "oi"
 
@@ -301,7 +301,7 @@ async def test_momento_do_dia_muda_com_a_hora(bus):
     for hora, esperado in ((3, "madrugada"), (9, "manhã"), (15, "tarde"), (22, "noite")):
         recebidos = []
 
-        async def compor(nome, descricao, contexto, _r=recebidos):
+        async def compor(nome, descricao, contexto, evitar, _r=recebidos):
             _r.append(contexto)
             return "oi"
 
@@ -321,7 +321,7 @@ async def test_primeira_vez_e_reencontro_dao_contextos_DIFERENTES(bus):
     recebidos = []
     relogio = _Relogio()
 
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         recebidos.append(contexto)
         return f"oi {len(recebidos)}"
 
@@ -341,7 +341,7 @@ async def test_primeira_vez_e_reencontro_dao_contextos_DIFERENTES(bus):
 async def test_diario_entra_no_contexto(bus):
     recebidos = []
 
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         recebidos.append(contexto)
         return "oi"
 
@@ -359,7 +359,7 @@ async def test_diario_entra_no_contexto(bus):
 async def test_diario_quebrado_nao_impede_o_cumprimento(bus):
     """O diario e enfeite no cumprimento, nao requisito (Cap 6 s.8). Ele le
     pela rede, ate o Pi - e a rede cai."""
-    async def compor(nome, descricao, contexto):
+    async def compor(nome, descricao, contexto, evitar):
         return f"oi, {nome}"
 
     async def observacoes():
@@ -369,3 +369,101 @@ async def test_diario_quebrado_nao_impede_o_cumprimento(bus):
     await _ver(bus, "Kamal")
 
     assert ditas == ["oi, Kamal"]
+
+
+# ----- anti-repeticao (2026-07-29) -----
+#
+# Medido: com a hora fora do prompt (pedido do dono) o modelo convergiu -
+# 5 chamadas, 4 vezes "Que bom te ver". As duas exigencias do dono brigam:
+# sem poder recitar fato nenhum, so resta variar palavras numa tarefa de seis
+# palavras. Dizer o que JA FOI DITO e o unico jeito de forcar palavra nova sem
+# reintroduzir o relatorio de dados.
+
+
+@pytest.mark.asyncio
+async def test_frases_ja_ditas_chegam_ao_compositor(bus):
+    recebidas_para_evitar = []
+    relogio = _Relogio()
+
+    async def compor(nome, descricao, contexto, evitar):
+        recebidas_para_evitar.append(list(evitar))
+        return f"cumprimento numero {len(recebidas_para_evitar)}"
+
+    _montar(bus, compor=compor, relogio=relogio)
+
+    await _ver(bus, "Kamal")
+    relogio.avancar(3600)
+    await _ver(bus, "Kamal")
+    relogio.avancar(3600)
+    await _ver(bus, "Kamal")
+
+    assert recebidas_para_evitar[0] == [], "na primeira vez nao ha nada a evitar"
+    assert recebidas_para_evitar[1] == ["cumprimento numero 1"]
+    assert recebidas_para_evitar[2] == ["cumprimento numero 1", "cumprimento numero 2"]
+
+
+@pytest.mark.asyncio
+async def test_lembra_no_maximo_tres_frases(bus):
+    """Sem teto o prompt cresceria para sempre - e pedir para nunca repetir
+    nada seria pedir o impossivel."""
+    recebidas = []
+    relogio = _Relogio()
+
+    async def compor(nome, descricao, contexto, evitar):
+        recebidas.append(list(evitar))
+        return f"frase {len(recebidas)}"
+
+    _montar(bus, compor=compor, relogio=relogio)
+
+    for _ in range(6):
+        await _ver(bus, "Marah")
+        relogio.avancar(3600)
+
+    assert len(recebidas[-1]) == SaudacaoEspontanea.MAX_FRASES_LEMBRADAS
+    # as tres ULTIMAS, nao as tres primeiras
+    assert recebidas[-1] == ["frase 3", "frase 4", "frase 5"]
+
+
+@pytest.mark.asyncio
+async def test_lembra_tambem_a_frase_da_lista_de_reserva(bus):
+    """O que importa e o que a pessoa OUVIU, nao de onde a frase veio. Se a IA
+    cair e a reserva falar, a proxima chamada tem que saber disso."""
+    recebidas = []
+    relogio = _Relogio()
+    chamadas = {"n": 0}
+
+    async def compor(nome, descricao, contexto, evitar):
+        recebidas.append(list(evitar))
+        chamadas["n"] += 1
+        if chamadas["n"] == 1:
+            raise RuntimeError("internet caiu")  # cai na lista de reserva
+        return "frase da IA"
+
+    _montar(bus, compor=compor, relogio=relogio)
+
+    await _ver(bus, "João Paulo")
+    relogio.avancar(3600)
+    await _ver(bus, "João Paulo")
+
+    # `escolher_frase` no _montar devolve sempre a primeira da relacao
+    assert recebidas[1] == [FRASES_POR_RELACAO["criador"][0].format(nome="João Paulo")]
+
+
+@pytest.mark.asyncio
+async def test_cada_pessoa_tem_a_sua_propria_memoria_de_frases(bus):
+    recebidas = {}
+    relogio = _Relogio()
+
+    async def compor(nome, descricao, contexto, evitar):
+        recebidas.setdefault(nome, []).append(list(evitar))
+        return f"oi {nome}"
+
+    _montar(bus, compor=compor, relogio=relogio)
+
+    await _ver(bus, "Kamal")
+    await _ver(bus, "Marah")
+    relogio.avancar(3600)
+    await _ver(bus, "Kamal")
+
+    assert recebidas["Kamal"][1] == ["oi Kamal"], "nao mistura com a outra pessoa"
+    assert recebidas["Marah"][0] == []

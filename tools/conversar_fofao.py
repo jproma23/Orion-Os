@@ -542,7 +542,9 @@ async def principal() -> None:
     except Exception:
         familia_conf = []
         logger.warning("secao `familia` ausente no orion.yaml - cumprimento generico")
-    async def _compor_saudacao(nome: str, descricao: str, contexto: str) -> str:
+    async def _compor_saudacao(
+        nome: str, descricao: str, contexto: str, evitar: list[str]
+    ) -> str:
         """Deixa a IA escolher as palavras (pedido do dono, 2026-07-29).
 
         Pede SO a saudacao, curta, e nunca uma acao: uma IA solta aqui
@@ -557,9 +559,21 @@ async def principal() -> None:
         vem de pedir variedade; vem de haver sobre o que falar.
         """
         quem = f"{nome} ({descricao})" if descricao else nome
+        # As frases ja usadas com esta pessoa. E o que ataca a repeticao sem
+        # recitar dado nenhum: "nao repita estas" forca palavra nova, enquanto
+        # pedir "seja variado" no vazio nao forca coisa alguma (medido).
+        if evitar:
+            ja_ditas = "\n".join(f'- "{f}"' for f in evitar)
+            proibicao = (
+                f"\n\nVoce JA disse estas frases a esta pessoa. Diga algo "
+                f"claramente DIFERENTE, com outras palavras e outra "
+                f"abertura:\n{ja_ditas}"
+            )
+        else:
+            proibicao = ""
         return await ia.responder(
             f"Cumprimente {quem}, que acabou de aparecer na sua frente.\n\n"
-            f"O momento agora:\n{contexto}\n\n"
+            f"O momento agora:\n{contexto}{proibicao}\n\n"
             f"Uma frase curta, calorosa e natural, como quem reencontra "
             f"alguem de casa.\n\n"
             f"O momento acima serve para voce ESCOLHER O TOM, nao para ser "
