@@ -74,21 +74,50 @@ class SafetyManager {
     bool timeoutComando =
         motores.emMovimento() && (millis() - ultimoComandoMs) > TIMEOUT_COMANDO_MS;
 
-    bool deveParar = obstaculoFrontal || frenteDesconhecida || inclinacaoCritica ||
-                     impacto || timeoutComando;
+    // O MEGA INFORMA, NAO VETA (2026-07-29, EDR-0027).
+    //
+    // Decisao do mantenedor, dita e reafirmada: *"o mega nao pode vetar, o
+    // mega tem informar os dados e procurar uma saida"*, *"a inteligencia
+    // recebe todos os dados e dai decide o q fazer"*, *"nada tem q bloquear
+    // ou impedir de tomar acoes e atitudes"*.
+    //
+    // O que isso muda: um perigo detectado NAO recusa mais comando nenhum
+    // (ver command_executor.h, onde a recusa foi removida). Perigo continua
+    // sendo DETECTADO e RELATADO com o mesmo rigor de antes - `_motivo` e os
+    // campos de telemetria sao a materia-prima com que o Pi decide.
+    //
+    // NAO TEM FREIO, EXISTEM MANOBRAS - regra do mantenedor, 2026-07-29.
+    //
+    // Obstaculo a frente, inclinacao critica e impacto NAO param mais o robo
+    // por conta do firmware. Os tres viram DADO na telemetria, e cada um tem
+    // uma manobra correspondente do lado da inteligencia (contornar, se
+    // reorientar, recuar) - ver EDR-0027. O Mega mede, informa e executa.
+    //
+    // Sobra UMA parada, e ela nao contradiz a regra: o homem-morto. Se os
+    // motores estao girando e nenhum comando chega ha TIMEOUT_COMANDO_MS, nao
+    // existe manobra a preservar, porque nao existe ninguem manobrando - o
+    // link caiu, o Pi travou, o processo morreu. Parar ai nao vence uma
+    // decisao da inteligencia: e o que sobra na ausencia dela. Sem isto, um
+    // cabo solto deixa o robo andando sozinho ate bater em alguma coisa.
+    const bool perigoFrontal = obstaculoFrontal || frenteDesconhecida;
+
+    // `_pararAtivo` continua significando "ha perigo detectado agora" - e o
+    // que alimenta `seguranca_parada_ativa`/`seguranca_motivo` e o estado
+    // OBSTACLE_DETECTED, que e como o Pi fica sabendo que precisa manobrar.
+    // Ele deixou de implicar recusa de comando e deixou de implicar freio.
+    bool deveParar = inclinacaoCritica || impacto || timeoutComando || perigoFrontal;
+
+    // A UNICA parada automatica que restou.
+    const bool deveFrear = timeoutComando;
+
+    // Homem-morto: reforcado TODO ciclo enquanto durar, nao so na borda.
+    // Um comando atrasado/reenviado nao pode religar o motor de um robo que
+    // ficou sem dono (achado real da vistoria de 2026-07-24).
+    if (deveFrear) {
+      motores.parar();
+    }
 
     if (deveParar) {
-      // Reforca a parada TODO ciclo de loop() enquanto o perigo persistir,
-      // nao so na transicao livre->perigo - achado real da vistoria de
-      // 2026-07-24: do jeito antigo, se um comando de movimento chegasse
-      // do Raspberry com o perigo ainda ativo (retry, fila atrasada, race
-      // condition), o motor religava e a seguranca nunca disparava de
-      // novo, porque o "if" so rodava na borda. CommandExecutor tambem
-      // recusa comando de movimento novo enquanto pararAtivo() for
-      // verdadeiro (defesa em profundidade) - mas essa chamada aqui e a
-      // que garante que o motor para de fato, mesmo que algo escape
-      // daquela outra checagem.
-      motores.parar();
       if (!_pararAtivo) {
         // Motivos distintos de proposito: ate 28/07 "radar olhando pro
         // lado" era reportado como "obstaculo_frontal", e o diagnostico
@@ -108,6 +137,8 @@ class SafetyManager {
     return false;
   }
 
+  //: "ha perigo detectado agora". NAO significa mais "movimento recusado" nem
+  //: "motor freado" (EDR-0027) - e informacao para o Pi decidir a manobra.
   bool pararAtivo() const { return _pararAtivo; }
   const char* motivo() const { return _motivo; }
 

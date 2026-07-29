@@ -18,8 +18,54 @@
 
 namespace orion {
 
-constexpr float PASSOS_POR_METRO = 4000.0f;  // igual ao default de config/orion.yaml
-constexpr float PASSOS_POR_GRAU = 20.0f;     // aproximado - ajustar na autocalibracao
+// MEDIDAS FISICAS DESTA MONTAGEM (confirmadas com o mantenedor, 2026-07-29).
+// Ficam explicitas para as constantes abaixo serem DERIVADAS delas, em vez de
+// digitadas - numero digitado a mao foi exatamente a origem do erro corrigido
+// logo abaixo.
+constexpr float RODA_DIAMETRO_M = 0.200f;        // roda de 200 mm
+constexpr float PASSOS_POR_VOLTA_MOTOR = 1600.0f;  // TB6600 em 1/8 (S1=OFF S2=ON S3=OFF)
+
+// ERRO CORRIGIDO EM 2026-07-29: este valor era 4000, e a origem do engano da
+// para reconstruir exatamente:
+//
+//     1600 / 0.4    = 4000   <- circunferencia calculada como 2 * diametro
+//     1600 / 0.6283 = 2546   <- circunferencia de verdade, PI * diametro
+//
+// O fator entre os dois e PI/2 = 1.571, ou seja, o robo andava 57% MAIS do
+// que o comandado: um "avanca 30 cm" percorria 47 cm. Erro sistematico,
+// sempre no mesmo sentido, e que a odometria em malha aberta nunca corrigiria
+// (ela conta o que mandou, nao o que a roda fez).
+//
+// Ficou mais grave em 2026-07-29 com o EDR-0027: o Mega deixou de frear por
+// obstaculo, entao andar mais do que o pedido perto de uma parede nao tem
+// mais rede embaixo.
+//
+// NAO VALIDADO NO HARDWARE AINDA - pela rubrica do mapa de saude isto e
+// "em validacao" (amarelo), nao "estavel". A prova e a malha fechada por
+// ultrassom: mandar andar uma distancia conhecida, medir com o sensor quanto
+// andou de verdade, e comparar. Se o medido bater com 2546, confirma o 1/8;
+// se voltar a dar 4000 redondo, alguem ajustou o mundo para bater com o
+// numero em vez do contrario.
+constexpr float PASSOS_POR_METRO = PASSOS_POR_VOLTA_MOTOR / (PI * RODA_DIAMETRO_M);
+
+// PASSOS_POR_GRAU depende da BITOLA (distancia centro a centro das rodas),
+// que ainda nao foi medida - por isso continua sendo o valor antigo por ora.
+//
+// A formula, girando sobre o proprio eixo (tracao diferencial): cada roda
+// percorre um circulo de raio igual a metade da bitola, entao
+//
+//     passos_por_grau = PASSOS_POR_VOLTA_MOTOR * bitola / (360 * diametro)
+//
+// O PI cancela dos dois lados - o arco da roda e o perimetro dela sao ambos
+// proporcionais a PI. Uma volta completa do robo = (bitola / diametro) voltas
+// de roda.
+//
+// CONFERENCIA PENDENTE: com 1600 passos/volta e roda de 200 mm, o valor 20
+// abaixo implicaria uma bitola de 0,90 m - impossivel num robo de 0,50 m de
+// largura. Para uma bitola plausivel de 0,45 m o valor certo seria 10, ou
+// seja, o robo estaria girando o DOBRO do angulo pedido. Medir a bitola e
+// corrigir; a bussola calibrada e quem prova o resultado.
+constexpr float PASSOS_POR_GRAU = 20.0f;     // SUSPEITO - ver bloco acima
 constexpr long PASSOS_POR_SEGUNDO_MAXIMO = 2000;
 constexpr long PASSOS_POR_SEGUNDO_MINIMO = 50;
 // Testado na bancada em 2026-07-18: os TB6600 desta montagem so habilitam
@@ -45,6 +91,20 @@ constexpr bool ENABLE_ATIVO_EM_BAIXO = false;
 //
 // 20 ms cobre o quique do rele com folga sem ser perceptivel ao operador.
 constexpr unsigned long ATRASO_RELE_US = 20000;
+
+// Que tipo de movimento esta em curso AGORA.
+//
+// Existe por causa da seguranca (2026-07-29): "o robo esta se movendo" nao
+// basta para decidir se um perigo frontal deve travar o motor. Avancar
+// APROXIMA do obstaculo; girar no proprio eixo nao - e justamente a manobra
+// de fuga. Sem esta distincao o SafetyManager so podia parar tudo, e o robo
+// ficava preso de frente para o obstaculo sem poder se desvirar (decisao do
+// mantenedor: "nenhum obstaculo tem q bloquear, o robo tem q desviar").
+//
+// A RE (movimento negativo do MOVE_DISTANCE) fica separada de FRENTE de
+// proposito: ela nao tem seguranca reativa nenhuma (o SafetyManager so olha
+// o radar frontal, Cap 18), entao nunca deve ganhar permissao por engano.
+enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
 
 struct EstadoRoda {
   uint8_t pinoStep;
@@ -101,6 +161,7 @@ class MotorManager {
 
   void andarFrente(float velocidadePercent) {
     _ligarRele();
+    _tipo = TipoMovimento::FRENTE;
     _configurarRoda(_esquerda, true, velocidadePercent, -1);
     _configurarRoda(_direita, true, velocidadePercent, -1);
   }
@@ -109,12 +170,14 @@ class MotorManager {
     _ligarRele();
     long passos = static_cast<long>(fabs(distanciaCm) * (PASSOS_POR_METRO / 100.0f));
     bool frente = distanciaCm >= 0;
+    _tipo = frente ? TipoMovimento::FRENTE : TipoMovimento::RE;
     _configurarRoda(_esquerda, frente, velocidadePercent, passos);
     _configurarRoda(_direita, frente, velocidadePercent, passos);
   }
 
   void girarContinuo(bool sentidoHorario, float velocidadePercent) {
     _ligarRele();
+    _tipo = TipoMovimento::GIRO;
     _configurarRoda(_esquerda, sentidoHorario, velocidadePercent, -1);
     _configurarRoda(_direita, !sentidoHorario, velocidadePercent, -1);
   }
@@ -122,6 +185,7 @@ class MotorManager {
   void girarGraus(float graus, bool sentidoHorario, float velocidadePercent) {
     _ligarRele();
     long passos = static_cast<long>(fabs(graus) * PASSOS_POR_GRAU);
+    _tipo = TipoMovimento::GIRO;
     _configurarRoda(_esquerda, sentidoHorario, velocidadePercent, passos);
     _configurarRoda(_direita, !sentidoHorario, velocidadePercent, passos);
   }
@@ -131,6 +195,7 @@ class MotorManager {
     _esquerda.passosRestantes = 0;
     _direita.intervaloUs = 0;
     _direita.passosRestantes = 0;
+    _tipo = TipoMovimento::NENHUM;
     _desligarRele();
   }
 
@@ -138,12 +203,28 @@ class MotorManager {
     return _esquerda.passosRestantes != 0 || _direita.passosRestantes != 0;
   }
 
+  //: Que movimento esta em curso. Le do estado REAL das rodas, nao so do que
+  //: foi comandado: um giro por graus (`girarGraus`) termina sozinho quando
+  //: os passos acabam, sem ninguem chamar parar() - se este getter confiasse
+  //: so em `_tipo`, continuaria dizendo GIRO com o robo ja imovel, e a
+  //: seguranca liberaria movimento apoiada num giro que ja acabou.
+  TipoMovimento movimentoAtual() const {
+    return emMovimento() ? _tipo : TipoMovimento::NENHUM;
+  }
+
+  //: true so quando o robo esta girando no proprio eixo (nao avanca nem re).
+  bool girandoNoLugar() const { return movimentoAtual() == TipoMovimento::GIRO; }
+
   long passosAcumuladosEsquerda() const { return _esquerda.passosAcumulados; }
   long passosAcumuladosDireita() const { return _direita.passosAcumulados; }
 
  private:
   EstadoRoda _esquerda;
   EstadoRoda _direita;
+
+  //: o que foi COMANDADO por ultimo. Nao consultar direto - usar
+  //: movimentoAtual(), que cruza isto com o estado real das rodas.
+  TipoMovimento _tipo = TipoMovimento::NENHUM;
 
   //: instante em que o rele foi fechado pela ultima vez - base da carencia.
   unsigned long _releLigadoUs = 0;

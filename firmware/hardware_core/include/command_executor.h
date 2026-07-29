@@ -66,14 +66,23 @@ class CommandExecutor {
     // motor com o perigo ainda presente (achado real da vistoria de
     // 2026-07-24) - defesa em profundidade junto com o reforco continuo
     // em SafetyManager::avaliar().
-    bool comandoDeMovimento = strcmp(comando, "MOVE_FORWARD") == 0 ||
-                               strcmp(comando, "MOVE_CONTINUOUS") == 0 ||
-                               strcmp(comando, "MOVE_DISTANCE") == 0 ||
-                               strcmp(comando, "TURN_LEFT") == 0 ||
-                               strcmp(comando, "TURN_RIGHT") == 0;
-    if (comandoDeMovimento && _safety.pararAtivo()) {
-      return false;
-    }
+    // NENHUM COMANDO E RECUSADO (2026-07-29, EDR-0027).
+    //
+    // Ate aqui, qualquer comando de movimento era descartado enquanto
+    // `_safety.pararAtivo()` fosse verdadeiro. Decisao do mantenedor, dita e
+    // reafirmada: *"o mega nao pode vetar, o mega tem informar os dados"*,
+    // *"nada tem q bloquear ou impedir de tomar acoes e atitudes"*, *"nao tem
+    // freio, existem manobras"*.
+    //
+    // O perigo continua sendo medido e RELATADO (safety_manager.h continua
+    // preenchendo `motivo()` e a telemetria continua carregando distancia,
+    // angulo do radar e estado). O que mudou e quem decide o que fazer com
+    // isso: agora e o Pi, que tem o mapa e a missao. O Mega mede, informa e
+    // executa - nao opina.
+    //
+    // Consequencia honesta, registrada aqui de proposito: e possivel mandar o
+    // robo contra um obstaculo e ele obedecer. A protecao contra isso passou
+    // a morar inteiramente na camada de cima.
 
     if (strcmp(comando, "MOVE_FORWARD") == 0 || strcmp(comando, "MOVE_CONTINUOUS") == 0) {
       _motores.andarFrente(velocidade);
@@ -95,7 +104,21 @@ class CommandExecutor {
       } else {
         _motores.girarContinuo(horario, velocidade);
       }
-      _estados.transicionarPara(Estado::EXECUTING_MISSION);
+      // O ESTADO NAO MUDA se ainda ha perigo detectado (2026-07-29). Um giro
+      // durante um obstaculo e uma MANOBRA de contorno: OBSTACLE_DETECTED
+      // continua sendo a verdade, porque a coisa continua la na frente.
+      //
+      // Anunciar EXECUTING_MISSION aqui faria o Pi concluir que a frente
+      // liberou: o comportamento `vigilancia_obstaculo` largaria o controle
+      // no meio da propria manobra, e como `avaliar()` so devolve true na
+      // BORDA da parada, nada o traria de volta - o estado ficaria preso em
+      // EXECUTING_MISSION com o obstaculo ainda ali.
+      //
+      // Quando a frente limpar de verdade, o main.cpp devolve o estado para
+      // IDLE sozinho (perigo encerrado + motores parados).
+      if (!_safety.pararAtivo()) {
+        _estados.transicionarPara(Estado::EXECUTING_MISSION);
+      }
       return true;
     }
 
