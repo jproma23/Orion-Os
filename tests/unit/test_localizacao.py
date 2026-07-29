@@ -13,8 +13,8 @@ O que estes testes protegem, em ordem de importancia:
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
+np = pytest.importorskip("numpy", reason="localizacao de voz requer numpy")
 
 from orion.voice.localizacao import LocalizadorDirecao
 
