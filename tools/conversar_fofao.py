@@ -542,7 +542,24 @@ async def principal() -> None:
     except Exception:
         familia_conf = []
         logger.warning("secao `familia` ausente no orion.yaml - cumprimento generico")
-    SaudacaoEspontanea(bus, sintetizador.falar, familia=familia_conf)
+    async def _compor_saudacao(nome: str, descricao: str) -> str:
+        """Deixa a IA escolher as palavras (pedido do dono, 2026-07-29).
+
+        Pede SO a saudacao, curta, e nunca uma acao: uma IA solta aqui
+        prometeria coisas que o robo nao faz. O limite continua sendo o
+        `contrato.py`; este prompt so cuida do TOM.
+        """
+        quem = f"{nome} ({descricao})" if descricao else nome
+        return await ia.responder(
+            f"Cumprimente {quem}, que acabou de aparecer na sua frente. "
+            f"Uma frase curta, calorosa e natural, como quem reencontra "
+            f"alguem de casa. Nao ofereca nem prometa nenhuma acao; so "
+            f"cumprimente. Responda apenas com a frase.",
+        )
+
+    SaudacaoEspontanea(
+        bus, sintetizador.falar, familia=familia_conf, compor=_compor_saudacao
+    )
     logger.info(
         "Saudacao espontanea ativa para: %s",
         ", ".join(p.get("nome", "?") for p in (familia_conf or [])) or "(ninguem)",

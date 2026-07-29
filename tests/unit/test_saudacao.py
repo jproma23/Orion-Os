@@ -14,6 +14,7 @@ import pytest_asyncio
 from orion.kernel.event_bus import EventBus
 from orion.mission.saudacao import (
     FRASES,
+    SaudacaoEspontanea as _SE,
     FRASES_POR_RELACAO,
     SaudacaoEspontanea,
 )
@@ -66,6 +67,10 @@ async def _ver(bus, nome: str, vezes: int = 1) -> None:
     for _ in range(vezes):
         await bus.publish("vision.person_recognized", {"pessoa_id": 1, "nome": nome})
     await bus.aguardar_fila_vazia()
+    # o cumprimento roda FORA do laco da visao (asyncio.create_task), entao o
+    # teste precisa ceder a vez para a task terminar
+    for _ in range(6):
+        await asyncio.sleep(0)
 
 
 @pytest.mark.asyncio
@@ -202,3 +207,54 @@ async def test_anuncia_no_barramento_para_o_avatar(bus):
     assert len(recebidos) == 1
     assert recebidos[0]["nome"] == "João Paulo"
     assert recebidos[0]["texto"] == ditas[0], "o avatar mostraria texto diferente do falado"
+
+
+@pytest.mark.asyncio
+async def test_ia_escreve_o_cumprimento(bus):
+    """Pedido do dono: "deixa a IA ver as palavras que melhor se adaptem ao
+    contexto". Uma lista fixa nao soa como alguem falando."""
+    async def compor(nome, descricao):
+        return f"Que saudade, {nome}! Como foi o seu dia?"
+
+    _, ditas = _montar(bus, compor=compor)
+    await _ver(bus, "Joao Paulo")
+
+    assert ditas == ["Que saudade, Joao Paulo! Como foi o seu dia?"]
+
+
+@pytest.mark.asyncio
+async def test_ia_fora_do_ar_cai_na_frase_de_reserva(bus):
+    """A rede embaixo. Cumprimentar de forma comum e melhor que ficar mudo
+    porque a internet caiu."""
+    async def compor(nome, descricao):
+        raise RuntimeError("sem internet")
+
+    _, ditas = _montar(bus, compor=compor)
+    await _ver(bus, "Joao Paulo")
+
+    assert len(ditas) == 1
+    assert "Joao Paulo" in ditas[0]
+
+
+@pytest.mark.asyncio
+async def test_resposta_vazia_da_ia_cai_na_reserva(bus):
+    async def compor(nome, descricao):
+        return "   "
+
+    _, ditas = _montar(bus, compor=compor)
+    await _ver(bus, "Marah")
+
+    assert len(ditas) == 1 and "Marah" in ditas[0]
+
+
+@pytest.mark.asyncio
+async def test_cumprimento_longo_e_cortado(bus):
+    """Cumprimento e uma frase, nao um discurso - sem teto, um modelo prolixo
+    faria o robo falar por 30s toda vez que alguem entrasse na sala."""
+    async def compor(nome, descricao):
+        return "ola " * 200
+
+    _, ditas = _montar(bus, compor=compor)
+    await _ver(bus, "Kamal")
+
+    assert len(ditas[0]) <= SaudacaoEspontanea.MAX_CARACTERES

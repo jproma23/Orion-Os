@@ -19,6 +19,7 @@ chegada merece um cumprimento.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 import time
@@ -82,6 +83,11 @@ class SaudacaoEspontanea:
     reconhecimento facial e o sintetizador.
     """
 
+    #: Quanto se espera a IA compor antes de usar a frase de reserva.
+    TIMEOUT_COMPOR_S = 8.0
+    #: Cumprimento e uma frase, nao um discurso.
+    MAX_CARACTERES = 160
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -90,6 +96,7 @@ class SaudacaoEspontanea:
         agora: Callable[[], float] | None = None,
         escolher_frase: Callable[[tuple[str, ...]], str] | None = None,
         familia: list[dict] | None = None,
+        compor=None,
     ) -> None:
         self._bus = event_bus
         self._falar = falar
@@ -98,6 +105,21 @@ class SaudacaoEspontanea:
         self._relacao_de = {
             str(p.get("nome")): str(p.get("relacao", "")) for p in (familia or [])
         }
+        #: nome -> como o dono descreveu essa pessoa no orion.yaml
+        self._descricao_de = {
+            str(p.get("nome")): str(p.get("descricao", "")) for p in (familia or [])
+        }
+        #: Quem ESCREVE o cumprimento. `None` = sorteia da lista fixa.
+        #:
+        #: Pedido do dono (2026-07-29): *"deixa a conversa mais natural"*,
+        #: *"deixa a IA ver as palavras que melhor se adaptem ao contexto"*.
+        #: Uma lista fixa nunca soa como alguem falando - soa como um alarme
+        #: com sinonimos.
+        #:
+        #: A lista continua existindo e NAO e decoracao: e a reserva. Se a IA
+        #: demorar, falhar ou a internet cair, o robo cumprimenta assim mesmo.
+        #: Um cumprimento comum e melhor que silencio.
+        self._compor = compor
         self._intervalo_s = intervalo_entre_saudacoes_s
         self._agora = agora or time.monotonic
         self._escolher = escolher_frase or random.choice
@@ -127,9 +149,15 @@ class SaudacaoEspontanea:
         if not self._chegou_agora(nome):
             return
 
-        relacao = self._relacao_de.get(nome, "")
-        frases = FRASES_POR_RELACAO.get(relacao, FRASES)
-        frase = self._escolher(frases).format(nome=nome)
+        # FORA DO LACO DA VISAO, de proposito. Este handler e chamado pelo
+        # Event Bus dentro do pipeline da camera; compor com a IA leva
+        # segundos e falar leva mais alguns. Fazer isso aqui dentro travaria o
+        # rastreamento - e perder a pessoa de vista para cumprimenta-la e um
+        # negocio ruim.
+        asyncio.create_task(self._cumprimentar(nome))
+
+    async def _cumprimentar(self, nome: str) -> None:
+        frase = await self._escrever_frase(nome)
         logger.info("saudação espontânea para %s: %r", nome, frase)
         # Publica ANTES de falar: o avatar reage ao evento, e a fala bloqueia
         # por segundos. Se publicasse depois, a legenda apareceria quando a
@@ -138,10 +166,38 @@ class SaudacaoEspontanea:
         try:
             await self._falar(frase)
         except Exception:
-            # Falha na voz não pode derrubar a visão, que é quem chamou este
-            # handler (Cap 6 s.8). Um cumprimento perdido é irrelevante perto
-            # de perder o rastreamento.
+            # Falha na voz não pode derrubar a visão (Cap 6 s.8). Um
+            # cumprimento perdido é irrelevante perto de perder o alvo.
             logger.warning("não consegui falar o cumprimento para %s", nome, exc_info=True)
+
+    def _frase_da_lista(self, nome: str) -> str:
+        relacao = self._relacao_de.get(nome, "")
+        return self._escolher(FRASES_POR_RELACAO.get(relacao, FRASES)).format(nome=nome)
+
+    async def _escrever_frase(self, nome: str) -> str:
+        """A IA compõe; a lista fixa é a rede embaixo.
+
+        NUNCA levanta: qualquer falha - rede fora, chave vencida, modelo
+        lento, resposta vazia - cai na lista. O robô cumprimentar de forma
+        comum é infinitamente melhor que ficar mudo porque a internet caiu.
+        """
+        if self._compor is None:
+            return self._frase_da_lista(nome)
+        try:
+            frase = await asyncio.wait_for(
+                self._compor(nome, self._descricao_de.get(nome, "")),
+                timeout=self.TIMEOUT_COMPOR_S,
+            )
+        except Exception:
+            logger.info("IA não compôs o cumprimento - usando a frase de reserva", exc_info=True)
+            return self._frase_da_lista(nome)
+        frase = (frase or "").strip()
+        if not frase:
+            return self._frase_da_lista(nome)
+        # Teto de tamanho: cumprimento e uma frase, nao um discurso. Sem isto
+        # um modelo prolixo faria o robo falar por 30s toda vez que alguem
+        # entrasse na sala.
+        return frase[: self.MAX_CARACTERES]
 
     def _chegou_agora(self, nome: str) -> bool:
         """True só quando revê-la conta como uma CHEGADA, não continuação.
