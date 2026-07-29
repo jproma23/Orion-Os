@@ -681,3 +681,58 @@ async def test_desvio_para_quando_a_frente_libera(monkeypatch):
     await laco
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_ia_estrategica_recebe_o_quadro_do_mundo():
+    """REGRESSAO de 2026-07-29: o contexto desta IA era literalmente
+    `{"comportamento_ativo": "repouso"}`.
+
+    Ela escolhia entre avancar, girar e seguir pessoa sem saber se havia
+    obstaculo, gente na sala, bateria ou inclinacao. O `EstadoDoMundo` montava
+    esse quadro inteiro e o entregava ao `ponte_conselho`, que esta desabilitado
+    - o retrato ia para um caminho desligado enquanto quem decide recebia uma
+    linha.
+    """
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comm = _ComunicacaoFalsa(acao="observar_ambiente")
+    ia = IaEstrategica(
+        bus,
+        comm,
+        montar_contexto=lambda: "obstaculo_frente_cm: 34\npessoa_nome: João Paulo",
+    )
+
+    await ia._consultar()
+
+    assert comm.pedidos, "nao consultou a IA"
+    contexto = comm.pedidos[-1]["contexto"]
+    assert "obstaculo_frente_cm: 34" in contexto
+    assert "João Paulo" in contexto
+    assert "comportamento_ativo" in contexto  # o que ela ja tinha continua indo
+
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_ia_consulta_mesmo_se_o_contexto_falhar():
+    """Decidir com pouco contexto e ruim; decidir nunca e pior (Cap 6 s.8).
+    Sem esta garantia, um erro ao montar o retrato deixaria o robo sem IA
+    nenhuma e ninguem saberia por que."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comm = _ComunicacaoFalsa(acao="observar_ambiente")
+
+    def _explode():
+        raise RuntimeError("telemetria fora do ar")
+
+    ia = IaEstrategica(bus, comm, montar_contexto=_explode)
+
+    await ia._consultar()
+
+    assert comm.pedidos, "a falha ao montar contexto cancelou a consulta inteira"
+    assert "comportamento_ativo" in comm.pedidos[-1]["contexto"]
+
+    bus.parar()
+    await tarefa_bus

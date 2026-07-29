@@ -429,6 +429,11 @@ async def principal() -> None:
             event_bus,
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
+            # O quadro do mundo (EstadoDoMundo + grounding) vai no prompt de
+            # quem DECIDE, e nao so no do conselheiro desligado - ate
+            # 2026-07-29 esta IA recebia uma linha de contexto e decidia
+            # praticamente cega. Ver o comentario em IaEstrategica.__init__.
+            montar_contexto=_contexto_para_ia,
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum

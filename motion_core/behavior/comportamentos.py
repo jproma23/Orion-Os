@@ -307,10 +307,30 @@ class IaEstrategica(Comportamento):
         comm,
         intervalo_s: float = 30.0,
         acoes_validas: tuple[str, ...] = contrato.NOMES,
+        montar_contexto=None,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
+        #: De onde sai o QUADRO DO MUNDO que vai no prompt (2026-07-29).
+        #:
+        #: Ate esta data o contexto desta IA era literalmente
+        #: `{"comportamento_ativo": "repouso"}` - uma linha. Ela decidia se o
+        #: robo devia avancar, girar ou seguir alguem sem saber se havia
+        #: obstaculo a frente, se havia gente na sala, quem era a pessoa, qual
+        #: a bateria ou se o robo estava inclinado. Decidia praticamente cega,
+        #: e as decisoes pareciam razoaveis so porque nenhuma delas chegava a
+        #: mover o robo.
+        #:
+        #: O `EstadoDoMundo` e o `montar_contexto` ja existiam e montavam esse
+        #: quadro inteiro - so que estavam ligados no `ponte_conselho`, que
+        #: esta DESABILITADO no orion.yaml (`conselho_ia.habilitado: false`).
+        #: O retrato completo era montado e entregue a um caminho desligado,
+        #: enquanto quem decide de verdade recebia uma linha.
+        #:
+        #: Opcional: sem ele o comportamento e o de antes, o que mantem os
+        #: testes existentes validos e permite injetar um contexto fixo.
+        self._montar_contexto = montar_contexto
         #: O vocabulario vem do CONTRATO, nao do orion.yaml: e o limite da
         #: autoridade da IA sobre o robo, e limite de autoridade nao e
         #: parametro de ajuste. Continua injetavel para os testes poderem
@@ -339,13 +359,24 @@ class IaEstrategica(Comportamento):
         # Seguranca nao se negocia: com a vigilancia de obstaculo no comando,
         # nem se pergunta a IA (Cap 18, regra 3 do contrato).
         seguranca_ativa = nome_ativo == "vigilancia_obstaculo"
-        estado = {"comportamento_ativo": nome_ativo}
+        # O quadro do mundo primeiro, o que o robô está fazendo depois - a IA
+        # precisa saber ONDE está antes de saber o que estava fazendo lá.
+        # Falha ao montar o contexto NÃO cancela a consulta: decidir com pouco
+        # contexto é ruim, decidir nunca é pior (Cap 6 s.8).
+        partes = []
+        if self._montar_contexto is not None:
+            try:
+                partes.append(self._montar_contexto())
+            except Exception:
+                logger.warning("falha ao montar o contexto do mundo", exc_info=True)
+        partes.append(f"comportamento_ativo: {nome_ativo}")
+        estado = "\n".join(p for p in partes if p)
         try:
             resposta = await self._comm.request(
                 "mission_core",
                 {
                     "comando": "behavior.aconselhar",
-                    "contexto": str(estado),
+                    "contexto": estado,
                     "opcoes": list(self._acoes_validas),
                     "seguranca_ativa": seguranca_ativa,
                 },
