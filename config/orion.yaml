@@ -133,6 +133,29 @@ vision:
   # Fofao parar de enxergar gente de longe, este e o primeiro numero a subir.
   yolo_imgsz: 320
   confidence_threshold: 0.55
+  # Quantos quadros SEGUIDOS com a pessoa antes de o rastreador confirmar um
+  # alvo e a visao passar a mover a cabeca.
+  #
+  # Era 3, FIXO no codigo (`vision/modulo.py`), contra a regra 6 da
+  # arquitetura - e por estar fora da config nunca apareceu em investigacao
+  # nenhuma. Trazido para ca em 2026-07-29.
+  #
+  # POR QUE 1, e nao 3: `vision.person_detected` sai a cada UM quadro com
+  # pessoa, e e nesse evento que o `AcompanharPessoa` (prio 45) TRANCA a
+  # cabeca, preemptando a IA estrategica (40). Com 3 aqui, 1 quadro trancava
+  # a cabeca e 3 eram precisos para mover - e com `yolo_imgsz: 320` a
+  # deteccao pisca, entao a sequencia de 3 raramente fechava. Medido em
+  # producao: 208 trancas de cabeca numa hora e ZERO eventos
+  # `motion.pan_tilt` em 35 s. A cabeca ficava presa por quem nao a move.
+  #
+  # 1 alinha a tranca com o motor: quem trava em um quadro tambem move em um
+  # quadro. O PRECO e o que os 3 quadros evitavam - um falso positivo do YOLO
+  # move a cabeca uma vez. Trocado de proposito: cabeca que se move errado
+  # uma vez se corrige no quadro seguinte; cabeca travada nao se corrige.
+  #
+  # Se voltar a haver falso positivo movendo a cabeca, o numero a subir e
+  # `confidence_threshold`, nao este - subir este traz o impasse de volta.
+  target_confirmation_frames: 1
   pan_limits_degrees: [-80, 80]
   tilt_limits_degrees: [-30, 45]
   servo_max_speed_deg_s: 60

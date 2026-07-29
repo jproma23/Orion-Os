@@ -97,3 +97,51 @@ async def test_nucleo_que_morre_deixa_o_modulo_doente():
 
     assert not modulo.esta_saudavel()
     await modulo.encerrar()
+
+
+# ----- confirmacao de alvo vem da config (2026-07-29) -----
+#
+# O numero vinha FIXO em 3 no `_construir`, contra a regra 6 da arquitetura, e
+# por nao estar na config nunca apareceu em investigacao nenhuma. Ele e o nó do
+# impasse medido em producao: `vision.person_detected` sai a cada UM quadro e e
+# nele que o AcompanharPessoa (prio 45) TRANCA a cabeca, mas so com alvo
+# CONFIRMADO a visao a move. Com 3 aqui, 1 quadro trancava e 3 eram precisos
+# para mover - 208 trancas numa hora e zero movimento.
+
+
+def _modulo_com(conf_extra: dict) -> ModuloVisao:
+    return ModuloVisao(EventBus(), {**CONFIG_VISAO, **conf_extra})
+
+
+def test_confirmacao_de_alvo_vem_do_orion_yaml(monkeypatch):
+    capturado = {}
+
+    class VisionCoreEspiao:
+        def __init__(self, *_args, **kwargs):
+            capturado.update(kwargs)
+
+    # `_construir` faz `from orion.vision.vision_core import VisionCore` DENTRO
+    # do metodo (import tardio, para nao exigir cv2/YOLO so por importar este
+    # arquivo) - entao o nome a trocar mora no modulo de origem.
+    monkeypatch.setattr("orion.vision.vision_core.VisionCore", VisionCoreEspiao)
+
+    _modulo_com({"target_confirmation_frames": 4})._construir()
+    assert capturado["frames_confirmacao_alvo"] == 4
+
+
+def test_confirmacao_de_alvo_default_e_1_nao_3(monkeypatch):
+    """Config antiga sem a chave nao pode reintroduzir o impasse: o default
+    tem que ser 1, o valor que alinha a tranca com o motor."""
+    capturado = {}
+
+    class VisionCoreEspiao:
+        def __init__(self, *_args, **kwargs):
+            capturado.update(kwargs)
+
+    # `_construir` faz `from orion.vision.vision_core import VisionCore` DENTRO
+    # do metodo (import tardio, para nao exigir cv2/YOLO so por importar este
+    # arquivo) - entao o nome a trocar mora no modulo de origem.
+    monkeypatch.setattr("orion.vision.vision_core.VisionCore", VisionCoreEspiao)
+
+    _modulo_com({})._construir()
+    assert capturado["frames_confirmacao_alvo"] == 1

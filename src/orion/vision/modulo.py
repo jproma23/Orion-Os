@@ -200,9 +200,13 @@ class ModuloVisao:
                 velocidade_max_graus_s=self._conf["servo_max_speed_deg_s"],
             ),
             publicar_pan_tilt=self._publicar_pan_tilt or self._mover_servos,
-            # 3 quadros seguidos com a mesma deteccao antes de mover o servo -
-            # mitigacao contra falso positivo do YOLO (2026-07-28).
-            frames_confirmacao_alvo=3,
+            # Quadros seguidos com a mesma deteccao antes de confirmar o alvo
+            # e mover o servo. Vinha FIXO em 3 aqui (contra a regra 6 da
+            # arquitetura) e por isso nunca aparecia em investigacao nenhuma;
+            # agora e `vision.target_confirmation_frames` no orion.yaml, onde o
+            # comentario explica por que o valor e 1. O `.get` com default
+            # cobre um orion.yaml mais antigo, como o `imgsz` logo abaixo.
+            frames_confirmacao_alvo=self._conf.get("target_confirmation_frames", 1),
             fps=self._conf["fps"],
             # .get com default 640 para nao quebrar um orion.yaml antigo que
             # ainda nao tenha a chave (o Pi e o Notebook nem sempre atualizam
