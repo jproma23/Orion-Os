@@ -429,6 +429,20 @@ async def principal() -> None:
 
     event_bus.subscribe("motion.pan_tilt", _mover_servos_do_maestro)
 
+    # ...e o Notebook precisa SABER que a cabeca se mexeu (2026-07-29).
+    #
+    # A visao guarda a posicao dos servos em software (CalculadoraPanTilt) e
+    # calcula a proxima correcao a partir dela. Quando a ronda daqui joga a
+    # cabeca para -60 e a visao ainda acha que esta em +20, a correcao seguinte
+    # sai de uma base que nao existe e a cabeca pula quase 90 graus - o
+    # "pan/tilt fica maluco depois de horas funcionando bem".
+    #
+    # O repasse e SO neste sentido. O Notebook nao encaminha `motion.pan_tilt`
+    # para ca, e nao pode passar a encaminhar: a visao ja comanda os servos
+    # pelo `comm.send` direto, e o evento faria o mesmo movimento uma segunda
+    # vez por este handler.
+    event_bus.subscribe("motion.pan_tilt", _repassar_ao_notebook)
+
     maestro = BehaviorCore(
         event_bus,
         ponte_conselho=ponte_conselho,

@@ -29,6 +29,15 @@ logger = logging.getLogger("orion.vision.vision_core")
 
 CallbackPanTilt = Callable[[float, float], Awaitable[None]]
 
+#: Marca os `motion.pan_tilt` que ESTA classe publicou, para nao ressincronizar
+#: a estimativa com o proprio eco (ver `_ao_outro_dono_mover_a_cabeca`).
+#:
+#: So a visao se identifica, de proposito: quem NAO se identifica e tratado
+#: como outro dono. Assim qualquer publicador futuro de `motion.pan_tilt` passa
+#: a ressincronizar a visao sem precisar saber que esta calculadora existe -
+#: o default fica no lado correto.
+ORIGEM_VISAO = "visao"
+
 
 class VisionCore:
     def __init__(
@@ -77,6 +86,33 @@ class VisionCore:
         # laco rodava a toda velocidade, medido em 131% de CPU disputando os
         # 4 nucleos com o Whisper. Ver _dormir_o_resto_do_quadro.
         self._intervalo_alvo_s = 1.0 / fps if fps and fps > 0 else 0.0
+        # A cabeca tem DOIS donos e ate 2026-07-29 este modulo nao tinha um
+        # unico `subscribe`: ele mandava SET_PAN_TILT e assumia que ninguem
+        # mais tocava nos servos. Os comportamentos do Pi tocam. Assinar aqui
+        # e o que impede a estimativa de virar ficcao - ver
+        # CalculadoraPanTilt.sincronizar.
+        event_bus.subscribe("motion.pan_tilt", self._ao_outro_dono_mover_a_cabeca)
+
+    async def _ao_outro_dono_mover_a_cabeca(self, evento) -> None:
+        """Ressincroniza a posicao assumida dos servos.
+
+        Ignora o proprio eco: esta classe publica `motion.pan_tilt` a cada
+        quadro com alvo, e o Pi repassa os DELE para ca - as duas coisas
+        chegam no mesmo topico do mesmo barramento.
+        """
+        if evento.dados.get("origem") == ORIGEM_VISAO:
+            return
+        pan = evento.dados.get("pan")
+        tilt = evento.dados.get("tilt")
+        if pan is None or tilt is None:
+            return
+        try:
+            self._pan_tilt.sincronizar(pan, tilt)
+        except (TypeError, ValueError):
+            # payload de outra maquina: dado ruim nao pode derrubar o handler.
+            logger.warning("motion.pan_tilt com pan/tilt invalido: %r", evento.dados)
+            return
+        logger.debug("pan/tilt ressincronizado por outro dono: %s, %s", pan, tilt)
 
     def salvar_ultimo_frame(self, caminho: str) -> str | None:
         """Grava em disco a ultima imagem lida. Devolve o caminho, ou None se
@@ -198,7 +234,9 @@ class VisionCore:
             # publica sempre (mesmo sem callback de hardware) - o avatar
             # (Cap 13) reflete a direcao calculada independente do robo
             # fisico estar montado ou nao.
-            await self._event_bus.publish("motion.pan_tilt", {"pan": pan, "tilt": tilt})
+            await self._event_bus.publish(
+                "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_VISAO}
+            )
             if self._publicar_pan_tilt is not None:
                 await self._publicar_pan_tilt(pan, tilt)
 

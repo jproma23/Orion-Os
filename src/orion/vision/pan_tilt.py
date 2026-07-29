@@ -34,6 +34,31 @@ class CalculadoraPanTilt:
         self.pan_atual = 0.0
         self.tilt_atual = 0.0
 
+    def sincronizar(self, pan: float, tilt: float) -> None:
+        """Corrige a posicao ASSUMIDA quando OUTRO dono mexeu na cabeca.
+
+        A cabeca tem dois donos independentes (achado em 2026-07-29): a visao
+        manda SET_PAN_TILT direto pelo `comm.send`, e os comportamentos do Pi
+        publicam `motion.pan_tilt` (Repouso nivela em 0,0; a ronda varre
+        -60 -> +60 -> 0). Nenhum dos dois sabia do outro.
+
+        Sem este metodo a correcao saia de uma base que nao existe: com a
+        cabeca fisicamente em -60 e `pan_atual` valendo +20, a proxima
+        correcao mandava +22 e a cabeca PULAVA 82 graus de uma vez. E piorava
+        quanto mais tempo o sistema ficava de pe, porque cada varredura entre
+        dois quadros desalinhava a estimativa outra vez.
+
+        Os limites sao aplicados aqui tambem: se alguem mandou a cabeca para
+        fora da faixa que esta calculadora conhece, a estimativa acompanha o
+        que o servo consegue de fato fazer, nao o que foi pedido.
+        """
+        self.pan_atual = max(
+            self._limites.pan_min_graus, min(self._limites.pan_max_graus, float(pan))
+        )
+        self.tilt_atual = max(
+            self._limites.tilt_min_graus, min(self._limites.tilt_max_graus, float(tilt))
+        )
+
     def calcular_correcao(
         self,
         centro_alvo_x: float,
