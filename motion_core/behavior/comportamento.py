@@ -6,6 +6,8 @@ comportamento de MAIOR prioridade que "quer rodar" e o coloca no controle.
 """
 from __future__ import annotations
 
+import inspect
+
 from orion.kernel.event_bus import EventBus
 
 
@@ -51,3 +53,28 @@ class Comportamento:
         lembrar onde parou, se quiser retomar em vez de recomeçar.
         """
         raise NotImplementedError
+
+
+async def resolver_contexto(montar) -> str:
+    """Chama o montador de contexto, que pode ser sincrono OU assincrono.
+
+    Mora nesta base porque os DOIS consumidores a usam (o maestro e o
+    comportamento IaEstrategica) e ela e o unico modulo que os dois ja
+    importam - por aqui nao ha ciclo de import.
+
+    POR QUE EXISTE (2026-07-29): o contexto do Pi passou a LER O BANCO, para
+    trazer as observacoes do diario, e leitura de banco e `async`. Antes o
+    montador era obrigatoriamente sincrono, e era exatamente por isso que o
+    diario NUNCA chegava a IA estrategica: nao havia como esperar por ele. Ela
+    ouvia "o diario esta VAZIO" todo ciclo, mesmo com o diario gravando -
+    porque a unica forma de responder em tempo era nao consultar.
+
+    Aceitar as duas formas mantem validos, sem mudanca nenhuma, todos os
+    montadores sincronos que ja existem (e os testes deles).
+    """
+    if montar is None:
+        return ""
+    resultado = montar()
+    if inspect.isawaitable(resultado):
+        resultado = await resultado
+    return resultado or ""

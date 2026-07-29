@@ -40,6 +40,7 @@ from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
 from motion_core.behavior.ponte_conselho import PonteConselhoIA
 from orion.mission.alivio_carga import TOPICO_PEDIDO_ALIVIO, TOPICO_RECUPERADO
 from orion.mission.conselho_protocolo import TOPICO_PEDIDO
+from orion.mission.diario import DiarioObservacoes
 from orion.mission.grounding import montar_contexto
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
@@ -313,8 +314,35 @@ async def principal() -> None:
     conf_conselho = config.secao("behavior").get("conselho_ia") or {}
     ponte_conselho = PonteConselhoIA(event_bus) if conf_conselho.get("habilitado") else None
 
-    def _contexto_para_ia() -> str:
+    # O DIARIO CHEGA A IA ESTRATEGICA (2026-07-29).
+    #
+    # Ate hoje `observacoes` nao era passado aqui, entao `bloco_observacoes`
+    # devolvia "o diario esta VAZIO: nao vi ninguem e nada aconteceu hoje" a
+    # CADA ciclo - mesmo com o diario gravando e com o dono na frente da
+    # camera. A IA decidia achando que a casa estava vazia e sem historia.
+    #
+    # `apenas_leitura=True` e obrigatorio: quem ESCREVE o diario e o Notebook,
+    # onde a visao reconhece as pessoas. Como `vision.person_recognized` e
+    # encaminhado para ca, um diario que assinasse eventos aqui gravaria cada
+    # observacao DUAS vezes.
+    #
+    # Le direto da `MemoryAPI` local: o banco vive neste Raspberry (EDR-0019),
+    # entao aqui nao ha rede no caminho - ao contrario do Notebook, que le pelo
+    # MemoryClient atraves do link TCP.
+    # Fica None aqui e e PREENCHIDO adiante, quando `memory_api` existir - o
+    # closure abaixo ve a variavel, nao o valor do momento.
+    diario_leitura = None
+
+    async def _contexto_para_ia() -> str:
         r = mundo.retrato()
+        # Falha ao ler o diario NAO cancela a decisao: decidir com menos
+        # contexto e ruim, decidir nunca e pior (Cap 6 s.8).
+        observacoes = []
+        if diario_leitura is not None:
+            try:
+                observacoes = await diario_leitura.observacoes_de_hoje()
+            except Exception:
+                logger.warning("falha ao ler o diario para o contexto da IA", exc_info=True)
         return montar_contexto(
             retrato={
                 "obstaculo_frente_cm": r.obstaculo_frente_cm,
@@ -335,6 +363,9 @@ async def principal() -> None:
             # Quem sao as pessoas da casa e o que elas sao PARA ELE.
             # Sem isto a IA decide sobre gente sem saber de quem se trata.
             familia=familia_conf,
+            # O que ele viu hoje. Lista vazia tambem e informacao: vira "olhei
+            # e nao vi nada", que e diferente de nao ter olhado.
+            observacoes=observacoes,
         )
 
     # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde
@@ -500,6 +531,9 @@ async def principal() -> None:
     # 4. Memoria (Fase 3) - opcional, so se o SSD de producao existir.
     conf_db = config.secao("database")
     memory_api, db, vault = _abrir_memoria(config, event_bus, logger)
+    if memory_api is not None:
+        # Agora sim: o banco existe, e o contexto da IA passa a ter o diario.
+        diario_leitura = DiarioObservacoes(event_bus, memory_api, apenas_leitura=True)
     tarefa_manutencao = None
     tarefa_manutencao_task = None
     if memory_api is not None:

@@ -11,7 +11,7 @@ import logging
 import time
 
 from motion_core.behavior import contrato
-from motion_core.behavior.comportamento import Comportamento
+from motion_core.behavior.comportamento import Comportamento, resolver_contexto
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 
 logger = logging.getLogger("motion_core.behavior.comportamentos")
@@ -366,7 +366,9 @@ class IaEstrategica(Comportamento):
         partes = []
         if self._montar_contexto is not None:
             try:
-                partes.append(self._montar_contexto())
+                # pode ser sincrono ou assincrono: no Pi ele LE O BANCO para
+                # trazer as observacoes do diario (ver _resolver_contexto).
+                partes.append(await resolver_contexto(self._montar_contexto))
             except Exception:
                 logger.warning("falha ao montar o contexto do mundo", exc_info=True)
         partes.append(f"comportamento_ativo: {nome_ativo}")

@@ -63,6 +63,7 @@ class DiarioObservacoes:
         memory_client,
         janela_silencio_s: float = JANELA_SILENCIO_S,
         agora=None,
+        apenas_leitura: bool = False,
     ) -> None:
         self._bus = event_bus
         self._memoria = memory_client
@@ -71,6 +72,15 @@ class DiarioObservacoes:
         self._agora = agora or datetime.now
         #: última vez que cada pessoa virou registro (nome -> datetime)
         self._ultimo_registro: dict[str, datetime] = {}
+
+        #: `apenas_leitura` existe para o Pi (2026-07-29). Quem ESCREVE o
+        #: diário é o Notebook, que é onde a visão reconhece as pessoas. O Pi
+        #: precisa apenas LER, para pôr as observações no contexto da IA
+        #: estratégica - e se ele assinasse os mesmos eventos, gravaria cada
+        #: observação DUAS vezes, porque `vision.person_recognized` é
+        #: encaminhado do Notebook para cá.
+        if apenas_leitura:
+            return
 
         # `vision.person_recognized`, NAO `vision.person_detected` (corrigido
         # em 2026-07-29).

@@ -12,7 +12,7 @@ import asyncio
 import logging
 import time
 
-from motion_core.behavior.comportamento import Comportamento
+from motion_core.behavior.comportamento import Comportamento, resolver_contexto
 from orion.kernel.event_bus import EventBus
 
 logger = logging.getLogger("motion_core.behavior.behavior_core")
@@ -132,7 +132,7 @@ class BehaviorCore:
         """
         try:
             opcoes = sorted(self._discricionarios) + ["repouso"]
-            contexto = self._montar_contexto() if self._montar_contexto else ""
+            contexto = await resolver_contexto(self._montar_contexto)
             resposta = await self._ponte_conselho.pedir(contexto, opcoes)
             if not resposta:
                 return

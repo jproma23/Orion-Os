@@ -365,3 +365,66 @@ async def test_registro_com_fuso_nao_quebra_a_leitura() -> None:
 
     assert len(observacoes) == 1
     assert "João Paulo" in observacoes[0]["o_que"]
+
+
+# ----- modo APENAS LEITURA, para o Pi (2026-07-29) -----
+#
+# O diário é ESCRITO no Notebook, onde a visão reconhece as pessoas. O Pi
+# precisa apenas LER, para pôr as observações no contexto da IA estratégica.
+# Como `vision.person_recognized` é ENCAMINHADO do Notebook para o Pi, um
+# diário que assinasse eventos lá gravaria cada observação DUAS vezes.
+
+
+@pytest.mark.asyncio
+async def test_apenas_leitura_NAO_grava_ao_receber_evento() -> None:
+    """O risco concreto: gravação dupla de tudo o que o robô vê."""
+    memoria = _MemoriaFalsa()
+    bus = EventBus()
+    import asyncio
+
+    tarefa = asyncio.create_task(bus.iniciar())
+    DiarioObservacoes(bus, memoria, agora=lambda: AGORA, apenas_leitura=True)
+
+    await bus.publish("vision.person_recognized", {"nome": "João Paulo"})
+    await bus.publish("sentinela.alerta", {"tipo": "pessoa"})
+    await bus.aguardar_fila_vazia()
+
+    assert memoria.gravados == [], "em modo leitura ele nao pode gravar nada"
+
+    bus.parar()
+    tarefa.cancel()
+
+
+@pytest.mark.asyncio
+async def test_apenas_leitura_ainda_LE_normalmente() -> None:
+    """Não gravar não pode significar não servir para nada - ler é a razão de
+    ele existir no Pi."""
+    memoria = _MemoriaFalsa([_registro(TIPO_PESSOA_VISTA, AGORA, nome="Marah")])
+    diario = DiarioObservacoes(
+        EventBus(), memoria, agora=lambda: AGORA, apenas_leitura=True
+    )
+
+    observacoes = await diario.observacoes_de_hoje()
+
+    assert len(observacoes) == 1
+    assert "Marah" in observacoes[0]["o_que"]
+
+
+@pytest.mark.asyncio
+async def test_diario_normal_CONTINUA_gravando() -> None:
+    """Guarda o outro lado: o flag não pode ter desligado a escrita de quem
+    escreve de verdade (o Notebook)."""
+    memoria = _MemoriaFalsa()
+    bus = EventBus()
+    import asyncio
+
+    tarefa = asyncio.create_task(bus.iniciar())
+    DiarioObservacoes(bus, memoria, agora=lambda: AGORA)
+
+    await bus.publish("vision.person_recognized", {"nome": "João Paulo"})
+    await bus.aguardar_fila_vazia()
+
+    assert len(memoria.gravados) == 1
+
+    bus.parar()
+    tarefa.cancel()
