@@ -58,10 +58,42 @@ communication:
     mission_core: 45
     motion_core: 45
 
+# Medidas físicas do Fofão (2026-07-29, medidas com fita pelo mantenedor).
+#
+# POR QUE O ROBÔ PRECISA SABER O PRÓPRIO TAMANHO: distância sozinha não diz
+# se cabe. Uma varredura que acusa "80 cm livres a 130°" só vira "posso
+# passar por ali" depois de comparar com a largura - sem isto o robô escolhe
+# uma passagem estreita demais com toda a confiança do mundo.
+#
+# E girar no lugar não usa a largura, usa a DIAGONAL: um corpo de 50x30 cm
+# varre um círculo de ~58,3 cm ao rodar sobre o próprio centro. Decidir
+# "posso girar aqui" olhando só os 50 cm raspa o canto.
+chassi:
+  largura_m: 0.50          # ponto mais largo
+  profundidade_m: 0.30
+  altura_m: 0.65           # define por baixo do que ele passa
+  roda_diametro_m: 0.200   # anda 0,6283 m por volta (pi * d)
+  microstep_tb6600: "1/8"  # S1=OFF S2=ON S3=OFF -> 1600 passos/volta
+  # PENDENTE - medir e preencher:
+  #   bitola_m: distância centro a centro das duas rodas. Entra na odometria
+  #     diferencial (fusao_sensores.py) e no cálculo de graus por passo.
+  #     Hoje o valor usado é o placeholder `motion.wheel_base_m` abaixo.
+  #   ultrassom_frontal_altura_m: a que altura do chão o sensor está. Abaixo
+  #     dessa linha ele é cego - degrau, pé de cadeira, brinquedo no chão.
+  #   ultrassom_frontal_recuo_m: quanto o sensor está recuado em relação à
+  #     ponta mais avançada do robô. Se for 0,10, então os 25 cm de
+  #     `min_front_distance_cm` são 15 cm de para-choque - erro sistemático
+  #     em toda decisão de parada, e sempre no sentido perigoso.
+
 motion:
   max_speed_percent: 60
   acceleration_percent: 40
-  steps_per_meter: 4000          # base; ajustado pela autocalibracao
+  # CORRIGIDO 2026-07-29 (era 4000). Derivado, nao digitado:
+  #   1600 passos/volta (TB6600 em 1/8) / (PI * 0,200 m de roda) = 2546
+  # O 4000 vinha de calcular a circunferencia como 2*diametro em vez de
+  # PI*diametro - o robo andava PI/2 = 1,571x mais do que o comandado.
+  # TEM que bater com PASSOS_POR_METRO em firmware/.../motor_manager.h.
+  steps_per_meter: 2546          # base; ajustado pela autocalibracao
   odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
   autocalibrate_on_first_boot: true
   min_front_distance_cm: 25      # parada reativa (Camada 1)

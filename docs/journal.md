@@ -4086,3 +4086,212 @@ a memória frontal funcionando. 432 testes passando antes e depois.
 - **Bússola sem auto-calibração** (`rumo_valido: false`). Não tem relação
   com este bug — medido, a causa era o servo do radar. Mas o usuário quer
   que ela **se auto-calibre**; `calibrar_bussola` já está no contrato da IA.
+
+
+## Sessao de 2026-07-29 - o Mega para de vetar, e tres mentiras que sustentavam o congelamento
+
+Sessao longa, com hardware. Comecou para fazer o robo DESVIAR do obstaculo em
+vez de congelar (pendencia de 28/07) e terminou reescrevendo quem tem
+autoridade sobre o movimento - ver EDR-0027.
+
+### O congelamento nao estava no Python
+
+`vigilancia_obstaculo` fazia `while True: sleep(1.0)`, mas trocar isso por um
+plano de desvio nao resolveria nada: `command_executor.h` recusava TODO comando
+de movimento enquanto `safety.pararAtivo()` fosse verdadeiro - **incluindo
+TURN_LEFT/TURN_RIGHT** - e `safety_manager.h` chamava `motores.parar()` a cada
+volta do loop. A unica manobra capaz de tirar o obstaculo da frente era tambem
+a unica coisa proibida.
+
+Decisao do mantenedor, dita e reafirmada quatro vezes ("o mega nao pode vetar",
+"nada tem q bloquear ou impedir de tomar acoes", "nao tem freio, existem
+manobras"): o Mega mede, informa e executa. Sobrou so o homem-morto - motores
+girando sem comando novo por 5s. Detalhes e consequencias no EDR-0027.
+
+### Mentira 1: "nao medi" chegava como "esta livre" (a mais grave)
+
+Relato do usuario: *"as vezes quando testava proximo do sensor acusava esse
+517 cm"*. Os 517 sao o teto de alcance - `_foraDeAlcance()` em
+`sensor_ultrassonico.h` reporta esse valor com **`_leituraValida = true`**
+quando nada refletiu. O proprio driver marca `_semEco` para denunciar, e
+**ninguem olhava a bandeira**: nem o `SafetyManager`, nem o `NavigationCore`,
+nem o `EstadoDoMundo`.
+
+Por que aparece justamente PERTO: o eco de um obstaculo a 40 cm dura ~2,3 ms.
+Medido nesta sessao na telemetria real, com o robo parado:
+
+    loop_max_us = 118.816 a 124.380   (118-124 ms de volta do loop)
+    t_envio_us  =  87.264 a  91.648   (~88 ms so mandando telemetria)
+
+O eco inteiro nasce e morre dentro da cegueira, o pino ECHO nunca e visto
+subir, e o driver conclui "nada refletiu". **Quanto mais perto o obstaculo,
+maior a chance de virar caminho livre.** Falha para o lado errado, na hora que
+importa. `frontal_descartes` subiu de 3 para 14 em ~4 s (3,4/s).
+
+Nota de regressao: o journal de 27/07 previa ~24 ms por pacote a 250000 baud e
+mediu 68 ms; hoje esta em ~88 ms. O pacote cresceu desde entao - cada campo
+novo de diagnostico custa tempo de olho fechado. Foi por isso que os pulsos de
+encoder, adicionados no meio desta sessao, foram REVERTIDOS: pagavam cegueira
+extra no pacote reduzido (o que sai andando) por um sensor que nao esta
+instalado.
+
+Corrigido no `NavigationCore` e no `EstadoDoMundo`: `sem_eco` vira `None` -
+"nao sei" - e nunca uma parede imaginaria a 5 metros. Novo metodo
+`NavigationCore.frente_desconhecida()` separa "nao sei" de "esta livre", que
+eram a mesma resposta ate hoje.
+
+### Mentira 2: o cerebro assinava o canal errado do estado
+
+O usuario afirmou que havia "uma trava para enganar o sistema e deixar sempre
+em idle". Procurei duas vezes no lugar errado (webui, JavaScript) antes de
+achar - e ele estava certo.
+
+A telemetria carrega `estado` em TODO pacote, e a webui le dali. Mas
+`VigilanciaObstaculo`, `EstadoDoMundo` e `NavigationCore` assinam
+**`motion.status`**, que o firmware so publica **na BORDA**
+(`notificarTransicaoDeEstado`). Consequencia: `navigation_core.py` inicializa
+`self._estado_hardware = "IDLE"` - um valor INVENTADO - e depois de um restart
+do Motion Core o Pi acredita nele ate o Mega mudar de estado por conta propria.
+Com o Mega parado em OBSTACLE_DETECTED nao ha transicao a anunciar, e o dado
+certo chega a cada segundo sem ninguem escutar. Um `motion.status` perdido na
+serial tem o mesmo efeito, para sempre.
+
+A telemetria agora atualiza `_estado_hardware` tambem. O `motion.status`
+continua servindo para reagir na hora; a telemetria virou o lastro.
+
+**A tela era mais confiavel que o cerebro do robo.**
+
+### Mentira 3: PASSOS_POR_METRO, e da para reconstruir o engano
+
+Com as medidas do mantenedor (roda 200 mm, TB6600 em 1/8 = 1600 passos/volta):
+
+    1600 / 0,4    = 4000   <- circunferencia como 2 * diametro  (o valor antigo)
+    1600 / 0,6283 = 2546   <- PI * diametro (o certo)
+
+Fator PI/2 = 1,571: **o robo andava 57% mais do que o comandado**. Pedir 30 cm
+movia 47 cm. Erro sistematico, sempre no mesmo sentido, que a odometria em
+malha aberta nunca corrigiria. Ficou grave hoje justamente porque o freio do
+Mega saiu.
+
+Corrigido como expressao derivada (`PASSOS_POR_VOLTA_MOTOR / (PI *
+RODA_DIAMETRO_M)`), nao como numero digitado - numero digitado a mao foi a
+origem do erro.
+
+`PASSOS_POR_GRAU = 20` ficou marcado como SUSPEITO: com 1600 passos/volta e
+roda de 200 mm, ele implicaria bitola de 0,90 m, impossivel num robo de 0,50 m
+de largura. Para uma bitola plausivel de 0,45 m o valor seria 10 - o robo
+giraria o DOBRO do pedido. **Falta medir a bitola.**
+
+Formula do giro diferencial, para nao ser rederivada: cada roda percorre um
+circulo de raio igual a metade da bitola, entao
+`passos_por_grau = passos_por_volta * bitola / (360 * diametro)`. O PI cancela
+dos dois lados; uma volta completa do robo = `bitola / diametro` voltas de
+roda.
+
+### O radar estava mudo, e a sonda mentia junto
+
+Ao medir qual lado fisico corresponde ao angulo logico do radar, sete angulos
+cobrindo 120 graus voltaram todos entre 199,2 e 203,4 cm - variacao de 2%.
+Impossivel varrendo de verdade. Concluido que o servo nao movia o sensor.
+
+Causa: **o fio do servo estava solto.** Reconectado, a mesma varredura passou a
+dar 161 / 165 / 197 / 200 / 245 / 91 / 245.
+
+O que isso revelou e maior que o fio: **o firmware nao sabe dizer que o radar
+nao esta se mexendo.** `radar_angulo_graus` vem de `_anguloAtual`, atualizado
+por `_servo.write()` sem nenhuma confirmacao fisica. Com o fio solto, a
+telemetria afirmou "radar em 30 graus" com total confianca, e todo diagnostico
+de bancada naquela janela deu falso.
+
+Duas armadilhas de metodo pagas aqui:
+
+1. **A varredura de boot sobrescreve RADAR_SET_ANGLE.** Abrir a serial reseta o
+   Mega (DTR); o `setup()` dispara `iniciarVarredura()`, que dura ~2,1 s e
+   termina estacionando o radar em 90. Um comando mandado antes disso recebe
+   ACK, "funciona", e e engolido. A sonda so ficou honesta esperando 5 s e
+   **conferindo o angulo na telemetria** (90 antes, 30 depois).
+2. **A medicao do lado nao fechou.** Com a mao a 40 cm, nenhum angulo acusou
+   40 cm - a mao espalha o ultrassom e devolve "sem eco". E os angulos 70 e 130
+   oscilaram 30 cm entre duas varreduras separadas por 3 s, porque havia gente
+   andando perto. Fica PENDENTE, com protocolo definido: objeto rigido e plano,
+   ninguem se mexendo, varredura de referencia antes e depois.
+
+### Instinto que nasceu disto (primeiro da lista)
+
+**Desconfiar de varredura sem variacao.** Sete angulos cobrindo 120 graus que
+voltam todos dentro de 2% nao sao um comodo uniforme - sao um radar parado. O
+robo deve marcar a varredura como nao-confiavel e avisar, em vez de montar mapa
+em cima dela. Barato, nao exige sensor novo, e teria pego o fio solto sozinho.
+
+### O que foi construido
+
+- `TipoMovimento` no `MotorManager` (NENHUM/FRENTE/RE/GIRO) - a seguranca
+  precisava distinguir "avancando" de "girando no lugar", e `emMovimento()`
+  sozinho nao dizia. `movimentoAtual()` cruza o comandado com o estado real das
+  rodas, porque um giro por graus termina sozinho sem ninguem chamar `parar()`.
+- Acao `GIRAR` no `NavigationCore` (`{"acao": "GIRAR", "graus", "sentido"}`).
+  **Nao usa `MANUAL` de proposito**: `ControleManual` (prio 95) assina
+  `navigation.comando` e assumiria o controle a cada giro de desvio, entregando
+  o robo a um "operador" inexistente por 1,5 s.
+- `VigilanciaObstaculo` gira em malha fechada em vez de dormir. Sentido inicial
+  arbitrario e ASSUMIDO como tal - o mapeamento angulo->lado nao foi medido -
+  e o laco inverte o sentido a cada 3 tentativas sem sucesso. Depois de uma
+  volta inteira sem saida, publica `diagnostic.alerta` tipo `encurralado` e
+  continua tentando, nunca desiste em silencio.
+- Secao `chassi:` no `orion.yaml` com as medidas reais: 50 cm de largura, 30 de
+  profundidade, 65 de altura, roda de 200 mm, TB6600 em 1/8.
+
+### Estado ao final
+
+434 testes passam + 8 pulados no Pi (eram 428+8; 6 novos hoje). Zero regressao
+de ruff (20 erros no `motion_core` antes e depois, 2 nos testes antes e depois -
+todos pre-existentes). Firmware compila: RAM 47,7%, Flash 19,8%.
+
+**O firmware NAO foi gravado no Mega.** Tudo que foi medido nesta sessao e do
+firmware ANTIGO.
+
+### PENDENTE
+
+- **Gravar o firmware no Mega** e confirmar a telemetria. Nada de hoje esta no
+  hardware.
+- **Medir a bitola** - destrava o `PASSOS_POR_GRAU`.
+- **Medir o ultrassom frontal**: altura do chao e recuo em relacao a ponta do
+  robo. Se estiver recuado 10 cm, os 25 cm de limiar sao 15 cm de para-choque -
+  erro sistematico e sempre no sentido perigoso.
+- **Validar `PASSOS_POR_METRO = 2546` no hardware**, com a malha fechada por
+  ultrassom (proposta do mantenedor: fixar um ponto, medir, e se guiar pela
+  aproximacao da medida em vez de contar passo). Isso implementa de passagem a
+  autocalibracao do Cap 12 s.9, que esta escrita no `orion.yaml`
+  (`odometry_correction_factor`) e nunca foi construida.
+- **Fechar a medicao angulo->lado do radar** com o protocolo acima.
+- **Custo da telemetria**: ~88 ms por pacote, loop cego ate 124 ms. Atacar o
+  tamanho do pacote e a causa; tratar `sem_eco` como desconhecido (feito hoje)
+  cobre o que sobrar.
+- **Missao com retomada** - `executar_patrol` ainda desiste da rota.
+- **Ferramenta `olhar_em_volta`** (ideia do mantenedor): varrer com o pan/tilt,
+  fotografar em varios angulos, escolher o caminho e confirmar a distancia com
+  o ultrassom. `tools/panorama.py` ja faz a parte mecanica. Ressalva medida: o
+  YOLO reconhece CLASSES treinadas, nao "obstaculo" nem "chao livre" - parede
+  lisa e batente de porta nao aparecem.
+- **BUG CONFIRMADO, nao corrigido - o diario nunca registra ninguem.**
+  `diario.py:75` assina `vision.person_detected` e le `evento.dados["nome"]`
+  (linha 81), mas o `VisionCore` publica esse topico com
+  `{classe, confianca, caixa, timestamp}` - **sem `nome`**. O nome so existe em
+  `vision.person_recognized`. Entao `nome` e sempre None, o `if not nome:
+  return` da linha 85 dispara sempre, e **nenhuma pessoa reconhecida jamais
+  entrou no diario em producao**. O teste passa porque publica um payload
+  sintetico que o produtor real nunca emite - mesma armadilha que deixou o
+  FOLLOW morto em 28/07.
+
+### O padrao, agora com nome e contagem
+
+Cinco ocorrencias de "produtor e consumidor com contratos diferentes, e
+publicar nao falha": guardiao de RAM (ate 19/07), pan/tilt da visao (ate
+25/07), eventos de visao nao atravessando para o Pi (28/07), FOLLOW esperando
+`centro_x` (28/07), e agora o diario esperando `nome`. Some-se a familia irma,
+"produz e ninguem consome": `encoder_manager` conta pulsos que nunca sairam do
+Mega.
+
+**Vale como checagem de rotina, nao como acidente:** ao ligar um assinante
+novo, conferir no PRODUTOR real quais campos ele emite - nunca no teste, que e
+escrito pela mesma cabeca que escreveu o assinante.
