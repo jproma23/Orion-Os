@@ -185,3 +185,40 @@ async def test_para_de_pedir_calibracao_apos_o_limite(bus):
 
     pedidos = [c for c in comandos if c.get("comando") == "CALIBRATE_COMPASS"]
     assert len(pedidos) == 2, f"pediu calibracao {len(pedidos)} vezes (limite era 2)"
+
+
+@pytest.mark.asyncio
+async def test_histerese_impede_o_alerta_de_piscar(bus):
+    """MEDIDO EM PRODUCAO em 2026-07-29: com o limiar em 6,0 a dispersao real
+    ficou em 5,7 / 6,7 / 6,0 / 6,1 / 5,7 - o instinto alertava e desalertava
+    sem parar. Aviso que pisca vira ruido que se aprende a ignorar.
+
+    Com histerese, uma vez alertado ele so volta a dizer "estavel" abaixo de
+    `limiar - folga`. Aqui: alerta acima de 6, so relaxa abaixo de 4,5.
+    """
+    alertas = []
+    bus.subscribe("diagnostic.alerta", lambda e: alertas.append(e.dados))
+    instinto = InstintoBussola(
+        bus, dispersao_maxima_graus=6.0, amostras=4, folga_histerese_graus=1.5
+    )
+
+    # janela dispersa (~+-9 graus) -> alerta
+    await _alimentar(instinto, [221.0, 239.0, 222.0, 238.0])
+    await bus.aguardar_fila_vazia()
+    assert len(alertas) == 1
+
+    # janela em cima do limiar (~+-5,5): NAO pode declarar estabilidade nem
+    # alertar de novo - e a zona morta da histerese
+    await _alimentar(instinto, [224.5, 235.5, 225.0, 235.0])
+    await bus.aguardar_fila_vazia()
+    assert len(alertas) == 1, "alertou de novo dentro da zona morta"
+
+    # janela boa de verdade (~+-2) -> relaxa
+    await _alimentar(instinto, [228.0, 232.0, 229.0, 231.0])
+    await bus.aguardar_fila_vazia()
+    assert instinto.dispersao_atual_graus < 4.5
+
+    # e volta a poder alertar se piorar de novo
+    await _alimentar(instinto, [221.0, 239.0, 222.0, 238.0])
+    await bus.aguardar_fila_vazia()
+    assert len(alertas) == 2, "nao voltou a alertar depois de se recuperar"

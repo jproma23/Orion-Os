@@ -93,6 +93,14 @@ class InstintoBussola:
     repetido - que é exatamente o que se quer de um palpite ainda não medido.
     """
 
+    #: Quanto a dispersão precisa CAIR abaixo do limiar para o instinto voltar
+    #: a dizer "estável". Sem esta folga ele pisca: medido em produção em
+    #: 2026-07-29, com o limiar em 6,0° a dispersão real ficou em 5,7 / 6,7 /
+    #: 6,0 / 6,1 / 5,7 - alertando e desalertando sem parar. Aviso que pisca
+    #: vira ruído que se aprende a ignorar, que é o oposto do que um instinto
+    #: deve ser. Mesmo padrão do guardião de RAM (limiar_critico/limiar_folga).
+    FOLGA_HISTERESE_GRAUS = 1.5
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -101,9 +109,15 @@ class InstintoBussola:
         tentativas_max: int = 2,
         intervalo_minimo_s: float = 600.0,
         pedir_calibracao: bool = False,
+        folga_histerese_graus: float | None = None,
     ) -> None:
         self._bus = event_bus
         self._limiar = dispersao_maxima_graus
+        self._folga = (
+            folga_histerese_graus
+            if folga_histerese_graus is not None
+            else self.FOLGA_HISTERESE_GRAUS
+        )
         self._amostras: deque[float] = deque(maxlen=amostras)
         self._minimo = amostras
         self._tentativas_max = tentativas_max
@@ -135,10 +149,29 @@ class InstintoBussola:
             return
 
         dispersao = dispersao_circular_graus(list(self._amostras))
+
+        # HISTERESE: sobe no limiar, só desce depois de melhorar de verdade.
+        # Enquanto alertado, exige `limiar - folga` para declarar estabilidade -
+        # senão uma dispersão que oscila em cima do limiar (medido: 5,7 / 6,7 /
+        # 6,0 / 6,1) faz o instinto piscar.
+        limite_para_voltar = self._limiar - self._folga
+        if self._alertado:
+            if dispersao <= limite_para_voltar:
+                logger.info(
+                    "bússola voltou a ficar estável (%.1f°, abaixo de %.1f°)",
+                    dispersao,
+                    limite_para_voltar,
+                )
+                self._alertado = False
+                self._tentativas = 0
+                return
+            # Continua ruim. Não repete o alerta (`_reagir` só publica quando
+            # ainda não alertou), mas segue avaliando - senão a retentativa de
+            # calibração morreria aqui, e `tentativas_max` nunca passaria de 1.
+            await self._reagir(dispersao, payload)
+            return
+
         if dispersao <= self._limiar:
-            if self._alertado:
-                logger.info("bússola voltou a ficar estável (%.1f°)", dispersao)
-            self._alertado = False
             self._tentativas = 0
             return
 
