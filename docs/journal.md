@@ -4295,3 +4295,201 @@ Mega.
 **Vale como checagem de rotina, nao como acidente:** ao ligar um assinante
 novo, conferir no PRODUTOR real quais campos ele emite - nunca no teste, que e
 escrito pela mesma cabeca que escreveu o assinante.
+
+
+## Sessao de 2026-07-29 (parte 2) - o robo andou sozinho pela primeira vez
+
+A parte 1 tirou o veto do Mega. Esta parte descobriu que o robo continuava
+parado por outros tres motivos, nenhum deles no lugar onde se procurava.
+
+### O diario nunca registrou ninguem - provado no banco
+
+Consulta ao `orion.db` de producao:
+
+    === diario, por tipo, desde sempre ===
+      desconhecido_visto     10
+      (nenhum `pessoa_vista`)
+    pessoas cadastradas: 3  -> Joao Paulo, Marah, Kamal
+
+Dez registros na historia inteira do banco, todos "vi uma pessoa que nao
+reconheci". O mais recente e de hoje, com o dono sozinho em casa na frente do
+proprio robo: ele viu o dono e registrou um ESTRANHO.
+
+Causa: `diario.py` assinava `vision.person_detected` e lia
+`evento.dados["nome"]`. Esse evento nunca teve `nome` - o payload real e
+`{classe, confianca, caixa, timestamp}`. O nome so existe em
+`vision.person_recognized`.
+
+### O mesmo bug em mais dois lugares, e um deles e grave
+
+- `estado_do_mundo.py` fazia igual: `pessoa_conhecida` era falso para TODO
+  MUNDO, inclusive para os donos da casa. A IA decidia achando que so entravam
+  estranhos.
+- **`vision.person_recognized` nunca era encaminhado do Notebook ao Pi.** O
+  `NavigationCore._ao_reconhecer_pessoa` assina esse topico desde 28/07, quando
+  o FOLLOW foi corrigido para so andar atras de gente reconhecida. O handler
+  **nunca rodou uma unica vez**. A correcao de 28/07 trocou o assinante e
+  esqueceu o produtor - exatamente o erro que ela mesma consertava.
+
+Os testes nao pegaram porque publicavam um evento sintetico COM `nome` dentro,
+payload que o produtor real nunca emitiu. Um deles
+(`test_pessoa_conhecida_e_desconhecida`) literalmente protegia o bug: passava
+com o codigo errado e falhou assim que o codigo ficou certo.
+
+### A IA que comanda o robo decidia praticamente cega
+
+`IaEstrategica._consultar` mandava como contexto, literalmente:
+
+    {"comportamento_ativo": "repouso"}
+
+Uma linha. Ela escolhe entre avancar, girar, explorar e seguir pessoa sem saber
+se ha obstaculo, quem esta na sala, qual a bateria ou se o robo esta inclinado.
+
+O `EstadoDoMundo` e o `montar_contexto` ja montavam o quadro inteiro - so que
+ligados ao `ponte_conselho`, que esta DESABILITADO. O retrato completo ia para
+um caminho desligado enquanto quem decide recebia uma linha.
+
+### O rotulo que transformava caminho livre em ameaca
+
+Ligado o contexto, a IA passou a dizer coisas como *"e melhor parar para evitar
+colisoes com o obstaculo a frente"* - com a frente livre por 2 metros.
+
+A linha era `_linha("obstáculo à frente", 199.3, " cm")`, que produzia:
+
+    - obstáculo à frente: 199.3 cm
+
+Ela lia "ha um obstaculo" e o numero virava detalhe. O limiar de perigo (25 cm)
+nunca apareceu no prompt, entao nao havia como saber que 199 cm e caminho
+livre. **Descrever espaco vazio como obstaculo e pedir timidez e depois
+estranhar que o robo nao ande.**
+
+Agora: "CAMINHO LIVRE por 199 cm (so e obstaculo abaixo de 25 cm)", "OBSTACULO
+a 12 cm - perto demais para avancar", ou "NAO SEI a distancia agora (convem
+olhar antes de avancar)" quando o `sem_eco` chega.
+
+Junto foi a setima ocorrencia do padrao do dia: `bloco_corpo` pedia
+`distancia_tras_cm`, o RetratoDoMundo entrega `obstaculo_tras_cm` - "espaco
+atras de mim" era "nao sei" SEMPRE.
+
+### Ninguem nunca convidou o robo a explorar
+
+So disseram que era permitido. Uma lista de opcoes nao e um convite. Pedido do
+dono: *"quero que ele ligue e sinta o desejo de descobrir o mundo"*,
+*"programa-lo pra ele ser ousado e descobrir tudo o que ele mesmo e capaz"*.
+
+Novo bloco `DISPOSICAO` no grounding, e ele vem PRIMEIRO no contexto (modelo
+pequeno pesa mais o comeco do prompt). Diz quem ele e, que as acoes sao as
+FERRAMENTAS dele, que com o caminho livre explorar e o certo, e que ele nao
+precisa ter medo de escolher errado porque o perigoso nem aparece nas opcoes.
+
+**Isto nao afrouxa nada**: os limites moram em codigo (`contrato.py`,
+`PROIBIDO_PARA_IA` verificado no import). O texto muda a DISPOSICAO dentro do
+que ja era permitido, nunca a fronteira.
+
+### O RESULTADO - medido em producao
+
+    IA decidiu 'explorar' (Com o caminho livre à frente, é hora de explorar e
+                           conhecer melhor o ambiente ao meu redor.)
+
+    estado       : EXECUTING_MISSION
+    em_movimento : True
+    ultimo plano : segment_completed, distancia_cm: 30.0
+
+**Primeira vez que o Fofao move as rodas por decisao propria.** Varreu,
+confirmou a frente livre, andou 30 cm e concluiu o segmento. Foi mandado parar
+na hora porque estava preso a cabos; depois o dono suspendeu as rodas e
+liberou.
+
+E, com o nome atravessando ate o cerebro:
+
+    IA decidiu 'seguir_pessoa' (João Paulo é a única pessoa que vejo agora.)
+
+Ele chamou o dono pelo nome. Antes de hoje esse nome nao existia em lugar
+nenhum do cerebro - era impossivel dizer essa frase.
+
+### Instinto da bussola, e a histerese que faltou
+
+O instinto entrou em producao e detectou de imediato. Mas ficou piscando:
+5,7 / 6,7 / 6,0 / 6,1 - alertando e desalertando sem parar.
+
+Causa: diferenca de unidade. O limiar de 6 graus foi arbitrado como "metade da
+oscilacao de hoje" (8 a 12 graus de FAIXA), mas `dispersao_circular_graus`
+devolve o desvio maximo em relacao a MEDIA, que ja e ~metade da faixa. O
+"metade" caiu em cima do valor atual.
+
+Histerese resolveu sem mexer no numero: alerta acima de 6,0, so relaxa abaixo
+de 4,5. Confirmado em producao - as transicoes viraram excursoes reais
+(3,3 <-> 6,2). Cuidado que a primeira tentativa errou: o `return` antecipado do
+ramo "alertado" matava a retentativa de calibracao.
+
+### Saudacao espontanea
+
+Pedido do dono: *"praticamente ao me ver me cumprimentar"*. So foi possivel
+hoje - cumprimentar era impossivel por falta de IDENTIDADE, nao de voz.
+
+Cumprimento por RELACAO, definida no `orion.yaml` (secao `familia`): Joao Paulo
+e o criador, Kamal e como um irmao (3 anos, nao escreve), Marah e como uma mae
+cuidadora. A mesma secao entra no contexto da IA.
+
+O cuidado que define o modulo: `person_recognized` sai ate 15x/s. Reconhecer e
+diferente de CHEGAR - janela de 30 min por pessoa. Teste principal: 40 eventos
+seguidos produzem UM cumprimento.
+
+### AUDIO - o oposto do que a config supunha
+
+O `orion.yaml` trata o indice 5 (`default`) como "reserva perigosa que captura
+silencio". Medido hoje:
+
+    indice 3 (USB Audio Device): FALHOU - Invalid sample rate (nao abre a 16 kHz)
+    indice 5 (default):          rms=0.20568  pico=0.29690  captando
+
+**O microfone USB "de verdade" nao aceita 16 kHz**; quem funciona e o `default`,
+justamente porque passa pelo PulseAudio, que converte a taxa. E o robo ESTA
+ouvindo - transcricoes reais no log: "O que e isso?", "Bem, conseguimos...",
+"Valeu!" com rms de 0,067 a 0,097.
+
+Uma leitura de `rms=0.0232` com texto vazio foi interpretada por mim como
+"microfone morto"; a medicao seguinte desmentiu - era so um momento de silencio
+na sala.
+
+**IMPORTANTE, dito pelo dono ao ver esta medicao:** tudo acima e sobre o
+microfone USB do Notebook, que e o PALIATIVO. Os ouvidos de verdade do projeto
+sao os **dois microfones I2S ligados ao ESP32**. Entao o audio nao esta
+resolvido - esta funcionando por um caminho que nao e o desenhado, e as
+pendencias dos ouvidos continuam de pe:
+
+  - **ganho**: a voz chega a ~6% da escala e o Whisper nao reconhece; no
+    firmware do ESP32 o `cru >> 16` pode virar `>> 12` (16x);
+  - **separacao fisica**: os dois mics estao juntos na placa, entao o atraso
+    entre eles e menor que uma amostra e os angulos saem aleatorios. Fixar um
+    de cada lado do robo, medir a distancia com fita e por em
+    `LocalizadorDirecao(separacao_m=...)`;
+  - o `localizacao.py` (GCC-PHAT, 15 testes) ja esta pronto esperando isso.
+
+### Estado ao final
+
+468 testes passam + 8 pulados (eram 420+8 no inicio do dia). Zero regressao de
+ruff. Firmware compila, **e continua NAO GRAVADO no Mega** - todo o
+comportamento novo descrito aqui roda com o firmware ANTIGO.
+
+### PENDENTE (alem do que ja estava na parte 1)
+
+- **PRIORIDADE DO DONO: voz.** Ele ouve e fala, mas falta validar de ponta a
+  ponta: passar na frente da camera e ser cumprimentado pelo nome, e conversar
+  por voz com a saudacao ligada. Nao testado com pessoa real ainda.
+- **`familia` no contexto do Notebook.** A secao entrou no contexto da IA
+  estrategica (Pi). O `mission_planner` do Notebook ainda monta o contexto da
+  CONVERSA sem ela.
+- **Diario ainda nao chega ao contexto da IA estrategica** - `observacoes` nao
+  e passado em `_contexto_para_ia`, entao ela ouve "o diario esta VAZIO" todo
+  ciclo mesmo agora que ele grava.
+- **Duas autoimagens.** A IA de conversa le `config/prompt_sistema.txt`, escrito
+  a mao; a estrategica le o `contrato.py`. Nada garante que concordem - o robo
+  pode prometer falando o que nao existe no catalogo. O certo e derivar a
+  autodescricao do contrato e injetar nos dois.
+- **Sensores opticos** (Cotrinex LTS-1180-103, dois em maos) para RPM de roda.
+  O firmware ja esta pronto (pinos 18/19, ISR, contadores); falta so a
+  telemetria carregar os pulsos - foi adicionada e revertida hoje por custar
+  cegueira no pacote reduzido sem sensor instalado. CONFERIR ANTES DE LIGAR:
+  tensao de alimentacao e se a saida e NPN ou PNP (PNP em 12V queima o pino do
+  Mega).
