@@ -19,23 +19,32 @@ from orion.mission.grounding import (
 
 
 def test_campo_ausente_vira_nao_sei_explicito() -> None:
-    """Nada de campo omitido: ausência tem que estar escrita."""
+    """Nada de campo omitido: ausência tem que estar escrita.
+
+    A frente saiu da contagem em 2026-07-29: ela ganhou texto próprio
+    (`_linha_frente`), porque "não sei a distância" precisa soar como convite a
+    olhar, e não como a parede que o rótulo antigo sugeria.
+    """
     texto = bloco_corpo({})
-    assert texto.count(SEM_DADO) == 5  # obstáculo, traseira, inclinação, bateria, estado
+    assert texto.count(SEM_DADO) == 4  # traseira, inclinação, bateria, estado
+    assert "NÃO SEI a distância" in texto
 
 
 def test_corpo_com_dados_mostra_valores() -> None:
     texto = bloco_corpo(
         {
             "obstaculo_frente_cm": 34.0,
-            "distancia_tras_cm": 21.0,
+            "obstaculo_tras_cm": 21.0,
             "inclinacao_graus": 0.4,
             "bateria_nivel": "ok",
             "estado_hardware": "IDLE",
             "telemetria_viva": True,
         }
     )
-    assert "34.0 cm" in texto
+    # 34 cm com limiar de 25 e caminho livre, e o texto tem que dizer isso -
+    # ate 2026-07-29 saia como "obstáculo à frente: 34.0 cm" e a IA parava.
+    assert "CAMINHO LIVRE por 34 cm" in texto
+    assert "21.0 cm" in texto
     assert "0.4 graus" in texto
     assert SEM_DADO not in texto
 
@@ -103,3 +112,76 @@ def test_contexto_limita_historico_a_cinco_falas() -> None:
     texto = montar_contexto(conversas_recentes=conversas)
     assert "fala 9" in texto
     assert "fala 4" not in texto  # só as 5 últimas
+
+
+# ---------- a frente descrita pelo que ELA E (2026-07-29) ----------
+
+
+def test_caminho_livre_nao_e_anunciado_como_obstaculo():
+    """REGRESSAO medida em producao. A linha era
+    `- obstáculo à frente: 199.3 cm`, e a IA lia "ha um obstaculo" - o numero
+    virava detalhe. Com a frente desimpedida a 2 metros ela decidiu repetidas
+    vezes `parar`, justificando com "evitar colisoes com o obstaculo a frente".
+    """
+    texto = bloco_corpo({"obstaculo_frente_cm": 199.3}, limiar_obstaculo_cm=25.0)
+
+    assert "CAMINHO LIVRE" in texto
+    assert "199" in texto
+    assert "25" in texto, "o limiar precisa aparecer, senao o numero nao tem escala"
+    # a palavra "obstáculo" nao pode descrever 2 metros de espaco vazio
+    linha_frente = [ln for ln in texto.splitlines() if "à minha frente" in ln][0]
+    assert "OBSTÁCULO" not in linha_frente
+
+
+def test_obstaculo_de_verdade_continua_sendo_anunciado():
+    """Contraprova: o conserto nao pode calar o aviso quando ha coisa perto."""
+    texto = bloco_corpo({"obstaculo_frente_cm": 12.0}, limiar_obstaculo_cm=25.0)
+
+    linha_frente = [ln for ln in texto.splitlines() if "à minha frente" in ln][0]
+    assert "OBSTÁCULO" in linha_frente
+    assert "12" in linha_frente
+
+
+def test_frente_sem_medida_e_duvida_e_nao_perigo():
+    """`sem_eco` chega aqui como None. "Nao sei" tem que soar como convite a
+    olhar, nao como parede - senao o robo trata o proprio ponto cego como
+    obstaculo e nunca sai do lugar."""
+    texto = bloco_corpo({"obstaculo_frente_cm": None}, limiar_obstaculo_cm=25.0)
+
+    linha_frente = [ln for ln in texto.splitlines() if "à minha frente" in ln][0]
+    assert "NÃO SEI" in linha_frente
+    assert "OBSTÁCULO" not in linha_frente
+
+
+def test_espaco_atras_usa_o_nome_certo_do_campo():
+    """O grounding pedia `distancia_tras_cm`; o RetratoDoMundo entrega
+    `obstaculo_tras_cm`. Nomes diferentes = "nao sei" para sempre."""
+    texto = bloco_corpo({"obstaculo_tras_cm": 94.0})
+
+    assert "94" in texto
+    assert "espaço atrás de mim: não sei" not in texto
+
+
+def test_contexto_convida_a_explorar():
+    """REGRESSAO de comportamento (2026-07-29): com a frente livre por 2 metros
+    a IA escolhia `parar` e `observar_ambiente` ciclo apos ciclo. Metade da
+    causa era dado errado (ja corrigido); a outra metade e que ninguem nunca
+    disse a ela que explorar era DESEJAVEL - so que era permitido. Uma lista de
+    opcoes nao e um convite.
+    """
+    texto = montar_contexto(retrato={"obstaculo_frente_cm": 199.0})
+
+    assert "EXPLORAR" in texto
+    assert "FERRAMENTAS" in texto
+    # e o limite continua sendo de codigo, nao de texto - o prompt nao promete
+    # liberdade que o contrato nao da. (Trecho curto de proposito: o texto e
+    # quebrado em varias linhas, entao frase longa nao casa por substring.)
+    assert "não preciso ter medo" in texto
+
+
+def test_disposicao_vem_antes_dos_fatos():
+    """Modelo pequeno pesa mais o comeco do prompt, e a pergunta feita a ele e
+    "o que eu faco agora?" - saber quem e vem antes de saber os numeros."""
+    texto = montar_contexto(retrato={"obstaculo_frente_cm": 199.0})
+
+    assert texto.index("QUEM EU SOU") < texto.index("O QUE EU SINTO AGORA")

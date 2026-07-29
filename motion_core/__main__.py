@@ -312,6 +312,10 @@ async def principal() -> None:
         return montar_contexto(
             retrato={
                 "obstaculo_frente_cm": r.obstaculo_frente_cm,
+                # `obstaculo_tras_cm` faltava aqui: o grounding pedia
+                # `distancia_tras_cm`, nome que o RetratoDoMundo nunca teve, e
+                # "espaco atras de mim" saia como "nao sei" SEMPRE.
+                "obstaculo_tras_cm": r.obstaculo_tras_cm,
                 "inclinacao_graus": r.inclinacao_graus,
                 "bateria_nivel": r.bateria_nivel,
                 "estado_hardware": r.estado_hardware,
@@ -319,6 +323,9 @@ async def principal() -> None:
                 "pessoa_presente": r.pessoa_presente,
                 "pessoa_nome": r.pessoa_nome,
             },
+            # O limiar de verdade, lido da config - sem ele o texto usaria o
+            # default do modulo e poderia divergir do que o robo de fato faz.
+            limiar_obstaculo_cm=config_motion["min_front_distance_cm"],
         )
 
     # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde

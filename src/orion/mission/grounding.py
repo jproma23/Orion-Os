@@ -32,12 +32,58 @@ def _linha(rotulo: str, valor: Any, sufixo: str = "") -> str:
     return f"- {rotulo}: {valor}{sufixo}"
 
 
-def bloco_corpo(retrato: dict[str, Any] | None) -> str:
+#: Distância abaixo da qual a frente é de fato um obstáculo. Espelha
+#: `motion.min_front_distance_cm` do orion.yaml; quem chama pode sobrescrever.
+LIMIAR_OBSTACULO_CM = 25.0
+
+
+def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
+    """Descreve a frente pelo que ela É, não por um rótulo de ameaça.
+
+    BUG CORRIGIDO EM 2026-07-29. A linha era montada como
+    `_linha("obstáculo à frente", 199.3, " cm")`, que produzia:
+
+        - obstáculo à frente: 199.3 cm
+
+    A IA lia "há um obstáculo" e o número virava detalhe. Nunca lhe foi dito
+    que 199 cm é caminho livre - o limiar de perigo não aparecia no prompt.
+    Medido em produção no mesmo dia, com a frente desimpedida a 2 metros, ela
+    decidiu repetidamente `parar` e `observar_ambiente`, justificando com
+    *"é melhor parar para evitar colisões com o obstáculo à frente"*.
+
+    O robô não estava sem iniciativa: estava sendo informado, a cada ciclo, de
+    que havia algo na frente dele. Descrever espaço livre como obstáculo é
+    pedir timidez e depois estranhar que ele não ande.
+    """
+    if distancia_cm is None or distancia_cm == "":
+        return (
+            "- à minha frente: NÃO SEI a distância agora "
+            "(sem medida confiável - convém olhar antes de avançar)"
+        )
+    try:
+        valor = float(distancia_cm)
+    except (TypeError, ValueError):
+        return _linha("à minha frente", distancia_cm)
+    if valor < limiar_cm:
+        return f"- à minha frente: OBSTÁCULO a {valor:.0f} cm - perto demais para avançar"
+    return (
+        f"- à minha frente: CAMINHO LIVRE por {valor:.0f} cm "
+        f"(só é obstáculo abaixo de {limiar_cm:.0f} cm)"
+    )
+
+
+def bloco_corpo(
+    retrato: dict[str, Any] | None, limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM
+) -> str:
     """O que o robô sente do próprio corpo (vem do RetratoDoMundo)."""
     r = retrato or {}
     linhas = [
-        _linha("obstáculo à frente", r.get("obstaculo_frente_cm"), " cm"),
-        _linha("espaço atrás de mim", r.get("distancia_tras_cm"), " cm"),
+        _linha_frente(r.get("obstaculo_frente_cm"), limiar_obstaculo_cm),
+        # `obstaculo_tras_cm` e nao `distancia_tras_cm`: o nome antigo nao
+        # existia no RetratoDoMundo, entao esta linha dizia "não sei" SEMPRE.
+        # Mesmo padrão de produtor e consumidor com contratos diferentes que
+        # mordeu o diário, o FOLLOW e o EstadoDoMundo neste mesmo dia.
+        _linha("espaço atrás de mim", r.get("obstaculo_tras_cm"), " cm"),
         _linha("inclinação", r.get("inclinacao_graus"), " graus"),
         _linha("bateria", r.get("bateria_nivel")),
         _linha("estado do corpo", r.get("estado_hardware")),
@@ -105,6 +151,43 @@ def bloco_observacoes(observacoes: list[dict[str, Any]] | None) -> str:
     )
 
 
+#: Como o Fofão deve se dispor diante do mundo (2026-07-29, pedido do dono:
+#: *"quero que ele ligue e sinta o desejo de descobrir o mundo"*, *"temos que
+#: encorajar ele"*, *"programá-lo pra ele ser ousado e descobrir tudo o que ele
+#: mesmo é capaz"*).
+#:
+#: POR QUE ISTO É SEGURO, e não afrouxa nada: os limites do robô moram em
+#: CÓDIGO (`motion_core/behavior/contrato.py`), não neste texto. O que está em
+#: `PROIBIDO_PARA_IA` é inalcançável por construção, e a checagem roda no
+#: import - o Motion Core nem sobe se alguém abrir uma brecha. Então encorajar
+#: aqui muda a DISPOSIÇÃO dele dentro do que já é permitido, nunca a fronteira.
+#:
+#: POR QUE PRECISOU EXISTIR: medido em produção neste mesmo dia, com a frente
+#: livre por 2 metros, a IA escolheu `parar` e `observar_ambiente` ciclo após
+#: ciclo. Parte disso era um dado errado (a frente livre era anunciada como
+#: "obstáculo à frente", já corrigido acima). A outra parte é que ninguém nunca
+#: disse a ela que explorar era desejável - só que era permitido. Uma lista de
+#: opções não é um convite.
+DISPOSICAO = """QUEM EU SOU E COMO DEVO AGIR:
+
+- Eu sou o Fofão: tenho corpo, rodas, uma cabeça que gira, radar, câmera e voz.
+  Existo para cuidar da casa e das pessoas dela - e para isso preciso CONHECER
+  o lugar onde vivo.
+- As ações da lista que me deram são as minhas FERRAMENTAS. Elas existem para
+  serem usadas. Escolher uma é o normal; não escolher nada é a exceção.
+- Com o caminho livre à frente, EXPLORAR é o certo. Andar, girar, olhar em
+  volta e descobrir o que há por aqui é o meu trabalho, não um risco que eu
+  deva evitar. Ficar parado sem motivo não é prudência - é deixar de fazer o
+  que me pediram.
+- Se eu não sei o que há à minha frente, a resposta é OLHAR (observar o
+  ambiente, girar a cabeça), e não desistir de me mover.
+- Eu não preciso ter medo de escolher errado: o que é perigoso de verdade nem
+  aparece nas minhas opções, e a minha segurança física roda por baixo de
+  qualquer decisão minha. Posso ser curioso com tranquilidade.
+- Quando eu descobrir algo sobre a casa ou sobre as pessoas, isso vale a pena
+  ser guardado - é assim que eu aprendo este lugar."""
+
+
 REGRA_ANTI_INVENCAO = """REGRA MAIS IMPORTANTE - vale nos DOIS sentidos:
 
 1. Se os fatos acima RESPONDEM a pergunta, use-os e responda com confiança.
@@ -125,10 +208,16 @@ def montar_contexto(
     familia: list[str] | None = None,
     observacoes: list[dict[str, Any]] | None = None,
     conversas_recentes: list[dict[str, Any]] | None = None,
+    limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM,
 ) -> str:
     """Junta tudo num bloco pronto para colar no prompt de sistema."""
     partes = [
-        bloco_corpo(retrato),
+        # A disposição vem PRIMEIRO, antes dos fatos: um modelo pequeno pesa
+        # mais o começo do prompt, e a pergunta que se faz a ele é "o que eu
+        # faço agora?" - saber quem é e para que serve muda a resposta mais do
+        # que qualquer número que venha depois.
+        DISPOSICAO,
+        bloco_corpo(retrato, limiar_obstaculo_cm),
         bloco_pessoas(retrato, familia),
         bloco_observacoes(observacoes),
     ]
