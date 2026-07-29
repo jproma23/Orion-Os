@@ -282,6 +282,12 @@ async def principal() -> None:
     # dispara com o OBSTACLE_DETECTED real do Mega).
     # Modelo de mundo: um retrato unico que o conselheiro de IA le para
     # opinar com o quadro inteiro em vez de sinais soltos.
+    try:
+        familia_conf = config.secao("familia")
+    except Exception:
+        familia_conf = []
+        logger.warning("secao `familia` ausente no orion.yaml")
+
     mundo = EstadoDoMundo(event_bus)
 
     # Instinto da bussola: percebe que o rumo esta oscilando demais com o robo
@@ -326,6 +332,9 @@ async def principal() -> None:
             # O limiar de verdade, lido da config - sem ele o texto usaria o
             # default do modulo e poderia divergir do que o robo de fato faz.
             limiar_obstaculo_cm=config_motion["min_front_distance_cm"],
+            # Quem sao as pessoas da casa e o que elas sao PARA ELE.
+            # Sem isto a IA decide sobre gente sem saber de quem se trata.
+            familia=familia_conf,
         )
 
     # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde

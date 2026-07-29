@@ -59,6 +59,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
+from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
 from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
@@ -530,6 +531,21 @@ async def principal() -> None:
         descarregar_modelo=ia.descarregar,
         pausar_visao=None,
         retomar_visao=None,
+    )
+
+    # SAUDACAO ESPONTANEA (2026-07-29, pedido do dono: "praticamente ao me
+    # ver me cumprimentar"). So foi possivel hoje: ate esta sessao o nome da
+    # pessoa nao chegava a lugar nenhum - o robo via o dono todo dia e
+    # registrava "vi uma pessoa que nao reconheci".
+    try:
+        familia_conf = config.secao("familia")
+    except Exception:
+        familia_conf = []
+        logger.warning("secao `familia` ausente no orion.yaml - cumprimento generico")
+    SaudacaoEspontanea(bus, sintetizador.falar, familia=familia_conf)
+    logger.info(
+        "Saudacao espontanea ativa para: %s",
+        ", ".join(p.get("nome", "?") for p in (familia_conf or [])) or "(ninguem)",
     )
 
     await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")

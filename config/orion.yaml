@@ -332,6 +332,26 @@ connectivity:                    # offline-first: tudo opcional (EDR-0019)
     enabled: true                # avisos no celular em eventos criticos
     channel: "none"              # none | telegram | email (configurar)
 
+# QUEM SÃO AS PESSOAS DA CASA, e o que elas são PARA ELE (2026-07-29).
+#
+# Definido pelo dono. Não é enfeite: o Fofão cumprimenta pelo nome e pela
+# relação, e isso entra no contexto que a IA lê - ele precisa saber quem é
+# quem antes de decidir como agir com cada um.
+#
+# Os nomes TÊM que bater com os cadastrados no banco (tabela `pessoas`), que é
+# de onde o reconhecimento facial tira o nome. Nome que não bater aqui recebe
+# o cumprimento genérico, sem erro.
+familia:
+  - nome: "João Paulo"
+    relacao: "criador"
+    descricao: "meu projetista e criador - quem me construiu"
+  - nome: "Kamal"
+    relacao: "irmao"
+    descricao: "filho do João Paulo, e como um irmão para mim - tem 3 anos e ainda não escreve, então falo com ele por voz e gestos"
+  - nome: "Marah"
+    relacao: "mae"
+    descricao: "como uma mãe para mim - cuidadora e zeladora da casa"
+
 security:
   authorized_users: []           # preenchido via interface
   restricted_actions: ["config.security", "database.restore"]

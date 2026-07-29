@@ -120,7 +120,21 @@ def bloco_pessoas(retrato: dict[str, Any] | None, familia: list[str] | None) -> 
         )
 
     if familia:
-        linhas.append(f"- pessoas que eu conheço: {', '.join(familia)}")
+        # Aceita `["João Paulo", ...]` (formato antigo) e a lista de
+        # dicionários do orion.yaml, com a RELAÇÃO de cada um com o robô.
+        #
+        # A relação importa tanto quanto o nome: ele não deve agir igual com
+        # quem o construiu, com uma criança de 3 anos e com quem cuida da casa.
+        # Definido pelo dono em 2026-07-29 - "Kamal, meu filho, como seu irmão"
+        # e "Marah como uma mãe cuidadora e zeladora".
+        linhas.append("- as pessoas da minha casa:")
+        for pessoa in familia:
+            if isinstance(pessoa, dict):
+                nome_p = pessoa.get("nome", "?")
+                descricao = pessoa.get("descricao") or pessoa.get("relacao")
+                linhas.append(f"  - {nome_p}: {descricao}" if descricao else f"  - {nome_p}")
+            else:
+                linhas.append(f"  - {pessoa}")
 
     return "QUEM EU VEJO:\n" + "\n".join(linhas)
 
