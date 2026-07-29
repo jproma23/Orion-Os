@@ -273,7 +273,11 @@ def _hora(h: int, m: int = 0):
 
 
 @pytest.mark.asyncio
-async def test_contexto_leva_a_hora_e_o_momento_do_dia(bus):
+async def test_contexto_leva_o_momento_do_dia_mas_NAO_o_relogio(bus):
+    """O dono ouviu o cumprimento e cortou: *"ele relatou o horario, nao
+    precisa disso"*. A hora exata no prompt convida o modelo a LE-LA em voz
+    alta, e ninguem pede a hora ao ser cumprimentado. O momento do dia fica
+    (muda o tom); o relogio sai (so daria um numero para recitar)."""
     recebidos = []
 
     async def compor(nome, descricao, contexto):
@@ -283,8 +287,9 @@ async def test_contexto_leva_a_hora_e_o_momento_do_dia(bus):
     _, _ = _montar(bus, compor=compor, relogio_parede=_hora(21, 5))
     await _ver(bus, "Kamal")
 
-    assert "21h05" in recebidos[0]
     assert "noite" in recebidos[0]
+    assert "21h05" not in recebidos[0], "o relogio nao pode voltar ao prompt"
+    assert "21" not in recebidos[0], "nenhum numero de hora no contexto"
 
 
 @pytest.mark.asyncio

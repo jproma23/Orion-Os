@@ -207,7 +207,16 @@ class SaudacaoEspontanea:
             momento = "tarde"
         else:
             momento = "noite"
-        partes = [f"são {hora:02d}h{agora_local.tm_min:02d}, é {momento}"]
+        # SÓ o momento do dia, sem o relógio. O dono ouviu o cumprimento e
+        # cortou na hora (2026-07-29): *"ele relatou o horário, não precisa
+        # disso"*. Tinha razão - a hora exata no prompt convida o modelo a
+        # LER a hora em voz alta, e ninguém pede a hora ao ser cumprimentado.
+        #
+        # O contexto existe para ele VARIAR as palavras, não para narrar
+        # dados. Um fato que ele recita em voz alta virou ruído, não contexto.
+        # "é noite" muda o tom ("boa noite", mais calmo) sem dar um número
+        # para recitar; a hora exata não acrescentava tom nenhum.
+        partes = [f"é {momento}"]
 
         if anterior is None:
             partes.append(f"é a primeira vez que você vê {nome} desde que ligou")

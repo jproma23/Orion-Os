@@ -561,11 +561,14 @@ async def principal() -> None:
             f"Cumprimente {quem}, que acabou de aparecer na sua frente.\n\n"
             f"O momento agora:\n{contexto}\n\n"
             f"Uma frase curta, calorosa e natural, como quem reencontra "
-            f"alguem de casa. Use ALGO do momento acima - a hora, o tempo "
-            f"desde a ultima vez, o que voce viu hoje - para que o "
-            f"cumprimento seja deste instante e nao uma formula. NAO repita "
-            f"sempre a mesma abertura. Nao ofereca nem prometa nenhuma acao; "
-            f"so cumprimente. Responda apenas com a frase.",
+            f"alguem de casa.\n\n"
+            f"O momento acima serve para voce ESCOLHER O TOM, nao para ser "
+            f"contado. NAO diga a hora, NAO recite esses dados e NAO comente "
+            f"quanto tempo passou - ninguem pede a hora ao ser cumprimentado. "
+            f"So deixe que eles mudem o jeito de falar, para o cumprimento nao "
+            f"sair sempre igual. NAO repita sempre a mesma abertura. "
+            f"Nao ofereca nem prometa nenhuma acao; so cumprimente. "
+            f"Responda apenas com a frase.",
         )
 
     SaudacaoEspontanea(
