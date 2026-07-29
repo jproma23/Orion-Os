@@ -200,7 +200,7 @@ voice:
   # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
-  saida_audio_indice: 3
+  saida_audio_indice: 4
   # indices de entrada (sounddevice) reconferidos em 2026-07-24: 2a webcam
   # (USB Composite Device) desconectada fisicamente hoje, sobrou PC Camera
   # (indice 3) e USB Audio Device (indice 4) - indices de audio mudam
