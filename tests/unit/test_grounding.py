@@ -94,7 +94,12 @@ def test_observacoes_viram_linhas_datadas() -> None:
 def test_contexto_completo_sempre_traz_a_regra_anti_invencao() -> None:
     texto = montar_contexto()
     assert REGRA_ANTI_INVENCAO in texto
-    assert "Nunca invente" in texto
+    # A proibicao de inventar OBSERVACAO continua - so mudou a redacao em
+    # 2026-07-29 (era "Nunca invente"), quando a regra passou a dizer que vale
+    # para FATOS da casa e nao para conversa. O teste passou a checar a
+    # intencao, nao a frase: prender a redacao literal fazia o teste quebrar
+    # por melhoria de texto, o que treina a gente a "consertar" o teste sem ler.
+    assert "se não está escrito, eu não vi" in texto
     # a regra tem que valer nos DOIS sentidos - so proibir inventar fazia
     # o modelo recusar ate o que estava escrito no diario.
     assert "Negar o que está escrito no diário" in texto
@@ -185,3 +190,39 @@ def test_disposicao_vem_antes_dos_fatos():
     texto = montar_contexto(retrato={"obstaculo_frente_cm": 199.0})
 
     assert texto.index("QUEM EU SOU") < texto.index("O QUE EU SINTO AGORA")
+
+
+# ----- a regra vale para FATOS, nao para conversa (2026-07-29) -----
+#
+# Reclamacao do dono ao vivo: "essas respostas sao pessimas, kd a IA". Ele
+# perguntou "como e que voce esta hoje?" - transcrito CERTO - e ouviu
+# "Nao sei como estou hoje. Nao tenho registros sobre isso.". A IA nao estava
+# incapaz: estava amordacada. A regra dizia "o diario e a verdade, nao
+# acrescente nada" e o modelo generalizava para TUDO.
+
+
+def test_regra_separa_fato_da_casa_de_conversa() -> None:
+    """O texto tem que dizer explicitamente que a restricao e sobre FATOS
+    desta casa - sem isso o modelo aplica a tudo, inclusive a "bom dia"."""
+    assert "FATOS" in REGRA_ANTI_INVENCAO or "FATO" in REGRA_ANTI_INVENCAO
+    baixo = REGRA_ANTI_INVENCAO.lower()
+    # o que ele PODE responder sem registro
+    assert "como eu estou" in baixo or "como você está" in baixo
+    assert "conversa" in baixo
+    # e o erro concreto, nomeado, para o modelo nao repeti-lo
+    assert "não tenho registros" in baixo
+
+
+def test_regra_continua_proibindo_inventar_observacao() -> None:
+    """O afrouxamento NAO pode abrir a porta para inventar o que viu - era o
+    motivo de a regra existir (os modelos inventavam visitas, medido em
+    2026-07-19)."""
+    baixo = REGRA_ANTI_INVENCAO.lower()
+    assert "nunca invento" in baixo or "não invento" in baixo or "inventar" in baixo
+    assert "diário" in baixo
+    assert "se não está escrito, eu não vi" in baixo
+
+
+def test_regra_segue_no_contexto_completo() -> None:
+    texto = montar_contexto(retrato={"obstaculo_frente_cm": 100.0})
+    assert REGRA_ANTI_INVENCAO in texto
