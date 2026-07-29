@@ -490,12 +490,67 @@ class AtenderGesto(Comportamento):
             self._reavaliar()
 
 
+#: Quanto o robô gira a cada tentativa de contornar. 30° é o passo do próprio
+#: radar (radar_manager.h varre de 30 em 30 a partir de 30°): girar menos que
+#: isso não muda o que o sensor enxerga o suficiente para valer a manobra.
+PASSO_GIRO_DESVIO_GRAUS = 30.0
+
+#: Espera entre mandar o giro e reavaliar. O giro é FINITO (`graus` presente
+#: -> girarGraus no firmware), então este tempo precisa cobrir a execução dos
+#: passos mais a telemetria seguinte chegar (200ms no regime "andando").
+PAUSA_APOS_GIRO_DESVIO_S = 1.2
+
+#: Depois de tantas tentativas para um lado sem a frente liberar, tenta o
+#: outro. Ver o comentário sobre o sentido em VigilanciaObstaculo.
+TENTATIVAS_ANTES_DE_INVERTER = 3
+
+#: Uma volta inteira (12 x 30°). Se nem girando 360° a frente liberou, o robô
+#: está encurralado de verdade - aí vale avisar um humano em vez de girar para
+#: sempre em silêncio.
+TENTATIVAS_ATE_AVISAR = 12
+
+#: Pausa antes de recomeçar o ciclo depois de avisar que está encurralado.
+PAUSA_ENCURRALADO_S = 5.0
+
+
 class VigilanciaObstaculo(Comportamento):
     """Segurança tática (prio 100): assume o controle quando o Hardware Core
     reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus
     do Pi). Acima da camada reativa do Arduino (Cap 18), que é independente.
-    Enquanto há obstáculo, segura o controle e publica o alerta; some do
-    controle quando o estado sai de OBSTACLE_DETECTED."""
+
+    DESVIA, NÃO CONGELA (2026-07-29). Até aqui este comportamento tomava o
+    controle e só fazia `while True: sleep(1.0)`: diante de um obstáculo real
+    o robô parava e ficava ali até alguém tirá-lo do caminho. Decisão do
+    mantenedor em 28/07: *"nenhum obstáculo tem q bloquear, o robô tem q
+    desviar do obstáculo"*.
+
+    A parada reativa do Mega continua sendo o piso e não foi afrouxada:
+    avançar segue proibido enquanto houver coisa na frente. O que mudou é que
+    girar no próprio eixo deixou de ser proibido junto (safety_manager.h,
+    `giroPermitido`) - antes, a única manobra capaz de tirar o obstáculo da
+    frente era também a única coisa que o robô não podia fazer.
+
+    MALHA FECHADA, DE PROPÓSITO. O robô gira um passo, deixa a telemetria
+    chegar e reavalia. Não há planejamento de rota: quem decide que a frente
+    liberou é o próprio firmware, e o maestro simplesmente PREEMPTA este
+    comportamento quando `motion.status` sai de OBSTACLE_DETECTED - por isso
+    não existe aqui nenhuma checagem de "já liberou?", ela seria uma segunda
+    fonte de verdade sobre um fato que o Mega já afirma.
+
+    POR QUE O SENTIDO INICIAL É ARBITRÁRIO, e por que isso é aceitável: seria
+    melhor girar para o lado mais livre, que a varredura do radar sabe dizer.
+    Só que o mapeamento entre o ÂNGULO lógico do radar (30..150, 90 = frente)
+    e o lado FÍSICO do robô nunca foi medido nesta montagem - e o servo do
+    radar ainda tem um offset de -45° por causa do horn colado torto
+    (radar_manager.h). Escolher um lado a partir disso seria afirmar antes de
+    medir, que é o erro que esta sessão inteira existe para não repetir.
+
+    Em vez de chutar, o laço se corrige: passados `TENTATIVAS_ANTES_DE_INVERTER`
+    giros sem a frente liberar, ele inverte o sentido. Se o palpite estava
+    errado, custa 3 passos; se estivesse codificado errado, custaria sempre.
+    Medir o lado do radar na bancada e usar a varredura como dica é a melhora
+    natural depois que este laço rodar no hardware.
+    """
 
     nome = "vigilancia_obstaculo"
     prioridade = 100
@@ -518,12 +573,43 @@ class VigilanciaObstaculo(Comportamento):
         await self._event_bus.publish(
             "behavior.status", {"estado": "obstaculo"}, prioridade=Prioridade.ALTA
         )
-        logger.warning("maestro: obstáculo à frente - segurança assumiu o controle")
+        logger.warning("maestro: obstáculo à frente - procurando saída (girando)")
+        sentido = "DIREITA"
+        tentativas = 0
         try:
             while True:
-                await asyncio.sleep(1.0)
+                if tentativas >= TENTATIVAS_ATE_AVISAR:
+                    # Uma volta inteira sem achar saída: avisa e continua
+                    # tentando. NÃO desiste em silêncio - um robô parado sem
+                    # explicação foi exatamente o problema que este código
+                    # veio resolver.
+                    logger.error(
+                        "maestro: girei %.0f graus e a frente nao liberou - encurralado",
+                        tentativas * PASSO_GIRO_DESVIO_GRAUS,
+                    )
+                    await self._event_bus.publish(
+                        "diagnostic.alerta",
+                        {"origem": "vigilancia_obstaculo", "tipo": "encurralado"},
+                        prioridade=Prioridade.ALTA,
+                    )
+                    await asyncio.sleep(PAUSA_ENCURRALADO_S)
+                    tentativas = 0
+
+                await self._event_bus.publish(
+                    "navigation.comando",
+                    {
+                        "acao": "GIRAR",
+                        "graus": PASSO_GIRO_DESVIO_GRAUS,
+                        "sentido": sentido,
+                    },
+                )
+                tentativas += 1
+                if tentativas % TENTATIVAS_ANTES_DE_INVERTER == 0:
+                    sentido = "ESQUERDA" if sentido == "DIREITA" else "DIREITA"
+                    logger.info("maestro: sem saida por ali - tentando pela %s", sentido)
+                await asyncio.sleep(PAUSA_APOS_GIRO_DESVIO_S)
         except asyncio.CancelledError:
-            logger.info("maestro: obstáculo liberado - saindo da vigilância")
+            logger.info("maestro: frente liberada - saindo da vigilância")
             raise
 
 

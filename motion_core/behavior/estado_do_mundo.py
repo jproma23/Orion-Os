@@ -177,23 +177,47 @@ class EstadoDoMundo:
         viva = self._telemetria.ler(VALIDADE_TELEMETRIA_S, agora) is not None
         pessoa = self._pessoa.ler(VALIDADE_VISAO_S, agora)
 
-        def do_mega(chave: str, chave_valido: str | None = None) -> Any:
-            """Lê campo da telemetria respeitando o flag de validade dele.
+        def do_mega(
+            chave: str,
+            chave_valido: str | None = None,
+            chave_sem_eco: str | None = None,
+        ) -> Any:
+            """Lê campo da telemetria respeitando os flags de validade dele.
 
             O firmware manda pares (valor, valor_valido) - um ultrassom sem
             eco devolve valor sujo com o flag em False. Ignorar o flag aqui
             reintroduziria exatamente o tipo de mentira que esta classe
             existe para evitar.
+
+            `chave_sem_eco` cobre um caso que o `valido` NÃO cobre, achado em
+            2026-07-29: quando nada reflete, `_foraDeAlcance` (no
+            sensor_ultrassonico.h) reporta o TETO DE ALCANCE - 517 cm - com
+            `valido: true`. É "não medi" entregue como "medi 5 metros de
+            espaço livre". O próprio driver marca `*_sem_eco` para denunciar
+            isso, e até esta data ninguém no sistema olhava a bandeira.
+
+            Por que importa mais do que parece: o eco de um obstáculo a 40 cm
+            dura ~2,3 ms e o loop do Mega fica cego por até 124 ms. O eco
+            inteiro cabe dentro da cegueira, e o driver conclui "nada
+            refletiu". Ou seja, quanto MAIS PERTO o obstáculo, maior a chance
+            de ele virar "caminho livre" - a falha aponta para o lado errado
+            justamente na hora que importa.
             """
             if not viva:
                 return None
             if chave_valido is not None and not tele.get(chave_valido):
                 return None
+            if chave_sem_eco is not None and tele.get(chave_sem_eco):
+                return None  # não é medição - "não sei", nunca "está livre"
             return tele.get(chave)
 
         return RetratoDoMundo(
-            obstaculo_frente_cm=do_mega("distancia_frontal_cm", "distancia_frontal_valida"),
-            obstaculo_tras_cm=do_mega("distancia_traseira_cm", "distancia_traseira_valida"),
+            obstaculo_frente_cm=do_mega(
+                "distancia_frontal_cm", "distancia_frontal_valida", "frontal_sem_eco"
+            ),
+            obstaculo_tras_cm=do_mega(
+                "distancia_traseira_cm", "distancia_traseira_valida", "traseiro_sem_eco"
+            ),
             inclinacao_graus=do_mega("inclinacao_graus"),
             impacto=do_mega("impacto_detectado"),
             bateria_v=do_mega("bateria_tensao_v", "bateria_lida"),

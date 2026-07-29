@@ -431,3 +431,148 @@ async def test_follow_perdendo_alvo_ainda_sai_para_hold(cenario):
     assert any(e.topico == "navigation.target_lost" for e in cenario.eventos)
     modos = [e.dados["modo"] for e in cenario.eventos if e.topico == "navigation.mode_changed"]
     assert "HOLD" in modos  # o anuncio da troca sobreviveu
+
+
+# ---------- GIRAR: a primitiva de manobra do desvio de obstaculo ----------
+
+
+@pytest.mark.asyncio
+async def test_girar_direita_manda_turn_right_com_graus(cenario):
+    await cenario.bus.publish(
+        "navigation.comando", {"acao": "GIRAR", "graus": 30.0, "sentido": "DIREITA"}
+    )
+    await cenario.bus.aguardar_fila_vazia()
+    await asyncio.sleep(0.1)  # a execucao roda fora do bus (ultimo vence)
+
+    assert "TURN_RIGHT" in cenario.comandos_enviados()
+    enviado = Mensagem.from_bytes(cenario.transporte.enviados[-1])
+    assert enviado.payload["graus"] == 30.0
+    # graus PRESENTE e essencial: sem ele o firmware cai em girarContinuo, que
+    # so para no timeout de 5s do Mega - um giro de fuga tem que terminar
+    # sozinho para o robo poder reavaliar a frente.
+    assert enviado.payload["velocidade_percent"] == CONFIG_MOTION["max_speed_percent"]
+
+
+@pytest.mark.asyncio
+async def test_girar_esquerda_manda_turn_left(cenario):
+    await cenario.nav.girar(graus=45.0, sentido="ESQUERDA")
+
+    assert "TURN_LEFT" in cenario.comandos_enviados()
+    assert Mensagem.from_bytes(cenario.transporte.enviados[-1]).payload["graus"] == 45.0
+
+
+@pytest.mark.asyncio
+async def test_girar_nao_troca_o_modo_de_navegacao(cenario):
+    """Desviar de obstaculo acontece DENTRO do modo que estiver valendo.
+
+    Se GIRAR mudasse o modo, uma patrulha interrompida por um obstaculo
+    voltaria como MANUAL e a missao morreria no primeiro movel da sala.
+    """
+    await cenario.nav.executar_patrol([{"graus": 0.0, "distancia_cm": 10.0}])
+    modo_antes = cenario.nav.modo
+
+    await cenario.nav.girar(graus=30.0, sentido="DIREITA")
+
+    assert cenario.nav.modo is modo_antes
+    assert not any(
+        e.topico == "navigation.mode_changed" and e.dados["modo"] == "MANUAL"
+        for e in cenario.eventos
+    )
+
+
+@pytest.mark.asyncio
+async def test_girar_com_sentido_invalido_publica_erro(cenario):
+    await cenario.bus.publish(
+        "navigation.comando", {"acao": "GIRAR", "graus": 30.0, "sentido": "PRA_CIMA"}
+    )
+    await cenario.bus.aguardar_fila_vazia()
+    await asyncio.sleep(0.1)
+
+    erros = [e for e in cenario.eventos if e.topico == "navigation.error"]
+    assert erros, "sentido invalido passou em silencio"
+    assert "PRA_CIMA" in erros[-1].dados["motivo"]
+    assert "TURN_LEFT" not in cenario.comandos_enviados()
+    assert "TURN_RIGHT" not in cenario.comandos_enviados()
+
+
+# ---------- "nao medi" nunca pode chegar como "esta livre" ----------
+
+
+async def _telemetria(cenario, **campos):
+    """Injeta um pacote de telemetria cru, com os campos que o teste quiser."""
+    telemetria = Mensagem.nova(
+        TipoMensagem.TELEMETRY, "hardware_core", "motion_core", campos
+    )
+    await cenario.bus.publish("comm.mensagem.telemetry", telemetria.to_dict())
+    await cenario.bus.aguardar_fila_vazia()
+
+
+@pytest.mark.asyncio
+async def test_sem_eco_vira_desconhecido_e_nao_distancia(cenario):
+    """REGRESSAO do fail-open achado em 2026-07-29.
+
+    Quando nada reflete, o firmware manda o TETO DE ALCANCE (517cm) com
+    `distancia_frontal_valida: true` e `frontal_sem_eco: true`. Ate esta data
+    o NavigationCore engolia o 517 como parede medida a 5 metros - ou seja,
+    caminho livre - e isso acontece MAIS quando o obstaculo esta PERTO (eco
+    curto cabe inteiro dentro da cegueira do loop).
+    """
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=517.24,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=True,
+    )
+
+    assert cenario.nav.frente_desconhecida()
+    assert cenario.nav._distancia_frontal_atual_cm is None
+
+
+@pytest.mark.asyncio
+async def test_leitura_de_verdade_continua_valendo(cenario):
+    """Contraprova: sem esta, o teste acima passaria com um `return` que
+    descartasse toda telemetria - uma sonda que nunca diz sim."""
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=42.0,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=False,
+    )
+
+    assert not cenario.nav.frente_desconhecida()
+    assert cenario.nav._distancia_frontal_atual_cm == 42.0
+
+
+@pytest.mark.asyncio
+async def test_sem_eco_apaga_a_leitura_boa_anterior(cenario):
+    """Perder a medida tem que APAGAR a anterior, nao mante-la.
+
+    Segurar o ultimo valor bom seria pior que o bug original: o robo andaria
+    apoiado numa medida velha achando que e atual, e sem nada na tela dizendo
+    que a informacao envelheceu.
+    """
+    await _telemetria(
+        cenario, distancia_frontal_cm=30.0, distancia_frontal_valida=True, frontal_sem_eco=False
+    )
+    assert cenario.nav._distancia_frontal_atual_cm == 30.0
+
+    await _telemetria(
+        cenario, distancia_frontal_cm=517.24, distancia_frontal_valida=True, frontal_sem_eco=True
+    )
+
+    assert cenario.nav.frente_desconhecida()
+
+
+@pytest.mark.asyncio
+async def test_estado_do_mega_vem_tambem_da_telemetria(cenario):
+    """REGRESSAO: `motion.status` so e publicado na BORDA (o firmware compara
+    com o estado anterior). Depois de um restart do Motion Core, o Pi ficava
+    com o `"IDLE"` inicial - um valor inventado - ate o Mega mudar de estado
+    sozinho. Com o Mega parado em OBSTACLE_DETECTED nao ha transicao nenhuma
+    a anunciar, e o Pi acreditava em IDLE indefinidamente enquanto o dado
+    certo chegava na telemetria a cada segundo."""
+    assert cenario.nav._estado_hardware == "IDLE"  # o valor inventado do boot
+
+    await _telemetria(cenario, estado="OBSTACLE_DETECTED")
+
+    assert cenario.nav._estado_hardware == "OBSTACLE_DETECTED"

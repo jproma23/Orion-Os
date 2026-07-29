@@ -100,6 +100,10 @@ COMANDOS_DE_MOVIMENTO = COMANDOS_QUE_AVANCAM | frozenset(
     {"MOVE_DISTANCE", "TURN_LEFT", "TURN_RIGHT"}
 )
 
+#: sentidos aceitos pela acao GIRAR (ver NavigationCore.girar). Nomes em
+#: portugues de proposito: quem publica isto e o maestro, nao o firmware.
+SENTIDOS_DE_GIRO = {"ESQUERDA": "TURN_LEFT", "DIREITA": "TURN_RIGHT"}
+
 
 class ModoNavegacao(str, Enum):
     HOLD = "HOLD"
@@ -162,13 +166,70 @@ class NavigationCore:
         # EVENT tem (Cap 14 s.7) - chegam com o envelope completo, o dado
         # real fica aninhado em "payload" (Mensagem.to_dict()).
         payload = evento.dados.get("payload", {})
+
+        # O ESTADO DO MEGA VEM DA TELEMETRIA, NAO SO DA BORDA (2026-07-29).
+        #
+        # `motion.status` so e publicado pelo firmware QUANDO O ESTADO MUDA
+        # (main.cpp, notificarTransicaoDeEstado). Isso deixava dois buracos:
+        # se aquele unico evento se perdesse na serial, o valor velho valia
+        # para sempre; e depois de um restart do Motion Core o Pi assumia o
+        # `"IDLE"` inicial abaixo - um valor INVENTADO - ate o Mega mudar de
+        # estado por conta propria. Com o Mega parado em OBSTACLE_DETECTED nao
+        # ha transicao nenhuma para anunciar, entao o Pi acreditava em IDLE
+        # indefinidamente enquanto o dado certo chegava na telemetria a cada
+        # segundo, sem ninguem escutar.
+        #
+        # A telemetria carrega `estado` em TODO pacote. Ela vira o lastro que
+        # corrige deriva; o `motion.status` continua servindo para reagir na
+        # hora, sem esperar o proximo pacote.
+        estado = payload.get("estado")
+        if estado:
+            self._estado_hardware = estado
+
+        # "NAO MEDI" NAO E "ESTA LIVRE" (2026-07-29).
+        #
+        # Quando nada reflete, o firmware reporta o TETO DE ALCANCE (517 cm)
+        # com `distancia_frontal_valida: true` - ver _foraDeAlcance em
+        # sensor_ultrassonico.h. O proprio driver marca `frontal_sem_eco` para
+        # denunciar que aquilo nao e medicao, e ate 2026-07-29 ninguem olhava:
+        # nem a seguranca do Mega, nem aqui.
+        #
+        # Por que isso e perigoso e nao so impreciso: o eco de um obstaculo a
+        # 40 cm dura ~2,3 ms, e o loop do Mega fica cego por ate 124 ms
+        # (medido em 29/07, ~88 ms so no envio da telemetria). O eco inteiro
+        # cabe dentro da cegueira, o pino ECHO nunca e visto subir, e o driver
+        # conclui "nada refletiu". Ou seja: quanto MAIS PERTO o obstaculo,
+        # maior a chance de ele ser reportado como caminho livre. Falha para o
+        # lado errado, e justamente na hora que importa.
+        #
+        # Aqui isso vira None - "nao sei" - e quem decide o que fazer com a
+        # duvida e a camada de cima, com a camera e o radar, em vez de receber
+        # uma parede imaginaria a 5 metros.
+        if payload.get("frontal_sem_eco"):
+            self._distancia_frontal_atual_cm = None
+            return
         distancia = payload.get("distancia_frontal_cm")
         if distancia is not None and payload.get("distancia_frontal_valida", True):
             self._distancia_frontal_atual_cm = distancia
 
+    def frente_desconhecida(self) -> bool:
+        """True quando nao ha medida frontal confiavel agora.
+
+        Existe separado de `_obstaculo_a_frente` de proposito: "nao sei" e
+        "esta livre" eram a mesma resposta ate 2026-07-29, e essa confusao e o
+        que fazia o robo tratar o proprio ponto cego como caminho aberto.
+        """
+        return self._distancia_frontal_atual_cm is None
+
     def _obstaculo_a_frente(self) -> bool:
         if self._distancia_frontal_atual_cm is None:
-            return False  # sem leitura ainda - camada reativa do Arduino continua sendo a rede de seguranca
+            # Sem medida confiavel. NAO responde "livre": ate 2026-07-29 este
+            # `False` se apoiava na camada reativa do Arduino como rede de
+            # seguranca ("o Mega para se eu errar"), e essa rede deixou de
+            # existir no EDR-0027 - o Mega agora informa e nao freia. Quem
+            # pergunta deve consultar `frente_desconhecida()` antes de
+            # concluir qualquer coisa a partir deste False.
+            return False
         return self._distancia_frontal_atual_cm < self._distancia_seguranca_frontal_cm
 
     async def _ao_completar_scan(self, evento: Evento) -> None:
@@ -282,6 +343,12 @@ class NavigationCore:
                     dados.get("velocidade_percent"),
                     dados.get("distancia_cm"),
                 )
+            elif acao == "GIRAR":
+                await self.girar(
+                    graus=dados["graus"],
+                    sentido=dados["sentido"],
+                    velocidade_percent=dados.get("velocidade_percent"),
+                )
             elif acao == "GOTO":
                 await self.executar_goto(
                     graus=dados.get("graus", 0.0),
@@ -372,6 +439,48 @@ class NavigationCore:
         if comando == "MOVE_DISTANCE" and distancia_cm is not None:
             payload["distancia_cm"] = distancia_cm
         await self._comm.send(DESTINO_HARDWARE, payload)
+
+    # ---------- GIRAR (primitiva de manobra) ----------
+
+    async def girar(
+        self, graus: float, sentido: str, velocidade_percent: float | None = None
+    ) -> None:
+        """Gira o robo no proprio eixo, um angulo finito.
+
+        POR QUE ISTO NAO E `MANUAL` COM TURN_LEFT/TURN_RIGHT, que ja existe:
+        `ControleManual` (prioridade 95) assina `navigation.comando` e assume
+        o controle do maestro em QUALQUER comando com `acao: "MANUAL"` - foi
+        feito assim para o joystick do dashboard. Se o desvio de obstaculo
+        usasse esse verbo, o maestro concluiria que um operador humano pegou o
+        joystick: ao liberar a vigilancia, o `ControleManual` seguraria o robo
+        por mais 1,5s achando que alguem esta dirigindo, e a autonomia ficaria
+        presa atras de um operador que nao existe.
+
+        `GIRAR` e uma manobra da NAVEGACAO, nao do operador. Tambem nao mexe
+        no modo (`self._modo`) de proposito: desviar de um obstaculo acontece
+        DENTRO do modo que estiver valendo (PATROL, EXPLORE...), e nao deve
+        derrubar a missao em andamento.
+
+        Nao ha checagem de obstaculo frontal aqui, e isso e correto: girar no
+        proprio eixo nao aproxima o robo de nada. A camada reativa do Mega
+        continua sendo o piso - ela permite o giro apenas quando o unico
+        motivo da parada e a frente (safety_manager.h, `giroPermitido`).
+        """
+        comando = SENTIDOS_DE_GIRO.get(str(sentido).upper())
+        if comando is None:
+            raise ErroNavegacao(
+                f"sentido de giro desconhecido: {sentido!r} "
+                f"(esperado um de {sorted(SENTIDOS_DE_GIRO)})"
+            )
+        await self._aguardar_ocioso()
+        await self._comm.send(
+            DESTINO_HARDWARE,
+            {
+                "comando": comando,
+                "graus": abs(float(graus)),
+                "velocidade_percent": velocidade_percent or self._velocidade_padrao,
+            },
+        )
 
     # ---------- GOTO / segmentos (base tambem usada pelo PATROL) ----------
 

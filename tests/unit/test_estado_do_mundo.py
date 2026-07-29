@@ -157,3 +157,58 @@ async def test_resumo_marca_sem_sinal_e_interrogacao(mundo: EstadoDoMundo) -> No
     texto = mundo.retrato().resumo()
     assert "SEM SINAL" in texto
     assert "?" in texto
+
+
+# ---------- sem eco e "nao sei", nunca "esta livre" (2026-07-29) ----------
+
+
+@pytest.mark.asyncio
+async def test_sem_eco_nao_vira_distancia_no_retrato():
+    """O retrato existe justamente para nao mentir sobre o mundo. Um 517cm
+    com `sem_eco: true` nao e uma parede a 5 metros - e a ausencia de
+    medida, e tem que sair como None ("nao sei")."""
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+
+    await mundo._ao_receber_telemetria(
+        Evento(
+            topico="comm.mensagem.telemetry",
+            dados={
+                "payload": {
+                    "distancia_frontal_cm": 517.24,
+                    "distancia_frontal_valida": True,
+                    "frontal_sem_eco": True,
+                    "distancia_traseira_cm": 517.24,
+                    "distancia_traseira_valida": True,
+                    "traseiro_sem_eco": True,
+                }
+            },
+        )
+    )
+
+    retrato = mundo.retrato()
+    assert retrato.obstaculo_frente_cm is None
+    assert retrato.obstaculo_tras_cm is None
+    assert retrato.telemetria_viva  # o corpo esta vivo; so a medida que nao existe
+
+
+@pytest.mark.asyncio
+async def test_medida_real_aparece_no_retrato():
+    """Contraprova do teste acima - sonda que nao sabe dizer sim nao e sonda."""
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+
+    await mundo._ao_receber_telemetria(
+        Evento(
+            topico="comm.mensagem.telemetry",
+            dados={
+                "payload": {
+                    "distancia_frontal_cm": 34.0,
+                    "distancia_frontal_valida": True,
+                    "frontal_sem_eco": False,
+                }
+            },
+        )
+    )
+
+    assert mundo.retrato().obstaculo_frente_cm == 34.0
