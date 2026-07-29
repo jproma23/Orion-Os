@@ -97,6 +97,8 @@ class SaudacaoEspontanea:
         escolher_frase: Callable[[tuple[str, ...]], str] | None = None,
         familia: list[dict] | None = None,
         compor=None,
+        relogio: Callable[[], time.struct_time] | None = None,
+        observacoes: Callable[[], Awaitable[list[dict]]] | None = None,
     ) -> None:
         self._bus = event_bus
         self._falar = falar
@@ -122,6 +124,12 @@ class SaudacaoEspontanea:
         self._compor = compor
         self._intervalo_s = intervalo_entre_saudacoes_s
         self._agora = agora or time.monotonic
+        #: Relógio de PAREDE, separado do `_agora` monotônico de propósito: o
+        #: monotônico serve para medir intervalos e não sabe que horas são.
+        self._relogio = relogio or time.localtime
+        #: O que ele já viu hoje (diário). Opcional - sem isto o cumprimento
+        #: perde a parte mais rica do contexto, mas continua funcionando.
+        self._observacoes = observacoes
         self._escolher = escolher_frase or random.choice
         #: nome -> instante do último cumprimento
         self._cumprimentados: dict[str, float] = {}
@@ -146,6 +154,12 @@ class SaudacaoEspontanea:
             return  # sem identidade não há a quem cumprimentar pelo nome
         if self._conversando:
             return
+        # O instante da ULTIMA vez tem que ser lido AGORA, porque
+        # `_chegou_agora` grava o horario de hoje em cima dele. Sem isto o
+        # contexto dizia "ha 0 min" toda vez e nunca "primeira vez" - foi o
+        # proprio teste novo que pegou, e era o mesmo bug de mesmice que este
+        # commit corrige, so uma camada abaixo.
+        anterior = self._cumprimentados.get(nome)
         if not self._chegou_agora(nome):
             return
 
@@ -154,10 +168,10 @@ class SaudacaoEspontanea:
         # segundos e falar leva mais alguns. Fazer isso aqui dentro travaria o
         # rastreamento - e perder a pessoa de vista para cumprimenta-la e um
         # negocio ruim.
-        asyncio.create_task(self._cumprimentar(nome))
+        asyncio.create_task(self._cumprimentar(nome, anterior))
 
-    async def _cumprimentar(self, nome: str) -> None:
-        frase = await self._escrever_frase(nome)
+    async def _cumprimentar(self, nome: str, anterior: float | None = None) -> None:
+        frase = await self._escrever_frase(nome, anterior)
         logger.info("saudação espontânea para %s: %r", nome, frase)
         # Publica ANTES de falar: o avatar reage ao evento, e a fala bloqueia
         # por segundos. Se publicasse depois, a legenda apareceria quando a
@@ -170,11 +184,63 @@ class SaudacaoEspontanea:
             # cumprimento perdido é irrelevante perto de perder o alvo.
             logger.warning("não consegui falar o cumprimento para %s", nome, exc_info=True)
 
+    async def _contexto_do_momento(self, nome: str, anterior: float | None) -> str:
+        """O que muda de um cumprimento para o outro.
+
+        BUG REAL, relatado pelo dono ao vivo (2026-07-29): *"ele só fala 3
+        frases repetidas"*. A IA ESTAVA compondo - o log prova. O problema é
+        que o prompt só tinha nome e descrição, que são os mesmos toda vez.
+        Prompt igual, tarefa mínima e temperatura baixa produzem a mesma
+        saída: 'Olá, João Paulo! Que bom te ver (por) aqui!' três vezes
+        seguidas. Pedir variedade sem dar sobre o que variar não funciona.
+
+        Nada aqui é decisão: são fatos do momento. A IA escolhe as palavras.
+        Falha em qualquer parte nunca impede o cumprimento (Cap 6 s.8).
+        """
+        agora_local = self._relogio()
+        hora = agora_local.tm_hour
+        if hora < 5:
+            momento = "madrugada"
+        elif hora < 12:
+            momento = "manhã"
+        elif hora < 18:
+            momento = "tarde"
+        else:
+            momento = "noite"
+        partes = [f"são {hora:02d}h{agora_local.tm_min:02d}, é {momento}"]
+
+        if anterior is None:
+            partes.append(f"é a primeira vez que você vê {nome} desde que ligou")
+        else:
+            minutos = max(0, int((self._agora() - anterior) // 60))
+            if minutos < 60:
+                partes.append(f"você falou com {nome} há {minutos} min")
+            else:
+                partes.append(f"você falou com {nome} há cerca de {minutos // 60} h")
+
+        if self._observacoes is not None:
+            try:
+                vistos = await self._observacoes()
+            except Exception:
+                # o diário é enfeite aqui, não requisito: sem ele o
+                # cumprimento sai com menos contexto, e nada mais.
+                logger.debug("diário indisponível para o cumprimento", exc_info=True)
+                vistos = []
+            if vistos:
+                resumo = "; ".join(
+                    f"{o.get('quando', '?')} {o.get('o_que', '?')}" for o in vistos[-4:]
+                )
+                partes.append(f"hoje você já viu: {resumo}")
+            else:
+                partes.append("você ainda não viu ninguém hoje")
+
+        return "\n".join(f"- {p}" for p in partes)
+
     def _frase_da_lista(self, nome: str) -> str:
         relacao = self._relacao_de.get(nome, "")
         return self._escolher(FRASES_POR_RELACAO.get(relacao, FRASES)).format(nome=nome)
 
-    async def _escrever_frase(self, nome: str) -> str:
+    async def _escrever_frase(self, nome: str, anterior: float | None = None) -> str:
         """A IA compõe; a lista fixa é a rede embaixo.
 
         NUNCA levanta: qualquer falha - rede fora, chave vencida, modelo
@@ -185,7 +251,11 @@ class SaudacaoEspontanea:
             return self._frase_da_lista(nome)
         try:
             frase = await asyncio.wait_for(
-                self._compor(nome, self._descricao_de.get(nome, "")),
+                self._compor(
+                    nome,
+                    self._descricao_de.get(nome, ""),
+                    await self._contexto_do_momento(nome, anterior),
+                ),
                 timeout=self.TIMEOUT_COMPOR_S,
             )
         except Exception:

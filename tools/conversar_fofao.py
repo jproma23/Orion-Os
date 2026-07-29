@@ -542,23 +542,41 @@ async def principal() -> None:
     except Exception:
         familia_conf = []
         logger.warning("secao `familia` ausente no orion.yaml - cumprimento generico")
-    async def _compor_saudacao(nome: str, descricao: str) -> str:
+    async def _compor_saudacao(nome: str, descricao: str, contexto: str) -> str:
         """Deixa a IA escolher as palavras (pedido do dono, 2026-07-29).
 
         Pede SO a saudacao, curta, e nunca uma acao: uma IA solta aqui
         prometeria coisas que o robo nao faz. O limite continua sendo o
         `contrato.py`; este prompt so cuida do TOM.
+
+        O `contexto` foi acrescentado no MESMO DIA, depois do dono ouvir o
+        resultado: *"ele so fala 3 frases repetidas"*. A IA compunha - o log
+        provava - mas o prompt tinha so nome e descricao, que nao mudam nunca.
+        Mandar "seja natural" sem dar UM FATO que mude entre uma vez e outra
+        produz a mesma frase toda vez, e foi o que aconteceu. A variedade nao
+        vem de pedir variedade; vem de haver sobre o que falar.
         """
         quem = f"{nome} ({descricao})" if descricao else nome
         return await ia.responder(
-            f"Cumprimente {quem}, que acabou de aparecer na sua frente. "
+            f"Cumprimente {quem}, que acabou de aparecer na sua frente.\n\n"
+            f"O momento agora:\n{contexto}\n\n"
             f"Uma frase curta, calorosa e natural, como quem reencontra "
-            f"alguem de casa. Nao ofereca nem prometa nenhuma acao; so "
-            f"cumprimente. Responda apenas com a frase.",
+            f"alguem de casa. Use ALGO do momento acima - a hora, o tempo "
+            f"desde a ultima vez, o que voce viu hoje - para que o "
+            f"cumprimento seja deste instante e nao uma formula. NAO repita "
+            f"sempre a mesma abertura. Nao ofereca nem prometa nenhuma acao; "
+            f"so cumprimente. Responda apenas com a frase.",
         )
 
     SaudacaoEspontanea(
-        bus, sintetizador.falar, familia=familia_conf, compor=_compor_saudacao
+        bus,
+        sintetizador.falar,
+        familia=familia_conf,
+        compor=_compor_saudacao,
+        # O que ele viu hoje entra no cumprimento. E o mesmo diario que o
+        # planner le - uma fonte so, para o robo nao ter duas memorias do
+        # proprio dia que possam discordar.
+        observacoes=diario.observacoes_de_hoje,
     )
     logger.info(
         "Saudacao espontanea ativa para: %s",

@@ -14,7 +14,6 @@ import pytest_asyncio
 from orion.kernel.event_bus import EventBus
 from orion.mission.saudacao import (
     FRASES,
-    SaudacaoEspontanea as _SE,
     FRASES_POR_RELACAO,
     SaudacaoEspontanea,
 )
@@ -46,7 +45,7 @@ class _Relogio:
         self.agora += segundos
 
 
-def _montar(bus, relogio=None, **kwargs):
+def _montar(bus, relogio=None, relogio_parede=None, **kwargs):
     ditas: list[str] = []
 
     async def falar(texto: str) -> None:
@@ -56,6 +55,7 @@ def _montar(bus, relogio=None, **kwargs):
         bus,
         falar,
         agora=relogio or _Relogio(),
+        relogio=relogio_parede,
         escolher_frase=lambda frases: frases[0],  # determinístico no teste
         familia=FAMILIA,
         **kwargs,
@@ -213,7 +213,7 @@ async def test_anuncia_no_barramento_para_o_avatar(bus):
 async def test_ia_escreve_o_cumprimento(bus):
     """Pedido do dono: "deixa a IA ver as palavras que melhor se adaptem ao
     contexto". Uma lista fixa nao soa como alguem falando."""
-    async def compor(nome, descricao):
+    async def compor(nome, descricao, contexto):
         return f"Que saudade, {nome}! Como foi o seu dia?"
 
     _, ditas = _montar(bus, compor=compor)
@@ -226,7 +226,7 @@ async def test_ia_escreve_o_cumprimento(bus):
 async def test_ia_fora_do_ar_cai_na_frase_de_reserva(bus):
     """A rede embaixo. Cumprimentar de forma comum e melhor que ficar mudo
     porque a internet caiu."""
-    async def compor(nome, descricao):
+    async def compor(nome, descricao, contexto):
         raise RuntimeError("sem internet")
 
     _, ditas = _montar(bus, compor=compor)
@@ -238,7 +238,7 @@ async def test_ia_fora_do_ar_cai_na_frase_de_reserva(bus):
 
 @pytest.mark.asyncio
 async def test_resposta_vazia_da_ia_cai_na_reserva(bus):
-    async def compor(nome, descricao):
+    async def compor(nome, descricao, contexto):
         return "   "
 
     _, ditas = _montar(bus, compor=compor)
@@ -251,10 +251,116 @@ async def test_resposta_vazia_da_ia_cai_na_reserva(bus):
 async def test_cumprimento_longo_e_cortado(bus):
     """Cumprimento e uma frase, nao um discurso - sem teto, um modelo prolixo
     faria o robo falar por 30s toda vez que alguem entrasse na sala."""
-    async def compor(nome, descricao):
+    async def compor(nome, descricao, contexto):
         return "ola " * 200
 
     _, ditas = _montar(bus, compor=compor)
     await _ver(bus, "Kamal")
 
     assert len(ditas[0]) <= SaudacaoEspontanea.MAX_CARACTERES
+
+
+# ----- contexto do momento (bug "3 frases repetidas", 2026-07-29) -----
+#
+# O dono ouviu tres frases se repetindo. A IA ESTAVA compondo; o prompt e que
+# nao tinha nada que mudasse entre uma vez e outra. Estes testes guardam
+# exatamente isso: que o compositor RECEBE fatos variaveis.
+
+
+def _hora(h: int, m: int = 0):
+    import time as _t
+    return lambda: _t.struct_time((2026, 7, 29, h, m, 0, 2, 210, -1))
+
+
+@pytest.mark.asyncio
+async def test_contexto_leva_a_hora_e_o_momento_do_dia(bus):
+    recebidos = []
+
+    async def compor(nome, descricao, contexto):
+        recebidos.append(contexto)
+        return "oi"
+
+    _, _ = _montar(bus, compor=compor, relogio_parede=_hora(21, 5))
+    await _ver(bus, "Kamal")
+
+    assert "21h05" in recebidos[0]
+    assert "noite" in recebidos[0]
+
+
+@pytest.mark.asyncio
+async def test_momento_do_dia_muda_com_a_hora(bus):
+    """Se a hora nao virasse texto, o prompt seria o mesmo de manha e de noite
+    - e era justamente essa mesmice que produzia a frase repetida."""
+    vistos = []
+
+    for hora, esperado in ((3, "madrugada"), (9, "manhã"), (15, "tarde"), (22, "noite")):
+        recebidos = []
+
+        async def compor(nome, descricao, contexto, _r=recebidos):
+            _r.append(contexto)
+            return "oi"
+
+        _montar(bus, compor=compor, relogio_parede=_hora(hora))
+        await _ver(bus, "Marah")
+        vistos.append((esperado, recebidos[0]))
+
+    for esperado, contexto in vistos:
+        assert esperado in contexto
+
+
+@pytest.mark.asyncio
+async def test_primeira_vez_e_reencontro_dao_contextos_DIFERENTES(bus):
+    """O teste que mais importa: dois cumprimentos da MESMA pessoa tem que
+    chegar ao compositor com contextos diferentes. Se forem iguais, a IA nao
+    tem como variar e a frase repete - o bug relatado."""
+    recebidos = []
+    relogio = _Relogio()
+
+    async def compor(nome, descricao, contexto):
+        recebidos.append(contexto)
+        return f"oi {len(recebidos)}"
+
+    _montar(bus, compor=compor, relogio=relogio, relogio_parede=_hora(10))
+
+    await _ver(bus, "João Paulo")
+    relogio.avancar(3600)  # uma hora depois, conta como chegada nova
+    await _ver(bus, "João Paulo")
+
+    assert len(recebidos) == 2
+    assert "primeira vez" in recebidos[0]
+    assert "primeira vez" not in recebidos[1]
+    assert recebidos[0] != recebidos[1]
+
+
+@pytest.mark.asyncio
+async def test_diario_entra_no_contexto(bus):
+    recebidos = []
+
+    async def compor(nome, descricao, contexto):
+        recebidos.append(contexto)
+        return "oi"
+
+    async def observacoes():
+        return [{"quando": "14:30", "o_que": "vi a Marah"}]
+
+    _montar(bus, compor=compor, observacoes=observacoes, relogio_parede=_hora(15))
+    await _ver(bus, "Kamal")
+
+    assert "14:30" in recebidos[0]
+    assert "vi a Marah" in recebidos[0]
+
+
+@pytest.mark.asyncio
+async def test_diario_quebrado_nao_impede_o_cumprimento(bus):
+    """O diario e enfeite no cumprimento, nao requisito (Cap 6 s.8). Ele le
+    pela rede, ate o Pi - e a rede cai."""
+    async def compor(nome, descricao, contexto):
+        return f"oi, {nome}"
+
+    async def observacoes():
+        raise RuntimeError("Pi fora do ar")
+
+    _, ditas = _montar(bus, compor=compor, observacoes=observacoes)
+    await _ver(bus, "Kamal")
+
+    assert ditas == ["oi, Kamal"]
