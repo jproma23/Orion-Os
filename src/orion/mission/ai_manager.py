@@ -97,6 +97,157 @@ class AiManager:
         )
         return resposta["message"]["content"]
 
+    #: Onde uma frase termina. O Piper tira a prosodia inteira da pontuacao,
+    #: entao cortar aqui e cortar onde ele mesmo faria a pausa - nunca no meio.
+    FIM_DE_FRASE = (".", "!", "?", "\n")
+
+    #: Nao vale a pena sintetizar "Sim." sozinho: o custo fixo de carregar o
+    #: trecho no Piper come o ganho, e a fala sai picotada. Abaixo disto,
+    #: acumula com a frase seguinte.
+    MINIMO_CARACTERES_FRASE = 12
+
+    async def responder_em_frases(self, texto_usuario: str, contexto: dict | None = None):
+        """Gera a resposta e a entrega FRASE A FRASE, conforme sai do modelo.
+
+        POR QUE EXISTE (2026-07-30, T5 da missao de naturalidade). Medido neste
+        Notebook, com o mesmo prompt e o mesmo modelo:
+
+            hoje (espera o texto inteiro, sintetiza o texto inteiro)  3,50 s
+            streaming ate a 1a frase, sintetiza so ela               1,41 s
+            reducao                                                    60%
+
+        O alvo da missao era 40%. O ganho nao vem de gerar mais rapido - vem de
+        parar de esperar o que ainda nao e preciso: o robo pode falar a primeira
+        frase enquanto o modelo ainda escreve a segunda, que e o que uma pessoa
+        faz.
+
+        Quem consome deve sintetizar e tocar cada frase na ordem em que chega.
+
+        ATENCAO A QUEM FOR LIGAR NUMA FILA DE AUDIO: o precedente do proprio
+        projeto e o cliente do ESP32, que precisou drenar o socket
+        continuamente - sem isso o buffer entregava som de segundos atras. Fila
+        de fala tem o mesmo risco: se a conversa for interrompida, DESCARTAR o
+        que estiver na fila. Senao o robo responde ao passado por um terceiro
+        caminho.
+
+        Cai para o caminho nao-streaming (uma frase so, o texto inteiro) quando
+        nao ha OpenAI configurada - o Ollama local segue como reserva, e nunca
+        ficar sem resposta vale mais que responder em pedacos (Cap 6 s.8).
+        """
+        prompt_sistema = self._montar_prompt_sistema(contexto)
+
+        if not (self._provider == "openai" and self._openai_api_key):
+            yield await self.responder(texto_usuario, contexto)
+            return
+
+        fila: asyncio.Queue = asyncio.Queue()
+        _FIM = object()
+        laco = asyncio.get_running_loop()
+
+        def _entregar(item) -> None:
+            """Ponte thread -> laco de eventos.
+
+            `asyncio.Queue` NAO e thread-safe, e `put_nowait` chamado de outra
+            thread nao acorda o laco: a primeira versao disto media 3,95 s para
+            a primeira frase e entregava as TRES no mesmo instante - ou seja,
+            zero streaming, com todo o codigo de streaming no lugar. Falha
+            silenciosa: nada levantava excecao, so o ganho nao existia.
+
+            `call_soon_threadsafe` e o unico jeito correto de empurrar de uma
+            thread para o laco.
+            """
+            laco.call_soon_threadsafe(fila.put_nowait, item)
+
+        def _produzir() -> None:
+            """Roda em thread: a lib da OpenAI e sincrona."""
+            try:
+                for frase in self._openai_em_frases(prompt_sistema, texto_usuario):
+                    _entregar(frase)
+            except Exception as erro:  # noqa: BLE001
+                _entregar(erro)
+            finally:
+                _entregar(_FIM)
+
+        tarefa = asyncio.create_task(asyncio.to_thread(_produzir))
+        houve_frase = False
+        try:
+            while True:
+                item = await fila.get()
+                if item is _FIM:
+                    break
+                if isinstance(item, Exception):
+                    # Falhou no meio: se ja falamos alguma frase, o corte e
+                    # audivel e nao ha o que fazer; se nao falamos nada, ainda
+                    # da para cair na reserva local em vez de emudecer.
+                    logger.warning("streaming da IA falhou", exc_info=item)
+                    if not houve_frase:
+                        yield await asyncio.to_thread(
+                            self._chamar_ollama, prompt_sistema, texto_usuario
+                        )
+                    return
+                houve_frase = True
+                yield item
+        finally:
+            await tarefa
+
+    def _openai_em_frases(self, prompt_sistema: str, texto_usuario: str):
+        """Gerador SINCRONO: consome o stream da OpenAI e solta frases fechadas."""
+        from openai import OpenAI
+
+        if self._cliente_openai is None:
+            self._cliente_openai = OpenAI(
+                api_key=self._openai_api_key, base_url=self._openai_base_url
+            )
+
+        fluxo = self._cliente_openai.chat.completions.create(
+            model=self._openai_model,
+            messages=[
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": texto_usuario},
+            ],
+            temperature=self._temperatura,
+            max_tokens=self._max_tokens_resposta,
+            stream=True,
+        )
+
+        acumulado = ""
+        for pedaco in fluxo:
+            if not pedaco.choices:
+                continue
+            acumulado += pedaco.choices[0].delta.content or ""
+            # CORTE POR INDICE, e nao por `endswith` (2026-07-30, medido).
+            #
+            # A primeira versao testava `acumulado.endswith(".")`. Parece
+            # equivalente e nao e: o modelo entrega tokens como ". Se voce",
+            # com texto DEPOIS da pontuacao. Nesses casos o acumulado nunca
+            # termina em ponto, o corte nunca dispara, e a "primeira frase" so
+            # sai quando o stream inteiro acaba. Medido: 3,91 s para a primeira
+            # frase, contra 0,66-1,29 s do experimento que motivou a mudanca -
+            # o codigo de streaming inteiro no lugar, e ganho nenhum.
+            while True:
+                corte = self._fim_da_primeira_frase(acumulado)
+                if corte is None:
+                    break
+                frase, acumulado = acumulado[:corte].strip(), acumulado[corte:]
+                if frase:
+                    yield frase
+        if acumulado.strip():
+            yield acumulado.strip()
+
+    def _fim_da_primeira_frase(self, texto: str) -> int | None:
+        """Indice logo apos a pontuacao que fecha a primeira frase, ou None.
+
+        Devolve None enquanto a frase for curta demais para valer uma sintese
+        propria: "Sim." sozinho custaria uma carga do Piper para meio segundo
+        de audio, e a fala sairia picotada. Nesse caso o trecho segue
+        acumulando com a frase seguinte.
+        """
+        for i, caractere in enumerate(texto):
+            if caractere in self.FIM_DE_FRASE:
+                if len(texto[: i + 1].strip()) >= self.MINIMO_CARACTERES_FRASE:
+                    return i + 1
+        return None
+
     def _chamar_openai(self, prompt_sistema: str, texto_usuario: str) -> str:
         from openai import OpenAI
 
