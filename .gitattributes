@@ -1,0 +1,37 @@
+# Quebra de linha unica no repositorio (2026-07-30).
+#
+# POR QUE ISTO EXISTE. O projeto tinha 11 arquivos .py em CRLF e 164 em LF,
+# sem politica nenhuma. Sem este arquivo o git guarda o que o editor mandou,
+# e quem abrir um dos 11 num editor que normaliza reescreve o arquivo inteiro
+# sem querer.
+#
+# Nao e teoria: aconteceu nesta sessao. Uma edicao de 8 linhas no
+# tools/conversar_fofao.py virou um diff de 1427 linhas, porque o script que
+# aplicou a mudanca gravou LF num arquivo que estava em CRLF. O conteudo real
+# some no meio do ruido, e revisar o commit deixa de ser possivel.
+#
+# As tres maquinas do robo sao Linux (Pi, Notebook, e o Mega via PlatformIO);
+# so o terminal de acesso e Windows. LF no repositorio e o que casa com quem
+# roda o codigo.
+#
+# `text=auto eol=lf`: o git normaliza para LF ao gravar, independente do que o
+# editor mandar.
+* text=auto eol=lf
+
+# Binarios: nunca tocar. Sem isto o git pode corromper imagem tentando
+# converter quebra de linha que nao existe.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.pt binary
+*.onnx binary
+*.wav binary
+*.mp3 binary
+*.woff binary
+*.woff2 binary
