@@ -502,10 +502,24 @@ class NavigationCore:
         # pontas: a decisao da IA simplesmente evaporava.
         anterior = self._comando_pendente
         if anterior is not None:
-            logger.warning(
+            # QUAL descarte merece alarme (ajustado em 2026-07-30, medido).
+            #
+            # A primeira versao gritava em WARNING para TODO descarte, e o log
+            # juntou 223 em minutos. Quase todos eram MANUAL apagando MANUAL - o
+            # joystick reenvia a cada 300 ms (dashboard.js) e o "ultimo vence" e
+            # exatamente o que deve acontecer ali. Alarme no caso normal nao
+            # informa: ele afoga o caso raro que importa.
+            #
+            # O que importa e uma decisao AUTONOMA (EXPLORE, GOTO, PATROL) sendo
+            # apagada antes de rodar - foi assim que 5444 decisoes da IA
+            # evaporaram sem deixar rastro. Esse continua em WARNING; a rotina
+            # do joystick desce para DEBUG, onde da para ler quando se procura.
+            acao_anterior = anterior.get("acao")
+            registrar = logger.debug if acao_anterior == "MANUAL" else logger.warning
+            registrar(
                 "navegacao: comando %r DESCARTADO sem executar - %r chegou antes "
                 "(o ultimo vence, nao ha fila)",
-                anterior.get("acao"),
+                acao_anterior,
                 evento.dados.get("acao"),
             )
         self._comando_pendente = dict(evento.dados)

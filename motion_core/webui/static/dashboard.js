@@ -320,7 +320,31 @@ if (jsBase && jsPunho) {
   let ultimoComando = null;
   let repeticao = null;
 
+  // INTERVALO MÍNIMO ENTRE COMANDOS (2026-07-30, pedido do dono: *"apertando
+  // varias vezes colocar um time entre um comando e outro para nao carregar"*).
+  //
+  // Cada comando de movimento espera o Mega ficar ocioso no `executar_manual`
+  // (até 10 s de timeout). Apertos em rajada empurram um atrás do outro e o
+  // robô responde atrasado, como se houvesse fila - foi o que o dono viu.
+  // Segurar aqui, na origem, é melhor que descartar depois: o que não é enviado
+  // não ocupa a vaga nem atrasa o próximo.
+  //
+  // O STOP NUNCA espera. Parar é o único comando que não pode ficar atrás de um
+  // relógio - se o robô vai para onde não deve, o dedo do operador tem que
+  // valer na hora.
+  let ultimoEnvioMs = 0;
+  const INTERVALO_MINIMO_MS = 250;
+
   async function enviar(comando, extra = {}) {
+    const agora = Date.now();
+    if (comando !== 'STOP') {
+      if (agora - ultimoEnvioMs < INTERVALO_MINIMO_MS) return;
+      ultimoEnvioMs = agora;
+    } else {
+      // o STOP passa e ainda LIBERA o próximo comando: soltar e apertar de novo
+      // não deve ficar preso ao relógio do aperto anterior.
+      ultimoEnvioMs = 0;
+    }
     try {
       const resposta = await fetch('/comando', {
         method: 'POST',
