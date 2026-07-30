@@ -286,57 +286,52 @@ dd {
   cursor: pointer;
 }
 
-/* ---------- Quem controla: AUTÔNOMO | MANUAL (2026-07-30) ----------
-   Dois botões em vez de um interruptor: com interruptor o operador precisa
-   deduzir o que o estado atual significa, e aqui os dois lados dizem o nome
-   de quem manda. O ativo fica evidente porque essa é a informação que evita
-   a pergunta "por que o joystick não está movendo o robô?". */
+/* ---------- Quem controla: manual | automatico (2026-07-30) ----------
+   Seletor compacto em pilula, na MESMA caixa do joystick e logo abaixo do
+   PARAR - e ele que decide se o joystick acima tem efeito. A primeira versao
+   eram dois blocoes com legenda ocupando um painel proprio: peso demais para
+   uma escolha de duas palavras, e o dono cortou. */
 
 .volante {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 4px;
+  width: 100%;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
 }
 
 .volante-opcao {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
   background: transparent;
   color: var(--texto-fraco);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  padding: 12px 10px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 10px;
   font: inherit;
-  font-weight: 700;
+  font-size: 12px;
   letter-spacing: .06em;
   cursor: pointer;
 }
 
-.volante-opcao small {
-  font-weight: 400;
-  letter-spacing: 0;
-  font-size: .78em;
-  color: var(--texto-fraco);
-  text-align: center;
-}
+.volante-opcao:hover { color: var(--texto); }
 
-.volante-opcao:hover { border-color: var(--acento); }
-
+/* O ativo e solido: com duas palavras lado a lado, sublinhado ou borda deixa
+   ambiguo QUAL esta valendo - e essa e a informacao que evita a pergunta "por
+   que o joystick nao move o robo?". */
 .volante-opcao--ativa {
   background: var(--acento);
   color: #04231f;
-  border-color: var(--acento);
+  font-weight: 700;
 }
 
-.volante-opcao--ativa small { color: #04231f; }
-
 #volante-status {
-  margin: 10px 0 0;
-  font-size: .82em;
+  margin: 0;
+  font-size: 11.5px;
   color: var(--texto-fraco);
-  line-height: 1.45;
+  text-align: center;
+  line-height: 1.4;
 }
 
 #volante-status.erro { color: var(--alerta); }

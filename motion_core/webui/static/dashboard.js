@@ -21,12 +21,15 @@ function renderizarControle(controle) {
     botao.classList.toggle('volante-opcao--ativa', ativo);
     botao.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   }
+  // Curto de propósito: a informação que importa é quem manda AGORA. O aviso do
+  // PARAR entra só no modo automático, que é onde alguém poderia achar que
+  // ficou sem freio.
   if (modo === 'autonomo') {
-    alvo.textContent = 'o volante está com a IA — o joystick não move o robô (PARAR sempre funciona)';
+    alvo.textContent = 'a IA no comando — o joystick não move (PARAR funciona sempre)';
   } else if (modo === 'manual') {
-    alvo.textContent = 'o volante está com você — a IA continua opinando, mas não executa';
+    alvo.textContent = 'você no comando — a IA opina, mas não executa';
   } else {
-    alvo.textContent = 'sem Behavior Core nesta instância — não há volante a entregar';
+    alvo.textContent = 'sem Behavior Core nesta instância';
   }
 }
 
