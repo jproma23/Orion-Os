@@ -4637,3 +4637,153 @@ absoluto" do roadmap (Pi parado em `8da6969`) ja estava resolvido.
 - **ROADMAP_ORION_OS.md** virou o caminho oficial. Tres afirmacoes dele ja
   cairam no mesmo dia em que foi escrito, porque partiu do relatorio e nao do
   codigo - ele mesmo pede a verificacao contra a arvore real.
+
+---
+
+## Sessao de 2026-07-30 (tarde) - a IA move o robo, e tres telas que mentiam
+
+Sessao de bancada, com o dono ao lado do robo o tempo todo. Comecou com uma
+pergunta simples ("por que ele nao anda?") e terminou com o rele acionando por
+decisao da propria IA. 10 commits.
+
+### O bug do dia: 5444 decisoes e ZERO execucoes
+
+A armadilha de diagnostico armada de manha respondeu na primeira leitura:
+
+    IA decidiu         : 5444 ocorrencias
+    explore: comecando : 0
+
+A instrumentacao provou que `executar_explore` nunca era chamado. Um susto pelo
+caminho: `navigation_core.py` tinha ZERO `logger.info` antes de hoje, entao a
+ausencia de linhas quase passou por "logger filtrado". Foi preciso ler o
+`configurar_logger` (nivel INFO no pai, filhos com NOTSET propagando) para
+concluir que o silencio era real e nao cegueira do log.
+
+**Causa:** a `VigilanciaObstaculo` (prio 100) preemptava a `IaEstrategica`
+(prio 40) e publicava `GIRAR` na **mesma vaga unica** do `NavigationCore`,
+apagando o EXPLORE antes de ele rodar. `publish` nunca falha e o descarte era
+mudo - o mesmo publicar-no-vazio de sempre, agora uma camada adiante.
+
+O log mostra o ciclo inteiro, repetido:
+
+    'ia_estrategica' assume (prio 40)
+    maestro: IA decidiu 'explorar'          <- deixa EXPLORE na vaga
+    'vigilancia_obstaculo' assume (prio 100)
+    maestro: obstaculo a frente - girando   <- escreve GIRAR por cima
+
+### As decisoes do dono
+
+> *"vigilancia tem que vigia e mostrar dados e nao decidir, a ia estrategica é
+> qeum com os dados em maos decidir a manobra e nao fica parado"*
+
+> *"vamos colocae um botao para escolher q contrla, se o joistk ou a ia,
+> autonomo ou manual - ai passa a responsabilidade por escolha"*
+
+> *"se criar uma fila o robo vai dar crash"*
+
+A vigilancia virou informante (`behavior.reconsiderar`), `quer_rodar()` sempre
+False, e o laco de giro saiu junto com as constantes dele - entrega com MENOS
+codigo do que antes. Os meios de manobrar (`virar_esquerda`, `virar_direita`,
+`manobrar`) ja estavam no `contrato.py` e eram inalcancaveis porque ela agia
+primeiro: irmao da trava da Ronda.
+
+Nasceu o campo `autoridade` no `Comportamento` e o modo de controle no maestro.
+**Prioridade responde "quem e mais urgente"; ela nunca respondeu "quem esta no
+volante"** - tratar as duas perguntas como uma so era o defeito de fundo.
+
+### RESULTADO - medido em producao
+
+    explore: passo 1/4 - varredura devolveu 7 leitura(s)
+    segmento: mandando MOVE_DISTANCE 30 cm a 60%
+    explore: passo 4/4 - segmento de 30 cm concluido
+
+13 explores completos, 0 abortados, 0 descartes. E o dono viu **o rele
+acionar**: decisao da IA -> navegacao -> serial -> firmware -> energia dos
+TB6600 esta inteiro. Falta so o elo mecanico.
+
+### Tres telas que mentiam, e o dono achou as tres
+
+1. **Deslocamento.** A tela afirmava `y = 0.8541 m` e `orientacao = 79.68 graus`
+   com os motores FISICAMENTE DESCONECTADOS. O firmware confessa a origem:
+   `long passosAcumulados = 0;  // odometria simples (sem encoder)` - sao os
+   pulsos ENVIADOS ao driver, comando e nao medicao. Agora `motion.position`
+   declara `origem` e `medida`, e dashboard/mapa so mostram numero quando
+   medido. O `EncoderManager` real ja conta pulso no firmware (pinos 18/19) e
+   **nunca chega a telemetria**; pulso->metro exige calibracao de bancada, e
+   chutar seria trocar uma mentira por outra.
+2. **Bussola.** A agulha GIRAVA com `rumo_valido: false`, carregando o offset dos
+   imas dos motores. Texto de ressalva ao lado nao desfaz o que o desenho
+   afirma. Agora ela fica parada no zero quando o rumo nao vale.
+3. **Casas decimais.** `4.872143 graus` e `199.8621 cm` vinham do float, nao do
+   sensor: sugeriam precisao de micrometro E faziam ruido de fundo parecer
+   movimento com o robo imovel.
+
+### A licao mais cara do dia: o navegador mentia tambem
+
+O dono relatou em sequencia *"botao ficou feio"*, *"nao muda de cor"*, *"botoes
+da selecao nao funciona"*. Tratei cada um como pedido de ajuste e refiz o CSS
+tres vezes. **Nenhum era bug.** O `index.html` pedia `dashboard.js?v=20260727b`
+- versao fixa de 27/07 - e o CSS sem versao nenhuma; o navegador tinha aquilo
+guardado e nem perguntava ao servidor.
+
+A combinacao engana porque e parcial: HTML novo (botoes aparecem), CSS velho
+(feio, sem cor), JS velho (clica e nada). E e a MESMA familia de mentira que a
+sessao passou o dia removendo dos dados: eu confiava no que o servidor tinha,
+conferido por `curl`, enquanto a realidade do outro lado era outra. **Confirmar
+no servidor nao prova que o usuario esta vendo aquilo.**
+
+Ficou `Cache-Control: no-cache` nos estaticos (middleware) para as proximas, e o
+bump de versao para sair do cache que ja estava na maquina.
+
+### Achado da revisao: o PARAR podia esperar 1,2 m
+
+Revisando o proprio codigo escrito na sessao: `_executar_pendentes` faz `await`
+no `executar_explore` INTEIRO, e o handler do bus nao cria tarefa nova enquanto
+a atual roda - so guarda o comando. Com UM segmento a janela era ~3 s; ao passar
+para quatro, um STOP do operador esperaria o trecho todo. **Multiplicar o trecho
+por 4 multiplicou por 4 o tempo de resposta do botao PARAR.** O laco passou a
+olhar a vaga entre os passos: o robo anda no maximo um segmento a mais.
+
+### E o "enfileirando" que nao era fila
+
+Relato: *"aperto vai vai solto libera, apertando varias vezes colocar um time
+entre um comando e outro para nao carregar"*. Nao ha fila (e nao vai haver).
+`executar_manual` espera o Mega ficar ocioso antes de todo comando de movimento,
+com timeout de 10 s - em rajada os comandos empurram uns aos outros e a resposta
+sai atrasada, indistinguivel de fila para quem esta com o dedo no joystick.
+Intervalo minimo de 250 ms na ORIGEM, com o STOP fora da regra.
+
+Junto, um defeito meu: o alarme de descarte gritava no caso NORMAL - 223 WARNING
+em minutos, quase todos MANUAL apagando MANUAL, que e o joystick reenviando a
+cada 300 ms como projetado. Alarme no rotineiro afoga o raro. Ficou WARNING so
+para decisao autonoma apagada.
+
+### Estado ao final
+
+**538 testes passam** (as 3 falhas restantes sao PRE-EXISTENTES: falta `cv2` no
+Pi - verificado com `git stash`). Zero lint novo, medido contra baseline no mesmo
+escopo. Pi em `72cc6ed`, arvore limpa, servicos ativos.
+
+### PENDENTE
+
+- **MOTORES DESCONECTADOS** (so os TB6600 no robo) e rodas suspensas. Unico
+  bloqueio para provar deslocamento fisico. O rele FUNCIONA - o dono confirmou
+  *"o rele nunca deixou de acionar"*.
+- **NOTEBOOK ATRASADO**: esta em `7203f05`, o Pi em `72cc6ed`. O Pi TEM remoto
+  `notebook` configurado (10.20.20.195). Nao foi feito nesta sessao de proposito:
+  merge sem o dono acompanhando ja custou caro neste projeto.
+- **ENCODER DE RODA**: sem ele nao existe deslocamento medido. Firmware ja conta
+  pulso; telemetria nao manda; sensores nao instalados; falta calibrar.
+- **`_aguardar_ocioso` com timeout de 10 s** no caminho manual - causa de fundo
+  do atraso do joystick. Nao mexido: e a funcao que queimou 86 timeouts num log
+  so em 28/07, merece o robo a mao e tempo de teste.
+- **Bussola nao calibrada** (`rumo_valido: false`, oscila 6 graus parada).
+- **A vigilancia virou comportamento zumbi**: registrada no maestro, aparece na
+  lista do boot e nunca assume. Tirar do registro deixaria o boot honesto.
+- **Sem a IA, nao ha plano B para obstaculo.** Antes o laco de giro resolvia
+  sozinho; agora, com o Notebook fora do ar, o robo fica encostado. Foi decisao
+  consciente do dono, mas vale um reflexo minimo de ultimo recurso.
+- Do Portao 0: 11 arquivos citam `CLAUDE.md` (virou `ARQUITETURA.txt`), remover o
+  Ollama, audio por NOME, reconexao serial sem re-varredura, e o conflito
+  EDR-0026 (`PAUSED_MANUAL`) vs `ControleManual` prio 95 - este ficou MAIS
+  relevante agora que existe modo de controle de verdade no maestro.
