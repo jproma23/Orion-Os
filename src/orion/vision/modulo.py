@@ -243,6 +243,11 @@ class ModuloVisao:
             # ainda nao tenha a chave (o Pi e o Notebook nem sempre atualizam
             # a config no mesmo instante).
             imgsz=self._conf.get("yolo_imgsz", 640),
+            # Ritmo do reconhecimento facial. `.get` com default 1 mantem o
+            # comportamento antigo (todo quadro) num orion.yaml que ainda nao
+            # tenha a chave - o Pi e o Notebook nem sempre atualizam a config
+            # no mesmo instante.
+            reconhecer_rosto_a_cada=self._conf.get("face_recognition_every_n_frames", 1),
         )
 
 

@@ -56,6 +56,7 @@ class VisionCore:
         frames_confirmacao_alvo: int = 1,
         fps: float = 0.0,
         imgsz: int = 640,
+        reconhecer_rosto_a_cada: int = 1,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -84,6 +85,25 @@ class VisionCore:
         #: memoria, nao perder a visao de vez.
         self._pausado = False
         self._tinha_alvo = False
+        #: A cada quantos quadros rodar o reconhecimento facial (Cap 8 s.4).
+        #:
+        #: 1 = todo quadro, o comportamento anterior a 2026-07-30. Vem de
+        #: `vision.face_recognition_every_n_frames` no orion.yaml, onde estao
+        #: as medicoes que justificam o valor. Resumo: o reconhecimento custa
+        #: 442-716 ms contra 125 ms do YOLO, e nao da para baratea-lo sem
+        #: perder rosto - entao o que muda e o RITMO, nao a qualidade.
+        #:
+        #: `max(1, ...)` porque 0 ou negativo aqui nao significa nada e
+        #: dividiria por zero no `%` abaixo.
+        self._reconhecer_a_cada = max(1, int(reconhecer_rosto_a_cada))
+        self._quadros_processados = 0
+        #: Ultimo resultado do reconhecimento, reaproveitado nos quadros em
+        #: que ele nao roda. NAO e cache de otimizacao: e o que impede a
+        #: identidade de piscar. Devolver lista vazia nos quadros
+        #: intermediarios faria o alvo perder o nome e voltar a te-lo, e o
+        #: FOLLOW (que so segue gente RECONHECIDA) largaria a pessoa a cada
+        #: dois quadros.
+        self._ultimos_rostos: list[RostoReconhecido] = []
         self._ultimo_processamento_ts: float | None = None
         self._ultimo_frame = None
         # 0 = sem limite (comportamento antigo). Vem de vision.fps no
@@ -183,8 +203,21 @@ class VisionCore:
         deteccoes = await self._detector.detectar(frame)
         pessoas_detectadas = DetectorYolo.pessoas(deteccoes)
 
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        rostos = await self._reconhecedor.reconhecer(frame_rgb)
+        # O RECONHECIMENTO FACIAL TEM RITMO PROPRIO (2026-07-30), porque ele
+        # custa 442-716 ms contra 125 ms do YOLO e nao da para baratea-lo sem
+        # perder rosto (as medicoes estao no orion.yaml, em
+        # `face_recognition_every_n_frames`). Com `_reconhecer_a_cada = 1` o
+        # comportamento e exatamente o de antes.
+        #
+        # O contador incrementa DEPOIS do teste para que o primeiro quadro
+        # sempre reconheca: comecar a vida sem identidade nenhuma por N
+        # quadros e o pior momento para economizar.
+        reconheceu_agora = (self._quadros_processados % self._reconhecer_a_cada) == 0
+        self._quadros_processados += 1
+        if reconheceu_agora:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            self._ultimos_rostos = await self._reconhecedor.reconhecer(frame_rgb)
+        rostos = self._ultimos_rostos
         # guardado para quem precisar da imagem do momento (a Sentinela salva
         # a foto do estranho). So o dono da camera tem o frame (EDR-0023 s.3).
         self._ultimo_frame = frame
@@ -193,8 +226,13 @@ class VisionCore:
         # este evento em vez de abrir a propria camera e rodar um SEGUNDO
         # reconhecimento facial sobre os mesmos frames - era o trabalho mais
         # pesado do Notebook, feito em dobro ate 2026-07-25.
+        #
+        # `and reconheceu_agora`: so anuncia desconhecido quando ACABOU de
+        # olhar. Sem isso, um mesmo rosto reaproveitado dispararia o evento a
+        # cada quadro e a Sentinela salvaria a mesma cara N vezes - ela ja
+        # tinha 37 fotos acumuladas em data/sentinela antes desta mudanca.
         desconhecidos = [rosto for rosto in rostos if rosto.pessoa_id is None]
-        if desconhecidos:
+        if desconhecidos and reconheceu_agora:
             await self._event_bus.publish(
                 "vision.faces_desconhecidas",
                 {"quantidade": len(desconhecidos), "timestamp": agora},

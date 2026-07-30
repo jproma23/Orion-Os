@@ -114,7 +114,23 @@ navigation:
 
 vision:
   resolution: [640, 480]
-  fps: 15
+  # Quadros por segundo PEDIDOS ao laco de visao - vira o orcamento de tempo
+  # por quadro em _dormir_o_resto_do_quadro (1/fps).
+  #
+  # ERA 15, e 15 nunca foi alcancavel: o custo real por quadro e ~363 ms
+  # (medido em 2026-07-30, ja com o reconhecimento facial em ritmo proprio),
+  # contra os 66,7 ms que 15 fps pedem. Orcamento sempre estourado significa
+  # sobra sempre negativa, sleep(0), e um laco que nunca dorme - um nucleo
+  # inteiro dos 4 em 99% de CPU, 24 h por dia, medido duas vezes.
+  #
+  # Pedir mais do que o hardware entrega nao acelera nada: so desliga o freio.
+  # Antes desta mudanca o robo processava ~1,8 quadros/s a 99% de CPU; com
+  # fps: 2 ele processa 2 quadros/s e DORME o que sobra.
+  #
+  # 2 e conservador de proposito: deixa ~137 ms de folga sobre os 363 ms
+  # medidos, para o quadro que cai no reconhecimento facial (mais caro) nao
+  # estourar o orcamento e reabrir o problema.
+  fps: 2
   yolo_model: "yolov8n"
   # Lado do quadrado para onde o YOLO reescala o quadro antes de inferir.
   # NAO e a resolucao da camera (essa e `resolution`, acima): o quadro chega
@@ -133,6 +149,42 @@ vision:
   # Fofao parar de enxergar gente de longe, este e o primeiro numero a subir.
   yolo_imgsz: 320
   confidence_threshold: 0.55
+  # De quantos em quantos quadros rodar o RECONHECIMENTO FACIAL (2026-07-30).
+  #
+  # 1 = todo quadro (o comportamento anterior a esta chave).
+  #
+  # Medido neste Notebook, com foto real de rosto salva pelo proprio robo:
+  #     YOLO (imgsz=320) .......... 125 ms
+  #     cvtColor ..................   0,3 ms
+  #     reconhecimento facial ..... 442-716 ms   <- 78% do custo do quadro
+  #
+  # O laco gastava 567-716 ms POR QUADRO, contra um orcamento de 66,7 ms
+  # (`fps: 15`). Como a sobra e sempre negativa, o freio de
+  # `_dormir_o_resto_do_quadro` cai em `sleep(0)` e nunca dorme: um nucleo
+  # inteiro dos 4 ficava em 99,2% de CPU, 24h por dia (medido: 12h18 de CPU
+  # em 12h23 de processo).
+  #
+  # POR QUE NAO BARATEAR O RECONHECIMENTO, que seria o obvio: foi tentado e
+  # medido, e TODAS as versoes rapidas perdem o rosto. Na mesma foto real:
+  #     upsample=0 .............. 5,6x mais rapido, 0 rosto (era 1)
+  #     metade da resolucao ..... 5,0x mais rapido, 0 rosto
+  #     metade + upsample=0 .... 24,8x mais rapido, 0 rosto
+  # So a configuracao atual acha o rosto. Velocidade que perde rosto nao e
+  # ganho, e regressao silenciosa.
+  #
+  # POR QUE NAO USAR O YOLO COMO PORTEIRO ("so procura rosto se vir pessoa"),
+  # que tambem seria obvio: medido nas 34 fotos reais com rosto, em 15 delas
+  # o face_recognition acha o rosto e o YOLO NAO acha pessoa - rosto em close,
+  # sem corpo a mostra. A guarda faria o robo deixar de reconhecer gente em
+  # 44% dos casos.
+  #
+  # O que sobra, e o que esta implementado: separar os RITMOS. O YOLO continua
+  # em todo quadro, entao ver pessoa e obstaculo reage igual; so o NOME da
+  # pessoa demora ate N quadros a mais para chegar. Entre os reconhecimentos,
+  # o ultimo resultado e reaproveitado, e o YOLO e quem manda na presenca.
+  #
+  # 3 e conservador: a ~1,8 quadros/s reais, o nome chega em ate ~1,7 s.
+  face_recognition_every_n_frames: 3
   # Quantos quadros SEGUIDOS com a pessoa antes de o rastreador confirmar um
   # alvo e a visao passar a mover a cabeca.
   #
