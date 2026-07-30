@@ -4493,3 +4493,147 @@ comportamento novo descrito aqui roda com o firmware ANTIGO.
   cegueira no pacote reduzido sem sensor instalado. CONFERIR ANTES DE LIGAR:
   tensao de alimentacao e se a saida e NPN ou PNP (PNP em 12V queima o pino do
   Mega).
+
+---
+
+## Sessao de 2026-07-30 - quatro correcoes, e todas eram a mesma coisa
+
+Sessao de leitura antes de codigo: o dono pediu a leitura do projeto inteiro,
+modulo por modulo. O que saiu dela foram quatro defeitos que **nenhum teste
+pegava e nenhum log denunciava** - os 596 testes passavam com os quatro no ar.
+
+### O diagnostico de metodo, e ele veio do dono
+
+Antes de qualquer correcao, o dono apontou o padrao:
+
+> *"as contradicoes q existe na receita e no q ta feito foi proposto por muitas
+> das vezes"*
+
+Ele tem razao, e da para provar com data e hora. O commit `f5a39be` (29/07) se
+chama *"a IA estava amordacada pelo proprio prompt"* e reescreveu a
+`REGRA_ANTI_INVENCAO` no `grounding.py` para LIBERAR conversa - mas deixou a
+mordaca original intacta no `config/prompt_sistema.txt` (*"voce nao sabe nada
+alem dele"*). As duas vao no MESMO prompt, e o `prompt_sistema.txt` vai
+PRIMEIRO. A correcao nao removeu a amordaca: pos uma contra-ordem depois dela.
+
+**A regra que ficou:** antes de escrever qualquer instrucao nova (prompt,
+regra, comentario normativo), procurar quem JA diz algo sobre aquilo e corrigir
+LA. Se a correcao certa e remover texto, remover - a entrega pode ser menos
+codigo do que existia.
+
+Isso mudou o trabalho do dia: a quarta camada de prompt na saudacao, que eu ia
+escrever, nao foi escrita.
+
+### 1. "Nao sei" valia como "livre" no ponto que decide andar
+
+O achado mais caro, e ele estava em dois commits do MESMO MINUTO de 29/07:
+
+```
+548cdd1 | 08:20 | [motion] "nao medi" deixa de chegar como "esta livre"
+ab5c2dc | 08:20 | [firmware] EDR-0027: o Mega informa, nao veta
+```
+
+Um tirou o freio do Mega; o outro deveria ter fechado o outro lado. O `548cdd1`
+fez metade: transformou `frontal_sem_eco` em `None` na ENTRADA e criou
+`frente_desconhecida()`. **Nao fez ninguem consultar** - o metodo existia sem um
+unico uso no projeto inteiro. O "nao medi" parou de chegar como "esta livre" na
+entrada de dados e continuou chegando como "esta livre" no unico lugar onde
+isso tinha consequencia.
+
+O encadeamento, todo ele ja medido e escrito no proprio codigo: obstaculo PERTO
+-> eco de ~2,3 ms cabe na cegueira de ate 124 ms do loop -> `frontal_sem_eco`
+-> `None` -> "livre" -> avanca, sem freio embaixo. **A falha aponta para o lado
+errado justamente na hora que importa.**
+
+**Decisao do dono, tomada depois de ver o risco exposto:**
+
+> *"o robo precisa ter mais iniciativa e coragem, travas de seguranca so impede
+> o robo de andar - retira as travas, temos os sensores para realizar estudos de
+> risco e tomada de decisao"*
+
+Entao duvida NAO virou trava. Virou varredura, e o robo avanca mesmo sem medida
+- declarando o risco por um fio que vai ate quem decide:
+
+```
+NavigationCore -> navigation.risco_assumido -> EstadoDoMundo
+               -> retrato.risco_frontal_assumido -> grounding -> prompt da IA
+```
+
+Detalhe de redacao que importa: a linha que chega a IA e **fato, nao ordem**
+(*"andei ha pouco SEM medida confiavel da frente"*). Escrever "pare" ali
+devolveria pela porta dos fundos a trava que foi tirada do codigo.
+
+Distingue tambem os dois "nao sei" que o projeto tratava como um so, usando o
+`frontal_sensor_ok` que o firmware ja mandava e ninguem lia: sensor AUSENTE nao
+trava o robo (bancada sem ultrassom segue andando); sensor VIVO que nao mediu e
+o caso perigoso.
+
+### 2. A Ronda nao "nunca rodou" - era inalcancavel, por TRES travas
+
+O relatorio de 29/07 dizia *"so roda se a IA pedir ronda, e ela nunca pede"*, o
+que sugere desinteresse da IA. Nao era isso:
+
+1. `ronda` **nao estava no catalogo do contrato**, e `resolver()` devolve None
+   para tudo que nao esta la - a IA nao PODIA escolhe-la;
+2. o unico caminho ate `Ronda.pedir()` passava pela `ponte_conselho`, que e
+   `None` porque `conselho_ia.habilitado: false`;
+3. a terceira **so apareceu ao consertar as duas**: a `IaEstrategica` vive em
+   prioridade 40 e SEGURA o controle; a `Ronda` vive em 20. Sem soltar, a IA
+   pediria a ronda e engoliria o proprio pedido - trocando uma trava por outra.
+
+Comportamento sem caminho ate ele **nao falha - so nao acontece**. E o irmao do
+publicar-no-vazio, uma camada acima: la e evento sem assinante, aqui e acao sem
+executor alcancavel. Nos dois, nada no log denuncia.
+
+Ficou uma rede no boot: o Motion Core **nao sobe** se o catalogo delegar para um
+comportamento que ninguem registrou.
+
+### 3. O alivio de memoria nunca liberou um byte
+
+As duas pontas mortas, e o conjunto parecia funcionar:
+
+- `AiManager.descarregar()` usava `self._cliente`, atributo que **nunca existiu**
+  nesta classe. AttributeError em toda chamada;
+- `pausar_visao=None`: o maior consumidor do Notebook (YOLO + reconhecimento
+  facial) seguia a todo vapor durante o aperto de memoria.
+
+Como o `AlivioCarga` isola cada acao num try/except, o log exibia o caminho
+feliz inteiro - detecta, pede, atende - sem um byte liberado. **Falha silenciosa
+da pior especie: a que aparece como sucesso.**
+
+### 4. Dois conselheiros, e o ativo apontava para o lugar errado
+
+`conversar_fofao.py` criava um `ConselheiroComportamento` com
+`modelo="gemma3:1b"` e SEM `base_url` - ou seja, falando com a OpenAI oficial,
+com a chave do OpenRouter e um modelo que nao existe la. Mais adiante a
+variavel era REATRIBUIDA a um segundo objeto, correto - mas o
+`AtendenteConselhoIA` ja tinha guardado o metodo ligado ao PRIMEIRO.
+
+Reatribuir a variavel nao troca o objeto de quem ja segurava a referencia.
+
+### Estado ao final
+
+**608 testes passam** (eram 596 no inicio do dia), ruff limpo nos 14 arquivos
+tocados. 5 commits.
+
+O Pi e o Notebook comecaram o dia ja sincronizados em `ee45625` - o "bloqueador
+absoluto" do roadmap (Pi parado em `8da6969`) ja estava resolvido.
+
+### PENDENTE
+
+- **Deploy no Pi**: os 5 commits de hoje moram em `motion_core/` e `src/`. O Pi
+  segue rodando o codigo de ontem.
+- **A trava que sobrou**: obstaculo MEDIDO a menos de 25 cm ainda segura o
+  `MOVE_FORWARD`. Nao foi removida por conta propria - e a diferenca entre "nao
+  sei o que tem ali" e "medi 10 cm de parede". Decisao em aberto do dono.
+- **LiDAR STL-50B2** comprado. **5V contra os 3.3V do UART do Pi: exige
+  conversor de nivel logico, senao queima a placa.** Alimentacao so 5V.
+- **Saudacao repetitiva**: diagnosticada e NAO corrigida. A causa nao esta onde
+  as tres tentativas de 29/07 mexeram (prompt do usuario): `_compor_saudacao`
+  chama `ia.responder` SEM contexto, entao o prompt de SISTEMA diz *"nao estou
+  vendo ninguem"* e *"o diario esta VAZIO"* no exato instante em que ele
+  cumprimenta alguem - contradizendo o contexto real que vai no prompt do
+  usuario. E o prompt de sistema se declara "a unica fonte de verdade".
+- **ROADMAP_ORION_OS.md** virou o caminho oficial. Tres afirmacoes dele ja
+  cairam no mesmo dia em que foi escrito, porque partiu do relatorio e nao do
+  codigo - ele mesmo pede a verificacao contra a arvore real.
