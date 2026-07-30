@@ -49,6 +49,7 @@ class Cenario:
             "navigation.segment_completed",
             "navigation.obstacle_avoided",
             "navigation.target_lost",
+            "navigation.risco_assumido",
         ):
             self.bus.subscribe(topico, self._gravar_evento)
         self._tarefas: list[asyncio.Task] = []
@@ -576,3 +577,132 @@ async def test_estado_do_mega_vem_tambem_da_telemetria(cenario):
     await _telemetria(cenario, estado="OBSTACLE_DETECTED")
 
     assert cenario.nav._estado_hardware == "OBSTACLE_DETECTED"
+
+
+# ---------------------------------------------------------------------------
+# DUVIDA VIRA ESTUDO DE RISCO, NUNCA TRAVA (2026-07-30)
+#
+# Decisao do dono, depois de ver o risco exposto: *"o robo precisa ter mais
+# iniciativa e coragem, travas de seguranca so impedem o robo de andar -
+# retira as travas, temos os sensores para realizar estudos de risco e tomada
+# de decisao"*. Mesma linha do EDR-0027, agora aplicada ao Pi.
+#
+# O que os testes abaixo fixam: o robo OLHA (a varredura e o estudo), ANDA de
+# qualquer jeito, e o que ele descobriu vira dado para quem decide. Andar sem
+# saber e escolha do dono; andar sem saber e sem REGISTRAR seria defeito.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_frente_desconhecida_nao_impede_o_avanco(cenario):
+    """A trava saiu: nem o "nao sei" segura o robo."""
+    cenario.definir_leituras_scan([])  # olhou e nada refletiu
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=517.24,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=True,
+        frontal_sensor_ok=True,
+    )
+
+    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert "MOVE_FORWARD" in cenario.comandos_enviados()
+
+
+@pytest.mark.asyncio
+async def test_olha_antes_de_avancar_quando_nao_sabe(cenario):
+    """O estudo de risco acontece: 7 angulos medidos onde havia so um None."""
+    cenario.definir_leituras_scan([])
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=517.24,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=True,
+        frontal_sensor_ok=True,
+    )
+
+    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert "SCAN_FRONT" in cenario.comandos_enviados()
+
+
+@pytest.mark.asyncio
+async def test_risco_assumido_e_declarado_para_quem_decide(cenario):
+    """Andar as cegas tem que DEIXAR RASTRO.
+
+    Sem este evento o robo andaria sem medida e nada no sistema saberia -
+    nem a IA, nem o diario, nem a interface. O dado e o que torna a decisao
+    possivel; sem ele, "tomada de decisao" seria so uma frase.
+    """
+    cenario.definir_leituras_scan([])
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=517.24,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=True,
+        frontal_sensor_ok=True,
+    )
+
+    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.bus.aguardar_fila_vazia()
+
+    riscos = [e for e in cenario.eventos if e.topico == "navigation.risco_assumido"]
+    assert riscos, "andou sem medida e nao contou a ninguem"
+    assert riscos[-1].dados["medida_confiavel"] is False
+    assert riscos[-1].dados["motivo"] == "frente_desconhecida"
+
+
+@pytest.mark.asyncio
+async def test_varredura_que_mede_espaco_nao_declara_risco(cenario):
+    """CONTRAPROVA: com medida boa, nao ha risco a declarar.
+
+    Sem este teste, o de cima passaria com um publish incondicional - e o
+    evento viraria ruido que se aprende a ignorar.
+    """
+    cenario.definir_leituras_scan(
+        [
+            {"angulo": 60, "distancia_cm": 120.0, "valida": True},
+            {"angulo": 90, "distancia_cm": 150.0, "valida": True},
+            {"angulo": 120, "distancia_cm": 130.0, "valida": True},
+        ]
+    )
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=517.24,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=True,
+        frontal_sensor_ok=True,
+    )
+
+    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert "MOVE_FORWARD" in cenario.comandos_enviados()
+    assert not [e for e in cenario.eventos if e.topico == "navigation.risco_assumido"]
+
+
+@pytest.mark.asyncio
+async def test_obstaculo_medido_continua_reportando_obstaculo(cenario):
+    """A checagem que RESTOU: obstaculo medido de verdade.
+
+    Esta e a unica que ainda segura o avanco, e e uma decisao em aberto do
+    dono - ver o relatorio de 30/07. O motivo no payload existe para nao
+    confundi-la com duvida, que agora nunca segura nada.
+    """
+    await _telemetria(
+        cenario,
+        distancia_frontal_cm=10.0,
+        distancia_frontal_valida=True,
+        frontal_sem_eco=False,
+        frontal_sensor_ok=True,
+    )
+
+    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert "MOVE_FORWARD" not in cenario.comandos_enviados()
+    recusas = [e for e in cenario.eventos if e.topico == "navigation.obstacle_avoided"]
+    assert recusas[-1].dados["motivo"] == "obstaculo_frontal"

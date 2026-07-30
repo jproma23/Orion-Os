@@ -140,6 +140,21 @@ class NavigationCore:
 
         self._modo = ModoNavegacao.HOLD
         self._distancia_frontal_atual_cm: float | None = None
+        #: O sensor frontal deu sinal de vida? None = nunca chegou telemetria.
+        #:
+        #: Separa dois "nao sei" que o projeto tratava como um so, e que pedem
+        #: respostas opostas (`frontal_sensor_ok` no telemetry_manager.h):
+        #:
+        #:   False -> o modulo nao respondeu ao trigger: ausente, fio solto,
+        #:            sem 5V. Exigir medida aqui deixaria o robo parado para
+        #:            sempre em qualquer bancada sem ultrassom montado, e o
+        #:            projeto inteiro tolera hardware ausente (Cap 6 s.8).
+        #:   True  -> o sensor esta vivo e ainda assim nao mediu. ESTE e o caso
+        #:            perigoso e medido: o eco de um obstaculo a 40 cm dura
+        #:            ~2,3 ms e cabe inteiro na cegueira de ate 124 ms do loop
+        #:            do Mega. Quanto mais PERTO, maior a chance de virar
+        #:            "nao medi" - e com o EDR-0027 nao ha mais freio embaixo.
+        self._frontal_sensor_ok: bool | None = None
         self._tarefa_follow: asyncio.Task | None = None
         self._ultima_deteccao_follow_s: float = 0.0
         self._scan_pendente: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -205,6 +220,11 @@ class NavigationCore:
         # Aqui isso vira None - "nao sei" - e quem decide o que fazer com a
         # duvida e a camada de cima, com a camera e o radar, em vez de receber
         # uma parede imaginaria a 5 metros.
+        # Sinal de vida do modulo, guardado antes de qualquer `return`: ele
+        # decide QUAL "nao sei" estamos vivendo (ver `_frontal_sensor_ok`).
+        if "frontal_sensor_ok" in payload:
+            self._frontal_sensor_ok = bool(payload.get("frontal_sensor_ok"))
+
         if payload.get("frontal_sem_eco"):
             self._distancia_frontal_atual_cm = None
             return
@@ -287,12 +307,132 @@ class NavigationCore:
             return False  # sem leitura valida (ex.: sensor nao montado) - nao bloqueia sozinho
         return min(distancias_validas) < self._distancia_seguranca_frontal_cm
 
-    async def _publicar_obstaculo(self, contexto: str) -> None:
+    async def _publicar_obstaculo(self, contexto: str, motivo: str = "obstaculo_frontal") -> None:
+        """`motivo` separa "tem coisa na frente" de "nao sei o que tem".
+
+        Os dois impedem avancar, e sao fatos diferentes. O proprio firmware ja
+        faz essa distincao desde 28/07 (`safety_manager.h`: "obstaculo_frontal"
+        contra "frente_desconhecida") justamente porque relatar duvida como
+        obstaculo faz o diagnostico mentir - afirma um obstaculo que os
+        sensores desmentem. Vai no payload do evento que ja existe, em vez de
+        um topico novo: topico sem assinante e o defeito que mais se repete
+        neste projeto.
+        """
         await self._event_bus.publish(
             "navigation.obstacle_avoided",
-            {"contexto": contexto, "distancia_frontal_cm": self._distancia_frontal_atual_cm},
+            {
+                "contexto": contexto,
+                "motivo": motivo,
+                "distancia_frontal_cm": self._distancia_frontal_atual_cm,
+            },
             prioridade=Prioridade.ALTA,
         )
+
+    def _varredura_confirma_frente_livre(self, leituras: list[dict[str, Any]]) -> bool:
+        """True SO quando a varredura mediu de verdade e mediu espaco.
+
+        Note a diferenca para `_obstaculo_na_varredura`, que responde a
+        pergunta oposta e devolve False quando nao ha leitura nenhuma - ali
+        isso e correto ("nao bloqueia sozinho"), aqui seria o mesmo fail-open
+        que este bloco existe para fechar. Varredura sem uma unica leitura
+        valida nao confirma coisa alguma.
+        """
+        distancias = [
+            leitura["distancia_cm"]
+            for leitura in leituras
+            if leitura.get("angulo") in ANGULOS_FRONTAIS and leitura.get("valida")
+        ]
+        if not distancias:
+            return False
+        return min(distancias) >= self._distancia_seguranca_frontal_cm
+
+    async def _pode_avancar(self, contexto: str) -> bool:
+        """Decide se da para andar para a frente AGORA - olhando, se preciso.
+
+        POR QUE ISTO PRECISOU EXISTIR (2026-07-30). O EDR-0027 tirou o freio
+        do Mega ("o mega nao pode vetar, o mega tem informar"), e a decisao
+        passou inteira para ca. So que `_obstaculo_a_frente()` responde False
+        quando a distancia e None - ou seja, "nao sei" saia daqui como "pode
+        andar". O comentario daquele metodo ja mandava consultar
+        `frente_desconhecida()` antes de concluir qualquer coisa do False, e
+        NENHUM chamador consultava: o metodo existia sem um unico uso no
+        projeto inteiro.
+
+        O encadeamento medido: obstaculo PERTO -> eco de ~2,3 ms cabe inteiro
+        na cegueira de ate 124 ms do loop do Mega -> `frontal_sem_eco` ->
+        distancia None -> "livre" -> avanca. A falha apontava para o lado
+        errado exatamente na hora que importa.
+
+        NAO E UM FREIO, E UMA MANOBRA - regra do dono, e o que o
+        `grounding.py` ja promete a IA em voz alta: *"Se eu nao sei o que ha a
+        minha frente, a resposta e OLHAR, e nao desistir de me mover."* Entao
+        duvida nao vira recusa: vira varredura. Só depois de olhar e continuar
+        sem saber e que o avanco e negado - e com o motivo dito, nunca em
+        silencio.
+        """
+        if self._obstaculo_a_frente():
+            await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+            await self._publicar_obstaculo(contexto)
+            return False
+
+        if not self.frente_desconhecida():
+            return True  # medida de verdade, e ela mostra espaco
+
+        # Sensor mudo ou ausente: nao ha o que olhar. Anda, e o log diz que
+        # esta sem medida - nunca em silencio (foi um `logger.debug` que
+        # escondeu a falha do SET_PAN_TILT nesta mesma montagem, e o sintoma
+        # foi "nao funciona, e o log esta limpo").
+        if self._frontal_sensor_ok is not True:
+            logger.warning(
+                "avancando em '%s' SEM medida frontal: o sensor %s",
+                contexto,
+                "nunca reportou nada" if self._frontal_sensor_ok is None else "nao respondeu",
+            )
+            return True
+
+        # DUVIDA VIRA ESTUDO, NUNCA RECUSA (decisao do dono, 2026-07-30):
+        # *"o robo precisa ter mais iniciativa e coragem, travas de seguranca
+        # so impedem o robo de andar - retira as travas, temos os sensores
+        # para realizar estudos de risco"*. Mesma linha do EDR-0027, agora
+        # aplicada ao Pi: quem tem sensor MEDE e INFORMA; decidir e da camada
+        # de cima, com o dado na mao.
+        #
+        # A varredura continua acontecendo, e e ela o "estudo de risco": olhar
+        # antes de andar rende informacao real (7 angulos) onde antes havia
+        # so um None. O que mudou e o destino dessa informacao - ela vira
+        # evento e log, e nao um freio.
+        logger.info("frente desconhecida em '%s' - olhando antes de avancar", contexto)
+        leituras = await self._escanear_a_frente()
+
+        if self._varredura_confirma_frente_livre(leituras):
+            return True
+
+        # A varredura devolve o servo a 90 graus, entao a telemetria seguinte
+        # pode ter trazido uma medida boa entre o fim do scan e este ponto.
+        if not self.frente_desconhecida() and not self._obstaculo_a_frente():
+            return True
+
+        # Olhou e continua sem saber. AVANCA MESMO ASSIM, declarando o risco.
+        # O evento carrega `medida_confiavel: False` para que quem consome -
+        # diario, IA, interface - saiba que este trecho foi andado as cegas.
+        # Um robo que anda sem saber e uma escolha do dono; um robo que anda
+        # sem saber E sem registrar seria um problema de engenharia.
+        await self._event_bus.publish(
+            "navigation.risco_assumido",
+            {
+                "contexto": contexto,
+                "motivo": "frente_desconhecida",
+                "medida_confiavel": False,
+                "angulos_varridos": len(leituras),
+            },
+            prioridade=Prioridade.ALTA,
+        )
+        logger.warning(
+            "avancando em '%s' sem medida confiavel: olhei (%d angulos) e nada refletiu",
+            contexto,
+            len(leituras),
+        )
+        return True
 
     # ---------- entrada de missao (Cap 12 s.1: recebe missoes do Notebook) ----------
 
@@ -426,9 +566,11 @@ class NavigationCore:
 
         await self._mudar_modo(ModoNavegacao.MANUAL)
 
-        if comando in COMANDOS_QUE_AVANCAM and self._obstaculo_a_frente():
-            await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
-            await self._publicar_obstaculo(contexto=f"manual:{comando}")
+        # `_pode_avancar` no lugar de `_obstaculo_a_frente()` (2026-07-30): a
+        # checagem antiga deixava passar o caso "nao sei" - ver a docstring
+        # dele. Vale tambem para o joystick: com o Mega sem freio (EDR-0027),
+        # o operador tambem depende desta camada.
+        if comando in COMANDOS_QUE_AVANCAM and not await self._pode_avancar(f"manual:{comando}"):
             return
 
         payload: dict[str, Any] = {"comando": comando}
@@ -514,14 +656,21 @@ class NavigationCore:
             )
             await self._aguardar_ocioso()  # so escaneia/anda depois do giro terminar de verdade
 
-        obstaculo_na_varredura = False
+        confirmado_pela_varredura = False
         if self._scan_antes_de_segmento:
             leituras = await self._escanear_a_frente()
-            obstaculo_na_varredura = self._obstaculo_na_varredura(leituras)
+            if self._obstaculo_na_varredura(leituras):
+                await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+                await self._publicar_obstaculo(contexto="segmento")
+                return False
+            confirmado_pela_varredura = self._varredura_confirma_frente_livre(leituras)
 
-        if obstaculo_na_varredura or self._obstaculo_a_frente():
-            await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
-            await self._publicar_obstaculo(contexto="segmento")
+        # Varredura que MEDIU espaco ja e a olhada que `_pode_avancar` faria -
+        # nao se paga 2,1s de scan duas vezes seguidas. Caso contrario (nada
+        # medido, ou `patrol_scan_before_segment` desligado na config) vale a
+        # checagem completa, que trata o "nao sei" em vez de o tomar por
+        # "livre".
+        if not confirmado_pela_varredura and not await self._pode_avancar("segmento"):
             return False
 
         await self._comm.send(

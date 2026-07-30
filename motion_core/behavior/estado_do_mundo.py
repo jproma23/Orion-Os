@@ -41,6 +41,10 @@ VALIDADE_TELEMETRIA_S = 3.0
 VALIDADE_ESTADO_HARDWARE_S = 5.0
 VALIDADE_VISAO_S = 15.0
 VALIDADE_VOZ_S = 30.0
+#: Por quanto tempo "andei sem medida confiavel" continua sendo noticia para
+#: quem decide. 30s cobre alguns segmentos de movimento; passado isso, o fato
+#: envelheceu e o silencio volta a ser a resposta honesta.
+VALIDADE_RISCO_S = 30.0
 
 
 @dataclass
@@ -95,6 +99,19 @@ class RetratoDoMundo:
     # --- meta ---
     telemetria_viva: bool  # False = paramos de receber notícias do corpo
 
+    #: True quando o robô avançou HÁ POUCO sem medida frontal confiável.
+    #:
+    #: Nasce da decisão do dono de 2026-07-30: *"travas de segurança só
+    #: impedem o robô de andar - retira as travas, temos os sensores para
+    #: realizar estudos de risco e tomada de decisão"*. A navegação deixou de
+    #: recusar o avanço na dúvida; em troca, ela DECLARA o que fez. Este campo
+    #: é onde essa declaração chega a quem decide.
+    #:
+    #: Sem ele, o `navigation.risco_assumido` seria mais um evento publicado
+    #: no vazio - e o defeito que este projeto mais repete é exatamente esse.
+    #: Default False para não quebrar quem constrói o retrato à mão (testes).
+    risco_frontal_assumido: bool = False
+
     def resumo(self) -> str:
         """Uma linha legível - útil em log e para explicar decisão."""
         def fmt(v: Any, sufixo: str = "") -> str:
@@ -121,6 +138,7 @@ class EstadoDoMundo:
         self._estado_hardware = _Campo()
         self._pessoa = _Campo()
         self._alerta = _Campo()
+        self._risco_frente = _Campo()
         self._voz_ativa = False
 
         # Corpo do robô: telemetria periódica vinda do Mega pela ponte serial.
@@ -145,6 +163,12 @@ class EstadoDoMundo:
         event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("vision.person_lost", self._ao_perder_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
+        # A navegação declarando que andou sem saber o que havia à frente.
+        # CONFERIDO ANTES DE ASSINAR (a regra que este projeto aprendeu a
+        # duras penas): `navigation.risco_assumido` é publicado pelo
+        # `NavigationCore`, que roda NESTE processo e neste mesmo barramento -
+        # não precisa de encaminhamento e não vira órfão.
+        event_bus.subscribe("navigation.risco_assumido", self._ao_assumir_risco)
         # Interação por voz.
         event_bus.subscribe("voice.wake_detected", self._ao_acordar_voz)
         event_bus.subscribe("voice.response_finished", self._ao_terminar_voz)
@@ -188,6 +212,15 @@ class EstadoDoMundo:
 
     async def _ao_receber_alerta(self, evento: Evento) -> None:
         self._alerta.escrever(evento.dados.get("tipo", "desconhecido"))
+
+    async def _ao_assumir_risco(self, evento: Evento) -> None:
+        """O robô andou sem medida confiável - e agora quem decide sabe."""
+        logger.info(
+            "estado do mundo: risco assumido em '%s' (%s)",
+            evento.dados.get("contexto", "?"),
+            evento.dados.get("motivo", "?"),
+        )
+        self._risco_frente.escrever(True)
 
     async def _ao_acordar_voz(self, evento: Evento) -> None:
         self._voz_ativa = True
@@ -256,4 +289,5 @@ class EstadoDoMundo:
             alerta_sentinela=self._alerta.ler(VALIDADE_VISAO_S, agora),
             ouvindo=self._voz_ativa,
             telemetria_viva=viva,
+            risco_frontal_assumido=bool(self._risco_frente.ler(VALIDADE_RISCO_S, agora)),
         )

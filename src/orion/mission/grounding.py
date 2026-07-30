@@ -93,6 +93,19 @@ def bloco_corpo(
             "- ATENÇÃO: perdi contato com meu corpo - os dados acima podem "
             "estar desatualizados"
         )
+    if r.get("risco_frontal_assumido"):
+        # A navegação não recusa mais avançar na dúvida (decisão do dono,
+        # 2026-07-30: *"temos os sensores para realizar estudos de risco e
+        # tomada de decisão"*). A contrapartida é esta linha: se ele andou
+        # sem saber, quem decide o próximo passo precisa saber disso.
+        #
+        # Redigida como FATO e não como ordem: dizer "pare" aqui seria pôr
+        # no prompt a trava que foi tirada do código, o que é a mesma coisa
+        # por outro caminho. O robô decide - só decide sabendo.
+        linhas.append(
+            "- andei há pouco SEM medida confiável da frente: olhei e nada "
+            "refletiu. Este trecho foi percorrido às cegas"
+        )
     return "O QUE EU SINTO AGORA:\n" + "\n".join(linhas)
 
 

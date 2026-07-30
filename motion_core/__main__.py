@@ -22,6 +22,7 @@ import signal
 import time
 from pathlib import Path
 
+from motion_core.behavior import contrato
 from motion_core.behavior.behavior_core import BehaviorCore
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
@@ -356,6 +357,12 @@ async def principal() -> None:
                 "telemetria_viva": r.telemetria_viva,
                 "pessoa_presente": r.pessoa_presente,
                 "pessoa_nome": r.pessoa_nome,
+                # Fecha o fio aberto em 2026-07-30: a navegacao deixou de
+                # recusar avanco na duvida e passou a DECLARAR o risco. Sem
+                # esta linha, a declaracao morreria no EstadoDoMundo e a IA
+                # decidiria sem saber que o robo andou as cegas - ou seja, a
+                # trava teria sido tirada sem nada no lugar.
+                "risco_frontal_assumido": r.risco_frontal_assumido,
             },
             # O limiar de verdade, lido da config - sem ele o texto usaria o
             # default do modulo e poderia divergir do que o robo de fato faz.
@@ -521,6 +528,20 @@ async def principal() -> None:
     # mesma IA, no mesmo provedor, perguntada de novo mais devagar - e o
     # conselho dele nunca virava acao. Some junto a `tarefa_mentor`, que era
     # criada aqui e nunca cancelada no desligamento (pendencia de 26/07).
+
+    # O CATALOGO PROMETE, O MAESTRO ENTREGA - conferido aqui (2026-07-30).
+    #
+    # Este e o unico lugar que conhece as duas listas: o que a IA pode
+    # escolher (`contrato.py`) e o que de fato foi registrado. A `Ronda`
+    # passou dias registrada e inalcancavel sem um unico erro no log, porque
+    # ninguem cruzava as duas pontas. Falhar aqui e no BOOT, alto e claro, e
+    # melhor que descobrir em campo que a IA escolheu algo que nao existe.
+    faltando = contrato.COMPORTAMENTOS_DELEGADOS - set(maestro.nomes_registrados)
+    if faltando:
+        raise RuntimeError(
+            f"o contrato delega para comportamento(s) que ninguem registrou: "
+            f"{sorted(faltando)} - a IA poderia escolher uma acao sem executor"
+        )
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
     logger.info(
