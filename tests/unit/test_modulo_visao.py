@@ -145,3 +145,56 @@ def test_confirmacao_de_alvo_default_e_1_nao_3(monkeypatch):
 
     _modulo_com({})._construir()
     assert capturado["frames_confirmacao_alvo"] == 1
+
+
+# ---------------------------------------------------------------------------
+# A VISAO NUNCA ERA PAUSADA NO ALIVIO DE CARGA (corrigido em 2026-07-30)
+#
+# O ModuloVisao so expunha iniciar()/encerrar(), e por isso `conversar_fofao.py`
+# passava `pausar_visao=None` ao AlivioCarga. O maior consumidor de CPU/RAM do
+# Notebook (YOLO + reconhecimento facial) seguia rodando a todo vapor durante
+# um aperto de memoria. Pendencia declarada em comentario desde o merge de
+# 26/07 - eram exatamente estes dois metodos que faltavam.
+# ---------------------------------------------------------------------------
+
+
+class _NucleoPausavel:
+    """Dublê que so registra se foi pausado/retomado."""
+
+    def __init__(self) -> None:
+        self.pausado = False
+
+    def pausar(self) -> None:
+        self.pausado = True
+
+    def retomar(self) -> None:
+        self.pausado = False
+
+
+def test_pausar_e_retomar_chegam_ao_nucleo():
+    nucleo = _NucleoPausavel()
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=nucleo)
+
+    modulo.pausar()
+    assert nucleo.pausado, "o alivio de carga pediu e a visao continuou rodando"
+
+    modulo.retomar()
+    assert not nucleo.pausado
+
+
+def test_pausar_nunca_levanta_mesmo_com_peca_quebrada():
+    """Alivio parcial e melhor que nenhum: sob pressao de memoria, uma peca
+    que falha ao pausar nao pode impedir as outras de pausarem nem derrubar
+    quem pediu."""
+
+    class _NucleoQuebrado:
+        def pausar(self):
+            raise RuntimeError("boom")
+
+        def retomar(self):
+            raise RuntimeError("boom")
+
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=_NucleoQuebrado())
+
+    modulo.pausar()   # nao levanta
+    modulo.retomar()  # nao levanta

@@ -144,6 +144,37 @@ class ModuloVisao:
     def esta_saudavel(self) -> bool:
         return self._tarefa is not None and not self._tarefa.done()
 
+    def pausar(self) -> None:
+        """Suspende a visao inteira sob pressao de memoria (EDR-0020).
+
+        FECHA UMA PENDENCIA DECLARADA (2026-07-30). O comentario em
+        `conversar_fofao.py` dizia, desde o merge de 26/07: *"o ModuloVisao do
+        EDR-0023 ainda nao expoe pausar()/retomar() - so iniciar()/encerrar().
+        Ate ele expor, o alivio descarrega o modelo de IA mas NAO consegue
+        pausar a visao, que e o maior consumidor de RAM"*. E o alivio recebia
+        `pausar_visao=None`, entao nao pausava nada.
+
+        Pausa o nucleo (para o YOLO e o reconhecimento facial de rodar) e a
+        Sentinela (para nao alertar sobre quadros que ninguem esta olhando).
+        Nunca levanta: alivio parcial e melhor que nenhum numa hora dessas.
+        """
+        for alvo, nome in ((self._nucleo, "Vision Core"), (self._sentinela, "Sentinela")):
+            if alvo is None:
+                continue
+            try:
+                alvo.pausar()
+            except Exception:  # noqa: BLE001
+                logger.warning("falha ao pausar %s", nome, exc_info=True)
+
+    def retomar(self) -> None:
+        for alvo, nome in ((self._nucleo, "Vision Core"), (self._sentinela, "Sentinela")):
+            if alvo is None:
+                continue
+            try:
+                alvo.retomar()
+            except Exception:  # noqa: BLE001
+                logger.warning("falha ao retomar %s", nome, exc_info=True)
+
     async def _mover_servos(self, pan: float, tilt: float) -> None:
         """Manda o Vision Core mover os servos FISICOS da camera.
 

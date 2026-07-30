@@ -78,6 +78,11 @@ class VisionCore:
         self._pan_tilt = CalculadoraPanTilt(limites_pan_tilt)
         self._publicar_pan_tilt = publicar_pan_tilt
         self._executando = False
+        #: Pausa o PROCESSAMENTO sem fechar a camera (alivio de carga,
+        #: EDR-0020). Fechar o dispositivo seria pior: reabrir custa segundos
+        #: e nem sempre da certo, e o objetivo e passar por um aperto de
+        #: memoria, nao perder a visao de vez.
+        self._pausado = False
         self._tinha_alvo = False
         self._ultimo_processamento_ts: float | None = None
         self._ultimo_frame = None
@@ -255,6 +260,14 @@ class VisionCore:
         se a camera cair (Cap 8 s.9)."""
         self._executando = True
         while self._executando:
+            if self._pausado:
+                # Nao processa quadro nenhum: e aqui que o alivio de carga
+                # economiza de verdade. O YOLO e o face_recognition sao o
+                # trabalho mais pesado do Notebook, e ate 2026-07-30 o alivio
+                # nunca chegava a pausa-los - `pausar_visao` era passado como
+                # None em conversar_fofao.py.
+                await asyncio.sleep(0.5)
+                continue
             if not self._captura.aberta:
                 try:
                     await self.iniciar_camera()
@@ -286,6 +299,21 @@ class VisionCore:
 
     def parar(self) -> None:
         self._executando = False
+
+    def pausar(self) -> None:
+        """Suspende o processamento, mantendo a camera aberta."""
+        if not self._pausado:
+            self._pausado = True
+            logger.warning("Vision Core PAUSADO (alivio de carga) - camera segue aberta")
+
+    def retomar(self) -> None:
+        if self._pausado:
+            self._pausado = False
+            logger.info("Vision Core retomado")
+
+    @property
+    def pausado(self) -> bool:
+        return self._pausado
 
     @staticmethod
     def _centro_caixa(caixa: Caixa) -> tuple[float, float]:

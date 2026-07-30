@@ -149,10 +149,29 @@ class AiManager:
         ocupa ~880MB parado por causa do keep_alive de 30min. Nao quebra
         nada - a proxima pergunta recarrega o modelo sozinha, pagando so o
         tempo de carga uma vez.
+
+        BUG REAL, corrigido em 2026-07-30: este metodo usava `self._cliente`,
+        um atributo que NUNCA existiu nesta classe (os que existem sao
+        `_cliente_ollama` e `_cliente_openai`, criados sob demanda). Toda
+        chamada levantava AttributeError, e como o `AlivioCarga` captura e
+        loga a excecao, o guardiao de RAM parecia funcionar de ponta a ponta:
+        detectava o aperto, pedia alivio, alguem atendia - e nao se liberava
+        um unico byte. Falha silenciosa da pior especie, porque o caminho
+        feliz aparecia inteiro no log.
+
+        O cliente e criado aqui se ainda nao existir, em vez de sair cedo: se
+        o modelo estiver carregado por outro processo, este pedido o
+        descarrega do mesmo jeito, que e exatamente o que se quer sob pressao
+        de memoria. Import local pelo mesmo motivo do resto da classe - a lib
+        `ollama` so existe no Notebook.
         """
 
         def _chamar() -> None:
-            self._cliente.generate(model=self._modelo, prompt="", keep_alive=0)
+            import ollama
+
+            if self._cliente_ollama is None:
+                self._cliente_ollama = ollama.Client()
+            self._cliente_ollama.generate(model=self._modelo, prompt="", keep_alive=0)
 
         await asyncio.to_thread(_chamar)
 

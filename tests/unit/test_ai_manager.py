@@ -160,3 +160,45 @@ async def test_openai_falha_cai_para_ollama(ai_manager, monkeypatch):
     resposta = await ai_manager.responder("oi")
 
     assert resposta == "resposta ollama de reserva"
+
+
+# ---------------------------------------------------------------------------
+# O ALIVIO DE MEMORIA NUNCA LIBEROU UM BYTE (corrigido em 2026-07-30)
+#
+# `descarregar()` usava `self._cliente`, atributo que NUNCA existiu nesta
+# classe (os reais sao `_cliente_ollama` e `_cliente_openai`). Levantava
+# AttributeError em toda chamada - e como o `AlivioCarga` captura e loga cada
+# acao isoladamente, o log exibia o caminho feliz inteiro (detecta o aperto,
+# pede alivio, alguem atende) sem nada acontecer no fim.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_descarregar_nao_levanta_e_pede_keep_alive_zero(ai_manager):
+    class _ClienteFalso:
+        def __init__(self) -> None:
+            self.chamadas: list[dict] = []
+
+        def generate(self, **kwargs):
+            self.chamadas.append(kwargs)
+            return {}
+
+    falso = _ClienteFalso()
+    ai_manager._cliente_ollama = falso
+
+    await ai_manager.descarregar()  # antes: AttributeError
+
+    assert falso.chamadas, "o pedido de descarregar nunca chegou ao Ollama"
+    assert falso.chamadas[-1]["keep_alive"] == 0
+
+
+@pytest.mark.asyncio
+async def test_descarregar_usa_o_atributo_que_existe(ai_manager):
+    """CONTRAPROVA do bug exato: `self._cliente` nao pode voltar.
+
+    Se alguem reintroduzir o nome errado, o teste acima ainda poderia passar
+    por acidente (se um `_cliente` fosse criado em outro lugar); este fixa que
+    o atributo real da classe e o consultado.
+    """
+    assert not hasattr(ai_manager, "_cliente"), "`_cliente` nao existe nesta classe"
+    assert hasattr(ai_manager, "_cliente_ollama")
