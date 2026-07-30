@@ -313,6 +313,11 @@ dd {
   font-size: 12px;
   letter-spacing: .06em;
   cursor: pointer;
+  /* Rotulo NUNCA quebra no meio. Foi o que aconteceu com "automatico" na
+     coluna de metade da pilula - saia partido, e o dono cortou para "auto".
+     Com nowrap, um rotulo grande demais fica evidente em vez de virar meia
+     palavra na tela. */
+  white-space: nowrap;
 }
 
 .volante-opcao:hover { color: var(--texto); }
@@ -321,10 +326,27 @@ dd {
    ambiguo QUAL esta valendo - e essa e a informacao que evita a pergunta "por
    que o joystick nao move o robo?". */
 .volante-opcao--ativa {
-  background: var(--acento);
   color: #04231f;
   font-weight: 700;
 }
+
+/* UMA COR POR MODO, nao so "aceso/apagado" (pedido do dono).
+   Com duas cores diferentes da para saber quem manda de longe, sem ler: verde
+   e o robo cuidando de si (estado normal), ciano e a mao humana no controle. A
+   cor sozinha nunca e o unico sinal - o rotulo continua em negrito e o
+   aria-pressed diz o mesmo para leitor de tela. */
+.volante-opcao--ativa[data-modo="autonomo"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 1px var(--ok), 0 0 12px -4px var(--ok);
+}
+
+.volante-opcao--ativa[data-modo="manual"] {
+  background: var(--acento);
+  box-shadow: 0 0 0 1px var(--acento), 0 0 12px -4px var(--acento);
+}
+
+/* O inativo recua para o ativo saltar - sem isto os dois competiam. */
+.volante-opcao:not(.volante-opcao--ativa) { opacity: .65; }
 
 #volante-status {
   margin: 0;
