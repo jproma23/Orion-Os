@@ -736,3 +736,116 @@ async def test_ia_consulta_mesmo_se_o_contexto_falhar():
 
     bus.parar()
     await tarefa_bus
+
+
+# ---------------------------------------------------------------------------
+# A RONDA DEIXOU DE SER INALCANCAVEL (2026-07-30)
+#
+# Ela estava registrada no maestro desde 19/07 e rodou 0 vezes no log inteiro.
+# Nao era desinteresse da IA - eram DUAS travas independentes:
+#   1. `ronda` nao estava no catalogo do contrato, e `resolver()` devolve None
+#      para tudo que nao esta la: a IA nao PODIA escolhe-la;
+#   2. o unico caminho ate `Ronda.pedir()` passava pela `ponte_conselho`, que
+#      e None porque `conselho_ia.habilitado: false` no orion.yaml.
+#
+# E havia uma terceira, que so apareceu ao consertar as duas: a IaEstrategica
+# vive em prioridade 40 e SEGURA o controle no laco de `executar()`. A Ronda
+# vive em 20. Sem soltar o controle, a IA pediria a ronda e engoliria o
+# proprio pedido - trocando uma trava por outra.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ia_pede_olhar_em_volta_e_a_ronda_assume_de_verdade():
+    """Ponta a ponta: a IA escolhe, o evento sai, a Ronda ASSUME o controle.
+
+    Este teste existe porque "o fio foi ligado" e "o fio funciona" sao coisas
+    diferentes neste projeto - e a diferenca ja custou dias.
+    """
+    from motion_core.behavior.comportamentos import Ronda
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ronda = Ronda(bus)
+    maestro.registrar(ronda, discricionario=True)
+    ia = IaEstrategica(bus, _ComunicacaoFalsa(acao="olhar_em_volta"))
+    maestro.registrar(ia)
+    laco = asyncio.create_task(maestro.executar())
+
+    await _passo(maestro)
+    assert maestro.ativo_nome == "repouso"
+    assert not ronda.quer_rodar()
+
+    await ia._consultar()
+    # A IA assume, publica `behavior.ronda` e solta; o bus entrega; a Ronda
+    # passa a querer rodar; o maestro entrega a vez.
+    for _ in range(12):
+        await bus.aguardar_fila_vazia()
+        await asyncio.sleep(0.05)
+        if maestro.ativo_nome == "ronda":
+            break
+
+    assert ronda.quer_rodar(), "a IA pediu e a Ronda nao ficou sabendo"
+    assert maestro.ativo_nome == "ronda", "a Ronda foi pedida e nunca assumiu"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_acao_delegada_faz_a_ia_soltar_o_controle():
+    """A terceira trava, isolada: sem soltar, a IA de prio 40 seguraria o
+    controle e a Ronda de prio 20 nunca teria vez."""
+    from motion_core.behavior.comportamentos import Ronda
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(Ronda(bus), discricionario=True)
+    ia = IaEstrategica(bus, _ComunicacaoFalsa(acao="olhar_em_volta"))
+    maestro.registrar(ia)
+    laco = asyncio.create_task(maestro.executar())
+
+    await ia._consultar()
+    for _ in range(12):
+        await bus.aguardar_fila_vazia()
+        await asyncio.sleep(0.05)
+        if not ia.quer_rodar():
+            break
+
+    assert not ia.quer_rodar(), "a IA delegou e continuou querendo o controle"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_acao_nao_delegada_continua_segurando_o_controle():
+    """CONTRAPROVA. Sem ela, a mudanca acima poderia ter feito a IA soltar o
+    controle SEMPRE - e `avancar`/`explorar` deixariam de ter dono, o que e
+    uma regressao silenciosa e bem pior que o bug original."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia = IaEstrategica(bus, _ComunicacaoFalsa(acao="observar_ambiente"))
+    maestro.registrar(ia)
+    laco = asyncio.create_task(maestro.executar())
+
+    await ia._consultar()
+    await asyncio.sleep(0.1)
+
+    assert ia.quer_rodar()
+    assert maestro.ativo_nome == "ia_estrategica"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus

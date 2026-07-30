@@ -59,6 +59,19 @@ class Acao:
     topico: str
     dados: dict = field(default_factory=dict)
     move_rodas: bool = False
+    #: Nome do COMPORTAMENTO do maestro que executa esta acao, quando ela nao
+    #: se resolve num unico evento.
+    #:
+    #: Existe por causa de um impasse de arbitragem real (2026-07-30): a
+    #: `IaEstrategica` roda em prioridade 40 e, ao executar, SEGURA o controle
+    #: num laco. Um comportamento de prioridade menor - a `Ronda` vive em 20 -
+    #: nunca chegaria a assumir, mesmo tendo sido a propria IA a pedi-lo. Sem
+    #: este campo, por o nome no catalogo trocaria uma trava por outra.
+    #:
+    #: Quem le isto e `IaEstrategica.executar`: acao delegada e publicada e o
+    #: controle e SOLTO na hora, para o maestro poder entregar a vez a quem de
+    #: fato executa.
+    delega_para: str = ""
 
 
 #: Comandos de firmware que a IA NUNCA alcanca, por mais que decida.
@@ -106,6 +119,26 @@ _CATALOGO: tuple[Acao, ...] = (
         descricao="varrer a frente com o radar, sem sair do lugar",
         topico="navigation.comando",
         dados={"acao": "SCAN_FRONT"},
+    ),
+    #: A `Ronda` existia registrada no maestro desde 19/07 e NUNCA rodou uma
+    #: vez - 0 ocorrencias no log inteiro. Nao era falta de vontade da IA:
+    #: nao havia caminho. Duas travas independentes, achadas em 2026-07-30:
+    #:
+    #:   1. `ronda` nao estava neste catalogo, e `resolver()` devolve None
+    #:      para tudo que nao esta aqui - a IA nao PODIA escolhe-la.
+    #:   2. O unico codigo que chamava `Ronda.pedir()` era
+    #:      `behavior_core._consultar_ia`, que exige a `ponte_conselho` - e
+    #:      ela e None, porque `conselho_ia.habilitado: false` no orion.yaml.
+    #:
+    #: O nome e o do dono ("olhar em volta"), nao o interno: o catalogo e o
+    #: vocabulario que a IA le, e vale ele falar a lingua de quem pediu.
+    #: Nao move rodas - so a cabeca e o radar, o que a torna reversivel.
+    Acao(
+        nome="olhar_em_volta",
+        descricao="virar a cabeca de um lado ao outro e varrer com o radar",
+        topico="behavior.ronda",
+        dados={},
+        delega_para="ronda",
     ),
     Acao(
         nome="explorar",
@@ -224,6 +257,28 @@ def _conferir_contrato() -> None:
                 f"contrato violado: a acao {acao.nome!r} move as rodas mas nao "
                 f"passa pela navegacao (topico {acao.topico!r}) - regra 2"
             )
+        if acao.delega_para and acao.topico == "navigation.comando":
+            # Delegar e entregar a vez a um comportamento; mandar comando de
+            # navegacao e executar por conta propria. Fazer as duas coisas
+            # significaria a IA agir E soltar o controle no mesmo passo, e o
+            # comportamento delegado assumiria em cima de um movimento que ja
+            # esta em curso.
+            raise RuntimeError(
+                f"contrato violado: a acao {acao.nome!r} delega para "
+                f"{acao.delega_para!r} e tambem comanda a navegacao"
+            )
+
+
+#: Comportamentos que o catalogo espera encontrar registrados no maestro.
+#:
+#: Serve de rede contra a falha que este projeto mais repete: publicar num
+#: topico que ninguem escuta. `publish` nunca falha, entao nada denuncia - a
+#: `Ronda` passou dias registrada e inalcancavel sem um unico erro no log.
+#: Quem confere e o `motion_core/__main__.py`, que e o unico lugar que conhece
+#: o catalogo E a lista do que foi registrado.
+COMPORTAMENTOS_DELEGADOS: frozenset[str] = frozenset(
+    acao.delega_para for acao in _CATALOGO if acao.delega_para
+)
 
 
 _conferir_contrato()

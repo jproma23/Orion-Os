@@ -58,10 +58,29 @@ class Ronda(Comportamento):
     nome = "ronda"
     prioridade = 20  # acima de repouso (10), abaixo de tudo que é gatilho
 
+    #: Topico pelo qual a IA estrategica pede a ronda (acao `olhar_em_volta`
+    #: do contrato). Ver o comentario em `_ao_pedirem` para por que ele
+    #: precisou existir.
+    TOPICO_PEDIDO = "behavior.ronda"
+
     def __init__(self, event_bus: EventBus, intervalo_s: float = 60.0) -> None:
         super().__init__(event_bus)
         self._intervalo_s = intervalo_s
         self._pedida = False
+        event_bus.subscribe(self.TOPICO_PEDIDO, self._ao_pedirem)
+
+    async def _ao_pedirem(self, evento: Evento) -> None:
+        """A IA estrategica pediu `olhar_em_volta` (contrato.py).
+
+        POR QUE ESTA ASSINATURA PRECISOU EXISTIR (2026-07-30): ate hoje o
+        UNICO caminho ate `pedir()` era `behavior_core._consultar_ia`, que
+        depende da `ponte_conselho` - desligada no orion.yaml
+        (`conselho_ia.habilitado: false`). Somado a `ronda` nao estar no
+        catalogo do contrato, a Ronda ficou registrada no maestro e
+        inalcancavel: **0 execucoes no log inteiro**, sem um erro sequer.
+        Comportamento sem caminho ate ele nao falha - so nao acontece.
+        """
+        self.pedir()
 
     def pedir(self) -> None:
         """Chamado quando o conselheiro sugere `ronda`."""
@@ -422,6 +441,28 @@ class IaEstrategica(Comportamento):
             # avancar (regra 2 do contrato). O `_avancar` que existia aqui
             # ate 2026-07-28 falava direto com o Arduino e pulava essa camada.
             await self._event_bus.publish(acao.topico, dict(acao.dados))
+
+        if acao is not None and acao.delega_para:
+            # ACAO DELEGADA: publica e SAI (2026-07-30).
+            #
+            # Quem executa e outro comportamento, e ele vive ABAIXO desta
+            # prioridade (a `Ronda` em 20, esta IA em 40). Se ficassemos no
+            # laco abaixo segurando o controle, o maestro nunca entregaria a
+            # vez a quem foi chamado - a decisao da IA seria publicada e
+            # engolida pela propria IA. Era essa a segunda trava da Ronda.
+            #
+            # `_acao_atual = None` e o que impede o retorno virar laco: sem
+            # isto `quer_rodar()` continuaria True, esta IA reassumiria no
+            # tick seguinte e republicaria o pedido para sempre. Ela volta a
+            # opinar na proxima consulta, no ritmo normal.
+            self._acao_atual = None
+            logger.info(
+                "maestro: IA delegou '%s' para o comportamento '%s' - soltando o controle",
+                acao.nome,
+                acao.delega_para,
+            )
+            return
+
         try:
             while True:
                 await asyncio.sleep(1.0)
