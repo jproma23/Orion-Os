@@ -4971,3 +4971,53 @@ o diagnostico pronto, e o T0 - que ela mesma exigia rodar primeiro - o
 desmentiu. Tres das seis tarefas ja estavam resolvidas por commits de 29/07. O
 instrumento de medida se pagou antes de qualquer linha de codigo mudar, que e
 exatamente para isso que ele estava na frente da fila.
+
+### O ultrassom traseiro descarta 12% das leituras (2026-07-30, achado de bancada)
+
+Investigado antes de religar os motores, a pedido do dono. Comecou com um susto
+que a medida desfez, e terminou num achado real de menor gravidade - mas
+tambem num de projeto, que e mais serio que o original.
+
+**O susto:** a telemetria mostrava `traseiro_descartes: 61293` contra
+`frontal_descartes: 19`. Uma diferenca de 3200x parece defeito grave.
+
+**A medida:** duas amostras com 21 s de intervalo deram 61351 -> 61392, ou seja
+**~2 descartes por segundo**, contra ZERO no frontal na mesma janela. O servico
+estava de pe havia 8h09.
+
+**A explicacao, que inverte a leitura:** os dois sensores nao sao comparaveis em
+numero absoluto, porque nao tentam a mesma coisa. O traseiro e sondado a CADA
+iteracao do `loop()` (main.cpp, `ultrassomTraseiro.atualizar()`), a
+`INTERVALO_ENTRE_LEITURAS_US = 60000` - **16,7 leituras por segundo**. O frontal
+nao tem chamada propria no loop: ele e sondado dentro do `radar.atualizar()`, no
+ritmo do servo, e portanto tenta muito menos. O traseiro nao esta pior; ele
+tenta muito mais.
+
+**A taxa real, que e o numero que importa: 2 / 16,7 = ~12% de perda.**
+
+E nao e sensor ruim. O proprio firmware ja dizia onde olhar, no comentario do
+getter: *"numero alto aqui aponta para quem esta bloqueando o loop, nao para
+sensor ruim"*. O descarte acontece quando o loop fica cego por mais de
+`SONDAGEM_MAXIMA_US = 600 us` durante o eco. O maior bloqueador e conhecido e ja
+foi medido pelo projeto: **o envio da telemetria custa ~88 ms**. Com sondagem a
+cada 60 ms, toda leitura que cai dentro de um envio se perde.
+
+Importante para dimensionar: o firmware **nunca inventa**. Descarta a amostra e
+mantem o valor anterior ate a proxima leitura. Os 12% sao dado defasado, nao
+dado falso - a diferenca e o que separa degradacao conhecida de falha.
+
+**O achado mais serio veio de lado, e e de projeto, nao de sensor:** a re nao
+tem checagem de obstaculo NENHUMA. `MOVE_DISTANCE` com distancia negativa - o
+comando da re do joystick - fica de fora de `COMANDOS_QUE_AVANCAM` de proposito,
+e o `SafetyManager` do Mega so olha o radar frontal. Esta escrito no
+navigation_core.py: *"checar obstaculo A FRENTE antes de andar PARA TRAS nao
+faria sentido"*. Correto como raciocinio, e o resultado e que andar de re e hoje
+o movimento MENOS protegido do robo - e o unico sensor que cobriria isso e
+justamente o que perde 12% das leituras.
+
+Com as rodas no ar isso nao tem consequencia. Com motor no chao, tem.
+
+**Nao corrigido nesta sessao, e a razao esta registrada:** consertar o descarte
+mexe no firmware e exige gravar no Mega (parar o orion-motion, avrdude), o que
+e sessao propria. E a re sem protecao e decisao de arquitetura, nao bug - pede
+EDR, nao remendo.
