@@ -147,10 +147,30 @@ CONVERSAS_PADRAO = 30
 
 #: quantos erros manter no painel de diagnostico (Cap 13 s.5)
 MAXIMO_ERROS_RECENTES = 20
-#: quantas linhas do fim do log estruturado (Cap 6 s.3/Fase 1) expor via
-#: GET /log (Cap 13 s.4: "acesso ao log, somente leitura")
+#: quantas linhas do fim do log expor via GET /log (Cap 13 s.4: "acesso ao log,
+#: somente leitura")
 LINHAS_LOG_PADRAO = 200
-CAMINHO_LOG = Path("data/logs/orion.log")
+#: QUAL log a tela mostra (corrigido em 2026-07-30, achado pelo dono olhando a
+#: propria pagina).
+#:
+#: Apontava para `data/logs/orion.log`, que e escrito pelo `python -m orion` -
+#: um caminho de boot que NAO roda em producao (o Notebook sobe
+#: `tools/conversar_fofao.py` pelo orion-avatar.service, e o Pi sobe
+#: `python -m motion_core`). Medido no dia do achado:
+#:
+#:     orion.log        1.713 bytes, ultima escrita em 23/07, conteudo de 17/07
+#:     motion_core.log  10,3 MB,     escrito no segundo em que se olhou
+#:
+#: Ou seja: a unica tela de diagnostico do robo mostrava 20 linhas de um boot
+#: de duas semanas atras, dizendo "Etapa de boot ainda nao implementada", e
+#: nunca uma linha do que o Fofao estava fazendo. Quem abrisse a pagina para
+#: entender um problema de agora recebia um retrato morto - e sem erro nenhum,
+#: porque o arquivo existia e era lido com sucesso.
+#:
+#: E o mesmo arquivo que o systemd alimenta (`StandardOutput=append:` em
+#: tools/orion-motion.service), entao a tela passa a ver exatamente o que o
+#: servico escreve, ao vivo.
+CAMINHO_LOG = Path("data/logs/motion_core.log")
 
 #: quantos eventos brutos manter no painel "ultimos eventos" (Cap 13 s.5)
 MAXIMO_EVENTOS_RECENTES = 30

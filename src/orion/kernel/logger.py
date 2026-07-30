@@ -59,7 +59,31 @@ def configurar_logger(
     logger.handlers.clear()
 
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+    # A HORA ENTRA AQUI, e nao so no _FormatadorJSON abaixo (2026-07-30).
+    #
+    # O formatador JSON tem "timestamp" desde sempre, mas ele so e instalado
+    # quando `arquivo_log` e passado - e o Motion Core NAO passa
+    # (motion_core/__main__.py chama configurar_logger so com `nivel`). No Pi
+    # quem grava o arquivo e o systemd, redirecionando este stdout
+    # (`StandardOutput=append:` em tools/orion-motion.service). Resultado
+    # medido: 9,8 MB de log de producao, 63 mil linhas, nenhuma dizendo que
+    # horas sao.
+    #
+    # Sem hora nao da para medir duracao de nada (quanto leva um explore? o
+    # scan? o ACK?), nem para casar uma linha com o que o dono viu na bancada,
+    # nem para saber se um WARNING e de agora ou de seis horas atras. Ja custou
+    # um diagnostico errado em 29/07, quando um `awk` de timestamp foi usado
+    # num log que nao tinha timestamp.
+    #
+    # Sem milissegundos de proposito: o que se mede aqui (varredura ~2,1s,
+    # cegueira do loop ~124ms, ciclo da IA 30s) cabe folgado no segundo, e a
+    # linha ja e longa.
+    console.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     logger.addHandler(console)
 
     if arquivo_log is not None:

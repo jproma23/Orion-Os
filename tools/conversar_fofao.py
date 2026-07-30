@@ -122,7 +122,14 @@ class DetectorFuzzy(DetectorPalavraAtivacao):
             if len(palavra) >= 4
         )
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
+# Mesma hora que o kernel/logger.py passou a usar em 2026-07-30: os dois logs
+# (Notebook e Pi) precisam ser comparaveis linha a linha, senao correlacionar
+# "a IA decidiu" com "o robo andou" continua sendo adivinhacao.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger("conversar_fofao")
 
 
