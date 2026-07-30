@@ -23,7 +23,7 @@ alinhada ao documento do TCC pela decisão **EDR-0018**
 responsabilidades do **EDR-0019** (`docs/edr/EDR-0019-divisao-final-e-ssd.md`).
 **Nenhuma funcionalidade pode violar a especificação.** Em caso de dúvida,
 consulte o capítulo correspondente antes de implementar. Mudanças
-arquiteturais exigem um novo EDR em `docs/edr/` — o último é o EDR-0019.
+arquiteturais exigem um novo EDR em `docs/edr/` — o último é o EDR-0027.
 
 Mapa rápido: Cap 5 = protocolo | Cap 6 = Kernel | Cap 7 = Mission | Cap 8 = Vision (Notebook) |
 Cap 9 = Voice | Cap 10 = Hardware Core/firmware | Cap 11 = Memória (Raspberry/SSD) | Cap 12 = Motion Core/Navegação (Raspberry) |
@@ -61,25 +61,27 @@ Cap 17 = Configuração | Cap 18 = Segurança | Cap 19 = Testes | Cap 20 = Roadm
 
 ```
 orion-os/
-├── ARQUITETURA.md                  ← este arquivo
+├── ARQUITETURA.txt            ← este arquivo
 ├── PLANO_IMPLEMENTACAO.md     ← fases de desenvolvimento (siga a ordem)
 ├── config/orion.yaml          ← configuração única (Cap 17)
 ├── docs/
 │   ├── ses/                   ← especificação oficial (20 capítulos)
-│   └── edr/                   ← Engineering Decision Records (último: 0018)
+│   └── edr/                   ← Engineering Decision Records (último: 0027)
 ├── src/orion/                 ← código do Notebook (Mission Core + Kernel)
 │   ├── kernel/                ← Event Bus, Service Registry, HAL, Watchdog
 │   ├── communication/         ← TCP (Raspberry), enquadramento, heartbeat (Cap 14)
-│   ├── mission/               ← IA (Ollama), planejador, coordenação (Cap 7)
+│   ├── mission/               ← IA (OpenRouter), planejador, coordenação (Cap 7)
 │   ├── vision/                ← OpenCV, YOLO, reconhecimento facial (Cap 8)
 │   ├── voice/                 ← Whisper + Piper + wake word "Fofão" (Cap 9)
 │   ├── display/               ← avatar na tela do notebook (Cap 13)
 │   └── diagnostics/           ← autotestes, métricas, saúde (Cap 16)
 ├── motion_core/               ← código do Raspberry Pi — deploy separado
+│   ├── behavior/              ← o maestro: arbitragem de comportamentos (EDR-0020)
 │   ├── navigation/            ← patrulha, seguimento, fusão de sensores (Cap 12)
 │   ├── memory/                ← API de memória + Database Manager no SSD (Caps 11, 15)
-│   ├── webui/                 ← interface web: dashboard, mapa, diagnóstico (Cap 13)
-│   └── bridge/                ← ponte serial com o Arduino (Cap 14)
+│   └── webui/                 ← interface web: dashboard, mapa, diagnóstico (Cap 13)
+│   (a ponte serial com o Mega NÃO mora aqui: é o ComunicacaoService de
+│    src/orion/communication/, que o motion_core/__main__.py instancia)
 ├── firmware/hardware_core/    ← PlatformIO / Arduino Mega (Cap 10)
 ├── tests/
 │   ├── unit/                  ← pytest; portas seriais e sockets simulados
@@ -194,14 +196,22 @@ checagem de realidade do robô é o hardware rodando.
 
 ### Teto atual do projeto
 
-Enquanto o robô não se moveu, **nada pode ser 🟢.** O teto de todo o sistema
-hoje é 🟡: código pronto, suíte passando, hardware pendente.
+**O teto CAIU em 2026-07-29**, e este parágrafo era a razão de o mapa inteiro
+estar preso em amarelo. O robô se moveu por decisão própria: log de produção
+com "IA decidiu explorar" seguido de "segmento de 30 cm concluido"; e em
+2026-07-30 o dono viu o relé dos TB6600 acionar em modo autônomo — a cadeia
+decisão → navegação → serial → firmware → energia está provada ponta a ponta.
 
-Consequência prática: se uma rodada do mapa sair com qualquer célula verde,
-a rubrica não foi seguida — não existe ainda uma única validação de
-hardware datada cobrindo o sistema em movimento. Um mapa honesto agora é uma
-parede de amarelo com algumas ilhas de laranja e vermelho. Verde é o
-objetivo, não o ponto de partida.
+Isso NÃO promove ninguém a 🟢 automaticamente. A rubrica não mudou: 🟢 exige
+validação de hardware **datada, na linha do módulo**. O que mudou é que o
+gate deixou de ser impossível — antes nenhum módulo PODIA ser verde; agora
+quem tiver a evidência datada pode. Continua valendo a regra de rebaixamento
+1: qualquer commit que toca o módulo derruba o status para `?`.
+
+Ressalva que segue de pé: **deslocamento físico ainda não foi medido.** Os
+motores estão desconectados (só os drivers TB6600 no robô, rodas suspensas) e
+não há encoder de roda — a odometria conta passos COMANDADOS, não medidos.
+Logo, "andou 30 cm" é o que o robô mandou fazer, não o que ele fez.
 
 ### Formato obrigatório da tabela
 
@@ -265,10 +275,10 @@ Problema → Análise → Implementação → Testes unitários → Testes no ha
 - Passar do gate de **testes unitários** move 🟠 → 🟡.
 - Passar do gate de **testes no hardware** move 🟡 → 🟢.
 
-O gate de hardware é hoje o único que o projeto não consegue cumprir (o
-robô nunca se moveu). Por isso ele é a fronteira entre amarelo e verde, e
-por isso o mapa inteiro está preso em amarelo até a primeira ligada com
-validação real.
+O gate de hardware foi a fronteira intransponível até 2026-07-29, quando o
+robô passou a se mover por decisão própria. Ele continua sendo a fronteira
+entre amarelo e verde — o que mudou é que agora dá para atravessá-la, com
+evidência datada por módulo (ver "Teto atual do projeto" acima).
 
 ## Ordem de implementação
 

@@ -1,5 +1,30 @@
 # ORION OS — Mapa de saúde dos módulos
 
+> ## AVISO: ESTE MAPA ESTA VENCIDO (2026-07-30)
+>
+> Ele descreve 2026-07-27 e **não foi reconferido desde então**. Pela regra de
+> rebaixamento 1 da própria rubrica ("qualquer commit que toca o módulo
+> invalida o status anterior"), toda linha abaixo vale `?` até nova
+> conferência: houve ~30 commits depois desta data, em navegação, maestro,
+> webui e firmware.
+>
+> O que já se sabe estar errado aqui, sem precisar reconferir nada:
+>
+> - **"O robô ainda não se moveu"** (topo e leitura do mapa) — falso desde
+>   2026-07-29. Ver o teto de política no `ARQUITETURA.txt`.
+> - **`vision/pan_tilt.py` 🔴 "câmera não transmite"** — resolvido em 28/07; o
+>   pan/tilt inclusive SEGUE pessoa hoje.
+> - **`encoder_manager.h` 🔴 "fora de escopo por decisão"** — a decisão foi
+>   revertida; o encoder de roda é pendência ativa e bloqueia a odometria.
+> - **`navigation` EXPLORE 🟠 "algoritmo ainda não escrito"** — foi escrito em
+>   30/07 e roda em produção (4 segmentos de 30 cm por decisão).
+> - **As contagens de "439 testes"** — hoje são 608 no Notebook e 538 no Pi.
+>
+> Não reclassifiquei as linhas de propósito: a rubrica exige evidência datada
+> por módulo, e inventar cor sem medir é exatamente o que ela existe para
+> impedir. Marcar como vencido é a leitura honesta até alguém rodar o
+> procedimento de marcação.
+
 **Snapshot de:** 2026-07-27
 **Regra de classificação:** Rubrica do Mapa de Saúde, em `ARQUITETURA.txt`.
 **Reconferido:** todas as linhas abaixo foram checadas no código nesta sessão
