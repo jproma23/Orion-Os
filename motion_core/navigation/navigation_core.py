@@ -867,6 +867,28 @@ class NavigationCore:
         await self._mudar_modo(ModoNavegacao.EXPLORE)
 
         for passo in range(1, SEGMENTOS_POR_EXPLORE + 1):
+            # O TRECHO E INTERROMPIVEL A CADA PASSO (2026-07-30, achado em
+            # revisao do proprio trecho que acabou de ser escrito).
+            #
+            # `_executar_pendentes` faz `await` neste metodo inteiro, e o handler
+            # do bus NAO cria tarefa nova enquanto a atual nao termina - ele so
+            # guarda o comando em `_comando_pendente`. Com UM segmento isso era
+            # quase inofensivo (~3 s de janela); com quatro, um STOP do operador
+            # esperaria ate 1,2 m de trecho para ter efeito. Multiplicar o
+            # trecho por 4 multiplicou por 4 o tempo de resposta do botao PARAR.
+            #
+            # Olhar a vaga entre os passos resolve sem fila e sem cancelar
+            # tarefa: quem chegou (STOP, joystick, HOLD) e executado pelo laco
+            # de `_executar_pendentes` assim que este metodo retorna, e o robo
+            # anda no maximo um segmento a mais - nunca o trecho inteiro.
+            if self._comando_pendente is not None:
+                logger.info(
+                    "explore: comando %r chegou - encerrando o trecho no passo %d",
+                    self._comando_pendente.get("acao"),
+                    passo,
+                )
+                return
+
             leituras = await self._escanear_a_frente()
             logger.info(
                 "explore: passo %d/%d - varredura devolveu %d leitura(s); "
