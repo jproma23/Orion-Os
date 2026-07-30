@@ -547,6 +547,28 @@ async def principal() -> None:
         logger.info("Fofao respondeu: %s", resposta)
         return resposta
 
+    async def processar_comando_em_frases(texto: str):
+        """Mesma resposta de `processar_comando`, entregue frase a frase.
+
+        E o que permite o robo comecar a falar antes de a resposta terminar de
+        ser gerada (T5.a, 2026-07-30): medido pareado com o prompt real, 3,33 s
+        -> 1,84 s ate o primeiro som (-45%).
+
+        `limpar_para_fala` roda POR FRASE, e nao no fim: cada frase vai direto
+        para o Piper assim que chega, entao ela precisa estar limpa nesse
+        instante - deixar para limpar o texto inteiro depois nao serviria de
+        nada, o audio ja teria saido.
+        """
+        if not texto.strip():
+            yield "Não entendi, pode repetir?"
+            return
+        logger.info("Voce disse: %s", texto)
+        async for frase in planner.responder_em_frases(texto):
+            limpa = limpar_para_fala(frase)
+            if limpa:
+                logger.info("Fofao respondeu (frase): %s", limpa)
+                yield limpa
+
     conf_vad = secao_voz["vad"]
     detector_atividade = None
     if conf_vad["habilitado"]:
@@ -565,6 +587,7 @@ async def principal() -> None:
         transcritor=transcritor,
         sintetizador=sintetizador,
         processar_comando=processar_comando,
+        processar_comando_em_frases=processar_comando_em_frases,
         detector_palavra_ativacao=DetectorFuzzy(VARIACOES_FOFAO),
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,

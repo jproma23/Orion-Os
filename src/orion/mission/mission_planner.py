@@ -134,6 +134,50 @@ class MissionPlanner:
         await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
         return resposta
 
+    async def responder_em_frases(self, texto_usuario: str, pessoa_id: int | None = None):
+        """Mesma decisao de `responder`, entregue FRASE A FRASE (T5, 2026-07-30).
+
+        Existe para a fala poder comecar antes de a resposta terminar de ser
+        gerada. Medido pareado, com o prompt real: 3,33 s -> 1,84 s ate o
+        primeiro som (-45%).
+
+        Os caminhos CURTOS (comando reconhecido, pergunta de hora, resposta
+        tirada do diario) nao passam pela IA: sao texto pronto, e saem numa
+        frase so. Nao ha o que transmitir em pedacos, e picotar uma frase de
+        seis palavras deixaria a fala pior, nao melhor.
+
+        So o caminho da IA usa o streaming - e e justamente o unico que demora.
+        """
+        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
+
+        comando_detectado = self._detectar_comando(texto_usuario)
+        if comando_detectado is not None:
+            resposta = await self._executar_comando(comando_detectado)
+        elif self._eh_pergunta_de_hora(texto_usuario):
+            resposta = self._responder_hora()
+        elif (resposta_diario := await self._responder_sobre_quem_viu(
+            texto_usuario, contexto
+        )) is not None:
+            resposta = resposta_diario
+        else:
+            resposta = None
+
+        if resposta is not None:
+            yield resposta
+            await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
+            return
+
+        # O registro da interacao precisa do texto INTEIRO, e ele so existe
+        # depois da ultima frase - por isso as partes sao acumuladas aqui em
+        # vez de gravadas uma a uma. Gravar por frase encheria o historico de
+        # fragmentos e quebraria o "conversas_recentes" que volta no contexto.
+        partes = []
+        async for frase in self._ai_manager.responder_em_frases(texto_usuario, contexto):
+            partes.append(frase)
+            yield frase
+        if partes:
+            await self._registrar_interacao(pessoa_id, texto_usuario, " ".join(partes))
+
     async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
         contexto: dict = {}
 

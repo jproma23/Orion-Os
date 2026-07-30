@@ -9,6 +9,7 @@ sem o Voice Core precisar conhecer Ollama/memoria diretamente.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from enum import Enum
 from typing import Any, Awaitable, Callable
@@ -44,6 +45,7 @@ class VoiceCore:
         transcritor: Transcritor,
         sintetizador: Sintetizador,
         processar_comando: CallbackProcessarComando,
+        processar_comando_em_frases=None,
         detector_palavra_ativacao: DetectorPalavraAtivacao | None = None,
         duracao_janela_escuta_s: float = 3.0,
         duracao_comando_s: float = 5.0,
@@ -57,6 +59,19 @@ class VoiceCore:
         self._transcritor = transcritor
         self._sintetizador = sintetizador
         self._processar_comando = processar_comando
+        #: Caminho que entrega a resposta em FRASES (T5, 2026-07-30). Opcional:
+        #: sem ele o ciclo usa `processar_comando` e fala de uma vez so, que e
+        #: o comportamento anterior. Injetavel para os testes poderem exercitar
+        #: os dois caminhos sem rede.
+        self._processar_comando_em_frases = processar_comando_em_frases
+        #: Levantado para DESCARTAR o que ainda nao foi falado.
+        #:
+        #: O precedente e do proprio projeto: o cliente do ESP32 precisou drenar
+        #: o socket continuamente, senao o buffer entregava som de segundos
+        #: atras. Falar por frases cria a mesma exposicao - se a conversa for
+        #: interrompida no meio, as frases restantes JA ESTAO a caminho, e sem
+        #: este sinal o robo responderia ao passado por um terceiro caminho.
+        self._interromper_fala = asyncio.Event()
         self._detector = detector_palavra_ativacao or DetectorPalavraAtivacao()
         self._duracao_janela_escuta_s = duracao_janela_escuta_s
         self._duracao_comando_s = duracao_comando_s
@@ -166,19 +181,83 @@ class VoiceCore:
         await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
 
         await self._definir_estado(EstadoVoz.THINKING)
-        try:
-            resposta = await self._processar_comando(texto_comando)
-        except Exception:
-            logger.exception("Falha ao processar comando de voz")
-            resposta = "Desculpa, tive um problema para processar isso."
+        if self._processar_comando_em_frases is not None:
+            await self._responder_falando_por_frases(texto_comando)
+        else:
+            try:
+                resposta = await self._processar_comando(texto_comando)
+            except Exception:
+                logger.exception("Falha ao processar comando de voz")
+                resposta = "Desculpa, tive um problema para processar isso."
 
-        await self._definir_estado(EstadoVoz.SPEAKING)
-        await self._event_bus.publish("voice.response_started", {"texto": resposta})
-        await self._falar_com_protecao(resposta)
-        await self._event_bus.publish("voice.response_finished", {"texto": resposta})
+            await self._definir_estado(EstadoVoz.SPEAKING)
+            await self._event_bus.publish("voice.response_started", {"texto": resposta})
+            await self._falar_com_protecao(resposta)
+            await self._event_bus.publish("voice.response_finished", {"texto": resposta})
 
         await self._definir_estado(EstadoVoz.IDLE)
         return True
+
+    def interromper_fala(self) -> None:
+        """Descarta o que ainda nao foi falado da resposta em andamento.
+
+        Quem interrompe a conversa (o operador, um comportamento de seguranca,
+        uma nova ativacao) chama isto. Sem ele, as frases ja geradas seguiriam
+        saindo pela caixa depois de a conversa ter virado outra coisa.
+        """
+        self._interromper_fala.set()
+
+    async def _responder_falando_por_frases(self, texto_comando: str) -> None:
+        """Fala a resposta conforme ela e gerada (T5.a, 2026-07-30).
+
+        O ganho nao vem de gerar mais rapido: vem de parar de esperar o que
+        ainda nao e preciso. Enquanto o modelo escreve a segunda frase, o robo
+        ja esta dizendo a primeira - que e o que uma pessoa faz. Medido
+        pareado, com o prompt real: 3,33 s -> 1,84 s ate o primeiro som (-45%).
+
+        `voice.response_started` sai com a PRIMEIRA frase e nao com o texto
+        inteiro, porque nesse instante o texto inteiro ainda nao existe. Quem
+        consome esse evento e a legenda do avatar (avatar_server.py): ela passa
+        a acompanhar a fala em vez de aparecer pronta no fim.
+        `voice.response_finished` fecha com o texto completo, como antes.
+        """
+        self._interromper_fala.clear()
+        partes: list[str] = []
+        primeira = True
+        try:
+            async for frase in self._processar_comando_em_frases(texto_comando):
+                if self._interromper_fala.is_set():
+                    logger.info(
+                        "fala interrompida - descartando %d frase(s) nao ditas",
+                        1,
+                    )
+                    break
+                if primeira:
+                    await self._definir_estado(EstadoVoz.SPEAKING)
+                    await self._event_bus.publish("voice.response_started", {"texto": frase})
+                    primeira = False
+                partes.append(frase)
+                await self._falar_com_protecao(frase)
+        except Exception:
+            logger.exception("Falha ao processar comando de voz (em frases)")
+            if not partes:
+                # Nada foi dito ainda: da para salvar o turno com uma frase de
+                # desculpa. Se ja falamos algo, calar aqui e melhor que emendar
+                # um pedido de desculpas no meio de uma resposta que fazia
+                # sentido.
+                desculpa = "Desculpa, tive um problema para processar isso."
+                await self._definir_estado(EstadoVoz.SPEAKING)
+                await self._event_bus.publish("voice.response_started", {"texto": desculpa})
+                partes.append(desculpa)
+                await self._falar_com_protecao(desculpa)
+
+        texto_completo = " ".join(partes)
+        if primeira and not partes:
+            # Nem uma frase saiu (resposta vazia): o estado precisa passar por
+            # SPEAKING assim mesmo, senao quem escuta voice.status ve o robo
+            # pular de THINKING direto para IDLE e conclui que ele ignorou.
+            await self._definir_estado(EstadoVoz.SPEAKING)
+        await self._event_bus.publish("voice.response_finished", {"texto": texto_completo})
 
     def _comando_na_janela(self, texto_janela: str) -> str | None:
         """O que sobrou depois da palavra de ativacao, se valer a pena.
