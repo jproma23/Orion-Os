@@ -10,16 +10,36 @@ import inspect
 
 from orion.kernel.event_bus import EventBus
 
+#: Vale nos dois modos de controle - é o padrão de todo comportamento que não
+#: disputa o volante (voz, gesto, vigília, repouso, e a segurança reativa).
+AUTORIDADE_SEMPRE = "sempre"
+#: Só quando o operador está no volante (o joystick do dashboard).
+AUTORIDADE_MANUAL = "manual"
+#: Só quando o robô está no volante (a IA estratégica e a ronda).
+AUTORIDADE_AUTONOMA = "autonoma"
+
 
 class Comportamento:
     """Base de um comportamento arbitrado pelo maestro.
 
     `prioridade`: MAIOR número = mais importante (vence a arbitragem). Segue
     a escada do EDR-0020 (100 segurança ... 10 repouso).
+
+    `autoridade`: de QUEM este comportamento é a mão. A prioridade resolve
+    "quem é mais urgente"; ela não resolve "quem está no volante" - e tratar
+    as duas perguntas como uma só foi um defeito real, medido em 2026-07-30:
+    a IA decidiu `explorar` 5444 vezes e o robô nunca saiu do lugar, porque
+    quem tinha prioridade maior escrevia por cima da decisão dela sem que
+    nada denunciasse. Quem está no volante é uma ESCOLHA do dono, feita pelo
+    botão do dashboard, não uma consequência da tabela de prioridades.
+
+    O padrão é `AUTORIDADE_SEMPRE`: declarar nada mantém o comportamento
+    ativo nos dois modos, que é o certo para segurança, voz e gesto.
     """
 
     nome: str = "comportamento"
     prioridade: int = 0
+    autoridade: str = AUTORIDADE_SEMPRE
 
     def __init__(self, event_bus: EventBus) -> None:
         self._event_bus = event_bus

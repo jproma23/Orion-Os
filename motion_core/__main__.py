@@ -594,6 +594,10 @@ async def principal() -> None:
         port=conf_web["port"],
         memory_api=memory_api,
         config=config,
+        # O botao AUTONOMO/MANUAL do dashboard precisa falar com quem arbitra.
+        # A webui nao guarda copia do modo: le do maestro a cada consulta, para
+        # a tela nunca discordar de quem de fato esta no volante.
+        maestro=maestro,
     )
     await webui.iniciar()
 

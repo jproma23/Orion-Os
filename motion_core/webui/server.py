@@ -24,6 +24,7 @@ from typing import Any
 
 from aiohttp import web
 
+from motion_core.behavior.behavior_core import MODO_MANUAL, MODOS_DE_CONTROLE
 from motion_core.memory.api import MemoryAPI
 from orion.kernel.config import ConfigurationManager
 from orion.kernel.event_bus import Evento, EventBus
@@ -51,6 +52,10 @@ MAXIMO_SESSOES = 8
 #: passou a publicar - Cap 12 s.8/Cap 18 s.9)
 TOPICOS_REPASSADOS = (
     "system.ready",
+    # Quem está no volante (2026-07-30). Vai pelo SSE para o botão do
+    # dashboard mudar junto quando a troca vier de OUTRA aba, ou do próprio
+    # robô - um botão que só sabe do clique dele mesmo mente sobre o estado.
+    "behavior.modo_controle",
     "motion.status",
     "motion.position",
     "motion.scan_complete",
@@ -94,6 +99,19 @@ TOPICOS_REPASSADOS = (
 #: comando: o que nao estiver aqui e recusado antes de chegar ao Mega.
 #: Movimento continua sujeito a seguranca reativa do firmware (Cap 18) -
 #: este endpoint PEDE, nao manda.
+#: Comandos que NÃO disputam o volante - valem em qualquer modo de controle.
+#:
+#: `STOP` está aqui por segurança, e é o item mais importante da lista: quem vê
+#: o robô indo para um lugar ruim precisa poder pará-lo AGORA, sem antes
+#: procurar em que modo o robô está nem apertar um botão de modo. Acender a luz
+#: e ligar o ventilador entram porque não têm nada a ver com dirigir.
+#:
+#: Todo o resto (avançar, girar, ré) move as rodas e é recusado quando o
+#: volante está com a IA - ver `_handler_comando`.
+COMANDOS_SEM_VOLANTE = frozenset(
+    {"STOP", "LIGHT_ON", "LIGHT_OFF", "FAN_ON", "FAN_OFF"}
+)
+
 COMANDOS_PERMITIDOS = frozenset(
     {
         "MOVE_FORWARD",
@@ -148,6 +166,7 @@ class WebUIServer:
         port: int = 8080,
         memory_api: MemoryAPI | None = None,
         config: ConfigurationManager | None = None,
+        maestro=None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -160,6 +179,16 @@ class WebUIServer:
         self._port = port
         self._memory_api = memory_api
         self._config = config
+        #: O maestro (BehaviorCore) é o DONO do modo de controle - esta página
+        #: só lê e pede a troca. Opcional pela mesma razão dos outros: sem ele
+        #: o botão aparece desabilitado em vez de a página quebrar.
+        #:
+        #: Não guardamos cópia do modo aqui de propósito. O valor mostrado na
+        #: tela é sempre lido do maestro na hora (ver `_handler_estado`): uma
+        #: segunda cópia poderia discordar de quem de fato arbitra, e mostrar
+        #: "AUTÔNOMO" numa tela cujo robô está em manual seria pior que não
+        #: mostrar nada.
+        self._maestro = maestro
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
         #: sinaliza os handlers SSE de longa duracao (_handler_sse) para
@@ -198,6 +227,7 @@ class WebUIServer:
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_post("/comando", self._handler_comando)
+        self._app.router.add_post("/controle", self._handler_controle)
         self._app.router.add_get("/", self._handler_index)
         self._app.router.add_get("/mapa", self._handler_mapa)
         self._app.router.add_get("/diagnostico", self._handler_diagnostico)
@@ -255,6 +285,27 @@ class WebUIServer:
                 },
                 status=400,
             )
+        # QUEM ESTÁ NO VOLANTE MANDA (2026-07-30).
+        #
+        # Recusar aqui, na FONTE, e não deixar o comando entrar no barramento
+        # para ser ignorado depois: um comando publicado e engolido em silêncio
+        # foi exatamente a família de bug que este botão veio resolver. Além
+        # disso, o `NavigationCore` executa `navigation.comando` sem consultar
+        # modo nenhum - se o pedido chegasse lá, o robô se moveria mesmo com o
+        # volante entregue à IA.
+        #
+        # A resposta diz o que fazer, em vez de só negar: o 409 aparece na tela
+        # como aviso, e o operador entende que precisa pedir o volante.
+        if comando not in COMANDOS_SEM_VOLANTE and not self.operador_tem_o_volante():
+            return web.json_response(
+                {
+                    "erro": "o volante esta com a IA - toque em MANUAL para assumir",
+                    "modo_controle": self.modo_controle,
+                    "comando": comando,
+                },
+                status=409,
+            )
+
         payload: dict[str, Any] = {"comando": comando}
 
         # Velocidade: ate 2026-07-27 este endpoint DESCARTAVA o que o cliente
@@ -397,9 +448,71 @@ class WebUIServer:
             return web.json_response({"parametros": {}, "aviso": "configuracao nao disponivel"})
         return web.json_response({"parametros": self._config.bruto(), "aviso": None})
 
+    @property
+    def modo_controle(self) -> str | None:
+        """Quem está no volante, lido do maestro na hora. None = sem maestro."""
+        if self._maestro is None:
+            return None
+        return self._maestro.modo_controle
+
+    def operador_tem_o_volante(self) -> bool:
+        """True quando o joystick pode comandar.
+
+        Sem maestro (ex.: máquina de dev sem Behavior Core) devolve True: a
+        interface volta a ser o que era antes deste botão existir, em vez de
+        ficar inutilizável.
+        """
+        return self._maestro is None or self._maestro.modo_controle == MODO_MANUAL
+
+    async def _handler_controle(self, request: web.Request) -> web.Response:
+        """O BOTÃO: entrega o volante ao operador ou ao robô.
+
+        POR QUE ESTE ENDPOINT EXISTE (2026-07-30). Até hoje quem comandava era
+        decidido pela tabela de prioridades do maestro, e ninguém tinha
+        escolhido isso - era consequência. A IA (prio 40) perdia para o
+        joystick (95) e para a vigilância (100), e o pior: perdia EM SILÊNCIO,
+        porque o comando de quem tinha prioridade maior sobrescrevia a decisão
+        dela na vaga única do NavigationCore. Medido no log: 5444 "IA decidiu"
+        e zero manobras executadas.
+
+        Pedido do dono: *"vamos colocar um botao para escolher q controla, se o
+        joistk ou a ia, autonomo ou manual"*, e *"ai passa a responsabilidade
+        por escolha"*. É disso que se trata - a escolha passa a ser explícita e
+        de quem tem o direito de fazê-la, em vez de emergir de um empate de
+        números.
+        """
+        if self._maestro is None:
+            return web.json_response(
+                {"erro": "sem Behavior Core nesta instancia - nao ha volante a entregar"},
+                status=503,
+            )
+        try:
+            corpo = await request.json()
+        except Exception:
+            return web.json_response({"erro": "corpo precisa ser JSON"}, status=400)
+
+        modo = str(corpo.get("modo", "")).strip().lower()
+        if modo not in MODOS_DE_CONTROLE:
+            return web.json_response(
+                {"erro": "modo invalido", "permitidos": list(MODOS_DE_CONTROLE)},
+                status=400,
+            )
+
+        await self._maestro.definir_modo_controle(modo)
+        logger.info("webui: volante entregue ao modo '%s' pelo dashboard", modo)
+        return web.json_response({"ok": True, "modo_controle": modo})
+
     async def _handler_estado(self, request: web.Request) -> web.Response:
+        # O modo entra no MESMO payload que a página já busca, em vez de um
+        # endpoint só para ele: assim o botão nunca aparece desenhado num
+        # estado diferente do resto da tela.
+        estado = dict(self._estado)
+        estado["controle"] = {
+            "modo": self.modo_controle,
+            "operador_no_volante": self.operador_tem_o_volante(),
+        }
         return web.json_response(
-            {"estado": self._estado, "eventos_recentes": self._eventos_recentes}
+            {"estado": estado, "eventos_recentes": self._eventos_recentes}
         )
 
     async def _handler_sse(self, request: web.Request) -> web.StreamResponse:

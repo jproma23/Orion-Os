@@ -285,3 +285,58 @@ dd {
   font: inherit; font-weight: 700; letter-spacing: .08em;
   cursor: pointer;
 }
+
+/* ---------- Quem controla: AUTÔNOMO | MANUAL (2026-07-30) ----------
+   Dois botões em vez de um interruptor: com interruptor o operador precisa
+   deduzir o que o estado atual significa, e aqui os dois lados dizem o nome
+   de quem manda. O ativo fica evidente porque essa é a informação que evita
+   a pergunta "por que o joystick não está movendo o robô?". */
+
+.volante {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.volante-opcao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 12px 10px;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.volante-opcao small {
+  font-weight: 400;
+  letter-spacing: 0;
+  font-size: .78em;
+  color: var(--texto-fraco);
+  text-align: center;
+}
+
+.volante-opcao:hover { border-color: var(--acento); }
+
+.volante-opcao--ativa {
+  background: var(--acento);
+  color: #04231f;
+  border-color: var(--acento);
+}
+
+.volante-opcao--ativa small { color: #04231f; }
+
+#volante-status {
+  margin: 10px 0 0;
+  font-size: .82em;
+  color: var(--texto-fraco);
+  line-height: 1.45;
+}
+
+#volante-status.erro { color: var(--alerta); }

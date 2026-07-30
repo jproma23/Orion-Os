@@ -11,10 +11,24 @@ import logging
 import time
 
 from motion_core.behavior import contrato
-from motion_core.behavior.comportamento import Comportamento, resolver_contexto
+from motion_core.behavior.comportamento import (
+    AUTORIDADE_AUTONOMA,
+    AUTORIDADE_MANUAL,
+    Comportamento,
+    resolver_contexto,
+)
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 
 logger = logging.getLogger("motion_core.behavior.comportamentos")
+
+#: Pedido de DECISÃO IMEDIATA, fora do ciclo normal da IA.
+#:
+#: Mora no nível do módulo para as duas pontas do fio citarem o mesmo nome:
+#: quem publica é a `VigilanciaObstaculo` (ao ver o obstáculo) e quem assina é
+#: a `IaEstrategica`. Tópico com nome escrito à mão em dois lugares é como
+#: nascem os eventos publicados no vazio - o defeito que este projeto mais
+#: repete.
+TOPICO_RECONSIDERAR = "behavior.reconsiderar"
 
 
 class Repouso(Comportamento):
@@ -57,6 +71,9 @@ class Ronda(Comportamento):
 
     nome = "ronda"
     prioridade = 20  # acima de repouso (10), abaixo de tudo que é gatilho
+    #: Iniciativa do robô: só quando o volante está com ele. Com o operador
+    #: dirigindo, o Fofão não sai rondando por conta própria.
+    autoridade = AUTORIDADE_AUTONOMA
 
     #: Topico pelo qual a IA estrategica pede a ronda (acao `olhar_em_volta`
     #: do contrato). Ver o comentario em `_ao_pedirem` para por que ele
@@ -319,6 +336,10 @@ class IaEstrategica(Comportamento):
 
     nome = "ia_estrategica"
     prioridade = 40
+    #: A mão do robô. Em modo MANUAL ela continua OPINANDO (a consulta segue
+    #: rodando, e a decisão aparece no dashboard) mas não executa nada - o
+    #: volante é do operador. Ver `BehaviorCore.definir_modo_controle`.
+    autoridade = AUTORIDADE_AUTONOMA
 
     def __init__(
         self,
@@ -358,6 +379,27 @@ class IaEstrategica(Comportamento):
         self._acao_atual: str | None = None
         self._motivo_atual: str = ""
         self._executando = False
+        #: Atalho para NÃO esperar o ciclo inteiro quando o mundo muda de um
+        #: jeito que exige decisão agora (hoje: obstáculo à frente).
+        self._reconsiderar = asyncio.Event()
+        event_bus.subscribe(TOPICO_RECONSIDERAR, self._ao_pedirem_reconsideracao)
+
+    async def _ao_pedirem_reconsideracao(self, evento: Evento) -> None:
+        """Alguém viu algo que não dá para esperar 30s - decida agora.
+
+        POR QUE EXISTE (2026-07-30): com a `VigilanciaObstaculo` deixando de
+        girar por conta própria, a manobra passou a ser decisão desta IA. Sem
+        este atalho o robô ficaria encostado no obstáculo até a próxima
+        consulta do ciclo normal - exatamente o *"e nao fica parado"* que o
+        dono pediu para não acontecer. Quem informa não decide, mas tem todo o
+        direito de pedir pressa.
+        """
+        logger.info(
+            "IA: reconsiderando agora - %s pediu (%s)",
+            evento.dados.get("origem", "?"),
+            evento.dados.get("motivo", ""),
+        )
+        self._reconsiderar.set()
 
     def iniciar(self) -> asyncio.Task:
         """Inicia o laco de consulta em segundo plano - chamar uma vez no
@@ -367,11 +409,22 @@ class IaEstrategica(Comportamento):
 
     def parar(self) -> None:
         self._executando = False
+        # Solta a espera na hora: sem isto, `parar()` só teria efeito depois
+        # de o sleep do ciclo inteiro vencer, e o desligamento ficaria
+        # pendurado por até `intervalo_s` segundos.
+        self._reconsiderar.set()
 
     async def _loop_consulta(self) -> None:
         while self._executando:
             await self._consultar()
-            await asyncio.sleep(self._intervalo_s)
+            # Espera o intervalo normal OU um pedido de pressa, o que vier
+            # primeiro. `clear()` antes de esperar para não consumir um pedido
+            # que chegou durante a consulta que acabou de rodar.
+            self._reconsiderar.clear()
+            try:
+                await asyncio.wait_for(self._reconsiderar.wait(), timeout=self._intervalo_s)
+            except TimeoutError:
+                pass
 
     async def _consultar(self) -> None:
         nome_ativo = self._maestro.ativo_nome if self._maestro else None
@@ -564,66 +617,48 @@ class AtenderGesto(Comportamento):
             self._reavaliar()
 
 
-#: Quanto o robô gira a cada tentativa de contornar. 30° é o passo do próprio
-#: radar (radar_manager.h varre de 30 em 30 a partir de 30°): girar menos que
-#: isso não muda o que o sensor enxerga o suficiente para valer a manobra.
-PASSO_GIRO_DESVIO_GRAUS = 30.0
-
-#: Espera entre mandar o giro e reavaliar. O giro é FINITO (`graus` presente
-#: -> girarGraus no firmware), então este tempo precisa cobrir a execução dos
-#: passos mais a telemetria seguinte chegar (200ms no regime "andando").
-PAUSA_APOS_GIRO_DESVIO_S = 1.2
-
-#: Depois de tantas tentativas para um lado sem a frente liberar, tenta o
-#: outro. Ver o comentário sobre o sentido em VigilanciaObstaculo.
-TENTATIVAS_ANTES_DE_INVERTER = 3
-
-#: Uma volta inteira (12 x 30°). Se nem girando 360° a frente liberou, o robô
-#: está encurralado de verdade - aí vale avisar um humano em vez de girar para
-#: sempre em silêncio.
-TENTATIVAS_ATE_AVISAR = 12
-
-#: Pausa antes de recomeçar o ciclo depois de avisar que está encurralado.
-PAUSA_ENCURRALADO_S = 5.0
+#: As constantes do laço de giro (passo de 30°, pausa entre tentativas,
+#: inversão de sentido, aviso de encurralado) foram REMOVIDAS em 2026-07-30
+#: junto com o laço que as usava: a vigilância deixou de escolher a manobra.
+#: Quem decide agora é a IA, e os parâmetros da manobra dela vêm do
+#: `contrato.py` - não daqui. Deixar as constantes de pé seria deixar pista
+#: falsa de que ainda existe um desvio automático neste módulo.
 
 
 class VigilanciaObstaculo(Comportamento):
-    """Segurança tática (prio 100): assume o controle quando o Hardware Core
-    reporta OBSTACLE_DETECTED (via motion.status, que já chega ao Event Bus
-    do Pi). Acima da camada reativa do Arduino (Cap 18), que é independente.
+    """VIGIA E INFORMA - quem decide a manobra é a IA (2026-07-30).
 
-    DESVIA, NÃO CONGELA (2026-07-29). Até aqui este comportamento tomava o
-    controle e só fazia `while True: sleep(1.0)`: diante de um obstáculo real
-    o robô parava e ficava ali até alguém tirá-lo do caminho. Decisão do
-    mantenedor em 28/07: *"nenhum obstáculo tem q bloquear, o robô tem q
-    desviar do obstáculo"*.
+    Decisão do dono, tomada ao ver o diagnóstico de que a IA escolhia
+    `explorar` e o robô não saía do lugar:
 
-    A parada reativa do Mega continua sendo o piso e não foi afrouxada:
-    avançar segue proibido enquanto houver coisa na frente. O que mudou é que
-    girar no próprio eixo deixou de ser proibido junto (safety_manager.h,
-    `giroPermitido`) - antes, a única manobra capaz de tirar o obstáculo da
-    frente era também a única coisa que o robô não podia fazer.
+        *"vigilancia tem que vigiar e mostrar dados e nao decidir; a ia
+        estrategica é quem com os dados em maos decide a manobra e nao fica
+        parado"*, e *"a missao é importante e temos q criar meios para
+        manobrar os obstaculos"*.
 
-    MALHA FECHADA, DE PROPÓSITO. O robô gira um passo, deixa a telemetria
-    chegar e reavalia. Não há planejamento de rota: quem decide que a frente
-    liberou é o próprio firmware, e o maestro simplesmente PREEMPTA este
-    comportamento quando `motion.status` sai de OBSTACLE_DETECTED - por isso
-    não existe aqui nenhuma checagem de "já liberou?", ela seria uma segunda
-    fonte de verdade sobre um fato que o Mega já afirma.
+    ATÉ HOJE ELA DECIDIA, e atropelava quem devia decidir. Assumia o controle
+    em prioridade 100 e girava em laço, escolhendo o sentido por conta
+    própria. Como o giro saía por `navigation.comando`, ele escrevia POR CIMA
+    da decisão que a `IaEstrategica` (prio 40) tinha acabado de deixar na vaga
+    única do `NavigationCore`. Medido no log de produção: **5444 linhas de
+    "IA decidiu" e ZERO "explore: comecando"**. A cada obstáculo o ciclo se
+    repetia, e nada em nenhuma das duas pontas denunciava o atropelo - o
+    caminho feliz era mudo dos dois lados.
 
-    POR QUE O SENTIDO INICIAL É ARBITRÁRIO, e por que isso é aceitável: seria
-    melhor girar para o lado mais livre, que a varredura do radar sabe dizer.
-    Só que o mapeamento entre o ÂNGULO lógico do radar (30..150, 90 = frente)
-    e o lado FÍSICO do robô nunca foi medido nesta montagem - e o servo do
-    radar ainda tem um offset de -45° por causa do horn colado torto
-    (radar_manager.h). Escolher um lado a partir disso seria afirmar antes de
-    medir, que é o erro que esta sessão inteira existe para não repetir.
+    O QUE ELA FAZ AGORA: vigia o corpo, informa o fato e pede uma decisão, sem
+    tocar nas rodas. Não disputa mais o volante (`quer_rodar` é sempre False),
+    e é isso que deixa a IA em prioridade 40 livre para manobrar.
 
-    Em vez de chutar, o laço se corrige: passados `TENTATIVAS_ANTES_DE_INVERTER`
-    giros sem a frente liberar, ele inverte o sentido. Se o palpite estava
-    errado, custa 3 passos; se estivesse codificado errado, custaria sempre.
-    Medir o lado do radar na bancada e usar a varredura como dica é a melhora
-    natural depois que este laço rodar no hardware.
+    OS MEIOS JÁ EXISTIAM, e eram inalcançáveis com este comportamento agindo
+    antes: `virar_esquerda`, `virar_direita`, `manobrar`, `observar_ambiente`
+    e `explorar` estão todos no `contrato.py`. Isso é o irmão da trava da
+    Ronda - ação sem executor alcançável não falha, só não acontece. E `parar`
+    volta a ser UMA das opções da IA, não a resposta automática do sistema.
+
+    O PISO DE SEGURANÇA NÃO MUDOU: a parada reativa do Mega é independente
+    disto (Cap 18) e segue vetando avanço com coisa MEDIDA na frente. Tirar o
+    laço de giro daqui não afrouxa segurança nenhuma - move a escolha da
+    manobra para quem tem o quadro inteiro do mundo em mãos.
     """
 
     nome = "vigilancia_obstaculo"
@@ -636,55 +671,43 @@ class VigilanciaObstaculo(Comportamento):
 
     async def _ao_mudar_estado(self, evento: Evento) -> None:
         obstaculo_agora = evento.dados.get("estado") == "OBSTACLE_DETECTED"
-        if obstaculo_agora != self._obstaculo:
-            self._obstaculo = obstaculo_agora
-            self._reavaliar()  # acorda o maestro para trocar de controle
+        if obstaculo_agora == self._obstaculo:
+            return
+        self._obstaculo = obstaculo_agora
+        if not obstaculo_agora:
+            logger.info("vigilancia: a frente liberou")
+            return
+        # INFORMA e PEDE DECISÃO - não comanda. O dado em si já chega a quem
+        # decide por dois fios que existem: a distância vai na telemetria, e o
+        # `OBSTACLE_DETECTED` entra no retrato do mundo como "estado do corpo".
+        # O que faltava era URGÊNCIA: no ciclo normal de 30s o robô ficaria
+        # paradão na frente do obstáculo esperando a próxima consulta.
+        logger.warning(
+            "vigilancia: obstaculo a frente - informando e pedindo manobra a quem decide"
+        )
+        await self._event_bus.publish(
+            TOPICO_RECONSIDERAR,
+            {"origem": self.nome, "motivo": "obstaculo_frontal"},
+            prioridade=Prioridade.ALTA,
+        )
 
     def quer_rodar(self) -> bool:
-        return self._obstaculo
+        # NUNCA - e é o ponto desta classe depois de 2026-07-30. Enquanto ela
+        # assumia em prioridade 100, a IA em 40 era preemptada antes de
+        # conseguir manobrar, e o `GIRAR` daqui sobrescrevia a decisão dela na
+        # vaga única do NavigationCore. Informar não exige o controle.
+        return False
 
     async def executar(self) -> None:
-        await self._event_bus.publish(
-            "behavior.status", {"estado": "obstaculo"}, prioridade=Prioridade.ALTA
+        # Inalcançável por construção (`quer_rodar` é sempre False). Não é
+        # `pass`: se um dia alguém devolver o controle a esta classe sem
+        # perceber, o robô volta a decidir manobra em dois lugares ao mesmo
+        # tempo - e este projeto já pagou caro por defeito que aparece como
+        # sucesso. Falhar alto é melhor que voltar a atropelar em silêncio.
+        raise RuntimeError(
+            "vigilancia_obstaculo informa por evento e NAO assume o controle - "
+            "quem decide a manobra e a IaEstrategica (decisao do dono, 2026-07-30)"
         )
-        logger.warning("maestro: obstáculo à frente - procurando saída (girando)")
-        sentido = "DIREITA"
-        tentativas = 0
-        try:
-            while True:
-                if tentativas >= TENTATIVAS_ATE_AVISAR:
-                    # Uma volta inteira sem achar saída: avisa e continua
-                    # tentando. NÃO desiste em silêncio - um robô parado sem
-                    # explicação foi exatamente o problema que este código
-                    # veio resolver.
-                    logger.error(
-                        "maestro: girei %.0f graus e a frente nao liberou - encurralado",
-                        tentativas * PASSO_GIRO_DESVIO_GRAUS,
-                    )
-                    await self._event_bus.publish(
-                        "diagnostic.alerta",
-                        {"origem": "vigilancia_obstaculo", "tipo": "encurralado"},
-                        prioridade=Prioridade.ALTA,
-                    )
-                    await asyncio.sleep(PAUSA_ENCURRALADO_S)
-                    tentativas = 0
-
-                await self._event_bus.publish(
-                    "navigation.comando",
-                    {
-                        "acao": "GIRAR",
-                        "graus": PASSO_GIRO_DESVIO_GRAUS,
-                        "sentido": sentido,
-                    },
-                )
-                tentativas += 1
-                if tentativas % TENTATIVAS_ANTES_DE_INVERTER == 0:
-                    sentido = "ESQUERDA" if sentido == "DIREITA" else "DIREITA"
-                    logger.info("maestro: sem saida por ali - tentando pela %s", sentido)
-                await asyncio.sleep(PAUSA_APOS_GIRO_DESVIO_S)
-        except asyncio.CancelledError:
-            logger.info("maestro: frente liberada - saindo da vigilância")
-            raise
 
 
 #: Tempo máximo sem um comando manual novo antes do maestro considerar que o
@@ -714,6 +737,11 @@ class ControleManual(Comportamento):
 
     nome = "controle_manual"
     prioridade = 95
+    #: A mão do operador. Em modo AUTÔNOMO ele não entra na arbitragem - o
+    #: dono entregou o volante ao robô, e o joystick fica fora do jogo até
+    #: ele pedir de volta pelo botão. O STOP continua passando sempre (a
+    #: webui o trata como exceção, ver `_handler_comando`).
+    autoridade = AUTORIDADE_MANUAL
 
     def __init__(self, event_bus: EventBus) -> None:
         super().__init__(event_bus)

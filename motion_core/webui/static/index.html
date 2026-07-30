@@ -53,6 +53,25 @@
     </dl>
   </section>
 
+  <!-- QUEM CONTROLA (2026-07-30). Vem ANTES do joystick de propósito: é ele
+       que decide se o joystick abaixo tem efeito. Até hoje quem comandava era
+       consequência da tabela de prioridades do maestro, e a decisão da IA era
+       sobrescrita em silêncio pelo controle de quem tinha prioridade maior. -->
+  <section class="painel painel--volante">
+    <h2>Quem controla</h2>
+    <div class="volante" role="group" aria-label="Escolha quem controla o robô">
+      <button id="volante-autonomo" type="button" class="volante-opcao" data-modo="autonomo">
+        AUTÔNOMO
+        <small>a IA decide as manobras</small>
+      </button>
+      <button id="volante-manual" type="button" class="volante-opcao" data-modo="manual">
+        MANUAL
+        <small>o joystick manda</small>
+      </button>
+    </div>
+    <p id="volante-status">—</p>
+  </section>
+
   <section class="painel painel--joystick">
     <h2>Controle manual</h2>
     <div id="joystick" class="joystick" role="application"

@@ -461,6 +461,27 @@ class NavigationCore:
         fila faria o robo continuar andando depois de solto - exatamente o que
         a re, sem seguranca reativa, nao pode fazer (Cap 18).
         """
+        # O DESCARTE DEIXA DE SER MUDO (2026-07-30).
+        #
+        # "O ultimo vence" continua valendo, e sem fila: comando velho
+        # executado atrasado e o pior comportamento possivel num controle
+        # manual (ver a docstring acima). O defeito nunca foi DESCARTAR - foi
+        # descartar SEM DIZER.
+        #
+        # Custou um dia de diagnostico. A IA escolheu `explorar` 15 vezes e o
+        # robo nao saiu do lugar: cada EXPLORE ficava nesta vaga e era
+        # sobrescrito pelo GIRAR da `VigilanciaObstaculo` - que vive em
+        # prioridade 100 e preempta a IA em 40 - antes de
+        # `_executar_pendentes` chegar nele. Nenhuma linha em nenhuma das duas
+        # pontas: a decisao da IA simplesmente evaporava.
+        anterior = self._comando_pendente
+        if anterior is not None:
+            logger.warning(
+                "navegacao: comando %r DESCARTADO sem executar - %r chegou antes "
+                "(o ultimo vence, nao ha fila)",
+                anterior.get("acao"),
+                evento.dados.get("acao"),
+            )
         self._comando_pendente = dict(evento.dados)
         if self._tarefa_comando is None or self._tarefa_comando.done():
             self._tarefa_comando = asyncio.create_task(self._executar_pendentes())

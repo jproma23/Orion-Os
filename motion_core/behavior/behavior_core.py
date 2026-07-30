@@ -12,10 +12,31 @@ import asyncio
 import logging
 import time
 
-from motion_core.behavior.comportamento import Comportamento, resolver_contexto
+from motion_core.behavior.comportamento import (
+    AUTORIDADE_AUTONOMA,
+    AUTORIDADE_MANUAL,
+    AUTORIDADE_SEMPRE,
+    Comportamento,
+    resolver_contexto,
+)
 from orion.kernel.event_bus import EventBus
 
 logger = logging.getLogger("motion_core.behavior.behavior_core")
+
+#: O robô no volante: a IA estratégica e a ronda comandam; o joystick não.
+MODO_AUTONOMO = "autonomo"
+#: O operador no volante: o joystick comanda; a IA opina e não executa.
+MODO_MANUAL = "manual"
+
+MODOS_DE_CONTROLE = (MODO_AUTONOMO, MODO_MANUAL)
+
+#: Que autoridade tem a mão em cada modo. A segurança reativa, a voz e o
+#: gesto são `AUTORIDADE_SEMPRE` e portanto valem nos dois - trocar de modo
+#: nunca desliga nada disso.
+_AUTORIDADE_DO_MODO = {
+    MODO_AUTONOMO: (AUTORIDADE_SEMPRE, AUTORIDADE_AUTONOMA),
+    MODO_MANUAL: (AUTORIDADE_SEMPRE, AUTORIDADE_MANUAL),
+}
 
 #: tick de segurança: mesmo sem gatilho, o maestro reavalia neste intervalo
 #: (pega comportamentos que passaram a querer rodar sem avisar).
@@ -41,6 +62,15 @@ class BehaviorCore:
         self._tarefa_ativa: asyncio.Task | None = None
         self._executando = False
         self._acordar = asyncio.Event()
+
+        #: QUEM ESTÁ NO VOLANTE - escolha explícita do dono, pelo botão do
+        #: dashboard (2026-07-30). Começa em AUTÔNOMO porque é o estado normal
+        #: do robô: ele existe para agir sozinho, e o manual é a intervenção.
+        #:
+        #: Mora aqui, e só aqui, porque o maestro é quem arbitra - guardar uma
+        #: segunda cópia na interface criaria duas fontes de verdade sobre o
+        #: mesmo fato, que é a família de bug que mais se repete neste projeto.
+        self._modo_controle = MODO_AUTONOMO
 
         # --- conselho de IA (opcional) ---
         # A IA só entra na AMBIGUIDADE: quando ninguém com gatilho concreto
@@ -87,11 +117,44 @@ class BehaviorCore:
         Um comportamento chama isto quando seu gatilho muda."""
         self._acordar.set()
 
+    @property
+    def modo_controle(self) -> str:
+        """Quem está no volante agora: `autonomo` ou `manual`."""
+        return self._modo_controle
+
+    def tem_o_volante(self, comportamento: Comportamento) -> bool:
+        """True se a autoridade deste comportamento vale no modo atual."""
+        return comportamento.autoridade in _AUTORIDADE_DO_MODO[self._modo_controle]
+
+    async def definir_modo_controle(self, modo: str) -> None:
+        """Troca quem está no volante e reavalia na hora.
+
+        A troca PREEMPTA quem estava no controle sem a autoridade nova - é o
+        ponto do botão: sair de autônomo tira as rodas da IA imediatamente, e
+        não no fim do que ela estava fazendo.
+        """
+        if modo not in MODOS_DE_CONTROLE:
+            raise ValueError(
+                f"modo de controle invalido: {modo!r} - use um de {list(MODOS_DE_CONTROLE)}"
+            )
+        if modo == self._modo_controle:
+            return
+        anterior = self._modo_controle
+        self._modo_controle = modo
+        logger.info("maestro: volante entregue ao modo '%s' (era '%s')", modo, anterior)
+        await self._event_bus.publish(
+            "behavior.modo_controle", {"modo": modo, "anterior": anterior}
+        )
+        self.pedir_reavaliacao()
+
     def _escolher(self) -> Comportamento | None:
         # lista já ordenada por prioridade decrescente: o primeiro que quer
-        # rodar é o vencedor.
+        # rodar é o vencedor - desde que a autoridade dele valha no modo de
+        # controle atual. Sem este filtro, prioridade alta virava autoridade:
+        # o joystick (95) e a vigilância (100) atropelavam a IA (40) mesmo
+        # quando o dono tinha entregue o volante a ela.
         for comportamento in self._comportamentos:
-            if comportamento.quer_rodar():
+            if comportamento.quer_rodar() and self.tem_o_volante(comportamento):
                 return comportamento
         return None
 

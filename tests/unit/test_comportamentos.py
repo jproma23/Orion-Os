@@ -4,7 +4,7 @@ import asyncio
 import pytest
 
 from motion_core.behavior import comportamentos
-from motion_core.behavior.behavior_core import BehaviorCore
+from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
 from motion_core.behavior.comportamentos import (
     TIMEOUT_INATIVIDADE_MANUAL_S,
     Atender,
@@ -137,7 +137,19 @@ async def test_ia_estrategica_sem_notebook_nao_derruba_o_maestro():
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_preempta_ia_estrategica():
+async def test_obstaculo_nao_tira_o_controle_de_quem_decide():
+    """INVERTIDO em 2026-07-30, por decisao do dono.
+
+    Este teste afirmava o contrario: que a vigilancia (100) preemptava a IA
+    (40) diante do obstaculo. Era verdade, e era o defeito - a IA perdia o
+    controle exatamente no instante em que havia uma manobra para decidir, e o
+    `GIRAR` da vigilancia apagava a decisao dela na vaga do NavigationCore.
+
+    O dono: *"vigilancia tem que vigiar e mostrar dados e nao decidir; a ia
+    estrategica é quem com os dados em maos decide a manobra"*. Entao o
+    obstaculo agora e INFORMACAO para quem ja esta no controle, nao um motivo
+    para trocar de dono.
+    """
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     maestro = BehaviorCore(bus)
@@ -153,7 +165,9 @@ async def test_obstaculo_preempta_ia_estrategica():
 
     await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
     await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "vigilancia_obstaculo"  # 100 > 40, sempre
+    assert maestro.ativo_nome == "ia_estrategica", (
+        "a vigilancia tomou o controle de quem devia decidir a manobra"
+    )
 
     maestro.parar()
     await laco
@@ -162,24 +176,31 @@ async def test_obstaculo_preempta_ia_estrategica():
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_preempta_o_repouso_e_libera_ao_sair():
+async def test_obstaculo_nao_preempta_ninguem():
+    """A vigilancia informa sem tomar o volante (2026-07-30).
+
+    Antes ela preemptava o repouso e devolvia ao sair, e o teste media essa
+    troca. Como ela deixou de comandar, nao ha mais troca para medir: o
+    obstaculo aparece, o fato e publicado, e quem estava no controle continua.
+    """
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
+    pedidos = []
+    bus.subscribe(comportamentos.TOPICO_RECONSIDERAR, lambda e: pedidos.append(e.dados))
     maestro = BehaviorCore(bus)
     maestro.registrar(Repouso(bus))
-    vigilancia = VigilanciaObstaculo(bus)
-    maestro.registrar(vigilancia)
+    maestro.registrar(VigilanciaObstaculo(bus))
     laco = asyncio.create_task(maestro.executar())
 
     await _passo(maestro)
     assert maestro.ativo_nome == "repouso"
 
-    # Mega reporta obstáculo -> vigilância (prio 100) assume
     await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
     await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "vigilancia_obstaculo"
+    await bus.aguardar_fila_vazia()
+    assert maestro.ativo_nome == "repouso"
+    assert pedidos, "o obstaculo nao virou informacao para ninguem"
 
-    # obstáculo liberado -> volta ao repouso
     await bus.publish("motion.status", {"estado": "IDLE"})
     await asyncio.sleep(0.05)
     assert maestro.ativo_nome == "repouso"
@@ -237,6 +258,7 @@ async def test_controle_manual_assume_e_libera_apos_inatividade():
     maestro.registrar(Repouso(bus))
     maestro.registrar(ControleManual(bus))
     laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
 
     await _passo(maestro)
     assert maestro.ativo_nome == "repouso"
@@ -270,6 +292,9 @@ async def test_controle_manual_continua_ativo_enquanto_comando_se_repete():
     maestro.registrar(Repouso(bus))
     maestro.registrar(ControleManual(bus))
     laco = asyncio.create_task(maestro.executar())
+    # O joystick só entra na arbitragem com o volante na mão do operador
+    # (2026-07-30) - o maestro nasce em AUTONOMO.
+    await maestro.definir_modo_controle(MODO_MANUAL)
 
     await bus.publish("navigation.comando", {"acao": "MANUAL", "comando": "MOVE_CONTINUOUS"})
     await asyncio.sleep(0.05)
@@ -299,6 +324,7 @@ async def test_controle_manual_ignora_comando_de_navegacao_nao_manual():
     maestro.registrar(Repouso(bus))
     maestro.registrar(ControleManual(bus))
     laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
 
     await bus.publish("navigation.comando", {"acao": "HOLD"})
     await asyncio.sleep(0.05)
@@ -311,9 +337,15 @@ async def test_controle_manual_ignora_comando_de_navegacao_nao_manual():
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_vence_controle_manual():
-    """Seguranca (100) preempta ate o controle manual (95): o operador
-    dirigindo nunca pode ficar acima da seguranca reativa."""
+async def test_obstaculo_nao_arranca_o_joystick_da_mao_do_operador():
+    """Quem protege o operador e o PISO, nao uma troca de comportamento.
+
+    Este teste afirmava que a vigilancia (100) preemptava o controle manual
+    (95) no obstaculo. Ela nao comanda mais, entao o operador segue dirigindo
+    - e quem impede a batida continua sendo a parada reativa do Mega, que e
+    independente do maestro (Cap 18) e nunca foi afrouxada. O obstaculo vira
+    informacao na tela, no lugar de um solavanco no controle.
+    """
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     maestro = BehaviorCore(bus)
@@ -321,6 +353,7 @@ async def test_obstaculo_vence_controle_manual():
     maestro.registrar(ControleManual(bus))
     maestro.registrar(VigilanciaObstaculo(bus))
     laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
 
     await bus.publish("navigation.comando", {"acao": "MANUAL", "comando": "MOVE_CONTINUOUS"})
     await asyncio.sleep(0.05)
@@ -328,7 +361,7 @@ async def test_obstaculo_vence_controle_manual():
 
     await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
     await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "vigilancia_obstaculo"
+    assert maestro.ativo_nome == "controle_manual"
 
     maestro.parar()
     await laco
@@ -348,6 +381,7 @@ async def test_controle_manual_vence_atender():
     maestro.registrar(Atender(bus))
     maestro.registrar(ControleManual(bus))
     laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
 
     await bus.publish("voice.wake_detected", {"texto_janela": "fofão"})
     await asyncio.sleep(0.05)
@@ -364,9 +398,14 @@ async def test_controle_manual_vence_atender():
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_vence_atender():
-    """Segurança (100) preempta até o Atender (80): se surge obstáculo
-    enquanto atende, a vigilância assume."""
+async def test_obstaculo_nao_interrompe_o_atendimento():
+    """Atender o dono (80) nao e mais cortado por um obstaculo.
+
+    Fazia sentido quando a vigilancia precisava do controle para girar; agora
+    ela informa, e cortar a conversa no meio para anunciar uma parede seria
+    piorar o atendimento sem ganhar seguranca nenhuma - o piso reativo do Mega
+    e o mesmo com o Atender no controle.
+    """
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     maestro = BehaviorCore(bus)
@@ -381,7 +420,7 @@ async def test_obstaculo_vence_atender():
 
     await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
     await asyncio.sleep(0.05)
-    assert maestro.ativo_nome == "vigilancia_obstaculo"  # 100 > 80
+    assert maestro.ativo_nome == "atender"
 
     maestro.parar()
     await laco
@@ -564,19 +603,23 @@ async def _rodar_vigilancia(bus, maestro, segundos: float):
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_gira_em_vez_de_congelar(monkeypatch):
-    """REGRESSAO do comportamento de ate 2026-07-28.
+async def test_vigilancia_informa_e_nao_comanda():
+    """A vigilancia VIGIA E INFORMA - decisao do dono em 2026-07-30.
 
-    `VigilanciaObstaculo.executar` era `while True: sleep(1.0)`: diante de um
-    obstaculo real o robo tomava o controle com prioridade 100 e ficava
-    parado ate alguem tirar o obstaculo da frente. Nenhum teste pegava isso
-    porque nao dormir nao e erro - so a ausencia de comando denuncia.
+    Ate esta data ela assumia o controle em prioridade 100 e girava em laco,
+    escolhendo a manobra por conta propria. O dono: *"vigilancia tem que
+    vigiar e mostrar dados e nao decidir; a ia estrategica é quem com os dados
+    em maos decide a manobra"*.
+
+    Duas afirmacoes, e as duas importam: ela nao manda comando de navegacao
+    NENHUM, e nao tira o controle de quem decide.
     """
-    monkeypatch.setattr(comportamentos, "PAUSA_APOS_GIRO_DESVIO_S", 0.05)
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     comandos = []
+    pedidos = []
     bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    bus.subscribe(comportamentos.TOPICO_RECONSIDERAR, lambda e: pedidos.append(e.dados))
     maestro = BehaviorCore(bus)
     maestro.registrar(Repouso(bus))
     maestro.registrar(VigilanciaObstaculo(bus))
@@ -584,10 +627,12 @@ async def test_obstaculo_gira_em_vez_de_congelar(monkeypatch):
 
     await _rodar_vigilancia(bus, maestro, 0.2)
 
-    assert maestro.ativo_nome == "vigilancia_obstaculo"
-    assert comandos, "obstaculo detectado e o robo nao tentou desviar (congelou)"
-    assert all(c["acao"] == "GIRAR" for c in comandos), comandos
-    assert all(c["graus"] == comportamentos.PASSO_GIRO_DESVIO_GRAUS for c in comandos)
+    assert not comandos, f"a vigilancia comandou a navegacao: {comandos}"
+    assert pedidos, "viu o obstaculo e nao informou ninguem"
+    assert pedidos[0]["motivo"] == "obstaculo_frontal"
+    assert maestro.ativo_nome == "repouso", (
+        "a vigilancia tomou o controle - com isso a IA (prio 40) nunca manobra"
+    )
 
     maestro.parar()
     await laco
@@ -596,40 +641,20 @@ async def test_obstaculo_gira_em_vez_de_congelar(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_desvio_nao_usa_acao_manual(monkeypatch):
-    """O giro de fuga NAO pode se passar por joystick.
+async def test_vigilancia_nao_atropela_a_decisao_da_ia():
+    """REGRESSAO do bug medido em producao em 2026-07-30.
 
-    `ControleManual` (prio 95) assina navigation.comando e assume o controle
-    em qualquer `acao: MANUAL`. Se o desvio usasse esse verbo, ao liberar a
-    vigilancia o maestro entregaria o robo a um "operador" que nao existe,
-    por TIMEOUT_INATIVIDADE_MANUAL_S - e a autonomia ficaria presa atras dele.
+    O `NavigationCore` guarda UM comando pendente ("o ultimo vence", sem fila,
+    de proposito - comando de joystick velho executado atrasado e pior que
+    descartado). A vigilancia em prioridade 100 preemptava a IA em 40 e
+    publicava `GIRAR` na mesma vaga, apagando o EXPLORE que a IA tinha acabado
+    de deixar la. Resultado no log: **5444 "IA decidiu" e ZERO
+    "explore: comecando"** - sem uma linha denunciando o atropelo.
+
+    Aqui o teste olha a vaga do jeito que o NavigationCore olha: o ULTIMO
+    comando publicado. Se a vigilancia voltar a comandar, ele deixa de ser o
+    da IA e este teste falha.
     """
-    monkeypatch.setattr(comportamentos, "PAUSA_APOS_GIRO_DESVIO_S", 0.05)
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    manual = ControleManual(bus)
-    maestro.registrar(manual)
-    maestro.registrar(VigilanciaObstaculo(bus))
-    laco = asyncio.create_task(maestro.executar())
-
-    await _rodar_vigilancia(bus, maestro, 0.2)
-
-    assert not manual.quer_rodar(), "o desvio acordou o controle manual"
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-@pytest.mark.asyncio
-async def test_desvio_inverte_o_sentido_quando_o_lado_nao_abre(monkeypatch):
-    """O sentido inicial e arbitrario de proposito (o mapeamento entre angulo
-    do radar e lado fisico nunca foi medido nesta montagem) - o que impede o
-    palpite errado de custar caro e o laco se corrigir sozinho."""
-    monkeypatch.setattr(comportamentos, "PAUSA_APOS_GIRO_DESVIO_S", 0.02)
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     comandos = []
@@ -639,48 +664,71 @@ async def test_desvio_inverte_o_sentido_quando_o_lado_nao_abre(monkeypatch):
     maestro.registrar(VigilanciaObstaculo(bus))
     laco = asyncio.create_task(maestro.executar())
 
-    # tempo para passar de TENTATIVAS_ANTES_DE_INVERTER giros
-    await _rodar_vigilancia(bus, maestro, 0.25)
-
-    sentidos = [c["sentido"] for c in comandos]
-    assert len(set(sentidos)) == 2, f"nunca tentou o outro lado: {sentidos}"
-
-    maestro.parar()
-    await laco
-    bus.parar()
-    await tarefa_bus
-
-
-@pytest.mark.asyncio
-async def test_desvio_para_quando_a_frente_libera(monkeypatch):
-    """Quem decide que liberou e o firmware: o maestro preempta a vigilancia
-    quando motion.status sai de OBSTACLE_DETECTED. Nao ha segunda fonte de
-    verdade sobre isso dentro do comportamento."""
-    monkeypatch.setattr(comportamentos, "PAUSA_APOS_GIRO_DESVIO_S", 0.02)
-    bus = EventBus()
-    tarefa_bus = asyncio.create_task(bus.iniciar())
-    comandos = []
-    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
-    maestro = BehaviorCore(bus)
-    maestro.registrar(Repouso(bus))
-    maestro.registrar(VigilanciaObstaculo(bus))
-    laco = asyncio.create_task(maestro.executar())
-
-    await _rodar_vigilancia(bus, maestro, 0.1)
-    await bus.publish("motion.status", {"estado": "IDLE"})
-    await asyncio.sleep(0.05)
-    await _passo(maestro)
-    quantos_ao_liberar = len(comandos)
-    await asyncio.sleep(0.15)
+    # a IA decidiu explorar e deixou o comando na vaga
+    await bus.publish("navigation.comando", {"acao": "EXPLORE"})
     await bus.aguardar_fila_vazia()
+    # ... e o obstaculo aparece logo depois
+    await _rodar_vigilancia(bus, maestro, 0.2)
 
-    assert maestro.ativo_nome == "repouso"
-    assert len(comandos) == quantos_ao_liberar, "continuou girando com a frente livre"
+    assert comandos[-1]["acao"] == "EXPLORE", (
+        f"a decisao da IA foi sobrescrita antes de executar: {comandos}"
+    )
 
     maestro.parar()
     await laco
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_ia_reconsidera_na_hora_em_vez_de_esperar_o_ciclo():
+    """Sem o laco de giro da vigilancia, a manobra e decisao da IA - e esperar
+    o ciclo normal deixaria o robo encostado no obstaculo ate a proxima
+    consulta. O dono pediu o oposto: *"e nao fica parado"*.
+
+    O intervalo aqui e longo de proposito: se o atalho nao funcionar, o teste
+    estoura no timeout em vez de passar por acidente de temporizacao.
+    """
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comm = _ComunicacaoFalsa(acao="virar_esquerda")
+    ia = IaEstrategica(bus, comm, intervalo_s=300.0)
+    tarefa_ia = ia.iniciar()
+
+    # deixa a primeira consulta (a do boot) acontecer e conta quantas foram
+    await asyncio.sleep(0.1)
+    consultas_iniciais = len(comm.pedidos)
+
+    await bus.publish(
+        comportamentos.TOPICO_RECONSIDERAR,
+        {"origem": "vigilancia_obstaculo", "motivo": "obstaculo_frontal"},
+    )
+    await bus.aguardar_fila_vazia()
+    await asyncio.sleep(0.1)
+
+    assert len(comm.pedidos) > consultas_iniciais, (
+        "pediram decisao imediata e a IA continuou dormindo o ciclo inteiro"
+    )
+
+    ia.parar()
+    tarefa_ia.cancel()
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_vigilancia_nunca_assume_o_controle():
+    """Rede contra a volta silenciosa do problema: se alguem devolver o
+    controle a esta classe, `executar` falha alto em vez de voltar a decidir
+    manobra em dois lugares ao mesmo tempo."""
+    bus = EventBus()
+    vigilancia = VigilanciaObstaculo(bus)
+
+    await bus.publish("motion.status", {"estado": "OBSTACLE_DETECTED"})
+    assert vigilancia.quer_rodar() is False
+
+    with pytest.raises(RuntimeError, match="NAO assume o controle"):
+        await vigilancia.executar()
 
 
 @pytest.mark.asyncio

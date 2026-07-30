@@ -179,6 +179,29 @@ class EstadoDoMundo:
         payload = evento.dados.get("payload") or {}
         self._telemetria.escrever(payload)
 
+        # O ESTADO DO CORPO VEM DA TELEMETRIA TAMBÉM (2026-07-30).
+        #
+        # É a mesma correção que o `NavigationCore._ao_atualizar_telemetria`
+        # recebeu em 29/07, e que este arquivo não recebeu junto. O
+        # `motion.status` (abaixo) só é publicado pelo firmware QUANDO O
+        # ESTADO MUDA - com o Mega parado em OBSTACLE_DETECTED não há
+        # transição nenhuma para anunciar, o campo vence por idade e o retrato
+        # passa a dizer `None`.
+        #
+        # A consequência era visível em produção, uma linha por ciclo no
+        # prompt de quem decide as manobras:
+        #
+        #     - estado do corpo: não sei (sem registro)
+        #
+        # A IA precisava escolher a manobra sem saber se o corpo estava
+        # ocioso, executando uma missão ou travado num obstáculo - e o dado
+        # certo chegava aqui a cada segundo, dentro deste mesmo payload, sem
+        # ninguém ler. A telemetria é o lastro que corrige a deriva; o
+        # `motion.status` continua servindo para reagir na hora da transição.
+        estado = payload.get("estado")
+        if estado:
+            self._estado_hardware.escrever(estado)
+
     async def _ao_receber_estado(self, evento: Evento) -> None:
         estado = evento.dados.get("estado")
         if estado is not None:

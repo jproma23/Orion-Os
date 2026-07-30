@@ -9,7 +9,29 @@ function formatar(valor, sufixo = '') {
   return valor === null || valor === undefined ? '—' : `${valor}${sufixo}`;
 }
 
+// Desenha o botão a partir do que o SERVIDOR diz, nunca do último clique:
+// o modo pode ter mudado em outra aba, ou o Motion Core pode ter reiniciado.
+// Um botão que só sabe do próprio clique mente sobre o estado do robô.
+function renderizarControle(controle) {
+  const alvo = document.getElementById('volante-status');
+  if (!alvo) return;
+  const modo = controle ? controle.modo : null;
+  for (const botao of document.querySelectorAll('.volante-opcao')) {
+    const ativo = botao.dataset.modo === modo;
+    botao.classList.toggle('volante-opcao--ativa', ativo);
+    botao.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+  }
+  if (modo === 'autonomo') {
+    alvo.textContent = 'o volante está com a IA — o joystick não move o robô (PARAR sempre funciona)';
+  } else if (modo === 'manual') {
+    alvo.textContent = 'o volante está com você — a IA continua opinando, mas não executa';
+  } else {
+    alvo.textContent = 'sem Behavior Core nesta instância — não há volante a entregar';
+  }
+}
+
 function renderizarEstado(estado) {
+  renderizarControle(estado.controle);
   $('robot-name').textContent = estado.sistema.robot_name ? `— ${estado.sistema.robot_name}` : '';
   $('sistema-modo').textContent = formatar(estado.sistema.modo);
   $('nav-modo').textContent = formatar(estado.navegacao.modo);
@@ -170,6 +192,7 @@ async function carregarEstadoInicial() {
 // campos do estado agregado que cada topico de evento afeta - usado so
 // pra saber quais atualizar sem reconstruir tudo a cada evento
 const AFETA_ESTADO = new Set([
+  'behavior.modo_controle',
   'system.ready', 'navigation.mode_changed', 'navigation.plan_created',
   'navigation.segment_started', 'navigation.segment_completed',
   'navigation.obstacle_avoided', 'motion.status', 'motion.position',
@@ -345,5 +368,33 @@ if (jsBase && jsPunho) {
   document.getElementById('botao-parar')?.addEventListener('click', () => {
     soltar();
     enviar('STOP');
+  });
+}
+
+// ---------- o botão do volante: AUTÔNOMO | MANUAL ----------
+
+for (const botao of document.querySelectorAll('.volante-opcao')) {
+  botao.addEventListener('click', async () => {
+    const alvo = document.getElementById('volante-status');
+    try {
+      const resposta = await fetch('/controle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo: botao.dataset.modo }),
+      });
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) {
+        alvo.className = 'erro';
+        alvo.textContent = corpo.erro || `recusado (HTTP ${resposta.status})`;
+        return;
+      }
+      // Não pinta o botão por conta própria: re-lê o estado do servidor, que
+      // é a única fonte de verdade sobre quem está no volante.
+      alvo.className = '';
+      await atualizarEstadoAgregado();
+    } catch (e) {
+      alvo.className = 'erro';
+      alvo.textContent = 'sem resposta do robô';
+    }
   });
 }
