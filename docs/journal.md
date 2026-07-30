@@ -4787,3 +4787,130 @@ escopo. Pi em `72cc6ed`, arvore limpa, servicos ativos.
   Ollama, audio por NOME, reconexao serial sem re-varredura, e o conflito
   EDR-0026 (`PAUSED_MANUAL`) vs `ControleManual` prio 95 - este ficou MAIS
   relevante agora que existe modo de controle de verdade no maestro.
+
+## Sessao de 2026-07-30 (noite) - auditoria linha a linha, e a missao da fala
+
+Duas frentes no mesmo dia. A primeira foi pedida assim: *"leia todo o projeto
+para ver se e isso mesmo, veja linha por linha e procure por qualquer erro"*. A
+segunda foi a missao de naturalidade da fala, que chegou com T0 a T6 escritos.
+
+### Parte 1 - a auditoria
+
+**A suite do Pi nao rodava um unico teste.** `pytest -q` terminava em 1,6 s com
+`Interrupted: 2 errors during collection`. Dois arquivos (`test_ouvidos_esp32`,
+`test_transcricao`) faziam `import numpy` sem guarda, e numpy nao existe no venv
+do Pi de proposito - audio e visao rodam no Notebook. Erro na COLETA nao pula o
+arquivo: interrompe a sessao inteira. Dois arquivos levavam junto os outros 60.
+De **0 para 538 testes passando**.
+
+**Pi e Notebook tinham divergido de novo** apos `2052dc4` (Pi +10 commits,
+Notebook +1, o da lixeira). Merge limpo, zero conflitos.
+
+**A arquitetura descrevia um projeto que nao existe mais.** O `ARQUITETURA.txt`
+citava `motion_core/bridge/` - pasta que nunca existiu - e OMITIA
+`motion_core/behavior/`, que e o maestro, o modulo que decide o que o robo faz.
+Dizia "ultimo EDR e o 0019" (existem ate o 0027, e o 0026/0027 mudaram regra de
+arbitragem e de seguranca). E o "Teto atual do projeto" afirmava que nada podia
+ser verde *porque o robo nunca se moveu* - o que venceu em 29/07.
+
+**O log nao dizia a hora.** 10,3 MB, 63 mil linhas, zero horarios. O
+`_FormatadorJSON` tem `timestamp` desde sempre, mas so e instalado quando
+`arquivo_log` e passado, e o Motion Core nao passa - quem grava o arquivo e o
+systemd, redirecionando o stdout, que usava o formato do console. Sem hora nao
+da para medir a duracao de nada.
+
+**A tela `/log` mostrava o log errado** - achado do dono, olhando a propria
+pagina. `CAMINHO_LOG` apontava para `data/logs/orion.log`: 1,7 KB, ultima
+escrita em 23/07, conteudo de 17/07, escrito por um caminho de boot que nao roda
+em producao. Ao lado, `motion_core.log` com 10,3 MB sendo escrito no segundo em
+que se olhou. A pagina de diagnostico do robo mostrava um boot de duas semanas
+atras, e nunca uma linha do que ele estava fazendo. O arquivo existia e era lido
+com sucesso - nao havia erro nenhum, so estava errado.
+
+**Um nucleo dos 4 do Notebook queimava 24 h por dia.** 98,7% de CPU (44,42 s numa
+janela de 45 s) e 2654 MB. `vision.fps: 15` da 66,7 ms de orcamento por quadro;
+o custo real era 567-716 ms. Sobra sempre negativa, `sleep(0)`, o freio nunca
+dormia. O freio existia e estava correto - era anulado por um numero pedido
+acima do que o hardware entrega.
+
+O reconhecimento facial era 78% desse custo (442-716 ms contra 125 ms do YOLO).
+**As duas correcoes obvias foram medidas e reprovadas:** baixar
+upsample/resolucao acha 0 rosto onde a config atual acha 1; e usar o YOLO como
+porteiro perderia rosto em 15 das 34 fotos reais (rosto em close, sem corpo a
+mostra). O que funcionou foi separar os RITMOS - YOLO em todo quadro,
+reconhecimento a cada 3 - **junto com** `fps: 15 -> 2`. Sozinha, a separacao nao
+devolveu CPU nenhuma (99,4% antes e depois): com o orcamento ainda impossivel, o
+laco so passou a processar mais quadros. Resultado: **CPU 98,7% -> 72,8%, RAM
+2654 -> 2065 MB, e 1,8 -> 2,0 quadros/s** (mais leve E mais rapido).
+
+Achados que ficaram abertos: 9 topicos publicados no vazio cujos unicos
+assinantes sao os TESTES (entre eles `database.backup_failed`, ou seja, backup
+falha em silencio); `boot.py` declarando 4 etapas como "nao implementadas" que
+estao todas em producao, e publicando 4 `diagnostic.error` falsos por boot; a
+Sentinela com 37 fotos, 3 delas do proprio dono salvo como "estranho"; e o
+Ollama ainda `enabled` no systemd com 4,1 GB de modelos, apesar de removido tres
+vezes na decisao.
+
+### Parte 2 - a missao da fala
+
+**T0 primeiro, como a missao mandava - e ele desmentiu o diagnostico.**
+`tools/medir_conversa.py`, 20 turnos com entrada de texto fixa (o canal de audio
+fica de fora de proposito: com rms 0,97x o robo responde a transcrito parcial, e
+misturar as duas frentes tornaria qualquer melhora nao atribuivel):
+
+    aberturas distintas ..... 18/20      (T3 pedia >= 15)
+    palavras (media/p90) .... 13,8/25,5  (T2 pedia media <= 15)
+    com saudacao ............ 2/20       (T1 pedia no maximo 1)
+    latencia 1o audio ....... 2,35 s
+    latencia fim da fala .... 6,66 s
+
+T1, T2 e T3 ja estavam praticamente resolvidos pelos commits de 29/07. A missao
+foi escrita sobre um diagnostico anterior a eles. E `SaudacaoEspontanea` - o
+caminho separado, que dispara ao VER a pessoa - ja tem janela anti-repeticao de
+30 min: implementar T1 como escrito criaria um segundo mecanismo de 20 min por
+cima de um de 30 que funciona. Era a camada empilhada que o dono aponta como o
+defeito recorrente do projeto.
+
+Com a medida na mao, o dono redirecionou para o que sobrou de verdade: a
+latencia.
+
+**T5.a - a resposta sai em frases.** `AiManager.responder_em_frases()` consome o
+stream e entrega frase a frase, para a fala comecar antes do fim da geracao.
+Medido pareado, com o prompt real e ordem alternada: **3,33 s -> 1,84 s, -45%**
+(o alvo era 40%).
+
+Tres erros meus no caminho, todos pegos por medicao e nenhum por teste:
+
+1. `asyncio.Queue` nao e thread-safe. A lib da OpenAI e sincrona, o produtor
+   roda em thread, e `put_nowait` de la nao acorda o laco. As tres frases
+   chegavam no mesmo instante, com todo o codigo de streaming no lugar e ganho
+   zero. Nada levantava excecao.
+2. O corte testava `endswith(".")`, e o modelo entrega tokens como ". Se voce" -
+   com texto depois da pontuacao. O acumulado nunca terminava em ponto e a
+   primeira frase so saia no fim do stream.
+3. **Erro de metodo, o que mais importa:** a primeira medicao deste ganho deu
+   60% e estava inflada - comparei os dois caminhos com o prompt CURTO (16
+   linhas), enquanto producao monta 4045 caracteres, e prompt maior atrasa o
+   primeiro token. O numero honesto e 45%.
+
+### Onde errei
+
+- Afirmei que `fps: 8` resolveria a CPU "com uma linha", a partir dos 102 ms que
+  o proprio `orion.yaml` citava para o YOLO. O custo real do quadro era 567 ms,
+  e o YOLO nao era o gargalo - o reconhecimento facial era. So a medicao mostrou.
+- Propus usar o YOLO como porteiro do reconhecimento facial. Se eu tivesse
+  aplicado sem testar, o robo teria deixado de reconhecer gente em 44% dos casos,
+  em silencio. A ideia esta reprovada por medida, e registrada para ninguem
+  refazer o caminho.
+- Gravei LF num arquivo que estava em CRLF, e uma edicao de 8 linhas virou um
+  diff de 1427. Resolvi a causa (`.gitattributes`) em vez de so desfazer.
+- Deixei o shell comer um `sleep(0)` dentro de um heredoc por ssh, corrompendo um
+  comentario recem-escrito. O projeto ja tinha registrado esse mesmo padrao com
+  crases em mensagem de commit.
+
+### Estado pela rubrica
+
+Nada aqui vira verde. Sao mudancas validadas em suite e, no caso da visao,
+medidas em producao com o servico reiniciado - mas o gate de hardware datado por
+modulo nao foi rodado. **Tudo 🟡 no melhor caso.** `responder_em_frases` esta em
+🟠: existe, tem teste e tem medida, mas ainda nao esta ligado no Voice Core.
