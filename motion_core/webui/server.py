@@ -157,6 +157,38 @@ MAXIMO_EVENTOS_RECENTES = 30
 
 _INTERVALO_PING_S = 15.0
 
+#: Arquivos que o navegador tem que REVALIDAR a cada carga (2026-07-30).
+_EXTENSOES_SEM_CACHE = (".css", ".js", ".html")
+
+
+@web.middleware
+async def _revalidar_estaticos(request: web.Request, handler):
+    """Manda `Cache-Control: no-cache` para o front do dashboard.
+
+    POR QUE EXISTE. O `add_static` da aiohttp responde com `ETag` e
+    `Last-Modified`, mas SEM `Cache-Control` - e sem essa diretiva o navegador
+    decide por heuristica propria, servindo do cache sem nem perguntar ao
+    servidor. Isso custou tempo de bancada real: o CSS novo do seletor de
+    controle estava no ar (confirmado por `curl`) e o dono continuava vendo a
+    tela antiga, perguntando *"cadê a cor quando selecionado"*. Diagnosticar
+    interface pelo que o servidor tem, enquanto o navegador mostra outra coisa,
+    e o mesmo tipo de mentira que este projeto passou o dia removendo dos dados.
+
+    `no-cache` NAO e "nao guarde": e "guarde, mas revalide antes de usar". Com
+    o ETag que a aiohttp ja envia, a revalidacao custa um 304 vazio - o arquivo
+    so viaja de novo quando muda de verdade. Numa bancada em que o front muda
+    varias vezes por sessao, esse e o trade certo.
+
+    Nao pega o `/eventos` (SSE): a resposta dele e um StreamResponse ja enviado,
+    e mexer no header depois do prepare() levantaria erro - por isso o filtro e
+    por extensao, e nao um header global.
+    """
+    resposta = await handler(request)
+    caminho = request.path.lower()
+    if caminho == "/" or caminho.endswith(_EXTENSOES_SEM_CACHE):
+        resposta.headers["Cache-Control"] = "no-cache"
+    return resposta
+
 
 class WebUIServer:
     def __init__(
@@ -223,7 +255,7 @@ class WebUIServer:
         #: reiniciar o Motion Core desloga todo mundo, o que e desejavel)
         self._sessoes: set[str] = set()
 
-        self._app = web.Application()
+        self._app = web.Application(middlewares=[_revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_post("/comando", self._handler_comando)
