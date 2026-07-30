@@ -70,3 +70,90 @@ async def test_topico_nao_repassado_e_ignorado():
     bus = EventBus()
     AvatarServer(bus, config_frontend=CONFIG_FRONTEND)
     assert "vision.person_detected" not in bus._assinantes
+
+
+# ----- instrumentacao da queda (2026-07-29) -----
+#
+# O dono relatou "a janela do kiosk mostra desconectado quando ele termina de
+# falar". Nao foi possivel diagnosticar porque o servidor engolia o motivo em
+# silencio. Estes testes guardam as duas coisas que a instrumentacao trouxe.
+
+
+class _ClienteQuebrado:
+    """Finge um cliente cuja escrita falha, do jeito que um socket morto falha."""
+
+    def __init__(self, erro: BaseException) -> None:
+        self._erro = erro
+        self.tentativas = 0
+
+    async def write(self, dados: bytes) -> None:
+        self.tentativas += 1
+        raise self._erro
+
+
+@pytest.mark.asyncio
+async def test_cliente_quebrado_e_descartado_e_registrado(cliente, caplog):
+    _, bus = cliente
+    servidor = AvatarServer(bus, config_frontend=CONFIG_FRONTEND)
+    ruim = _ClienteQuebrado(ConnectionResetError("socket morto"))
+    servidor._clientes.add(ruim)
+
+    with caplog.at_level("INFO", logger="orion.display.avatar_server"):
+        await bus.publish("voice.status", {"estado": "SPEAKING"})
+        await bus.aguardar_fila_vazia()
+
+    assert ruim not in servidor._clientes, "cliente morto tem que sair da lista"
+    registrado = [r.getMessage() for r in caplog.records]
+    assert any("voice.status" in m and "ConnectionResetError" in m for m in registrado), (
+        f"a queda tem que aparecer no log, com o tipo da excecao. Log: {registrado}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_um_cliente_ruim_nao_cala_os_outros(cliente):
+    """O ganho real da clausula ampla: antes, uma excecao de tipo imprevisto
+    subia para fora do handler do Event Bus e o evento nao chegava aos DEMAIS
+    clientes. Um navegador com problema silenciava o avatar inteiro."""
+    _, bus = cliente
+    servidor = AvatarServer(bus, config_frontend=CONFIG_FRONTEND)
+
+    recebidos: list[bytes] = []
+
+    class _ClienteBom:
+        async def write(self, dados: bytes) -> None:
+            recebidos.append(dados)
+
+    # ValueError NAO esta na dupla (ConnectionResetError, RuntimeError):
+    # e exatamente o caso que antes escapava sem log e sem entrega.
+    ruim = _ClienteQuebrado(ValueError("tipo imprevisto"))
+    bom = _ClienteBom()
+    servidor._clientes.add(ruim)
+    servidor._clientes.add(bom)
+
+    await bus.publish("voice.status", {"estado": "IDLE"})
+    await bus.aguardar_fila_vazia()
+
+    assert len(recebidos) == 1, "o cliente bom tem que receber mesmo com outro quebrado"
+    assert ruim not in servidor._clientes
+    assert bom in servidor._clientes
+
+
+@pytest.mark.asyncio
+async def test_conta_eventos_enviados(cliente):
+    """O contador entra no log da desconexao: 'caiu depois de 42s e 137
+    eventos' distingue 'nunca funcionou' de 'funcionou e parou'."""
+    _, bus = cliente
+    servidor = AvatarServer(bus, config_frontend=CONFIG_FRONTEND)
+
+    class _ClienteBom:
+        async def write(self, dados: bytes) -> None:
+            pass
+
+    servidor._clientes.add(_ClienteBom())
+    assert servidor._eventos_enviados == 0
+
+    await bus.publish("voice.status", {"estado": "IDLE"})
+    await bus.publish("voice.status", {"estado": "LISTENING"})
+    await bus.aguardar_fila_vazia()
+
+    assert servidor._eventos_enviados == 2

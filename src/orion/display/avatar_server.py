@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 
 from aiohttp import web
@@ -53,6 +54,11 @@ class AvatarServer:
         self._port = port
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
+        #: Contadores de diagnostico. Existem para responder "o avatar cai
+        #: sozinho ou o navegador desiste?" olhando o log, sem precisar
+        #: reproduzir na frente da camera.
+        self._conectados_total = 0
+        self._eventos_enviados = 0
 
         self._app = web.Application()
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -83,14 +89,48 @@ class AvatarServer:
         )
         await resposta.prepare(request)
         self._clientes.add(resposta)
+        # Instrumentacao (2026-07-29). O dono relatou que a janela do kiosk
+        # mostra "sem conexao" quando o Fofao termina de falar. Nao foi possivel
+        # diagnosticar porque ESTE handler engolia o motivo: `except
+        # (ConnectionResetError, CancelledError): pass`, sem uma linha de log.
+        # De fora, "o navegador fechou a aba" e "a escrita falhou no meio de um
+        # evento" eram indistinguiveis - e e a diferenca entre nao ter bug e
+        # ter um.
+        #
+        # Mesma cegueira que ja custou tempo neste projeto (um `logger.debug`
+        # escondeu a falha do SET_PAN_TILT). Aqui a saida NUNCA e silenciosa.
+        self._conectados_total += 1
+        inicio = time.monotonic()
+        motivo = "cliente fechou"
+        logger.info("avatar conectou (clientes agora: %d)", len(self._clientes))
         try:
             while True:
                 await asyncio.sleep(_INTERVALO_PING_S)
                 await resposta.write(b": ping\n\n")  # mantem a conexao viva
-        except (ConnectionResetError, asyncio.CancelledError):
-            pass
+        except ConnectionResetError as erro:
+            motivo = f"conexao resetada no ping ({erro})"
+        except asyncio.CancelledError:
+            # aiohttp cancela o handler quando o cliente vai embora - e o
+            # caminho NORMAL de saida, nao um erro. Continua sendo engolido
+            # (relancar derrubaria o desligamento do servidor), mas agora
+            # aparece no log com quanto tempo durou.
+            motivo = "handler cancelado (cliente saiu ou servidor parando)"
+        except Exception as erro:  # noqa: BLE001
+            # O caso que interessa: qualquer coisa que NAO estava previsto.
+            # Antes, isto subia para o aiohttp, fechava a conexao e nao deixava
+            # rastro nenhum.
+            motivo = f"INESPERADO {type(erro).__name__}: {erro}"
+            logger.warning("avatar caiu por excecao inesperada no ping", exc_info=True)
         finally:
             self._clientes.discard(resposta)
+            logger.info(
+                "avatar desconectou depois de %.1fs e %d eventos - %s "
+                "(clientes restantes: %d)",
+                time.monotonic() - inicio,
+                self._eventos_enviados,
+                motivo,
+                len(self._clientes),
+            )
         return resposta
 
     def _fazer_repassador(self, topico: str):
@@ -102,8 +142,23 @@ class AvatarServer:
             for cliente in list(self._clientes):
                 try:
                     await cliente.write(linha)
-                except (ConnectionResetError, RuntimeError):
+                    self._eventos_enviados += 1
+                except (ConnectionResetError, RuntimeError) as erro:
                     self._clientes.discard(cliente)
+                    logger.info(
+                        "avatar descartado ao enviar '%s': %s: %s",
+                        topico, type(erro).__name__, erro,
+                    )
+                except Exception:  # noqa: BLE001
+                    # Sem esta clausula, um tipo de excecao fora da dupla acima
+                    # subia para FORA do handler do Event Bus - e derrubava a
+                    # entrega deste evento para os DEMAIS clientes, alem de nao
+                    # deixar rastro. Um cliente ruim nao pode calar o avatar.
+                    self._clientes.discard(cliente)
+                    logger.warning(
+                        "avatar descartado por excecao inesperada ao enviar '%s'",
+                        topico, exc_info=True,
+                    )
 
         return _repassar
 
