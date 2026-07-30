@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from motion_core.behavior import comportamentos
+from motion_core.behavior import behavior_core, comportamentos
 from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
 from motion_core.behavior.comportamentos import (
     TIMEOUT_INATIVIDADE_MANUAL_S,
@@ -892,6 +892,49 @@ async def test_acao_nao_delegada_continua_segurando_o_controle():
 
     assert ia.quer_rodar()
     assert maestro.ativo_nome == "ia_estrategica"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_volante_volta_para_auto_depois_de_ocioso(monkeypatch):
+    """*"quando passar mais de 3 minutos ocioso passar para auto"* (dono, 30/07).
+
+    Sem isto, um clique em "manual" deixava o Fofao parado para sempre esperando
+    alguem lembrar de devolver o controle - e foi o que aconteceu na bancada: o
+    dono achou que o rele tinha queimado, quando o robo so estava em manual sem
+    ninguem no joystick.
+
+    O tempo e encurtado aqui porque o teste mede a REGRA, nao os 180 s.
+    """
+    monkeypatch.setattr(behavior_core, "SEGUNDOS_OCIOSO_ATE_AUTO", 0.15)
+    # O ControleManual segura `quer_rodar()` por TIMEOUT_INATIVIDADE_MANUAL_S
+    # (1,5 s em producao) a cada comando, e enquanto ele quer rodar a atividade
+    # e renovada - encurtar os dois e o que deixa o teste medir a regra em vez
+    # de esperar 3 minutos de relogio.
+    monkeypatch.setattr(comportamentos, "TIMEOUT_INATIVIDADE_MANUAL_S", 0.05)
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(ControleManual(bus))
+    laco = asyncio.create_task(maestro.executar())
+
+    await maestro.definir_modo_controle(MODO_MANUAL)
+    assert maestro.modo_controle == MODO_MANUAL
+
+    # operador dirigindo: enquanto chega comando, o volante FICA com ele
+    for _ in range(3):
+        await bus.publish("navigation.comando", {"acao": "MANUAL", "comando": "MOVE_CONTINUOUS"})
+        await asyncio.sleep(0.02)
+    assert maestro.modo_controle == MODO_MANUAL, "o volante fugiu da mao do operador"
+
+    # ... e parou de mexer
+    await asyncio.sleep(0.5)
+    assert maestro.modo_controle == "autonomo", "ficou preso em manual apos a ociosidade"
 
     maestro.parar()
     await laco

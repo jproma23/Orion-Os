@@ -30,6 +30,21 @@ MODO_MANUAL = "manual"
 
 MODOS_DE_CONTROLE = (MODO_AUTONOMO, MODO_MANUAL)
 
+#: Quanto tempo o operador pode ficar sem tocar em nada antes de o volante
+#: voltar sozinho para o robô (2026-07-30).
+#:
+#: Pedido do dono: *"quando passar mais de 3 minutos ocioso passar para auto"*,
+#: coerente com *"prefiro ele autonomo sempre"*. Sem isto, um único clique em
+#: "manual" deixava o Fofão parado para sempre, esperando alguém lembrar de
+#: devolver o controle - e foi exatamente o que aconteceu na bancada hoje.
+#:
+#: O manual é a INTERVENÇÃO, não o estado de repouso do robô: o estado de
+#: repouso é ele cuidando da casa. Então o esquecimento não pode custar a
+#: autonomia. Três minutos é longo o bastante para o operador pensar entre duas
+#: manobras sem o robô "fugir" da mão dele (o joystick solta o controle em
+#: 1,5 s, mas ISTO conta ociosidade real, não pausa entre dois empurrões).
+SEGUNDOS_OCIOSO_ATE_AUTO = 180.0
+
 #: Que autoridade tem a mão em cada modo. A segurança reativa, a voz e o
 #: gesto são `AUTORIDADE_SEMPRE` e portanto valem nos dois - trocar de modo
 #: nunca desliga nada disso.
@@ -71,6 +86,9 @@ class BehaviorCore:
         #: segunda cópia na interface criaria duas fontes de verdade sobre o
         #: mesmo fato, que é a família de bug que mais se repete neste projeto.
         self._modo_controle = MODO_AUTONOMO
+        #: Último instante em que alguém com autoridade manual quis o controle.
+        #: Base da volta automática para autônomo - ver `_checar_ocioso`.
+        self._ultima_atividade_manual = 0.0
 
         # --- conselho de IA (opcional) ---
         # A IA só entra na AMBIGUIDADE: quando ninguém com gatilho concreto
@@ -141,11 +159,39 @@ class BehaviorCore:
             return
         anterior = self._modo_controle
         self._modo_controle = modo
+        # Entrar em manual zera o cronômetro de ociosidade: os 3 minutos contam
+        # da entrega do volante, não de um comando que ainda não veio.
+        self._ultima_atividade_manual = time.monotonic()
         logger.info("maestro: volante entregue ao modo '%s' (era '%s')", modo, anterior)
         await self._event_bus.publish(
             "behavior.modo_controle", {"modo": modo, "anterior": anterior}
         )
         self.pedir_reavaliacao()
+
+    async def _checar_ocioso(self) -> None:
+        """Devolve o volante ao robô depois de `SEGUNDOS_OCIOSO_ATE_AUTO` sem uso.
+
+        Não assina evento novo nem consulta um comportamento pelo nome: usa o
+        `quer_rodar()` de quem TEM autoridade manual, que já é exatamente "houve
+        comando do operador há pouco" (o `ControleManual` o mantém True por
+        1,5 s a cada toque no joystick). Ociosidade aqui é o operador parado de
+        verdade, não a pausa entre dois empurrões.
+        """
+        if self._modo_controle != MODO_MANUAL:
+            return
+        agora = time.monotonic()
+        if any(
+            c.autoridade == AUTORIDADE_MANUAL and c.quer_rodar() for c in self._comportamentos
+        ):
+            self._ultima_atividade_manual = agora
+            return
+        if agora - self._ultima_atividade_manual < SEGUNDOS_OCIOSO_ATE_AUTO:
+            return
+        logger.info(
+            "maestro: %.0f s sem comando manual - devolvendo o volante ao modo automatico",
+            SEGUNDOS_OCIOSO_ATE_AUTO,
+        )
+        await self.definir_modo_controle(MODO_AUTONOMO)
 
     def _escolher(self) -> Comportamento | None:
         # lista já ordenada por prioridade decrescente: o primeiro que quer
@@ -250,6 +296,9 @@ class BehaviorCore:
             if self._tarefa_ativa is not None and self._tarefa_ativa.done():
                 self._ativo = None
                 self._tarefa_ativa = None
+
+            # Antes de escolher: o volante ainda deve estar com quem está?
+            await self._checar_ocioso()
 
             escolhido = self._escolher()
 

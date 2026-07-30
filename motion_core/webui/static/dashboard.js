@@ -5,8 +5,20 @@ const $ = (id) => document.getElementById(id);
 const conexaoEl = $('conexao');
 const listaEventos = $('lista-eventos');
 
-function formatar(valor, sufixo = '') {
-  return valor === null || valor === undefined ? '—' : `${valor}${sufixo}`;
+// CASAS DECIMAIS QUE O SENSOR REALMENTE TEM (2026-07-30).
+//
+// A tela mostrava `4.872143°` de inclinação e `199.8621 cm` de distância - seis
+// casas decimais que vêm da conta em float, não do sensor. Duas mentiras num
+// número só: sugere precisão de micrômetro, e faz o ruído de fundo aparecer como
+// se o valor estivesse MUDANDO a cada leitura, com o robô imóvel. Foi o que o
+// dono viu no MPU.
+//
+// Uma casa decimal: o MPU6050 e o HC-SR04 não entregam melhor que isso, e um
+// número estável na tela é o que permite notar quando ele muda de verdade.
+function formatar(valor, sufixo = '', casas = 1) {
+  if (valor === null || valor === undefined) return '—';
+  const texto = typeof valor === 'number' ? valor.toFixed(casas) : valor;
+  return `${texto}${sufixo}`;
 }
 
 // Desenha o botão a partir do que o SERVIDOR diz, nunca do último clique:
@@ -90,7 +102,9 @@ function renderizarEstado(estado) {
   $('tel-temp').textContent = formatar(estado.hardware.temperatura_c, ' °C');
   $('tel-umidade').textContent = formatar(estado.hardware.umidade_percent, ' %');
   $('tel-inclinacao').textContent = formatar(estado.hardware.inclinacao_graus, '°');
-  $('tel-aceleracao').textContent = formatar(estado.hardware.aceleracao_g, ' G');
+  // aceleração é a exceção: perto de 1 G, a segunda casa é o que distingue
+  // repouso de solavanco leve.
+  $('tel-aceleracao').textContent = formatar(estado.hardware.aceleracao_g, ' G', 2);
   const imp = estado.hardware.impacto_detectado;
   $('tel-impacto').textContent = imp === null ? '—' : (imp ? 'IMPACTO!' : 'ok');
 
@@ -176,9 +190,22 @@ function atualizarBussola(hardware) {
     return;
   }
 
+  // A AGULHA SÓ GIRA COM RUMO VÁLIDO (2026-07-30).
+  //
+  // Antes ela girava sempre, e o aviso "não calibrada" ficava do lado. Só que
+  // uma agulha que se mexe é uma afirmação sobre para onde o robô está virado -
+  // e com o robô PARADO na bancada ela oscilava 6°, porque carrega o offset dos
+  // ímãs dos motores. O dono viu e chamou pelo nome: *"orientaçao da bussola e
+  // angulo mudnado mentidno tb"*. Está certo: texto de ressalva não desfaz o que
+  // o desenho afirma, e quem olha de longe vê a agulha, não o aviso.
+  //
+  // Com rumo inválido a agulha fica PARADA no zero e apagada pela classe
+  // `crua` - um desenho que não diz nada, que é exatamente o que se sabe.
   const rumo = hardware.rumo_graus;
-  if (rumo !== undefined && rumo !== null) {
+  if (hardware.rumo_valido && rumo !== undefined && rumo !== null) {
     agulha.setAttribute('transform', `rotate(${rotacaoContinua(rumo).toFixed(1)})`);
+  } else {
+    agulha.setAttribute('transform', 'rotate(0)');
   }
 
   if (hardware.bussola_calibrando) {

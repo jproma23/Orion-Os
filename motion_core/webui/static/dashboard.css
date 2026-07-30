@@ -292,6 +292,10 @@ dd {
    eram dois blocoes com legenda ocupando um painel proprio: peso demais para
    uma escolha de duas palavras, e o dono cortou. */
 
+/* Mesma linguagem visual do PARAR logo acima (pedido do dono: *"cor no botao
+   igaui o parar"*): mesmo raio de canto, mesma altura de toque, mesmo peso de
+   fonte. A pilula arredondada de 999px destoava do bloco solido do PARAR e
+   parecia um controle de outra familia. */
 .volante {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -300,18 +304,19 @@ dd {
   padding: 3px;
   background: var(--bg);
   border: 1px solid var(--borda);
-  border-radius: 999px;
+  border-radius: 8px;
 }
 
 .volante-opcao {
   background: transparent;
   color: var(--texto-fraco);
   border: 0;
-  border-radius: 999px;
-  padding: 7px 10px;
+  border-radius: 6px;
+  /* padding e peso iguais aos do .botao-parar - o seletor e irmao dele */
+  padding: 11px;
   font: inherit;
-  font-size: 12px;
-  letter-spacing: .06em;
+  font-weight: 700;
+  letter-spacing: .08em;
   cursor: pointer;
   /* Rotulo NUNCA quebra no meio. Foi o que aconteceu com "automatico" na
      coluna de metade da pilula - saia partido, e o dono cortou para "auto".

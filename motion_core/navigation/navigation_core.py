@@ -59,6 +59,32 @@ PAUSA_APOS_SCAN_S = 0.3
 #: varre 0-180; graus 90 = centro/frente do robo)
 ANGULOS_FRONTAIS = (60, 90, 120)
 
+#: Quanto o robo anda entre duas varreduras, ao explorar.
+#:
+#: Fica CURTO de proposito, e nao deve crescer: e a distancia que o robo percorre
+#: as cegas entre duas medidas da frente. Andar mais por passo nao e "explorar
+#: mais", e olhar menos.
+DISTANCIA_SEGMENTO_EXPLORE_CM = 30.0
+
+#: Quantos passos o robo da por DECISAO de explorar (2026-07-30).
+#:
+#: Ate hoje era 1, e o dono viu o resultado na bancada: *"vi o rele acionar,
+#: indica q o robo resolveu andar porem pouco"*. O numero explica o sintoma - a
+#: IA decide a cada `intervalo_s: 30` do orion.yaml e cada decisao rendia UM
+#: segmento de 30 cm, ou seja **1 cm/s de media**. Para atravessar uma sala de 4
+#: metros o robo precisaria de mais de 6 minutos, decidindo 13 vezes.
+#:
+#: O ganho vem de andar um TRECHO por decisao, nao de andar mais por passo: cada
+#: passo continua sendo precedido de varredura, e o primeiro sinal de obstaculo
+#: encerra o trecho na hora. A malha fechada e a mesma; o que muda e nao ficar
+#: 30 s parado esperando a proxima consulta para dar o passo seguinte.
+#:
+#: 4 x 30 cm = 1,2 m por decisao. Teto conservador de propósito enquanto o
+#: deslocamento real nao e medido (nao ha encoder de roda - ver
+#: `fusao_sensores.py`): sem odometria confiavel, quem sabe onde o robo esta e o
+#: radar a cada 30 cm, e nao a conta de passos.
+SEGMENTOS_POR_EXPLORE = 4
+
 #: comandos manuais que o modo MANUAL repassa direto ao Hardware Core
 #: (Cap 10 s.5) - qualquer outro nome e rejeitado com navigation.error.
 #: MOVE_CONTINUOUS, MOVE_DISTANCE, FAN_ON e FAN_OFF entraram em 2026-07-27
@@ -839,19 +865,38 @@ class NavigationCore:
         # era mudo. Estas quatro linhas trocam a especulacao por leitura.
         logger.info("explore: comecando - vou escanear a frente")
         await self._mudar_modo(ModoNavegacao.EXPLORE)
-        leituras = await self._escanear_a_frente()
+
+        for passo in range(1, SEGMENTOS_POR_EXPLORE + 1):
+            leituras = await self._escanear_a_frente()
+            logger.info(
+                "explore: passo %d/%d - varredura devolveu %d leitura(s); "
+                "frente_desconhecida=%s distancia_frontal=%s",
+                passo,
+                SEGMENTOS_POR_EXPLORE,
+                len(leituras),
+                self.frente_desconhecida(),
+                self._distancia_frontal_atual_cm,
+            )
+            if self._obstaculo_na_varredura(leituras) or self._obstaculo_a_frente():
+                logger.info("explore: obstaculo a frente - encerrando o trecho no passo %d", passo)
+                await self._publicar_obstaculo(contexto="explore")
+                return
+            concluido = await self._executar_segmento(
+                graus=0.0, distancia_cm=DISTANCIA_SEGMENTO_EXPLORE_CM, velocidade_percent=None
+            )
+            logger.info(
+                "explore: passo %d/%d - segmento de %.0f cm %s",
+                passo,
+                SEGMENTOS_POR_EXPLORE,
+                DISTANCIA_SEGMENTO_EXPLORE_CM,
+                "concluido" if concluido else "ABORTADO",
+            )
+            if not concluido:
+                # Segmento abortado ja significa que algo mandou parar - seguir
+                # para o passo seguinte seria insistir contra quem interrompeu.
+                return
+
         logger.info(
-            "explore: varredura devolveu %d leitura(s); frente_desconhecida=%s "
-            "distancia_frontal=%s",
-            len(leituras),
-            self.frente_desconhecida(),
-            self._distancia_frontal_atual_cm,
+            "explore: trecho de ate %.0f cm concluido - devolvendo a decisao a IA",
+            SEGMENTOS_POR_EXPLORE * DISTANCIA_SEGMENTO_EXPLORE_CM,
         )
-        if self._obstaculo_na_varredura(leituras) or self._obstaculo_a_frente():
-            logger.info("explore: obstaculo a frente - nao avanco neste ciclo")
-            await self._publicar_obstaculo(contexto="explore")
-            return
-        concluido = await self._executar_segmento(
-            graus=0.0, distancia_cm=30.0, velocidade_percent=None
-        )
-        logger.info("explore: segmento de 30 cm %s", "concluido" if concluido else "ABORTADO")
