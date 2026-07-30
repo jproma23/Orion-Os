@@ -646,7 +646,18 @@ class NavigationCore:
             "navigation.segment_started", {"graus": graus, "distancia_cm": distancia_cm}
         )
 
+        # `_aguardar_ocioso` ja queimou o timeout inteiro de 10s em producao
+        # antes (86 vezes num log so, pelo impasse do bus corrigido em 28/07).
+        # Medir aqui o que ele custou impede que isso volte sem ninguem ver.
+        _inicio_espera = time.monotonic()
         await self._aguardar_ocioso()  # segmento anterior (ou giro) pode ainda estar em execucao
+        _espera_s = time.monotonic() - _inicio_espera
+        if _espera_s > 1.0:
+            logger.warning(
+                "segmento: esperei %.1fs o Mega ficar ocioso (estado=%s)",
+                _espera_s,
+                self._estado_hardware,
+            )
 
         if graus:
             comando_giro = "TURN_RIGHT" if graus > 0 else "TURN_LEFT"
@@ -673,6 +684,9 @@ class NavigationCore:
         if not confirmado_pela_varredura and not await self._pode_avancar("segmento"):
             return False
 
+        logger.info(
+            "segmento: mandando MOVE_DISTANCE %.0f cm a %s%%", distancia_cm, velocidade
+        )
         await self._comm.send(
             DESTINO_HARDWARE,
             {"comando": "MOVE_DISTANCE", "distancia_cm": distancia_cm, "velocidade_percent": velocidade},
@@ -793,9 +807,30 @@ class NavigationCore:
         curto se estiver livre. Nao ainda um algoritmo real de exploracao de
         area (mapeamento incremental) - isso fica para o SLAM previsto no
         Cap 12 s.12 (ORION OS 2.0+) ou uma iteracao futura desta fase."""
+        # INSTRUMENTADO EM 2026-07-30. Medido em producao no mesmo dia: a IA
+        # escolheu `explorar` 15 vezes e o robo nao saiu do lugar (a telemetria
+        # dizia `em_movimento: False` o tempo todo, confirmado de fora pelo
+        # instinto da bussola, que so mede parado). Nao foi possivel dizer ONDE
+        # o comando morria, porque o caminho inteiro daqui ate o MOVE_DISTANCE
+        # nao emitia UMA linha - so falha era registrada, e nao houve falha.
+        #
+        # "Sem erro no log" nao e a mesma coisa que "executou": o caminho feliz
+        # era mudo. Estas quatro linhas trocam a especulacao por leitura.
+        logger.info("explore: comecando - vou escanear a frente")
         await self._mudar_modo(ModoNavegacao.EXPLORE)
         leituras = await self._escanear_a_frente()
+        logger.info(
+            "explore: varredura devolveu %d leitura(s); frente_desconhecida=%s "
+            "distancia_frontal=%s",
+            len(leituras),
+            self.frente_desconhecida(),
+            self._distancia_frontal_atual_cm,
+        )
         if self._obstaculo_na_varredura(leituras) or self._obstaculo_a_frente():
+            logger.info("explore: obstaculo a frente - nao avanco neste ciclo")
             await self._publicar_obstaculo(contexto="explore")
             return
-        await self._executar_segmento(graus=0.0, distancia_cm=30.0, velocidade_percent=None)
+        concluido = await self._executar_segmento(
+            graus=0.0, distancia_cm=30.0, velocidade_percent=None
+        )
+        logger.info("explore: segmento de 30 cm %s", "concluido" if concluido else "ABORTADO")

@@ -344,7 +344,7 @@ async def principal() -> None:
                 observacoes = await diario_leitura.observacoes_de_hoje()
             except Exception:
                 logger.warning("falha ao ler o diario para o contexto da IA", exc_info=True)
-        return montar_contexto(
+        contexto = montar_contexto(
             retrato={
                 "obstaculo_frente_cm": r.obstaculo_frente_cm,
                 # `obstaculo_tras_cm` faltava aqui: o grounding pedia
@@ -364,6 +364,8 @@ async def principal() -> None:
                 # trava teria sido tirada sem nada no lugar.
                 "risco_frontal_assumido": r.risco_frontal_assumido,
             },
+            # (o log do que a IA de fato recebe sai logo abaixo, ver
+            # `logger.info("contexto da IA...")` no fim desta funcao)
             # O limiar de verdade, lido da config - sem ele o texto usaria o
             # default do modulo e poderia divergir do que o robo de fato faz.
             limiar_obstaculo_cm=config_motion["min_front_distance_cm"],
@@ -374,6 +376,19 @@ async def principal() -> None:
             # e nao vi nada", que e diferente de nao ter olhado.
             observacoes=observacoes,
         )
+        # O QUE A IA DE FATO RECEBE (2026-07-30).
+        #
+        # Ate agora dava para ler a DECISAO dela ("IA decidiu 'explorar'") e o
+        # MOTIVO que ela mesma escreve - mas nunca os FATOS que ela recebeu. E
+        # o motivo e redacao dela, nao evidencia: ele diz o que ela acredita,
+        # nao o que lhe foi dito.
+        #
+        # Sem esta linha, perguntas como "sera que a inclinacao esta alta e ela
+        # esta com medo de andar?" nao tem resposta possivel - viram opiniao.
+        # Uma linha por ciclo (30s), com as quebras trocadas por " | " para
+        # caber num registro so e dar para acompanhar com `grep`.
+        logger.info("contexto da IA: %s", contexto.replace("\n", " | "))
+        return contexto
 
     # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde
     # a IA roda). Evento nao atravessa o link sozinho - alguem tem que
