@@ -30,6 +30,39 @@ function renderizarControle(controle) {
   }
 }
 
+// SÓ MOSTRA DESLOCAMENTO QUE FOI MEDIDO (2026-07-30).
+//
+// Esta tela chegou a afirmar 85 cm de deslocamento e 80° de giro com os motores
+// FISICAMENTE DESCONECTADOS dos drivers. A pose vem de `passos_esquerda`, que
+// conta os pulsos que o firmware ENVIA ao TB6600 - comando, não medição. Com as
+// rodas suspensas, o relé aberto ou sem motor, o número cresce igual.
+//
+// Pedido do dono: *"devemos usar dados reais captados pelo sensor para altera a
+// webui"*. Então, sem encoder de roda, a tela não preenche número nenhum aqui -
+// ela diz que não sabe. Um "—" honesto vale mais que um metro inventado, porque
+// é a partir daqui que se decide se o robô andou.
+function renderizarPosicao(posicao) {
+  const aviso = document.getElementById('pos-aviso');
+  const campos = ['pos-x', 'pos-y', 'pos-orientacao', 'pos-velocidade'];
+  if (!posicao || posicao.medida !== true) {
+    for (const id of campos) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    }
+    if (aviso) {
+      aviso.textContent = posicao
+        ? 'sem encoder de roda: o deslocamento não é medido, só comandado — nada a mostrar'
+        : 'sem leitura de posição ainda';
+    }
+    return;
+  }
+  if (aviso) aviso.textContent = '';
+  $('pos-x').textContent = formatar(posicao.x_m, ' m');
+  $('pos-y').textContent = formatar(posicao.y_m, ' m');
+  $('pos-orientacao').textContent = formatar(posicao.orientacao_graus, '°');
+  $('pos-velocidade').textContent = formatar(posicao.velocidade_m_s, ' m/s');
+}
+
 function renderizarEstado(estado) {
   renderizarControle(estado.controle);
   $('robot-name').textContent = estado.sistema.robot_name ? `— ${estado.sistema.robot_name}` : '';
@@ -60,12 +93,7 @@ function renderizarEstado(estado) {
 
   atualizarBussola(estado.hardware);
 
-  if (estado.posicao) {
-    $('pos-x').textContent = formatar(estado.posicao.x_m, ' m');
-    $('pos-y').textContent = formatar(estado.posicao.y_m, ' m');
-    $('pos-orientacao').textContent = formatar(estado.posicao.orientacao_graus, '°');
-    $('pos-velocidade').textContent = formatar(estado.posicao.velocidade_m_s, ' m/s');
-  }
+  renderizarPosicao(estado.posicao);
 
   $('missao-ultimo').textContent = estado.navegacao.ultimo_plano
     ? estado.navegacao.ultimo_plano.evento

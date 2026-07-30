@@ -234,11 +234,22 @@ function redesenhar() {
   }
 }
 
+// Mesma regra do dashboard (2026-07-30): sem encoder de roda, o deslocamento é
+// COMANDADO e não medido - a página não mostra número. Aqui pesa ainda mais que
+// no dashboard: esta é a tela do mapa, onde um X/Y falso vira uma casa
+// desenhada errada. Ver o comentário em fusao_sensores.py.
 function renderizarPosicao(posicao) {
   if (!posicao) return;
-  $('pos-x').textContent = `${posicao.x_m} m`;
-  $('pos-y').textContent = `${posicao.y_m} m`;
-  $('pos-orientacao').textContent = `${posicao.orientacao_graus}°`;
+  const medida = posicao.medida === true;
+  const aviso = document.getElementById('pos-aviso');
+  $('pos-x').textContent = medida ? `${posicao.x_m} m` : '—';
+  $('pos-y').textContent = medida ? `${posicao.y_m} m` : '—';
+  $('pos-orientacao').textContent = medida ? `${posicao.orientacao_graus}°` : '—';
+  if (aviso) {
+    aviso.textContent = medida
+      ? ''
+      : 'sem encoder de roda: deslocamento não medido, só comandado';
+  }
 }
 
 function fmtCm(v, semEco) {

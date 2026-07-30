@@ -114,13 +114,17 @@
   </section>
 
   <section class="painel">
-    <h2>Posição estimada</h2>
+    <!-- "Deslocamento medido", não "posição estimada": o título antigo soava
+         como um valor com alguma margem de erro, quando na verdade o número não
+         era medido de forma nenhuma - vinha dos pulsos ENVIADOS ao driver. -->
+    <h2>Deslocamento medido</h2>
     <dl>
       <dt>X</dt><dd id="pos-x">—</dd>
       <dt>Y</dt><dd id="pos-y">—</dd>
       <dt>Orientação</dt><dd id="pos-orientacao">—</dd>
       <dt>Velocidade</dt><dd id="pos-velocidade">—</dd>
     </dl>
+    <p id="pos-aviso"></p>
   </section>
 
   <section class="painel painel--eventos">

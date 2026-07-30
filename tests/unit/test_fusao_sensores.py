@@ -261,3 +261,49 @@ async def test_safe_mode_exited_ao_normalizar(cenario):
     )
     topicos = [e.topico for e in cenario.eventos_seguranca]
     assert topicos == ["safety.safe_mode_entered", "safety.safe_mode_exited"]
+
+
+# ---------- a pose declara se foi MEDIDA (2026-07-30) ----------
+
+
+@pytest.mark.asyncio
+async def test_pose_por_passos_comandados_nao_se_declara_medida(cenario):
+    """REGRESSAO do que a interface afirmou em producao em 2026-07-30.
+
+    Com os motores FISICAMENTE DESCONECTADOS dos drivers e as rodas suspensas,
+    a tela mostrava `y = 0.8541 m` e `orientacao = 79.68 graus`. O numero vem de
+    `passos_esquerda`, que conta os pulsos que o firmware ENVIA ao TB6600 -
+    comando, nao medicao. Nada no laco pode desmentir o comando.
+
+    O dono: *"nao pode haver deslocamento de medidas e nem de bussola nem de mpu
+    nem de webui"*. A pose continua sendo calculada (e a unica estimativa que
+    existe hoje), mas viaja declarando o que e, para a interface poder se calar.
+    """
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+    await cenario.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
+
+    assert cenario.posicoes, "nenhuma pose publicada"
+    pose = cenario.posicoes[-1]
+    assert pose["medida"] is False, "pose por passos comandados se declarou medida"
+    assert pose["origem"] == "passos_comandados"
+
+
+@pytest.mark.asyncio
+async def test_pose_com_pulso_de_roda_se_declara_medida(cenario):
+    """Com pulso REAL de roda na telemetria, a pose passa a valer como medida.
+
+    O `EncoderManager` ja existe no firmware e conta pulso por interrupcao nos
+    pinos 18/19 - o que falta e o `telemetry_manager.h` mandar os campos (hoje
+    ele manda os do MotorManager). Este teste fixa o contrato para o dia em que
+    isso for gravado, para o campo nao nascer errado.
+    """
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, pulsos_esquerdo=0, pulsos_direito=0
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=4000, passos_direita=4000, pulsos_esquerdo=120, pulsos_direito=120
+    )
+
+    pose = cenario.posicoes[-1]
+    assert pose["medida"] is True
+    assert pose["origem"] == "encoder"

@@ -340,3 +340,13 @@ dd {
 }
 
 #volante-status.erro { color: var(--alerta); }
+
+/* Aviso do painel de deslocamento: aparece quando o numero nao foi MEDIDO
+   (sem encoder de roda). Mesmo tom do aviso do volante - e informacao de
+   confiabilidade, nao erro. */
+#pos-aviso {
+  margin: 10px 0 0;
+  font-size: .82em;
+  color: var(--texto-fraco);
+  line-height: 1.45;
+}

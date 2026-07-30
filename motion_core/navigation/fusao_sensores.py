@@ -57,6 +57,47 @@ from orion.kernel.event_bus import Evento, EventBus, Prioridade
 
 logger = logging.getLogger("motion_core.navigation.fusao_sensores")
 
+#: DE ONDE SAIU A POSE - e se ela pode ser chamada de MEDIDA (2026-07-30).
+#:
+#: Pedido do dono, ao ver a interface afirmar 85 cm de deslocamento e 80 graus
+#: de giro com os motores FISICAMENTE DESCONECTADOS dos drivers:
+#:
+#:   *"nao pode haver deslocamento de medidas e nem de bussola nem de mpu nem
+#:   de webui"*, e *"se a confirmando esta sendo pelo envio de pulsos vai haver
+#:   essa mentira na webui, devemos usar dados reais captados pelo sensor para
+#:   altera a webui"*.
+#:
+#: Ele esta certo, e o proprio firmware confessa a origem do numero:
+#:
+#:     long passosAcumulados = 0;  // odometria simples (sem encoder)
+#:     roda.passosAcumulados += roda.sentidoFrente ? 1 : -1;   // motor_manager.h
+#:
+#: `passos_esquerda` / `passos_direita` contam cada pulso que o firmware ENVIA
+#: ao TB6600. E comando, nao medicao: com as rodas suspensas, com o rele aberto
+#: ou sem motor nenhum ligado, os passos correm e a pose "anda". Integrar isso e
+#: dead reckoning sem realimentacao - nao existe nada no laco que possa
+#: desmentir o comando.
+#:
+#: Por isso a pose passa a viajar DECLARANDO a origem. Quem exibe decide o que
+#: fazer com um numero nao medido; hoje a webui deixa de mostra-lo como fato.
+ORIGEM_PASSOS_COMANDADOS = "passos_comandados"
+#: Pulso lido na roda - deslocamento que de fato aconteceu.
+ORIGEM_ENCODER = "encoder"
+
+#: Campos que o firmware precisaria mandar para a pose virar MEDIDA.
+#:
+#: O `EncoderManager` JA existe no firmware, JA e iniciado (`main.cpp:333`) e JA
+#: conta pulso real por interrupcao nos pinos 18/19 - e o `telemetry_manager.h`
+#: manda os campos do MotorManager, nao os dele. O dado certo e coletado e
+#: ninguem le, o padrao que mais se repete neste projeto.
+#:
+#: Falta, para valer: (1) a telemetria carregar estes campos; (2) os sensores
+#: opticos instalados - CONFERIR tensao e se a saida e NPN ou PNP, porque PNP em
+#: 12V queima o pino do Mega; (3) calibrar pulso->metro, que depende do disco
+#: usado. Enquanto (3) nao for MEDIDO na bancada, converter pulso em metro seria
+#: afirmar antes de medir - trocar uma mentira por outra.
+CAMPOS_ENCODER = ("pulsos_esquerdo", "pulsos_direito")
+
 
 class FusaoSensores:
     """Combina odometria (encoders) e seguranca da IMU a cada telemetria."""
@@ -182,6 +223,11 @@ class FusaoSensores:
 
         velocidade_m_s = distancia_centro_m / delta_tempo_s
 
+        # A pose diz de onde veio. Sem encoder na telemetria ela e ESTIMATIVA
+        # a partir do que foi comandado, e vai marcada como tal - quem exibe
+        # nao tem como saber isso por conta propria, e foi assim que a interface
+        # passou a afirmar 85 cm com os motores desligados.
+        origem = ORIGEM_ENCODER if self._tem_encoder(payload) else ORIGEM_PASSOS_COMANDADOS
         await self._event_bus.publish(
             "motion.position",
             {
@@ -189,8 +235,21 @@ class FusaoSensores:
                 "y_m": round(self._y_m, 4),
                 "orientacao_graus": round(math.degrees(self._orientacao_rad), 2),
                 "velocidade_m_s": round(velocidade_m_s, 4),
+                "origem": origem,
+                "medida": origem == ORIGEM_ENCODER,
             },
         )
+
+    @staticmethod
+    def _tem_encoder(payload: dict[str, Any]) -> bool:
+        """True quando a telemetria trouxe pulso REAL de roda.
+
+        Hoje devolve False em producao: nenhum campo com "pulso" ou "encoder"
+        existe no pacote (verificado ao vivo em 2026-07-30). Nao e codigo morto
+        - e o contrato que a interface consome, e o unico ponto que precisa
+        mudar no dia em que o firmware passar a mandar `CAMPOS_ENCODER`.
+        """
+        return all(payload.get(campo) is not None for campo in CAMPOS_ENCODER)
 
     # ---------- seguranca da IMU (Cap 12 s.8 paragrafo 2; Cap 18) ----------
 
