@@ -8,11 +8,20 @@ from __future__ import annotations
 
 import asyncio
 
-import numpy as np
 import pytest
 
-from orion.voice.captura_audio import ErroAudio
-from orion.voice.ouvidos_esp32 import OuvidosESP32
+# O Pi nao instala a pilha de audio (numpy/sounddevice): os ouvidos rodam no
+# Notebook. Sem estes guardas o `import numpy` abaixo estoura na COLETA, e
+# pytest aborta a suite INTEIRA em vez de pular dois arquivos - foi o que
+# aconteceu ate 2026-07-30, com zero testes rodando no Pi. Mesmo padrao que
+# test_vision_core.py ja usava.
+pytest.importorskip('numpy')
+pytest.importorskip('sounddevice')
+
+import numpy as np  # noqa: E402
+
+from orion.voice.captura_audio import ErroAudio  # noqa: E402
+from orion.voice.ouvidos_esp32 import OuvidosESP32  # noqa: E402
 
 
 def _quadros(esquerdo: np.ndarray, direito: np.ndarray) -> bytes:

@@ -11,10 +11,17 @@ descartado em vez de virar frase.
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
-from orion.voice.transcricao import Transcritor
+# Mesmo motivo de test_ouvidos_esp32.py: transcricao.py importa numpy e
+# faster_whisper, que so existem no Notebook. Sem o guarda, a coleta explode
+# e derruba a suite inteira do Pi.
+pytest.importorskip('numpy')
+pytest.importorskip('faster_whisper')
+
+import numpy as np  # noqa: E402
+
+from orion.voice.transcricao import Transcritor  # noqa: E402
 
 MUDO = np.zeros(1600, dtype="float32")
 
