@@ -4914,3 +4914,60 @@ Nada aqui vira verde. Sao mudancas validadas em suite e, no caso da visao,
 medidas em producao com o servico reiniciado - mas o gate de hardware datado por
 modulo nao foi rodado. **Tudo 🟡 no melhor caso.** `responder_em_frases` esta em
 🟠: existe, tem teste e tem medida, mas ainda nao esta ligado no Voice Core.
+
+### Fechamento da missao da fala (2026-07-30, fim da noite)
+
+`b3d19fa` ligou o streaming por frases no caminho real da voz, e com ele a
+missao fecha. Estado final: as duas maquinas em `b3d19fa`, 630 testes no
+Notebook e 538 no Pi, arvore limpa nas duas.
+
+**T5.a esta em producao e medido:** 3,33 s -> 1,84 s ate o primeiro som (-45%,
+contra os 40% pedidos). O ganho nao veio de gerar mais rapido, e sim de parar de
+esperar o que ainda nao era preciso - o robo diz a primeira frase enquanto o
+modelo escreve a segunda.
+
+Tres decisoes deste ultimo trecho que valem ficar registradas, porque nenhuma
+delas e obvia lendo so o codigo:
+
+- os caminhos CURTOS (comando, hora, diario) saem em UMA frase de proposito.
+  Sao texto pronto: nao ha o que transmitir em pedacos, e picotar uma frase de
+  seis palavras deixaria a fala pior, nao melhor;
+- o registro da interacao acumula as partes e grava o texto INTEIRO no fim.
+  Gravar frase a frase encheria o historico de fragmentos e estragaria o
+  `conversas_recentes` que volta no contexto da pergunta seguinte;
+- falha no meio tem DUAS politicas opostas, e e proposital: sem nenhuma frase
+  dita, o robo pede desculpa (ficar mudo seria pior que a lentidao que este
+  trabalho veio resolver); com alguma frase ja dita, ele cala (emendar
+  "desculpa, tive um problema" em cima de uma resposta que fazia sentido soa
+  pior que simplesmente parar).
+
+**T5.b (ack conversacional) NAO foi feito, e a decisao e essa.** Ele existia para
+cobrir a espera. Com 1,84 s ate o primeiro som, um "recebi" antes da resposta
+vira ruido - e a propria missao avisa que sinal fixo reabre o problema de T1.
+Reabrir so se o uso mostrar falta.
+
+**T1 e T3 nao foram implementados, por medida e nao por falta de tempo.** O T0
+mostrou 18/20 aberturas distintas (o criterio pedia 15) e 2/20 respostas com
+saudacao. Alem disso `SaudacaoEspontanea` ja tem janela anti-repeticao de 30
+min: T1 como escrito criaria um segundo mecanismo de 20 min por cima de um que
+funciona. Era a camada empilhada que o dono aponta como o defeito recorrente do
+projeto - implementar teria sido produzir exatamente o problema que a regra
+existe para evitar.
+
+**T2 e T4 seguem abertos**, e a razao e diferente para cada um. T2 tem so um
+alvo residual: o p90 de 25,5 palavras vem de respostas longas e genericas
+("Estou aqui para cuidar da casa e da familia" aparece em 3 dos 20 turnos) - o
+alvo e a resposta vazia, nao a media, que ja passa. T4 nao foi tocado porque o
+criterio de saida dele e explicitamente de OUVIDO ("verificacao de ouvido, nao
+por regex") e exige o dono presente ouvindo 20 respostas sintetizadas.
+
+Sobre a voz: existem 5 vozes pt no Piper e o projeto so tinha uma. Baixei `cadu`
+e `jeff` (`data/piper_voices/`, 122 MB), geradas na mesma frase e ouvidas pelo
+dono. **Ficou na `faber`**, a que ja estava - as outras duas seguem no disco
+caso ele queira reavaliar.
+
+Uma nota sobre o metodo, porque foi o que deu valor ao dia: a missao chegou com
+o diagnostico pronto, e o T0 - que ela mesma exigia rodar primeiro - o
+desmentiu. Tres das seis tarefas ja estavam resolvidas por commits de 29/07. O
+instrumento de medida se pagou antes de qualquer linha de codigo mudar, que e
+exatamente para isso que ele estava na frente da fila.
