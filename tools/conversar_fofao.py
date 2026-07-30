@@ -233,7 +233,27 @@ async def principal() -> None:
     # e limitada por schema JSON (nao da para inventar nome de
     # comportamento) e o Pi ainda revalida antes de acionar qualquer coisa.
     # Se isto falhar ou demorar, o maestro simplesmente segue pela regra.
-    conselheiro = ConselheiroComportamento(modelo=secao_ia["ollama_model"])
+    # UM conselheiro so, criado uma vez (corrigido em 2026-07-30).
+    #
+    # Havia DOIS, e o que ficava ativo apontava para o lugar errado. Este
+    # aqui nascia com `modelo=secao_ia["ollama_model"]` ("gemma3:1b") e SEM
+    # `base_url` - ou seja, tentava falar com a OpenAI oficial, usando a
+    # chave do OpenRouter (sk-or-v1-...) e pedindo um modelo que nao existe
+    # la. Falharia em toda chamada.
+    #
+    # Mais adiante a variavel `conselheiro` era REATRIBUIDA a um segundo
+    # objeto, esse sim correto - mas o `AtendenteConselhoIA` ja tinha
+    # guardado o metodo ligado ao PRIMEIRO. Reatribuir a variavel nao troca
+    # o objeto de quem ja segurava uma referencia a ele.
+    #
+    # So nao dava problema visivel porque o topico que o atendente escuta
+    # (`behavior.pedir_conselho`) so e publicado quando `conselho_ia` esta
+    # habilitado no orion.yaml - e esta desligado. Bug latente esperando
+    # alguem ligar a chave.
+    conselheiro = ConselheiroComportamento(
+        modelo=secao_ia.get("mentor_model", "openai/gpt-4o-mini"),
+        base_url=secao_ia.get("openai_base_url"),
+    )
     AtendenteConselhoIA(bus, conselheiro.aconselhar)
 
     # Link TCP com o Motion Core (Raspberry) - Cap 14 s.2. Tolerado ausente
@@ -279,11 +299,13 @@ async def principal() -> None:
     # Notebook ao carregar um modelo (mesmo achado do EDR-0021). Tolerado
     # ausente: sem OPENAI_API_KEY ou com a lib `openai` faltando, o Mentor
     # simplesmente nunca tem conselho (Cap 6 s.8), sem derrubar o boot.
+    # REUSA o conselheiro criado acima, em vez de construir um segundo com
+    # outros parametros (ver o comentario lá). Os dois caminhos - o local
+    # (`AtendenteConselhoIA`, via Event Bus) e o de rede (`PonteConselho`, via
+    # comm.request) - passam a consultar a MESMA IA, com o mesmo modelo e o
+    # mesmo servidor. Duas instancias divergentes para a mesma pergunta era
+    # exatamente o tipo de coisa que ninguem nota até dar resposta diferente.
     try:
-        conselheiro = ConselheiroComportamento(
-            modelo=secao_ia.get("mentor_model", "openai/gpt-4o-mini"),
-            base_url=secao_ia.get("openai_base_url"),
-        )
         PonteConselho(conselheiro, comm).registrar(bus)
         logger.info("Mentor de comportamento ativo (IA remota)")
     except Exception:
@@ -577,15 +599,23 @@ async def principal() -> None:
     # A visao entra como sacrificavel; a VOZ nao: se o dono chamar "Fofao"
     # durante um aperto de memoria, o robo tem que responder.
     #
-    # PENDENCIA (merge 2026-07-26): o ModuloVisao do EDR-0023 ainda nao expoe
-    # pausar()/retomar() - so iniciar()/encerrar(). Ate ele expor, o alivio
-    # descarrega o modelo de IA mas NAO consegue pausar a visao, que e o
-    # maior consumidor de RAM. Protecao parcial, de proposito e declarada.
+    # AS DUAS PONTAS ESTAVAM MORTAS ate 2026-07-30, e o mecanismo inteiro
+    # entregava ZERO bytes sem nunca dar erro:
+    #
+    #   - `pausar_visao=None`: o maior consumidor do Notebook (YOLO +
+    #     reconhecimento facial) nunca era pausado. O ModuloVisao agora expoe
+    #     pausar()/retomar(), fechando a pendencia declarada no merge de
+    #     26/07 - eram os dois metodos que faltavam, nada mais;
+    #   - `ia.descarregar` levantava AttributeError SEMPRE, porque usava um
+    #     atributo (`self._cliente`) que nunca existiu na classe. O
+    #     `AlivioCarga` captura e loga cada acao isoladamente, entao o log
+    #     mostrava o caminho feliz inteiro - detecta, pede, atende - com nada
+    #     acontecendo no fim.
     AlivioCarga(
         bus,
         descarregar_modelo=ia.descarregar,
-        pausar_visao=None,
-        retomar_visao=None,
+        pausar_visao=modulo_visao.pausar,
+        retomar_visao=modulo_visao.retomar,
     )
 
     # SAUDACAO ESPONTANEA (2026-07-29, pedido do dono: "praticamente ao me
