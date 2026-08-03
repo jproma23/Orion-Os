@@ -1,19 +1,19 @@
 // Hardware Core - firmware completo (Cap 10).
 //
-// Serial (pinos 0/1, USB) e EXCLUSIVA do protocolo com o Raspberry - nunca
-// usar Serial.print() aqui para depuracao, corromperia o enquadramento
-// binario.
+// PLACA: ESP32-D0WD-V3 desde 2026-08-02, no lugar do Arduino Mega que
+// morreu. Os numeros de pino todos mudaram - a fiacao fisica nao. Ver
+// include/pins.h, que guarda o de-para e o motivo de cada escolha.
 //
-// Fiacao confirmada nesta montagem (guia de ligacao eletrica, atualizado
-// 2026-07-20): motores (pinos 2-6), ultrassom frontal (26/27) e traseiro
-// (22/23) - CORRIGIDO 2026-07-20: estavam trocados, tapar o traseiro mexia
-// na distancia frontal; ver nota em pins.h. IMU I2C (20/21), DHT (24),
-// servo do radar (9) e servos pan/tilt (10/11). Encoders e LED RESERVADOS -
-// ver pins.h - ainda nao ligados fisicamente.
+// Serial (UART0, GPIO 1/3, USB) e EXCLUSIVA do protocolo com o Raspberry -
+// nunca usar Serial.print() aqui para depuracao, corromperia o enquadramento
+// binario.
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <EEPROM.h>
+#include <WiFi.h>
 #include <Wire.h>
-#include <avr/wdt.h>
+#include <esp_bt.h>
+#include <esp_task_wdt.h>
 #include <string.h>
 
 #include "bateria_manager.h"
@@ -32,10 +32,11 @@
 #include "sensor_ultrassonico.h"
 #include "telemetry_manager.h"
 
-// Simbolos do heap do avr-libc (malloc.c) - precisam ficar no escopo global,
-// fora do namespace anonimo abaixo, senao o linker procura por
-// "(anonymous namespace)::__heap_start" e falha.
-extern int __heap_start, *__brkval;
+// Os simbolos __heap_start/__brkval do avr-libc que moravam aqui foram
+// REMOVIDOS na migracao para o ESP32 (2026-08-02): eles nao existem fora do
+// AVR. Estavam declarados e nunca eram usados - a medicao de RAM livre que
+// os justificava nao chegou a ser escrita. No ESP32 o equivalente e
+// ESP.getFreeHeap(), que ja vem pronto e nao precisa de declaracao externa.
 
 namespace {
 
@@ -278,14 +279,49 @@ void processarQuadro(const uint8_t* dados, size_t tamanho) {
 }  // namespace
 
 void setup() {
-  // Limpa a flag de reset por watchdog e desliga o watchdog ANTES de tudo -
-  // padrao de seguranca AVR: alguns bootloaders (incluindo o usado neste
-  // Mega) nao desligam o watchdog sozinhos apos um reset causado por ele,
-  // e um watchdog ainda "quente" com timeout curto pode reiniciar o chip
-  // no meio do proprio boot antes deste setup() terminar. So depois disso
-  // e seguro rearma-lo no fim da funcao.
-  MCUSR = 0;
-  wdt_disable();
+  // O par MCUSR=0 + wdt_disable() do AVR nao tem equivalente aqui e foi
+  // REMOVIDO (2026-08-02). Ele existia porque o bootloader do Mega deixava o
+  // watchdog "quente" depois de um reset causado por ele, e o chip podia se
+  // reiniciar no meio do proprio boot. O ESP32 nao tem esse defeito: o
+  // watchdog de tarefa e desarmado pelo proprio arranque do ESP-IDF e so
+  // passa a valer quando esta funcao o arma explicitamente la embaixo.
+
+  // WiFi E BLUETOOTH DESLIGADOS DE PROPOSITO (2026-08-02).
+  //
+  // O corpo fala com o Raspberry pelo CABO USB. O radio nao transporta nada
+  // e desligar ele ganha tres coisas de uma vez:
+  //
+  //  1. ENERGIA - motivo declarado da troca de placa. O Mega puxava 50-80 mA
+  //     so para existir. O ESP32 com radio ligado fica em ~100 mA com picos
+  //     de ~400 mA na transmissao, ou seja PIOR que o Mega; com o radio
+  //     desligado cai para 20-40 mA, que e o ganho que se queria.
+  //  2. O ADC2 VOLTA A EXISTIR. O ESP32 desliga o ADC2 quando o WiFi sobe -
+  //     e por isso que BATERIA_SENSE foi para o GPIO 36 (ADC1) em pins.h.
+  //     Aquela escolha continua valendo como margem de seguranca; esta linha
+  //     e a segunda trava.
+  //  3. OS PULSOS DE STEP PARAM DE ENGASGAR. A pilha de WiFi roda em tarefa
+  //     de prioridade alta e rouba a CPU em rajadas imprevisiveis. Como os
+  //     pulsos dos TB6600 sao gerados por temporizacao em software
+  //     (motor_manager.h), cada rajada dessas vira passo perdido - o motor
+  //     "pula" sem que nada no codigo esteja errado.
+  //
+  // Custo aceito: nao ha OTA. A gravacao e por cabo, que e como ja se faz.
+  // Se um dia o radio for reativado, reler os tres itens acima ANTES.
+  WiFi.mode(WIFI_OFF);
+  btStop();
+
+  // O ESP32 nao aceita -D SERIAL_RX_BUFFER_SIZE (aquilo era um define de
+  // compilacao do core AVR); aqui o buffer se ajusta em tempo de execucao, e
+  // TEM que ser ANTES do begin() - depois dele a chamada e ignorada em
+  // silencio.
+  //
+  // NAO REMOVER, e nao baixar de 1024: esta linha e a herdeira direta do bug
+  // de 2026-07-26. Uma mensagem SET_PAN_TILT tem 251 bytes de JSON (255 com
+  // STX/ETX+CRC). Seguindo uma pessoa os comandos chegam em rajada; quando o
+  // buffer nao aguenta a segunda mensagem, ela perde bytes, o CRC falha e
+  // processarQuadro() da return SILENCIOSO, sem ACK. O sintoma nao parece
+  // buffer: a camera engasga e perde o alvo, sem erro nenhum aparecer.
+  Serial.setRxBufferSize(1024);
 
   // 250000 e nao 115200 (2026-07-27). Dois motivos, os dois medidos:
   //
@@ -296,12 +332,17 @@ void setup() {
   //    dura 1,7 ms, o robo ficava cego em rajadas: 84 ms perdidos a cada
   //    500 ms de telemetria. A 250000 baud o mesmo pacote leva ~24 ms.
   //
-  // 2. ERRO DO GERADOR DE BAUD. A 16 MHz, 250000 cai exato (UBRR=3, erro
-  //    0,0%); 115200 cai em UBRR=8 com 2,1% de erro. Ou seja, a taxa mais
-  //    alta e tambem a mais confiavel neste chip.
+  // 2. ERRO DO GERADOR DE BAUD. No Mega, a 16 MHz, 250000 caia exato
+  //    (UBRR=3, erro 0,0%) e 115200 caia em UBRR=8 com 2,1% de erro - a taxa
+  //    mais alta era tambem a mais confiavel. No ESP32 esse argumento
+  //    ESPECIFICO nao vale mais (a UART tem divisor fracionario e acerta as
+  //    duas), mas o motivo 1 continua valendo e a taxa continua sendo 250000
+  //    porque o OUTRO LADO ja fala nessa velocidade.
   //
-  // O outro lado (communication.arduino.baud_rate em config/orion.yaml)
-  // TEM que bater - se um lado mudar sozinho, o Mega fica mudo.
+  // O outro lado (communication.arduino.baud_rate em config/orion.yaml) TEM
+  // que bater - se um lado mudar sozinho, a placa fica muda. Varias
+  // ferramentas de bancada em tools/ ficaram para tras em 115200 e falham
+  // parecendo hardware morto; conferir isso ANTES de suspeitar da placa.
   Serial.begin(250000);
 
   // Timeout no barramento I2C do IMU (Cap 18 s.9, achado real da vistoria
@@ -313,7 +354,15 @@ void setup() {
   // pequeno o suficiente pra nao atrasar o loop de forma perceptivel;
   // "true" reinicia o periferico I2C automaticamente apos o timeout, sem
   // exigir reset do chip inteiro.
-  Wire.begin();
+  // OS PINOS SAO OBRIGATORIOS AQUI (2026-08-02). No Mega o I2C morava em
+  // pinos fixos de silicio (20/21) e Wire.begin() sem argumento acertava
+  // sozinho. No ESP32 qualquer par de GPIO serve, entao o begin() sem
+  // argumento assume o padrao da placa - e se ele nao for o par que esta
+  // soldado, o barramento fica MUDO sem erro nenhum: nenhuma excecao,
+  // nenhum retorno ruim, so `imu_conectado: false` e `bussola_conectada:
+  // false` na telemetria, exatamente o sintoma que ja custou uma
+  // investigacao em 2026-07-27.
+  Wire.begin(pinos::IMU_SDA, pinos::IMU_SCL);
   // 400 kHz em vez dos 100 kHz padrao (2026-07-27). MEDIDO: com 100 kHz o
   // I2C consumia 99,4 ms a cada 500 ms de telemetria (t_i2c_us) - 20% de
   // todo o tempo do robo, com uma leitura da IMU levando ~10 ms. Tanto a
@@ -323,11 +372,46 @@ void setup() {
   // sensor concluir "nada refletiu" e reportar caminho LIVRE (fail-open, o
   // lado errado para falhar).
   Wire.setClock(400000);
-  Wire.setWireTimeout(25000, true);
+  // Era Wire.setWireTimeout(25000, true) no Mega - microssegundos, com
+  // reinicio automatico do periferico. A Wire do ESP32 nao tem esse metodo;
+  // o equivalente e setTimeOut, que fala em MILISSEGUNDOS. 25000 us = 25 ms,
+  // entao o numero muda mas o prazo e o mesmo.
+  //
+  // O que este timeout impede (Cap 18 s.9, achado real da vistoria de
+  // 2026-07-24): sem ele, um travamento de I2C - fio solto ou ruido segurando
+  // o clock - prendia Wire.requestFrom() PARA SEMPRE dentro de
+  // imu.atualizar(). E como isso roda ANTES de safety.avaliar() no mesmo
+  // loop(), a seguranca reativa inteira parava junto.
+  Wire.setTimeOut(25);
 
   // Antes de qualquer manager tocar no barramento: retrato limpo de quem
   // esta la de verdade (ver escanearI2c).
   escanearI2c();
+
+  // EEPROM.begin() TEM que vir antes de qualquer manager iniciar, porque
+  // imu.iniciar() e bussola.iniciar() ja fazem EEPROM.get() das calibracoes
+  // guardadas. No Mega isso nao existia: a EEPROM era memoria de verdade,
+  // sempre disponivel. No ESP32 ela e emulada em flash e precisa ser
+  // "montada" primeiro - sem esta linha, o get() le lixo e as duas
+  // calibracoes aparecem como ausentes (o teste de numero magico salva de
+  // usar o lixo, mas o robo perde a calibracao a cada boot).
+  //
+  // 128 bytes cobre os tres blocos com folga: IMU no endereco 0 (14 bytes),
+  // limiar de impacto no 32 (6 bytes) e bussola no 64 (26 bytes) = 90 no
+  // total. Aumentar isto e barato; diminuir corrompe silenciosamente o
+  // bloco de cima.
+  EEPROM.begin(128);
+
+  // Reserva os quatro timers de PWM para os servos ANTES de qualquer
+  // attach() (exigencia da ESP32Servo, 2026-08-02). Sao 3 servos - radar,
+  // pan e tilt - e sem esta reserva o primeiro attach() pega um timer que o
+  // LEDC pode estar usando para outra coisa; o servo entao treme ou fica
+  // parado sem erro nenhum. Nao existia no Mega porque la a <Servo.h> era
+  // dona absoluta do Timer1.
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
 
   motores.iniciar();
   encoders.iniciar();
@@ -370,12 +454,34 @@ void setup() {
   // acima nao cubra - se o loop() nao chamar wdt_reset() por 2s seguidos,
   // o proprio chip se reinicia sozinho. E seguro reiniciar assim porque o
   // rele dos motores (motor_manager.h) ja fica desenergizado por padrao no
-  // boot (fail-safe confirmado na vistoria).
-  wdt_enable(WDTO_2S);
+  // boot (fail-safe confirmado na vistoria) - e no ESP32 esse fail-safe
+  // ficou mais forte ainda, porque o GPIO 5 escolhido para o rele nasce em
+  // HIGH por hardware, ou seja, "sem energia" e o estado natural da placa
+  // antes de qualquer linha de codigo rodar. Ver pins.h.
+  //
+  // A API mudou de familia junto com a placa. O guarda de versao existe
+  // porque o Arduino-ESP32 2.x (ESP-IDF 4.4) e o 3.x (ESP-IDF 5.x) assinam
+  // esp_task_wdt_init() de formas incompativeis, e qual deles o PlatformIO
+  // baixa depende da versao da plataforma - nao da para escolher um so e
+  // torcer.
+#if ESP_IDF_VERSION_MAJOR >= 5
+  esp_task_wdt_config_t configWdt = {
+      .timeout_ms = 2000,
+      .idle_core_mask = 0,  // nao vigia as tarefas ociosas, so a nossa
+      .trigger_panic = true,
+  };
+  esp_task_wdt_init(&configWdt);
+#else
+  esp_task_wdt_init(2, true);  // segundos, no 4.4
+#endif
+  // Inscreve a tarefa que roda o loop() (NULL = "a tarefa atual"). Sem esta
+  // linha o watchdog fica armado vigiando ninguem - e um watchdog que nao
+  // vigia e pior que nenhum, porque da falsa sensacao de rede.
+  esp_task_wdt_add(NULL);
 }
 
 void loop() {
-  wdt_reset();
+  esp_task_wdt_reset();
 
   {
     unsigned long agoraUs = micros();

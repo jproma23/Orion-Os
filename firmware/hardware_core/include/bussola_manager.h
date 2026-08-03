@@ -10,24 +10,29 @@
 //      com o Raspberry - um print aqui corromperia o enquadramento binario.
 //   2. Calibracao NAO BLOQUEANTE. O original girava 25 s dentro de um
 //      `while` com delay(20); aqui isso seria reset garantido, porque o
-//      `wdt_enable(WDTO_2S)` de main.cpp reinicia o chip se o loop() nao
-//      chamar wdt_reset() por 2 s. Virou maquina de estados: quem pede a
-//      calibracao volta na hora, e cada volta do loop acumula um pouco.
-//   3. EEPROM sem `commit()`. Aquilo e coisa de ESP8266 (flash emulando
-//      EEPROM); no AVR a escrita e direta.
+//      watchdog de 2 s armado em main.cpp reinicia o chip se o loop() nao
+//      der sinal de vida. Virou maquina de estados: quem pede a calibracao
+//      volta na hora, e cada volta do loop acumula um pouco.
+//   3. EEPROM sem `commit()`. *** ESTE ITEM SE INVERTEU EM 2026-08-02. ***
+//      Ele dizia: "commit() e coisa de ESP8266 (flash emulando EEPROM); no
+//      AVR a escrita e direta". Estava certo enquanto a placa era o Mega.
+//      Agora a placa E um ESP32, onde a EEPROM tambem e flash emulada - e
+//      portanto o commit() passou a ser OBRIGATORIO. Sem ele a calibracao
+//      some no proximo reset, sem erro nenhum. Ver a chamada em
+//      _finalizarCalibracao().
 //
 // A compensacao de inclinacao reaproveita o acelerometro que a ImuManager JA
 // le a cada 50 ms - nao ha segunda leitura I2C da MPU6050 aqui. Sem essa
 // compensacao a direcao so vale com o robo perfeitamente nivelado; numa
 // rampa ela erra feio.
 //
-// ATENCAO A TENSAO (nao validado no Mega ate 2026-07-27): o QMC6310 e um
-// componente de 3,3 V e foi testado numa WeMos, que tem I2C de 3,3 V. O
-// I2C do Mega e de 5 V e o Wire.begin() ainda liga pull-ups internos para
-// 5 V. Conferir se a plaquinha tem regulador + level shifter embutidos
-// ANTES de ligar nos pinos 20/21, ou usar um conversor de nivel. Enquanto
-// isso nao for conferido, este modulo simplesmente reporta
-// `conectado() == false` e nada mais acontece (Cap 6 s.8).
+// TENSAO: RISCO RESOLVIDO PELA TROCA DE PLACA (2026-08-02).
+// O alerta antigo dizia que o QMC6310 e um componente de 3,3 V, que tinha
+// sido testado numa WeMos (I2C de 3,3 V), e que o I2C do Mega era de 5 V com
+// pull-ups internos para 5 V - exigindo conferir regulador/level shifter
+// antes de ligar. Com o ESP32 no lugar do Mega, o barramento I2C passou a
+// ser 3,3 V nativo: e exatamente a mesma tensao da WeMos onde o modulo foi
+// validado. A ligacao agora e direta e sem conversor.
 #pragma once
 
 #include <Arduino.h>
@@ -292,6 +297,11 @@ class BussolaManager {
     }
 
     EEPROM.put(EEPROM_ENDERECO_BUSSOLA, _cal);
+    // commit() OBRIGATORIO no ESP32 - ver o item 3 do cabecalho deste
+    // arquivo, que dizia o contrario ate a placa mudar. Sem ele os 25 s de
+    // giro que o dono acabou de fazer com o robo na mao se perdem no
+    // proximo reset, caladamente.
+    EEPROM.commit();
     _calibrada = true;
     _ultimaCalibracaoOk = true;
   }

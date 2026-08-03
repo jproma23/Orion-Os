@@ -6,7 +6,10 @@
 #pragma once
 
 #include <ArduinoJson.h>
-#include <Servo.h>
+// A <Servo.h> do AVR nao existe no ESP32. A ESP32Servo mantem a MESMA API
+// (attach/write/detach) e o mesmo nome de classe, entao so o #include muda -
+// por baixo ela usa o LEDC (PWM em hardware) em vez de timer compartilhado.
+#include <ESP32Servo.h>
 #include <string.h>
 
 #include "estado.h"
