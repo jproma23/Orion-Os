@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from orion.mission.ai_manager import AiManager
 from orion.mission.extrator_fatos import ExtratorFatos
@@ -326,6 +326,22 @@ class MissionPlanner:
         if self._extrator is None:
             self._extrator = ExtratorFatos(self._ai_manager, self._memory_client)
         return self._extrator
+
+    async def encerrar(self) -> None:
+        """Fecha o planner: destila o que a ultima conversa deixou pendente.
+
+        POR QUE EXISTE (2026-08-03): o extrator acumula turnos e so destila ao
+        encher o lote ou apos silencio. No `Ctrl+C` nao ha nem uma coisa nem
+        outra - e ate esta data ninguem chamava `encerrar()` nele, entao o
+        resto do lote era descartado a cada desligamento. Com sessoes curtas
+        (86% delas tem menos de 4 turnos) isso significava perder quase tudo.
+
+        Usa o proprio `_extrator`, e nao a propriedade `extrator`: a
+        propriedade CRIA um extrator sob demanda, e criar um extrator so para
+        encerra-lo seria trabalho para nada.
+        """
+        if self._extrator is not None:
+            await self._extrator.encerrar()
 
     async def _registrar_interacao(
         self, pessoa_id: int | None, texto_usuario: str, resposta: str

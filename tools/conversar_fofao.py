@@ -718,6 +718,11 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
+        # PRIMEIRO o planner: ele ainda pode ter turnos por destilar, e a
+        # destilacao precisa do link com o Pi (que o `comm.encerrar()` logo
+        # abaixo derruba) para gravar o fato. Encerrar na ordem errada perderia
+        # exatamente o que este passo existe para salvar.
+        await planner.encerrar()
         # Fecha o socket dos ouvidos e mata a tarefa de drenagem. Sem isto
         # ficaria uma tarefa órfã tentando reconectar para sempre - o mesmo
         # defeito que a `tarefa_mentor` teve no Motion Core.

@@ -218,3 +218,88 @@ async def test_turno_vazio_e_ignorado():
     e.agendar("", "resposta")
     e.agendar("   ", "resposta")
     assert ia.chamadas == []
+
+
+# ---------------------------------------------------------------------------
+# DESTILAR POR OCIOSIDADE (2026-08-03)
+#
+# O lote por contagem presumia conversas longas. O banco desmentiu: 32 das 37
+# sessoes gravadas tiveram menos de 4 turnos, entao o gatilho quase nunca
+# disparava - e o que sobrava morria no desligamento, porque `encerrar()` nao
+# era chamado por ninguem. 152 conversas gravadas, tabela `conhecimento` vazia.
+# ---------------------------------------------------------------------------
+
+FALA_LONGA = "eu trabalho de noite e durmo de dia"  # >= _MINIMO_LETRAS_FALA
+
+
+@pytest.mark.asyncio
+async def test_destila_por_ociosidade_sem_encher_o_lote():
+    """A conversa curta e a MAIS COMUM - ela tem que produzir fato tambem."""
+    ia = IaFalsa("trabalho: trabalha de noite")
+    memoria = MemoriaFalsa()
+    e = ExtratorFatos(ia, memoria, turnos_por_lote=4, segundos_ate_destilar=0.01)
+
+    e.agendar(FALA_LONGA, "anotado!")
+    assert ia.chamadas == []  # ainda nao: a conversa pode continuar
+
+    await asyncio.sleep(0.05)  # silencio -> a conversa acabou
+    assert len(ia.chamadas) == 1
+    assert memoria.gravados[0]["chave"] == "trabalho"
+
+
+@pytest.mark.asyncio
+async def test_turno_novo_rearma_a_espera():
+    """O relogio conta SILENCIO, nao tempo desde o inicio da conversa - senao
+    uma conversa longa seria cortada no meio."""
+    ia = IaFalsa("NADA")
+    e = ExtratorFatos(ia, MemoriaFalsa(), turnos_por_lote=9, segundos_ate_destilar=0.06)
+
+    e.agendar(FALA_LONGA, "sei")
+    await asyncio.sleep(0.04)
+    e.agendar(FALA_LONGA + " tambem", "entendi")  # antes do prazo: rearma
+    await asyncio.sleep(0.04)
+    assert ia.chamadas == []  # nao destilou no meio da conversa
+
+    await asyncio.sleep(0.05)
+    assert len(ia.chamadas) == 1
+
+
+@pytest.mark.asyncio
+async def test_ociosidade_nao_gasta_modelo_com_chamado_solto():
+    """"Fofao!" e a sessao mais comum do banco: a palavra de ativacao entra
+    como turno. Nao ha fato dentro de um chamado, so custo."""
+    ia = IaFalsa("NADA")
+    e = ExtratorFatos(ia, MemoriaFalsa(), turnos_por_lote=4, segundos_ate_destilar=0.01)
+
+    e.agendar("Fofao!", "Oi! Estou aqui!")
+    await asyncio.sleep(0.05)
+
+    assert ia.chamadas == []
+    assert len(e._acumulado) == 0, "o ruido tem que ser descartado, nao acumulado"
+
+
+@pytest.mark.asyncio
+async def test_encerrar_destila_o_lote_curto_sem_piso():
+    """No desligamento nao se aplica o piso: aquele lote nao tem proxima
+    chance. E ESTE o caminho que estava solto - ninguem chamava `encerrar()`."""
+    ia = IaFalsa("nome: se chama Joao")
+    memoria = MemoriaFalsa()
+    e = ExtratorFatos(ia, memoria, turnos_por_lote=4, segundos_ate_destilar=999)
+
+    e.agendar("oi", "ola")  # curto: o piso da ociosidade barraria
+    await e.encerrar()
+
+    assert len(ia.chamadas) == 1
+    assert memoria.gravados[0]["chave"] == "nome"
+
+
+@pytest.mark.asyncio
+async def test_encerrar_cancela_a_espera_pendente():
+    """Desligamento nao pode deixar tarefa orfa dormindo 90 s."""
+    e = ExtratorFatos(IaFalsa("NADA"), MemoriaFalsa(), turnos_por_lote=4)
+    e.agendar(FALA_LONGA, "sei")
+    espera = e._tarefa_ociosidade
+    assert espera is not None and not espera.done()
+
+    await e.encerrar()
+    assert espera.cancelled() or espera.done()

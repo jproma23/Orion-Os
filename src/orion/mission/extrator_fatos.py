@@ -26,6 +26,20 @@ Duas decisoes protegem isso:
    custo por varios turnos, a janela maior e o que permite ver o fato: "sim,
    esse mesmo" nao diz nada sozinho, e diz tudo depois da pergunta anterior.
 
+## Por que o lote sozinho nao bastava (medido em 2026-08-03)
+
+O lote por CONTAGEM presumia conversas longas. Os numeros do banco desmentiram:
+das 37 sessoes gravadas, **32 tiveram menos de 4 turnos** - o gatilho nunca
+disparava. E o resto do lote morria no desligamento, porque `encerrar()` nao
+era chamado por ninguem. Resultado: 152 conversas gravadas e a tabela
+`conhecimento` com ZERO linhas. O consumidor existia (o `ai_manager` injeta os
+fatos no prompt), o produtor estava ligado, e mesmo assim nada passava - a
+mesma familia de defeito silencioso que este projeto ja teve outras vezes.
+
+O conserto e destilar tambem por OCIOSIDADE: passados `segundos_ate_destilar`
+sem turno novo, a conversa acabou e o que houver e destilado como esta. Uma
+conversa de dois turnos vale tanto quanto uma de dez - so acaba mais cedo.
+
 ## O que e um fato, e o que nao e
 
 **So o que a PESSOA afirmou sobre ela mesma**, e que continua valendo amanha.
@@ -90,30 +104,95 @@ class ExtratorFatos:
         memory_client,
         turnos_por_lote: int = 4,
         max_fatos_por_lote: int = 3,
+        segundos_ate_destilar: float = 90.0,
     ) -> None:
+        """
+        `segundos_ate_destilar` e o silencio que declara a conversa encerrada.
+        Noventa segundos e bem mais que a pausa entre duas frases faladas e bem
+        menos que o intervalo entre duas conversas do dia (a menor separacao
+        real medida no banco foi de 14 minutos).
+        """
         self._ia = ai_manager
         self._memoria = memory_client
         self._turnos_por_lote = turnos_por_lote
         self._max_fatos = max_fatos_por_lote
+        self._segundos_ate_destilar = segundos_ate_destilar
         self._acumulado: list[tuple[str, str]] = []
         #: Guardada para o desligamento poder esperar a ultima extracao, e
         #: para os testes nao precisarem dormir torcendo pelo agendador.
         self._tarefa: asyncio.Task | None = None
+        #: A espera pelo fim da conversa. Rearmada a cada turno novo.
+        self._tarefa_ociosidade: asyncio.Task | None = None
+
+    #: Uma fala precisa ter ao menos isto para caber um fato.
+    #:
+    #: Sem este piso, o gatilho por ociosidade gastaria uma chamada de modelo
+    #: em toda sessao de uma palavra - e "Fofao!" sozinho e a sessao mais comum
+    #: no banco (a palavra de ativacao entra como turno). Nao ha fato duravel
+    #: dentro de um chamado; so ha custo.
+    _MINIMO_LETRAS_FALA = 15
 
     def agendar(self, texto_usuario: str, resposta: str) -> None:
         """Registra um turno. Volta NA HORA - nunca espera pela extracao."""
         if not texto_usuario or not texto_usuario.strip():
             return
         self._acumulado.append((texto_usuario.strip(), (resposta or "").strip()))
-        if len(self._acumulado) < self._turnos_por_lote:
+        if len(self._acumulado) >= self._turnos_por_lote:
+            self._cancelar_espera()
+            self._disparar(self._tomar_lote())
             return
+        # Ainda nao encheu o lote: rearma a espera. Se vier outro turno antes
+        # do prazo, esta espera e cancelada e comeca de novo - o relogio conta
+        # SILENCIO, nao tempo desde o inicio da conversa.
+        self._rearmar_espera()
 
-        lote = self._acumulado
-        self._acumulado = []
+    def _tomar_lote(self) -> list[tuple[str, str]]:
+        lote, self._acumulado = self._acumulado, []
+        return lote
+
+    def _disparar(self, lote: list[tuple[str, str]]) -> None:
         # Fogo e esquece. A excecao morreria em silencio dentro da task, entao
         # o callback abaixo existe so para ela chegar ao log.
         self._tarefa = asyncio.create_task(self._extrair(lote))
         self._tarefa.add_done_callback(self._reportar_falha)
+
+    def _cancelar_espera(self) -> asyncio.Task | None:
+        """Pede o cancelamento e devolve a tarefa, para quem puder esperar.
+
+        `cancel()` so AGENDA o cancelamento - a tarefa so morre quando o laco
+        a escalar de novo. No `agendar` isso basta (o laco continua rodando);
+        no `encerrar` nao, e por isso a tarefa volta daqui em vez de ser
+        simplesmente esquecida.
+        """
+        tarefa = self._tarefa_ociosidade
+        if tarefa is not None and not tarefa.done():
+            tarefa.cancel()
+        self._tarefa_ociosidade = None
+        return tarefa
+
+    def _rearmar_espera(self) -> None:
+        self._cancelar_espera()
+        self._tarefa_ociosidade = asyncio.create_task(self._destilar_quando_ociosa())
+        self._tarefa_ociosidade.add_done_callback(self._reportar_falha)
+
+    async def _destilar_quando_ociosa(self) -> None:
+        """Passado o silencio, destila o que houver - a conversa acabou."""
+        try:
+            await asyncio.sleep(self._segundos_ate_destilar)
+        except asyncio.CancelledError:
+            return
+        lote = self._tomar_lote()
+        if not self._vale_destilar(lote):
+            # Descartar aqui e deliberado: o lote e ruido (chamado sem
+            # pergunta), nao conteudo adiado. Deixa-lo acumulado faria a
+            # proxima conversa comecar contaminada por ele.
+            logger.debug("lote ocioso sem substancia (%d turnos) - descartado", len(lote))
+            return
+        await self._extrair(lote)
+
+    def _vale_destilar(self, lote: list[tuple[str, str]]) -> bool:
+        """Ha fala longa o bastante para caber um fato?"""
+        return any(len(pergunta) >= self._MINIMO_LETRAS_FALA for pergunta, _ in lote)
 
     @staticmethod
     def _reportar_falha(tarefa: asyncio.Task) -> None:
@@ -124,9 +203,17 @@ class ExtratorFatos:
             logger.warning("extracao de fatos falhou", exc_info=erro)
 
     async def encerrar(self) -> None:
-        """Extrai o que sobrou e espera terminar. Para o desligamento limpo."""
+        """Extrai o que sobrou e espera terminar. Para o desligamento limpo.
+
+        No desligamento nao se aplica o piso de `_vale_destilar`: quem fechou a
+        sessao ja pagou o tempo, e este e o ultimo momento em que aquele lote
+        existe. O piso serve para nao gastar chamada a toa NO MEIO do uso.
+        """
+        espera = self._cancelar_espera()
+        if espera is not None:
+            await asyncio.gather(espera, return_exceptions=True)
         if self._acumulado:
-            lote, self._acumulado = self._acumulado, []
+            lote = self._tomar_lote()
             try:
                 await self._extrair(lote)
             except Exception:
