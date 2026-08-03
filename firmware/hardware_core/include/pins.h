@@ -160,14 +160,47 @@ constexpr uint8_t RELE_VENTILADOR = 17;  // (Mega: 7)
 // GPIO 36 e ADC1: continua lendo com o WiFi ligado (regra 3 no topo).
 constexpr uint8_t BATERIA_SENSE = 36;  // (Mega: A0)
 
-// --- RESERVADO: nao fisicamente conectado nesta montagem ---
+// --- Encoders: SENSOR INDUTIVO NPN + 6 chapas na roda ---
+// (definido pelo dono em 2026-08-02; ainda nao instalado fisicamente)
+//
 // No Mega os encoders eram obrigados a viver nos pinos 18/19, os unicos com
-// interrupcao externa sobrando. No ESP32 QUALQUER GPIO interrompe, entao a
-// escolha aqui foi por outro criterio: ENCODER_DIREITO ficou num pino comum
-// (16) e nao num 34..39 porque aqueles nao tem pull-up interno - se o
-// encoder for de coletor aberto, o 16 funciona sozinho e o 39 exigiria um
-// resistor externo que hoje nao existe na bancada.
-constexpr uint8_t ENCODER_ESQUERDO = 39;  // (Mega: 18) SO LEITURA
+// interrupcao externa sobrando. No ESP32 qualquer GPIO interrompe, entao a
+// escolha passou a ser por PULL-UP, e isso decidiu tudo:
+//
+// Um sensor indutivo NPN tem saida de COLETOR ABERTO. Ele so sabe fazer uma
+// coisa: ligar a saida no GND quando ve metal. Quando nao ve, a saida fica
+// SOLTA - e pino solto no ESP32 flutua e conta pulso que nao existe. Sem um
+// resistor puxando para 3,3V, a odometria vira ruido com cara de medida, que
+// e a pior falha possivel para odometria (foi assim que a pose do robo
+// afirmou 85 cm com os motores desligados).
+//
+// Por isso ENCODER_ESQUERDO SAIU do GPIO 39 (2026-08-02): a faixa 34..39 nao
+// tem pull-up interno e exigiria um resistor externo que hoje nao existe na
+// bancada. O 15 tem. O 16 tambem.
+//
+// GPIO 15 e pino de strapping, mas e o unico caso em que isso NAO atrapalha:
+// ele so decide se o log de boot sai pela UART0. Como a UART0 pertence ao
+// protocolo com o Raspberry, log de boot ali e lixo no enquadramento - se o
+// sensor segurar o 15 em nivel baixo no instante do reset, o efeito colateral
+// e CALAR esse lixo. Bom para os dois lados.
+//
+// POR QUE NPN E SEGURO A 12V: um NPN so PUXA PARA BAIXO; nunca empurra
+// tensao para o pino. Alimentado com 12V, a saida dele alterna entre "GND" e
+// "solta", e quem define o nivel alto e o pull-up de 3,3V do proprio ESP32.
+// Um sensor PNP faria o oposto - empurraria 12V no GPIO e MATARIA a placa.
+// Mesma armadilha ja registrada para os Cotrinex LTS-1180-103.
+//
+// GND COMUM E OBRIGATORIO aqui. Os TB6600 sao opto-isolados e dispensavam
+// isso (ver o bloco dos motores); o sensor nao: sem referencia comum, "puxado
+// para o GND" nao significa nada para o ESP32.
+//
+// RESOLUCAO: 6 chapas = 6 pulsos por volta da roda. E pouco - da a casa dos
+// centimetros, nao dos milimetros. Resolve o problema REAL (hoje a pose conta
+// passos COMANDADOS e mente quando a roda nao gira) mas nao entrega precisao
+// de mapeamento. E, com um sensor por roda e sem quadratura, NAO da para
+// saber o SENTIDO do giro: o sinal conta pulso, e quem sabe se foi para frente
+// ou para tras e quem comandou o movimento.
+constexpr uint8_t ENCODER_ESQUERDO = 15;  // (Mega: 18)
 constexpr uint8_t ENCODER_DIREITO = 16;   // (Mega: 19)
 constexpr uint8_t LED_LANTERNA = 2;       // (Mega: 25) LED da propria placa
 

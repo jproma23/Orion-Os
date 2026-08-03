@@ -53,7 +53,7 @@ orion::SensorUltrassonico ultrassomTraseiro;
 orion::BussolaManager bussola;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
 orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
-                                  bateria, bussola, safety);
+                                  bateria, bussola, safety, encoders);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 // DOIS REGIMES DE TELEMETRIA (2026-07-27, pedido do usuario a partir da
@@ -502,6 +502,17 @@ void loop() {
   }
 
   motores.atualizar();
+  // Consome os pulsos que as interrupcoes dos encoders deixaram na fila e faz
+  // a analise da chapa-marca aqui, FORA da ISR (ver encoder_manager.cpp).
+  //
+  // Esta linha NAO EXISTIA ate 2026-08-02, e nao era esquecimento: a versao
+  // antiga do EncoderManager era so um contador dentro da interrupcao, sem
+  // nada para consumir. O resultado era pior que nao ter encoder - o firmware
+  // contava pulsos que NUNCA SAIAM da placa, porque tambem nao havia campo de
+  // encoder na telemetria. Contagem perfeita, guardada para ninguem: a mesma
+  // familia de "publicar num topico sem assinante" que ja mordeu este projeto
+  // tres vezes.
+  encoders.atualizar();
   radar.atualizar();
   ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
