@@ -45,7 +45,7 @@ def _ia(tmp_path, pedacos=None, erro_apos=None):
     )
     ia._openai_api_key = "chave-de-teste"
 
-    def _fake(prompt_sistema, texto_usuario):
+    def _fake(mensagens):
         for i, p in enumerate(pedacos or []):
             if erro_apos is not None and i == erro_apos:
                 raise RuntimeError("a rede caiu no meio")
@@ -63,7 +63,7 @@ async def _coletar(gerador):
 async def test_frases_saem_fechadas_e_na_ordem(tmp_path):
     ia = _ia(tmp_path)
     # substitui o produtor sincrono: o teste nao fala com a rede
-    ia._openai_em_frases = lambda p, u: iter(
+    ia._openai_em_frases = lambda mensagens: iter(
         ["Tudo em ordem por aqui.", "A porta continua fechada."]
     )
 
@@ -96,12 +96,12 @@ async def test_falha_antes_da_primeira_frase_cai_para_a_reserva(tmp_path):
     caminho local."""
     ia = _ia(tmp_path)
 
-    def _explode(p, u):
+    def _explode(mensagens):
         raise RuntimeError("a rede caiu antes de qualquer token")
         yield  # noqa: unreachable - marca a funcao como geradora
 
     ia._openai_em_frases = _explode
-    ia._chamar_ollama = lambda p, u: "reserva local respondeu"
+    ia._chamar_ollama = lambda mensagens: "reserva local respondeu"
 
     frases = await _coletar(ia.responder_em_frases("oi"))
 
@@ -114,12 +114,12 @@ async def test_falha_no_meio_nao_repete_o_que_ja_foi_dito(tmp_path):
     de novo desde o comeco - em voz alta, por cima do que ele acabou de falar."""
     ia = _ia(tmp_path)
 
-    def _meio(p, u):
+    def _meio(mensagens):
         yield "Primeira frase ja dita."
         raise RuntimeError("caiu depois da primeira")
 
     ia._openai_em_frases = _meio
-    ia._chamar_ollama = lambda p, u: "NAO DEVE APARECER"
+    ia._chamar_ollama = lambda mensagens: "NAO DEVE APARECER"
 
     frases = await _coletar(ia.responder_em_frases("oi"))
 

@@ -98,7 +98,7 @@ async def test_provider_openai_com_chave_usa_openai(ai_manager, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_decidir_retorna_acao_do_vocabulario(ai_manager, monkeypatch):
-    async def _responder_falso(prompt, contexto=None):
+    async def _responder_falso(prompt, contexto=None, usar_historico=True):
         return "observar_ambiente"
 
     monkeypatch.setattr(ai_manager, "responder", _responder_falso)
@@ -112,7 +112,7 @@ async def test_decidir_retorna_acao_do_vocabulario(ai_manager, monkeypatch):
 async def test_decidir_aceita_resposta_com_texto_extra_ao_redor(ai_manager, monkeypatch):
     """A IA nem sempre obedece "so a palavra exata" - aceitar por
     substring e mais robusto do que exigir igualdade estrita."""
-    async def _responder_falso(prompt, contexto=None):
+    async def _responder_falso(prompt, contexto=None, usar_historico=True):
         return "Acho que a melhor opcao e Observar_Ambiente agora."
 
     monkeypatch.setattr(ai_manager, "responder", _responder_falso)
@@ -124,7 +124,7 @@ async def test_decidir_aceita_resposta_com_texto_extra_ao_redor(ai_manager, monk
 
 @pytest.mark.asyncio
 async def test_decidir_fora_do_vocabulario_retorna_none(ai_manager, monkeypatch):
-    async def _responder_falso(prompt, contexto=None):
+    async def _responder_falso(prompt, contexto=None, usar_historico=True):
         return "vou dancar"
 
     monkeypatch.setattr(ai_manager, "responder", _responder_falso)
@@ -136,7 +136,7 @@ async def test_decidir_fora_do_vocabulario_retorna_none(ai_manager, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_decidir_com_falha_retorna_none(ai_manager, monkeypatch):
-    async def _responder_com_falha(prompt, contexto=None):
+    async def _responder_com_falha(prompt, contexto=None, usar_historico=True):
         raise RuntimeError("sem internet (simulado)")
 
     monkeypatch.setattr(ai_manager, "responder", _responder_com_falha)

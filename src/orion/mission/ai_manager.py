@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 
 from orion.mission.grounding import montar_contexto
+from orion.mission.historico_conversa import HistoricoConversa
 
 logger = logging.getLogger("orion.mission.ai_manager")
 
@@ -38,6 +39,8 @@ class AiManager:
         openai_model: str = "gpt-4o-mini",
         openai_api_key: str | None = None,
         openai_base_url: str | None = None,
+        max_turnos_memoria: int = 6,
+        validade_memoria_s: float = 600.0,
     ) -> None:
         self._modelo = modelo
         self._temperatura = temperatura
@@ -60,13 +63,52 @@ class AiManager:
         # nao era importavel no Raspberry nem nos testes.
         self._cliente_ollama = None
         self._cliente_openai = None
+        #: A memoria de curto prazo da CONVERSA (2026-08-02).
+        #:
+        #: Publico de proposito: quem sabe que o assunto acabou - a pessoa na
+        #: frente do robo mudou, o operador assumiu - chama `.limpar()`. Essa
+        #: informacao nao chega aqui dentro.
+        self.historico = HistoricoConversa(
+            max_turnos=max_turnos_memoria, validade_s=validade_memoria_s
+        )
 
-    async def responder(self, texto_usuario: str, contexto: dict | None = None) -> str:
+    def _montar_mensagens(
+        self, prompt_sistema: str, texto_usuario: str, usar_historico: bool
+    ) -> list[dict[str, str]]:
+        """Monta o `messages` completo: sistema + turnos anteriores + fala atual.
+
+        Existe para os TRES caminhos que falam com o modelo montarem a
+        conversa no mesmo lugar. Antes cada um tinha a sua lista literal de
+        duas mensagens, e foi exatamente por isso que a falta de memoria
+        precisou ser corrigida em tres lugares - ou seria esquecida em um.
+        """
+        mensagens: list[dict[str, str]] = [{"role": "system", "content": prompt_sistema}]
+        if usar_historico:
+            mensagens.extend(self.historico.mensagens())
+        mensagens.append({"role": "user", "content": texto_usuario})
+        return mensagens
+
+    async def responder(
+        self,
+        texto_usuario: str,
+        contexto: dict | None = None,
+        usar_historico: bool = True,
+    ) -> str:
+        """Responde uma fala, lembrando dos turnos anteriores.
+
+        `usar_historico=False` existe para o `decidir()`: ele usa este mesmo
+        modelo para ESCOLHER ACOES do robo, e aquilo nao e conversa. Se
+        entrasse no historico, o proximo papo com o dono seria respondido no
+        meio de um monte de deliberacao sobre avancar e virar - e, pior, a
+        deliberacao seguinte viria contaminada pelo papo.
+        """
         prompt_sistema = self._montar_prompt_sistema(contexto)
+        mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico)
 
+        resposta = None
         if self._provider == "openai" and self._openai_api_key:
             try:
-                return await asyncio.to_thread(self._chamar_openai, prompt_sistema, texto_usuario)
+                resposta = await asyncio.to_thread(self._chamar_openai, mensagens)
             except Exception:
                 logger.warning(
                     "OpenAI indisponivel (sem internet ou erro de API) - "
@@ -74,9 +116,14 @@ class AiManager:
                     exc_info=True,
                 )
 
-        return await asyncio.to_thread(self._chamar_ollama, prompt_sistema, texto_usuario)
+        if resposta is None:
+            resposta = await asyncio.to_thread(self._chamar_ollama, mensagens)
 
-    def _chamar_ollama(self, prompt_sistema: str, texto_usuario: str) -> str:
+        if usar_historico:
+            self.historico.registrar(texto_usuario, resposta)
+        return resposta
+
+    def _chamar_ollama(self, mensagens: list[dict[str, str]]) -> str:
         import ollama
 
         if self._cliente_ollama is None:
@@ -88,10 +135,7 @@ class AiManager:
 
         resposta = self._cliente_ollama.chat(
             model=self._modelo,
-            messages=[
-                {"role": "system", "content": prompt_sistema},
-                {"role": "user", "content": texto_usuario},
-            ],
+            messages=mensagens,
             options=opcoes,
             keep_alive=self._keep_alive,
         )
@@ -135,8 +179,11 @@ class AiManager:
         ficar sem resposta vale mais que responder em pedacos (Cap 6 s.8).
         """
         prompt_sistema = self._montar_prompt_sistema(contexto)
+        mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico=True)
 
         if not (self._provider == "openai" and self._openai_api_key):
+            # `responder` ja registra o turno sozinho - nao registrar de novo
+            # aqui, senao a mesma pergunta entraria duas vezes no historico.
             yield await self.responder(texto_usuario, contexto)
             return
 
@@ -161,7 +208,7 @@ class AiManager:
         def _produzir() -> None:
             """Roda em thread: a lib da OpenAI e sincrona."""
             try:
-                for frase in self._openai_em_frases(prompt_sistema, texto_usuario):
+                for frase in self._openai_em_frases(mensagens):
                     _entregar(frase)
             except Exception as erro:  # noqa: BLE001
                 _entregar(erro)
@@ -170,6 +217,11 @@ class AiManager:
 
         tarefa = asyncio.create_task(asyncio.to_thread(_produzir))
         houve_frase = False
+        # As frases sao entregues uma a uma para a voz comecar a falar antes
+        # do fim, mas o HISTORICO precisa do texto inteiro: guardar "Oi." como
+        # a resposta faria o modelo, no turno seguinte, achar que so disse
+        # isso. Por isso as frases sao acumuladas aqui enquanto saem.
+        ditas: list[str] = []
         try:
             while True:
                 item = await fila.get()
@@ -181,16 +233,24 @@ class AiManager:
                     # da para cair na reserva local em vez de emudecer.
                     logger.warning("streaming da IA falhou", exc_info=item)
                     if not houve_frase:
-                        yield await asyncio.to_thread(
-                            self._chamar_ollama, prompt_sistema, texto_usuario
-                        )
+                        reserva = await asyncio.to_thread(self._chamar_ollama, mensagens)
+                        self.historico.registrar(texto_usuario, reserva)
+                        yield reserva
+                    else:
+                        # Falou pela metade: o que saiu pela caixa foi ouvido e
+                        # E o turno, por mais truncado que esteja. Guardar o
+                        # pedaco mantem o historico fiel ao que a pessoa ouviu;
+                        # descartar faria o robo negar depois ter dito aquilo.
+                        self.historico.registrar(texto_usuario, " ".join(ditas))
                     return
                 houve_frase = True
+                ditas.append(item)
                 yield item
+            self.historico.registrar(texto_usuario, " ".join(ditas))
         finally:
             await tarefa
 
-    def _openai_em_frases(self, prompt_sistema: str, texto_usuario: str):
+    def _openai_em_frases(self, mensagens: list[dict[str, str]]):
         """Gerador SINCRONO: consome o stream da OpenAI e solta frases fechadas."""
         from openai import OpenAI
 
@@ -201,10 +261,7 @@ class AiManager:
 
         fluxo = self._cliente_openai.chat.completions.create(
             model=self._openai_model,
-            messages=[
-                {"role": "system", "content": prompt_sistema},
-                {"role": "user", "content": texto_usuario},
-            ],
+            messages=mensagens,
             temperature=self._temperatura,
             max_tokens=self._max_tokens_resposta,
             stream=True,
@@ -248,7 +305,7 @@ class AiManager:
                     return i + 1
         return None
 
-    def _chamar_openai(self, prompt_sistema: str, texto_usuario: str) -> str:
+    def _chamar_openai(self, mensagens: list[dict[str, str]]) -> str:
         from openai import OpenAI
 
         if self._cliente_openai is None:
@@ -258,10 +315,7 @@ class AiManager:
 
         resposta = self._cliente_openai.chat.completions.create(
             model=self._openai_model,
-            messages=[
-                {"role": "system", "content": prompt_sistema},
-                {"role": "user", "content": texto_usuario},
-            ],
+            messages=mensagens,
             temperature=self._temperatura,
             max_tokens=self._max_tokens_resposta,
         )
@@ -281,7 +335,13 @@ class AiManager:
             f"Estado atual do robo: {estado}"
         )
         try:
-            resposta = await self.responder(prompt, contexto=None)
+            # `usar_historico=False` NAO e detalhe (2026-08-02). Isto aqui usa
+            # o mesmo modelo da conversa para ESCOLHER ACAO do robo, e as duas
+            # coisas nao podem se misturar nos dois sentidos: a deliberacao
+            # ("escolha entre avancar, virar_esquerda...") poluiria o papo com
+            # o dono, e o papo com o dono influenciaria a escolha de
+            # movimento. Sao dois usos do mesmo modelo, nao uma conversa so.
+            resposta = await self.responder(prompt, contexto=None, usar_historico=False)
         except Exception:
             logger.warning("Falha ao consultar IA para decisao estrategica", exc_info=True)
             return None
