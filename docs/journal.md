@@ -5021,3 +5021,181 @@ Com as rodas no ar isso nao tem consequencia. Com motor no chao, tem.
 mexe no firmware e exige gravar no Mega (parar o orion-motion, avrdude), o que
 e sessao propria. E a re sem protecao e decisao de arquitetura, nao bug - pede
 EDR, nao remendo.
+
+
+---
+
+## Sessao de 2026-08-02 - o corpo morreu e voltou, e a conversa aprendeu a lembrar
+
+Sessao longa, duas frentes: **hardware** (o Mega morreu e foi substituido) e
+**conversa** (memoria, persona, sessao). O fio que costura as duas: em quase
+todo defeito desta noite, o codigo certo JA EXISTIA e as pontas e que nao se
+tocavam.
+
+### O Mega morreu - o corpo migrou para o ESP32
+
+Diagnostico inicial: o Pi estava **sem nenhuma `/dev/ttyUSB*`**, o Motion Core
+rodava havia 3h26 falando sozinho, e a propria IA registrava no log *"perdi
+contato com meu corpo"*. Nao era preferencia de plataforma: era migracao
+forcada.
+
+Placa nova: **ESP32-D0WD-V3** (DevKit 38 pinos, 240 MHz, dois nucleos, 4 MB,
+USB por CP2102). Commit `0c9e9ba`.
+
+**Compila, grava e FALA O PROTOCOLO** - 12 quadros JSON validos com checksum
+em 6 s a 250000 baud. RAM 15,1%, flash 69,3%.
+
+Quatro bugs invisiveis que so existiam por causa da troca, e nenhum daria erro
+de compilacao:
+
+| O que | Por que era invisivel |
+|---|---|
+| EEPROM sem `commit()` | Grava, le certo na mesma execucao, **some no reset**. Perderia calibracao da IMU e da bussola |
+| ISR sem `IRAM_ATTR` | Reinicia so quando uma interrupcao cai durante escrita na flash |
+| `Wire.begin()` sem os pinos | I2C fica **mudo sem erro** - so `imu_conectado: false` |
+| Divisor da bateria 100k/27k | Entregaria 4,46 V num pino de 3,3 V (nunca foi montado, sem dano) |
+
+O comentario em `bussola_manager.h` que dizia *"commit() e coisa de ESP8266;
+no AVR a escrita e direta"* estava **certo** - e virou falso no instante em que
+a placa mudou.
+
+WiFi e Bluetooth **desligados** no setup, por tres motivos somados: energia
+(era o motivo declarado da troca - com radio ligado o ESP32 fica PIOR que o
+Mega), o ADC2 volta a existir, e a pilha de WiFi para de roubar CPU dos pulsos
+de STEP.
+
+**Riscos abertos, que o software nao resolve:** as entradas opto dos TB6600
+foram dimensionadas para 5 V e o ESP32 entrega 3,3 V (corrente do opto cai de
+~14 mA para ~8 mA - so a bancada responde); e o ECHO dos HC-SR04 entrega 5 V e
+QUEIMA GPIO, entao os dois ficam **desplugados de vez** (o LiDAR ToF os
+substitui - nao vale divisor numa peca com data de saida).
+
+### A pose parou de mentir
+
+Era o defeito mais grave do projeto: a interface afirmou **85 cm e 80 graus com
+os motores fisicamente desligados**, porque integrava passos COMANDADOS.
+
+Firmware (`b1a84e7`) + odometria (`3c5c298`). O `EncoderManager` foi reescrito
+e a telemetria passou a carregar `pulsos_esquerdo`/`pulsos_direito` no pacote
+REDUZIDO. Antes ele contava pulso por interrupcao e **nao havia campo na
+telemetria nem chamada no loop()**: contagem perfeita, guardada para ninguem.
+
+Montagem definida pelo dono: **sensor indutivo NPN + 6 chapas por roda, uma
+delas MAIOR**. A chapa maior nao e enfeite - com seis iguais, um pulso perdido
+fica na conta para sempre sem nada denunciar; a maior produz um pulso mais
+LARGO uma vez por volta, e entre duas marcas tem que haver 6 pulsos. O que
+divergir vira `encoder_desalinhados_*`, que e o termometro de saude da medida.
+
+Tres comportamentos: com pulso e com calibracao a pose vem do pulso; com pulso
+e sem calibracao a pose ainda vem do passo **mas nao avanca se a roda nao
+girou**; sem pulso, `rodas_confirmadas: None` - "nao sei" nao pode virar False.
+
+**Falta medir** `encoder_pulses_per_meter` (empurrar 1 m com os motores
+desligados e ler o contador). Esperado ~29 pulsos/m.
+
+### GOAP - o robo planeja em sequencia
+
+Commit `fbe7a14`. A `IaEstrategica` escolhia UMA acao; agora a IA escolhe um
+OBJETIVO e o planejador monta o caminho:
+
+    cego, quer andar  ->  observar_ambiente -> virar_esquerda
+    corpo mudo        ->  SEM PLANO
+
+**Substitui** a escolha unica, nao empilha em cima dela. Duas regras
+verificadas no import: todo predicado tem que sair de um campo real do
+`RetratoDoMundo`, e toda acao com `move_rodas` exige corpo vivo, nivelado, sem
+impacto e bateria ok - esta segunda nasceu de um erro meu que o TESTE pegou
+(virar_esquerda movia as rodas sem exigir bateria).
+
+**Ainda nao ligado na IaEstrategica** - o planejador esta completo e testado,
+mas quem consulta o modelo continua pedindo uma acao.
+
+### A conversa - quatro consertos encadeados
+
+**1. Memoria de curto prazo** (`f0a60ad`). Nao era memoria curta, era memoria
+NENHUMA: os tres caminhos que falam com o modelo montavam `messages` com
+system + user e mais nada. Toda pergunta chegava como a primeira frase da
+vida. Esquece por TEMPO (10 min), e `decidir()` nao entra no historico.
+
+**2. Persona** (`b44d57e`). A causa do "ele responde e morre" estava no proprio
+prompt: *"responde com frases curtas e claras"*. Nao faltava instrucao,
+SOBRAVA uma. O ajuste separa curto de fechado. Junto vieram os limites do
+corpo (ele **nao tem bracos**) e a ordem de narrar o que faz.
+
+**3. O eco** (`1142281`). O robo estava ouvindo a PROPRIA VOZ e gravando como
+fala do dono:
+
+    22:50:15  ouvi: 'Como e que voce esta hoje?'   <- ele mesmo
+    22:50:15  diario: pedido_ouvido {...}          <- como pedido DO DONO
+
+Explicou os quatro sintomas de uma vez ("nao puxou assunto, falou 3 vezes, nao
+entendeu, disse que eu tinha dito a mesma coisa e tal hora"). A causa nao era
+buffer sujo - `gravar()` ja limpa. Era **audio em transito**: o ESP32 manda
+62,8 KB/s por WiFi, entao quando o alto-falante cala ainda ha audio viajando.
+Conserto: esperar 0,9 s depois de falar.
+
+**4. Memoria de longo prazo** (`30ce49e` + `17ba7fa`). A cadeia inteira ja
+existia e estava rompida em dois pontos: a busca de conversas vivia dentro de
+`if pessoa_id is not None` (e as 146 linhas do banco tem todas `pessoa_id =
+None`, porque ele conversa por voz sem reconhecer rosto), e
+`conhecimento_relevante` era `ORDER BY criado_em DESC LIMIT 20`. E ninguem
+escrevia fatos. O extrator novo roda **fora do caminho critico**, em lote de 4
+turnos.
+
+**5. Duas correcoes achadas testando** (`55e4873`). Mandando uma conversa
+direto ao modelo, sem microfone: ele nao lembrava do que fora dito dois turnos
+antes, porque o prompt dizia que o bloco de fatos era "a unica fonte de verdade
+sobre o mundo" e ele lia "lembrar" como consultar registros. Corrigido
+separando as duas fontes. Isso causou uma regressao - o extrator passou a
+guardar "hoje estou muito cansado" - porque a INSTRUCAO de extracao viajava por
+baixo da persona conversacional, que ganhava dela. Extrair nao e conversar:
+agora o extrator manda o proprio prompt de sistema.
+
+**6. A sessao de conversa** (`541992f`). Relato do dono: *"ta horrivel"* - tinha
+que dizer "Fofao" antes de cada frase. **O log desmentiu o Portao 1**: fala em
+rms 0,0309-0,0602 contra silencio em 0,0105-0,0164 (3 a 5x, e nao os 0,97x
+registrados), com transcricoes limpas. Ele ouviu tres frases seguidas e
+descartou as tres por nao terem a palavra de ativacao. Agora ela ABRE uma
+sessao; dois silencios (~10 s) encerram. So e seguro por causa do assentamento
+pos-fala. Junto, um detector de alucinacao do Whisper (o `'O que e o que e...'`
+repetido ~60 vezes).
+
+### Decisoes de rumo
+
+- **NAO reescrever o ORION como pacote ROS 2.** O dono trouxe um roteiro de
+  `ros2 pkg create` que refaria o projeto inteiro; alem de o ROS 2 nao ter
+  binario para Debian 13 trixie, seria descartar 676 testes. O caminho e
+  **ponte**: Nav2 em Docker e dois nos (um publica `/scan` e `/odom`, outro
+  traduz `/cmd_vel`).
+- **NAO adotar a "arquitetura em 5 camadas"** trazida de outra IA: 4 das 5
+  pecas ja existiam. Aproveitadas so a persona e a tabela de fatos. O intent
+  classifier foi recusado - casa por SUBSTRING, o mesmo bug que o
+  `contrato.py` ja registra ("'parar' casa dentro de 'preparar'").
+- **ChromaDB recusado** pela RAM do Notebook (7,6 GB ja com YOLO +
+  reconhecimento facial + Whisper; o Ollama local ja foi removido por travar a
+  maquina). Busca por LIKE hoje; FTS5 no MESMO arquivo se faltar.
+
+### LiDAR STL-50B2 - as cores dos fios mentem
+
+Foto do anuncio: **vermelho = Time sync** (nao alimentacao) e **preto = RX**
+(nao terra); 5 V e o AZUL, GND e o VERDE. Ligar no reflexo poe 5 V no pino de
+sincronismo. Terceira vez que o cabo mente neste projeto (HC-SR04 com
+TRIG/ECHO invertidos, servos pan/tilt cruzados). Falta comprar conversor
+USB-TTL - **CH340, nao CP2102**, porque o ESP32 do corpo ja e CP2102 com
+serial de fabrica `0001` e os dois se confundiriam no boot.
+
+### Estado ao fim da sessao
+
+- Pi e Notebook sincronizados em `541992f`; **676 testes passam**.
+- `orion-motion` e `orion-avatar` ativos.
+- No ar: corpo ESP32, odometria honesta, memoria curta e longa, persona,
+  extrator de fatos, sessao de conversa.
+
+### Proximo passo
+
+1. **Bancada** (depende do dono): medir consumo ANTES de religar tudo (o Mega
+   pode ter morrido de corrente anormal, e o ESP32 e menos tolerante); testar
+   TB6600 a 3,3 V; instalar os encoders (GPIO 15 e 16) e medir pulsos/metro.
+2. Ligar o GOAP na `IaEstrategica`.
+3. Ligar o reconhecimento facial ao `pessoa_id` das conversas - hoje grava
+   `None` sempre, entao a memoria e da casa e nao de cada pessoa.
