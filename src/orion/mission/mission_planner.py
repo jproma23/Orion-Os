@@ -24,6 +24,7 @@ from datetime import datetime
 from typing import Awaitable, Callable
 
 from orion.mission.ai_manager import AiManager
+from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
 
 logger = logging.getLogger("orion.mission.mission_planner")
@@ -102,6 +103,7 @@ class MissionPlanner:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
         self._memory_client = memory_client
+        self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
         # lista vazia e o robo responde "nao tenho registro de hoje" - que
         # e correto, so que ele nunca teria registro de nada.
@@ -310,11 +312,32 @@ class MissionPlanner:
         agora = datetime.now()
         return f"Agora sao {agora.hour} horas e {agora.minute} minutos."
 
+    @property
+    def extrator(self) -> ExtratorFatos | None:
+        """Criado sob demanda, e so quando ha memoria para escrever nele.
+
+        Preguicoso de proposito: o planner e construido em varios caminhos
+        (boot, testes, ferramentas de bancada) e nem todos tem memoria. Um
+        extrator sem para onde gravar seria uma chamada de modelo jogada fora
+        a cada quatro turnos.
+        """
+        if self._memory_client is None:
+            return None
+        if self._extrator is None:
+            self._extrator = ExtratorFatos(self._ai_manager, self._memory_client)
+        return self._extrator
+
     async def _registrar_interacao(
         self, pessoa_id: int | None, texto_usuario: str, resposta: str
     ) -> None:
         if self._memory_client is None:
             return
+        # A conversa vira FATO em segundo plano (2026-08-02). `agendar` volta
+        # na hora: a extracao acontece depois, sem ninguem esperando. Perder um
+        # fato e barato; atrasar a fala nao e.
+        extrator = self.extrator
+        if extrator is not None:
+            extrator.agendar(texto_usuario, resposta)
         try:
             await self._memory_client.remember(
                 "conversas", {"pessoa_id": pessoa_id, "papel": "usuario", "texto": texto_usuario}
