@@ -563,6 +563,11 @@ class WebUIServer:
             "modo": self.modo_controle,
             "operador_no_volante": self.operador_tem_o_volante(),
         }
+        # So a PORTA: o host quem monta e o navegador, a partir do
+        # endereco que ele ja usou para abrir esta pagina. Assim o mesmo
+        # dashboard serve na LAN e pelo Tailscale sem reconfiguracao.
+        conf_web = self._config.secao("display")["web"] if self._config else {}
+        estado["camera"] = {"porta": conf_web.get("camera_porta")}
         return web.json_response(
             {"estado": estado, "eventos_recentes": self._eventos_recentes}
         )

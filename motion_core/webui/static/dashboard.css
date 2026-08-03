@@ -372,3 +372,60 @@ dd {
   color: var(--texto-fraco);
   line-height: 1.45;
 }
+
+/* --- Câmera -------------------------------------------------------------
+   Ocupa a linha inteira porque é a razão de abrir o dashboard de longe:
+   ver o que o robô vê. `aspect-ratio` reserva o espaço ANTES da imagem
+   chegar - sem isso a página inteira pula quando o primeiro quadro carrega,
+   que no celular tira o dedo do lugar em que ele estava. */
+.painel--camera {
+  grid-column: 1 / -1;
+}
+
+.camera-moldura {
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.camera-moldura img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.camera-controles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.camera-opcao {
+  font: inherit;
+  font-size: 13px;
+  color: var(--texto-fraco);
+  background: transparent;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+
+.camera-opcao.ativo {
+  color: var(--texto);
+  border-color: var(--texto-fraco);
+  background: var(--painel);
+}
+
+#camera-status {
+  font-size: 12px;
+  color: var(--texto-fraco);
+  margin-left: auto;
+}

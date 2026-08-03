@@ -78,8 +78,62 @@ function renderizarPosicao(posicao) {
   $('pos-velocidade').textContent = formatar(posicao.velocidade_m_s, ' m/s');
 }
 
+
+// --- Câmera --------------------------------------------------------------
+// O host vem do location, nunca da config: assim a mesma página funciona
+// pelo IP da LAN, por pi-os.local e por fofao-pi (Tailscale). A porta vem
+// do /estado, porque porta é config e não número no código.
+//
+// FOTO é o padrão de propósito. O stream contínuo custa ~16 KB/s (~58 MB/h)
+// e a razão de existir esta página é olhar de fora de casa, muitas vezes em
+// dados móveis. Um quadro custa ~13 KB.
+//
+// Cuidado ao depurar aqui: o ustreamer roda com --persistent e, com a câmera
+// DESPLUGADA, ele serve uma imagem "NO SIGNAL" com HTTP 200. Ou seja, o
+// onerror NUNCA dispara nesse caso - a imagem chega, só não é a câmera.
+let cameraBase = null;
+let cameraModo = 'foto';
+
+function cameraAtualizarFoto() {
+  if (!cameraBase) return;
+  // o timestamp existe só para furar o cache do navegador
+  $('camera-img').src = `${cameraBase}/snapshot?t=${Date.now()}`;
+}
+
+function cameraDefinirModo(modo) {
+  cameraModo = modo;
+  for (const botao of document.querySelectorAll('.camera-opcao')) {
+    botao.classList.toggle('ativo', botao.dataset.modo === modo);
+  }
+  if (modo === 'vivo') {
+    $('camera-img').src = `${cameraBase}/stream`;
+    $('camera-status').textContent = 'ao vivo — ~16 KB/s';
+  } else {
+    cameraAtualizarFoto();
+    $('camera-status').textContent = 'foto — toque para atualizar';
+  }
+}
+
+function renderizarCamera(camera) {
+  const painel = $('painel-camera');
+  if (!camera || !camera.porta) {
+    painel.hidden = true;
+    return;
+  }
+  if (cameraBase) return;  // já montado, não remonta a cada evento
+  cameraBase = `${location.protocol}//${location.hostname}:${camera.porta}`;
+  painel.hidden = false;
+  $('camera-foto').addEventListener('click', () => {
+    if (cameraModo === 'foto') cameraAtualizarFoto();
+    else cameraDefinirModo('foto');
+  });
+  $('camera-vivo').addEventListener('click', () => cameraDefinirModo('vivo'));
+  cameraDefinirModo('foto');
+}
+
 function renderizarEstado(estado) {
   renderizarControle(estado.controle);
+  renderizarCamera(estado.camera);
   $('robot-name').textContent = estado.sistema.robot_name ? `— ${estado.sistema.robot_name}` : '';
   $('sistema-modo').textContent = formatar(estado.sistema.modo);
   $('nav-modo').textContent = formatar(estado.navegacao.modo);

@@ -453,6 +453,17 @@ display:
     sleep_timeout_min: 15
   web:                           # servida pelo Raspberry (Cap 13)
     port: 8080
+    # Porta do stream MJPEG (orion-camera-stream.service, ustreamer).
+    # Fica aqui e nao no codigo porque o dashboard precisa dela no
+    # navegador, e regra 6: numero de porta e config.
+    #
+    # O HOST nao aparece de proposito. O dashboard monta a URL com o
+    # location.hostname da propria pagina, entao ela funciona igual pelo
+    # IP da LAN, por pi-os.local ou por fofao-pi (Tailscale) - sem nada
+    # para reconfigurar quando se acessa de fora de casa. Fixar o host
+    # aqui quebraria justamente o acesso remoto (vision.camera_indice_
+    # principal aponta para pi-os.local, que so resolve na LAN).
+    camera_porta: 8091
     restricted_pages: ["CONFIGURACAO"]
 
 diagnostics:

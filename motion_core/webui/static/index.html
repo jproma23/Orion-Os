@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Fofão — Dashboard</title>
-<link rel="stylesheet" href="dashboard.css?v=20260730e" />
+<link rel="stylesheet" href="dashboard.css?v=20260803a" />
 </head>
 <body>
 <header>
@@ -20,6 +20,20 @@
 </header>
 
 <main class="grade">
+
+  <section class="painel painel--camera" id="painel-camera" hidden>
+    <h2>Câmera</h2>
+    <div class="camera-moldura">
+      <img id="camera-img" alt="Imagem da câmera do pan/tilt" />
+    </div>
+    <div class="camera-controles">
+      <button type="button" class="camera-opcao ativo"
+              id="camera-foto" data-modo="foto">Foto</button>
+      <button type="button" class="camera-opcao"
+              id="camera-vivo" data-modo="vivo">Ao vivo</button>
+      <span id="camera-status">—</span>
+    </div>
+  </section>
 
   <section class="painel">
     <h2>Sistema</h2>
