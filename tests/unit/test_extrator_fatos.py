@@ -19,7 +19,7 @@ class IaFalsa:
         self.resposta = resposta
         self.chamadas: list[dict] = []
 
-    async def responder(self, texto, contexto=None, usar_historico=True):
+    async def responder(self, texto, contexto=None, usar_historico=True, prompt_sistema=None):
         self.chamadas.append({"texto": texto, "usar_historico": usar_historico})
         return self.resposta
 
@@ -163,7 +163,7 @@ async def test_agendar_volta_na_hora_mesmo_com_a_ia_lenta():
     """
 
     class IaLenta(IaFalsa):
-        async def responder(self, texto, contexto=None, usar_historico=True):
+        async def responder(self, texto, contexto=None, usar_historico=True, prompt_sistema=None):
             await asyncio.sleep(5)
             return "NADA"
 
@@ -200,7 +200,7 @@ async def test_falha_da_ia_nao_derruba_o_robo():
     """Perder um fato e barato; derrubar o processo da conversa nao e."""
 
     class IaQuebrada(IaFalsa):
-        async def responder(self, texto, contexto=None, usar_historico=True):
+        async def responder(self, texto, contexto=None, usar_historico=True, prompt_sistema=None):
             raise RuntimeError("sem internet (simulado)")
 
     e = _extrator(IaQuebrada(), m := MemoriaFalsa())

@@ -93,6 +93,7 @@ class AiManager:
         texto_usuario: str,
         contexto: dict | None = None,
         usar_historico: bool = True,
+        prompt_sistema: str | None = None,
     ) -> str:
         """Responde uma fala, lembrando dos turnos anteriores.
 
@@ -102,7 +103,18 @@ class AiManager:
         meio de um monte de deliberacao sobre avancar e virar - e, pior, a
         deliberacao seguinte viria contaminada pelo papo.
         """
-        prompt_sistema = self._montar_prompt_sistema(contexto)
+        # `prompt_sistema` explicito TROCA a persona do Fofao (2026-08-02).
+        #
+        # Nem todo uso deste modelo e conversa. O extrator de fatos manda uma
+        # INSTRUCAO, e ate aqui ela viajava como mensagem de usuario POR BAIXO
+        # da persona - "voce e o Fofao, curioso, atencioso...". O resultado
+        # apareceu num teste: com a persona por tras, ele passou a aceitar
+        # "hoje estou muito cansado" como fato duravel, apesar de a propria
+        # instrucao listar aquilo como exemplo do que NAO guardar. A persona
+        # ganhava da instrucao.
+        #
+        # Quem faz um trabalho que nao e conversar passa o seu proprio prompt.
+        prompt_sistema = prompt_sistema or self._montar_prompt_sistema(contexto)
         mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico)
 
         resposta = None

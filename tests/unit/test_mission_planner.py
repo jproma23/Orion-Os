@@ -12,7 +12,7 @@ class AiManagerFalso:
         self.resposta = resposta
         self.chamadas: list[tuple[str, dict | None]] = []
 
-    async def responder(self, texto_usuario: str, contexto: dict | None = None) -> str:
+    async def responder(self, texto_usuario: str, contexto: dict | None = None, **kwargs) -> str:
         self.chamadas.append((texto_usuario, contexto))
         return self.resposta
 
@@ -24,7 +24,7 @@ class MemoryClientFalso:
         self.lembrancas: list[tuple[str, dict]] = []
         self.consultas_de_nota: list[str] = []
 
-    async def context(self, pessoa_id=None, limite_conversas=10):
+    async def context(self, pessoa_id=None, limite_conversas=10, sobre=None):
         return self._contexto
 
     async def remember(self, categoria, dados):
@@ -173,7 +173,7 @@ async def test_vault_indisponivel_nao_impede_resposta_da_ia():
 @pytest.mark.asyncio
 async def test_falha_na_memoria_nao_derruba_o_processamento():
     class MemoriaQuebrada:
-        async def context(self, pessoa_id=None, limite_conversas=10):
+        async def context(self, pessoa_id=None, limite_conversas=10, sobre=None):
             raise RuntimeError("sem conexao com o Raspberry")
 
         async def remember(self, categoria, dados):

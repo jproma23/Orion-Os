@@ -48,6 +48,20 @@ logger = logging.getLogger("orion.mission.extrator_fatos")
 #: duravel, e um extrator que sempre acha alguma coisa esta inventando.
 NADA = "NADA"
 
+#: O prompt de sistema DO EXTRATOR - e nao a persona do Fofao.
+#:
+#: Descoberto num teste em 2026-08-02: enquanto a instrucao viajava como
+#: mensagem de usuario por baixo da persona conversacional, o modelo aceitou
+#: "hoje estou muito cansado" como fato duravel - apesar de a instrucao listar
+#: exatamente aquilo como exemplo do que NAO guardar. A persona ("curioso,
+#: atencioso, use o que a pessoa te contou") empurrava na direcao oposta e
+#: ganhava. Extrair nao e conversar, e o prompt tem que dizer isso.
+PROMPT_SISTEMA = (
+    "Voce e um extrator de fatos. Nao conversa, nao cumprimenta, nao opina, "
+    "nao ajuda. Le um trecho de conversa e devolve apenas o formato pedido. "
+    "Na duvida, devolve NADA - perder um fato e barato, inventar um nao e."
+)
+
 INSTRUCAO = """Voce le um trecho de conversa e extrai FATOS DURAVEIS sobre a
 pessoa - coisas que continuarao verdadeiras amanha.
 
@@ -129,7 +143,10 @@ class ExtratorFatos:
         # uma instrucao de extracao - e a extracao seguinte viria contaminada
         # pelo papo. Mesma separacao que `decidir()` ja faz.
         bruto = await self._ia.responder(
-            INSTRUCAO.format(conversa=conversa), contexto=None, usar_historico=False
+            INSTRUCAO.format(conversa=conversa),
+            contexto=None,
+            usar_historico=False,
+            prompt_sistema=PROMPT_SISTEMA,
         )
         fatos = self._interpretar(bruto)
         if not fatos:
