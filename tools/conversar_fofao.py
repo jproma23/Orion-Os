@@ -59,6 +59,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
+from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
@@ -527,6 +528,14 @@ async def principal() -> None:
         familia=familia_conf,
     )
 
+    # QUEM ESTA FALANDO (2026-08-03). Ate aqui `processar()` recebia
+    # `pessoa_id` como parametro e ninguem preenchia: as 152 conversas do banco
+    # tinham `pessoa_id = NULL`, TODAS. A visao reconhecia o rosto, a tabela
+    # `pessoas` tinha o id, e os dois nunca se encontravam - entao a memoria do
+    # robo era da CASA e nao de cada pessoa. Numa casa com o dono, a cuidadora
+    # e uma crianca de 3 anos, isso mistura os tres no mesmo balaio.
+    quem_fala = QuemEstaFalando(bus, MemoryClient(comm))
+
     def limpar_para_fala(texto: str) -> str:
         """Tira o que nao da para falar: emojis, markdown (*negrito*),
         quebras de linha viram pausa. O gemma3 adora um emoji."""
@@ -543,7 +552,7 @@ async def principal() -> None:
         # Fluxo do Cap 7 s.4: comandos predefinidos e hora sao resolvidos
         # pelo Mission Planner (rapido, deterministico, chega ao Mega);
         # so a conversa livre vai para a IA.
-        resposta = limpar_para_fala(await planner.processar(texto))
+        resposta = limpar_para_fala(await planner.processar(texto, quem_fala.pessoa_id()))
         logger.info("Fofao respondeu: %s", resposta)
         return resposta
 
@@ -563,7 +572,7 @@ async def principal() -> None:
             yield "Não entendi, pode repetir?"
             return
         logger.info("Voce disse: %s", texto)
-        async for frase in planner.responder_em_frases(texto):
+        async for frase in planner.responder_em_frases(texto, quem_fala.pessoa_id()):
             limpa = limpar_para_fala(frase)
             if limpa:
                 logger.info("Fofao respondeu (frase): %s", limpa)
