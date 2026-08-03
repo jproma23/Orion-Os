@@ -7,6 +7,7 @@
 
 #include "bussola_manager.h"
 #include "dht_manager.h"
+#include "encoder_manager.h"
 #include "estado.h"
 #include "bateria_manager.h"
 #include "imu_manager.h"
@@ -21,8 +22,10 @@ class TelemetryManager {
  public:
   TelemetryManager(MotorManager& motores, RadarManager& radar, ImuManager& imu, DhtManager& dht,
                     MaquinaDeEstados& estados, SensorUltrassonico& ultrassomTraseiro,
-                    BateriaManager& bateria, BussolaManager& bussola, SafetyManager& safety)
+                    BateriaManager& bateria, BussolaManager& bussola, SafetyManager& safety,
+                    EncoderManager& encoders)
       : _safety(safety),
+        _encoders(encoders),
         _motores(motores),
         _radar(radar),
         _imu(imu),
@@ -81,6 +84,24 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+
+    // OS PULSOS ENTRAM NO PACOTE REDUZIDO DE PROPOSITO (2026-08-02).
+    //
+    // Este pacote e enxuto porque cada byte aqui e tempo de olho fechado para
+    // o ultrassom - a regra e "so o que a navegacao e a seguranca precisam a
+    // cada ciclo". Estes dois numeros passam nessa regra pelo motivo mais
+    // forte possivel: enquanto o robo ANDA e o unico momento em que a
+    // odometria existe. Manda-los so no pacote completo, que so sai com o
+    // robo parado, seria medir o movimento e contar depois que ele acabou.
+    //
+    // E o par ao lado de `passos_*` NAO e redundancia: `passos_*` e o que o
+    // firmware MANDOU a roda fazer, `encoder_*` e o que a roda FEZ. A
+    // diferenca entre os dois e o diagnostico mais valioso que este robo tem
+    // - foi a ausencia dela que deixou a pose afirmar 85 cm com os motores
+    // desligados. Passo subindo com pulso parado = roda travada, patinando ou
+    // sem energia.
+    destino["pulsos_esquerdo"] = _encoders.esquerdo().pulsos;
+    destino["pulsos_direito"] = _encoders.direito().pulsos;
   }
 
   void preencherPayload(JsonObject destino) {
@@ -168,6 +189,39 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+
+    // Encoders: sensor indutivo NPN lendo 6 chapas por roda, uma delas MAIOR
+    // (ver encoder_manager.h). Aqui vai o quadro completo; o pacote reduzido
+    // leva so os pulsos, que e o que a odometria consome em movimento.
+    const auto& esq = _encoders.esquerdo();
+    const auto& dir = _encoders.direito();
+    destino["pulsos_esquerdo"] = esq.pulsos;
+    destino["pulsos_direito"] = dir.pulsos;
+    // Voltas confirmadas PELA CHAPA MAIOR, nao por pulsos/6. A diferenca
+    // importa: pulsos/6 seria a mesma conta que ja mentia, so que com outro
+    // divisor. Isto aqui e a roda dizendo "dei uma volta".
+    destino["encoder_voltas_esquerda"] = esq.voltas;
+    destino["encoder_voltas_direita"] = dir.voltas;
+    // `marca_vista` false significa que a chapa grande ainda nao passou -
+    // entao `voltas` nao vale nada e quem le PRECISA saber disso, em vez de
+    // ler zero e concluir "a roda nao girou".
+    destino["encoder_marca_esquerda"] = esq.marca_vista;
+    destino["encoder_marca_direita"] = dir.marca_vista;
+    // O TERMOMETRO DA MEDIDA. Cada vez que a chapa grande aparece com um
+    // numero de pulsos diferente de 6 desde a anterior, isto sobe. Zero =
+    // nenhum pulso perdido nem inventado. Subindo = ruido eletrico, chapa
+    // suja ou pull-up fraco demais para o fio (ver pins.h). Sem este numero,
+    // "a odometria esta confiavel?" volta a ser opiniao - que e exatamente o
+    // estado de que este robo esta saindo.
+    destino["encoder_desalinhados_esquerda"] = esq.desalinhamentos;
+    destino["encoder_desalinhados_direita"] = dir.desalinhamentos;
+    // Larguras em us: servem para escolher FATOR_LARGURA_MARCA na bancada
+    // olhando numero, em vez de chutar. A marca deve sair visivelmente mais
+    // larga que o pulso comum na mesma velocidade.
+    destino["encoder_largura_esquerda_us"] = esq.ultima_largura_us;
+    destino["encoder_largura_direita_us"] = dir.ultima_largura_us;
+    destino["encoder_marca_esquerda_us"] = esq.ultima_marca_us;
+    destino["encoder_marca_direita_us"] = dir.ultima_marca_us;
   }
 
  private:
@@ -180,6 +234,7 @@ class TelemetryManager {
   SensorUltrassonico& _ultrassomTraseiro;
   BateriaManager& _bateria;
   BussolaManager& _bussola;
+  EncoderManager& _encoders;
 };
 
 }  // namespace orion
