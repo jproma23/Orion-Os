@@ -603,7 +603,6 @@ if (cbBase && cbPunho) {
 
   function aoArrastar(evento) {
     if (!cbArrastando) return;
-    evento.preventDefault();
     const [x, y] = daPosicao(evento);
     moverPunho(x, y);
     if (Math.hypot(x, y) < CB_ZONA_MORTA) return;
@@ -615,20 +614,39 @@ if (cbBase && cbPunho) {
     enviarCabeca(x * PAN_MAX, tilt);
   }
 
-  function aoSoltar() {
+  // SOLTAR: espelha `soltar()` do joystick das rodas, passo a passo - mesma
+  // ordem, mesma classe visual, mesma rede de seguranca. A unica diferenca e o
+  // que se manda no fim: la e STOP (parar as rodas), aqui e voltar ao centro,
+  // que e o equivalente de repouso para uma cabeca.
+  function cbSoltar() {
     if (!cbArrastando) return;
     cbArrastando = false;
-    // A cabeça FICA onde parou - diferente das rodas, que param ao soltar.
-    // Olhar é um estado, andar é uma ação: quem virou a cabeça para a porta
-    // quer continuar vendo a porta.
+    cbBase.classList.remove('ativo');
+    moverPunho(0, 0);
+    cbStatus.className = '';
+    cbStatus.textContent = 'cabeça: centro';
+    cbUltimoEnvio = 0;   // voltar ao centro nunca espera o intervalo
+    enviarCabeca(0, 0);
   }
 
-  cbBase.addEventListener('mousedown', (e) => { cbArrastando = true; aoArrastar(e); });
-  cbBase.addEventListener('touchstart', (e) => { cbArrastando = true; aoArrastar(e); }, { passive: false });
-  window.addEventListener('mousemove', aoArrastar);
-  window.addEventListener('touchmove', aoArrastar, { passive: false });
-  window.addEventListener('mouseup', aoSoltar);
-  window.addEventListener('touchend', aoSoltar);
+  // EVENTOS DE PONTEIRO, como o joystick das rodas - e nao mouse+touch no
+  // window, que era o que eu tinha feito. `setPointerCapture` garante que o
+  // arrasto continue mesmo se o dedo sair da caixa, e um unico conjunto de
+  // eventos cobre mouse, toque e caneta sem codigo duplicado.
+  cbBase.addEventListener('pointerdown', (evento) => {
+    cbArrastando = true;
+    cbBase.classList.add('ativo');
+    cbBase.setPointerCapture(evento.pointerId);
+    aoArrastar(evento);
+  });
+  cbBase.addEventListener('pointermove', (evento) => {
+    if (cbArrastando) aoArrastar(evento);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((tipo) =>
+    cbBase.addEventListener(tipo, cbSoltar));
+  // Mesma rede extra das rodas: perder o foco da aba com o dedo apertado nao
+  // pode deixar a cabeca virada para um canto.
+  window.addEventListener('blur', cbSoltar);
 
   if (cbCentro) {
     cbCentro.addEventListener('click', () => {
