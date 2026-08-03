@@ -13,11 +13,14 @@ import math
 import pytest
 import pytest_asyncio
 
-from motion_core.navigation.fusao_sensores import FusaoSensores
+from motion_core.navigation.fusao_sensores import ORIGEM_PASSOS_COMANDADOS, FusaoSensores
 from orion.kernel.event_bus import Evento, EventBus
 
 CONFIG_MOTION = {
     "steps_per_meter": 4000,
+    # 120 pulsos por metro: bate com os 4000 passos/m acima, entao os testes
+    # que mandam 4000 passos e 120 pulsos descrevem o MESMO metro percorrido.
+    "encoder_pulses_per_meter": 120,
     "odometry_correction_factor": 1.0,
     "wheel_base_m": 0.30,
     "tilt_limit_degrees": 20,
@@ -307,3 +310,91 @@ async def test_pose_com_pulso_de_roda_se_declara_medida(cenario):
     pose = cenario.posicoes[-1]
     assert pose["medida"] is True
     assert pose["origem"] == "encoder"
+
+
+# ---------------------------------------------------------------------------
+# A pose para de mentir (2026-08-02)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_comando_sem_giro_nao_move_a_pose(cenario):
+    """O bug de 30/07, virado teste.
+
+    A interface afirmou 85 cm e 80 graus com os motores FISICAMENTE
+    DESCONECTADOS: os passos comandados corriam e nada podia desmenti-los.
+    Agora o encoder desmente - passo subindo com pulso parado significa roda
+    travada, patinando ou sem energia, e a pose NAO pode andar por causa
+    disso.
+    """
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, pulsos_esquerdo=0, pulsos_direito=0
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=4000, passos_direita=4000, pulsos_esquerdo=0, pulsos_direito=0
+    )
+
+    pose = cenario.posicoes[-1]
+    assert pose["x_m"] == 0.0
+    assert pose["y_m"] == 0.0
+    assert pose["rodas_confirmadas"] is False
+
+
+@pytest.mark.asyncio
+async def test_sem_encoder_na_telemetria_a_confirmacao_e_desconhecida(cenario):
+    """"Nao sei" nao pode virar False.
+
+    Sem sensor instalado, marcar `rodas_confirmadas: False` faria a interface
+    acusar roda travada num robo que so nao tem encoder - trocaria uma mentira
+    por outra, no sentido oposto.
+    """
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+    await cenario.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
+
+    pose = cenario.posicoes[-1]
+    assert pose["rodas_confirmadas"] is None
+    assert pose["medida"] is False
+    assert pose["x_m"] > 0  # sem encoder, a estimativa antiga continua valendo
+
+
+@pytest.mark.asyncio
+async def test_pulso_sem_calibracao_nao_vira_medida():
+    """Ter pulso nao basta: sem saber quantos pulsos valem um metro, converter
+    seria inventar a escala - trocar uma mentira por outra, que e o que este
+    arquivo se recusa a fazer desde 30/07."""
+    config = dict(CONFIG_MOTION)
+    config["encoder_pulses_per_meter"] = None
+    c = Cenario(config)
+    tarefa = asyncio.create_task(c.bus.iniciar())
+    try:
+        await c.enviar_telemetria(
+            passos_esquerda=0, passos_direita=0, pulsos_esquerdo=0, pulsos_direito=0
+        )
+        await c.enviar_telemetria(
+            passos_esquerda=4000, passos_direita=4000, pulsos_esquerdo=120, pulsos_direito=120
+        )
+        pose = c.posicoes[-1]
+        assert pose["medida"] is False
+        assert pose["origem"] == ORIGEM_PASSOS_COMANDADOS
+        # Mas a roda GIROU, e isso o encoder sabe dizer mesmo sem escala.
+        assert pose["rodas_confirmadas"] is True
+    finally:
+        c.bus.parar()
+        await tarefa
+
+
+@pytest.mark.asyncio
+async def test_re_com_encoder_anda_para_tras(cenario):
+    """O sensor indutivo conta chapa e nao sabe o sentido; quem da o SINAL e o
+    passo comandado. A magnitude continua vindo do pulso - por isso isto nao
+    devolve a mentira pela janela."""
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, pulsos_esquerdo=0, pulsos_direito=0
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=-4000, passos_direita=-4000, pulsos_esquerdo=120, pulsos_direito=120
+    )
+
+    pose = cenario.posicoes[-1]
+    assert pose["medida"] is True
+    assert pose["x_m"] == pytest.approx(-1.0, rel=1e-3)

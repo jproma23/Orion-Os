@@ -96,6 +96,20 @@ ORIGEM_ENCODER = "encoder"
 #: 12V queima o pino do Mega; (3) calibrar pulso->metro, que depende do disco
 #: usado. Enquanto (3) nao for MEDIDO na bancada, converter pulso em metro seria
 #: afirmar antes de medir - trocar uma mentira por outra.
+#: ATUALIZADO 2026-08-02: os campos existem. O firmware do ESP32 passou a
+#: mandar estes nomes no pacote REDUZIDO (o que sai com o robo em movimento,
+#: que e o unico momento em que odometria existe).
+#:
+#: Os nomes NAO foram escolhidos agora - eles ja estavam fixados aqui e em
+#: `test_pose_com_pulso_de_roda_se_declara_medida`, escritos justamente "para
+#: o campo nao nascer errado" no dia da gravacao. O firmware e que foi
+#: ajustado para obedecer. Foi o teste que pegou a divergencia.
+#:
+#: Dos tres itens que faltavam acima: (1) esta FEITO; (2) o dono definiu a
+#: montagem - sensor indutivo NPN com 6 chapas por roda, e NPN e seguro no
+#: pino de 3,3V porque so puxa para o GND; (3) continua PENDENTE e e o que
+#: separa "a roda girou" de "o robo andou 40 cm" - ver
+#: `encoder_pulsos_por_metro` no __init__.
 CAMPOS_ENCODER = ("pulsos_esquerdo", "pulsos_direito")
 
 
@@ -108,6 +122,28 @@ class FusaoSensores:
         self._fator_correcao: float = config_motion["odometry_correction_factor"]
         self._wheel_base_m: float = config_motion["wheel_base_m"]
         self._limite_inclinacao_graus: float = config_motion["tilt_limit_degrees"]
+        #: Quantos pulsos de encoder valem UM METRO percorrido pela roda.
+        #:
+        #: `None` = ainda nao medido, e esse e o valor honesto ate alguem
+        #: empurrar o robo um metro com fita metrica e ler o contador. Nao ha
+        #: como deduzir isto de catalogo: depende do diametro real da roda com
+        #: o peso do robo em cima, e a conta teorica erra justamente no que a
+        #: odometria mais sente.
+        #:
+        #: Enquanto for None, os pulsos NAO viram distancia - mas nao sao
+        #: inuteis: eles ainda dizem se a roda GIROU, e e isso que desmente a
+        #: pose quando ela afirma deslocamento com o motor parado. Medir
+        #: converte "a roda girou" em "o robo andou 40 cm".
+        #:
+        #: Ordem de grandeza para conferir o resultado: com 6 chapas por volta
+        #: e roda de ~6,5 cm, da ~29 pulsos/m, ou seja **3,4 cm por pulso**.
+        #: E grosso de proposito - resolve a mentira, nao entrega precisao de
+        #: mapeamento. Numero muito diferente disso significa chapa contada a
+        #: mais (ruido) ou a menos.
+        self._encoder_pulsos_por_metro = config_motion.get("encoder_pulses_per_meter")
+
+        self._encoder_esquerda_anterior: int | None = None
+        self._encoder_direita_anterior: int | None = None
 
         # pose acumulada (referencial: origem e orientacao 0 = onde o robo
         # estava quando este modulo foi criado / primeira telemetria chegou)
@@ -157,6 +193,17 @@ class FusaoSensores:
             self._passos_esquerda_anterior = passos_esquerda
             self._passos_direita_anterior = passos_direita
             self._instante_anterior_s = agora
+            # A BASE DO ENCODER TEM QUE SER GUARDADA AQUI TAMBEM.
+            #
+            # Este return acontece antes de `_delta_encoder` ser chamado, e se
+            # a base dos pulsos so fosse tomada la, ela ficaria uma telemetria
+            # ATRASADA em relacao a dos passos - o primeiro delta de passos
+            # sairia com o encoder ainda sem referencia, e a pose comecaria
+            # como "nao medida" mesmo com pulso chegando. Falha discreta: nada
+            # quebra, so a primeira janela de movimento nao conta como medida.
+            if self._tem_encoder(payload):
+                self._encoder_esquerda_anterior = int(payload[CAMPOS_ENCODER[0]])
+                self._encoder_direita_anterior = int(payload[CAMPOS_ENCODER[1]])
             return
 
         delta_esquerda = passos_esquerda - self._passos_esquerda_anterior
@@ -203,9 +250,57 @@ class FusaoSensores:
         if delta_tempo_s <= 0:
             return  # telemetria duplicada ou fora de ordem - evita divisao por zero
 
-        metros_por_passo = 1.0 / self._steps_per_meter
-        distancia_esquerda_m = delta_esquerda * metros_por_passo * self._fator_correcao
-        distancia_direita_m = delta_direita * metros_por_passo * self._fator_correcao
+        # O QUE A RODA FEZ, ao lado do que foi COMANDADO (2026-08-02).
+        #
+        # Os dois deltas convivem de proposito. `delta_*` e comando; `pulso_*`
+        # e medida. Guardar so o que vale mais jogaria fora justamente a
+        # comparacao - e e a comparacao que desmente a pose. Foi a falta dela
+        # que deixou a interface afirmar 85 cm e 80 graus com os motores
+        # fisicamente desligados.
+        pulso_esquerda, pulso_direita = self._delta_encoder(
+            payload, delta_esquerda, delta_direita
+        )
+        comandou = delta_esquerda != 0 or delta_direita != 0
+        girou = pulso_esquerda is not None and (pulso_esquerda != 0 or pulso_direita != 0)
+        # None enquanto nao houver encoder na telemetria: "nao sei" nao pode
+        # virar False, senao a interface passaria a acusar roda travada num
+        # robo que so nao tem sensor instalado.
+        rodas_confirmadas: bool | None = None
+        if pulso_esquerda is not None:
+            rodas_confirmadas = (not comandou) or girou
+            if comandou and not girou:
+                logger.warning(
+                    "COMANDO SEM GIRO: passos esq=%+d dir=%+d, mas os encoders nao "
+                    "contaram pulso nenhum. Roda travada, patinando, sem energia "
+                    "(rele aberto) ou sensor desligado - a pose NAO avancou por conta disso.",
+                    delta_esquerda,
+                    delta_direita,
+                )
+
+        # Duas condicoes, nao uma: ter pulso NAO basta para virar medida. Sem
+        # `encoder_pulsos_por_metro` medido, converter pulso em metro seria
+        # inventar a escala - trocar uma mentira por outra, que e exatamente o
+        # que este arquivo se recusa a fazer desde 30/07.
+        usar_encoder = pulso_esquerda is not None and bool(self._encoder_pulsos_por_metro)
+        if usar_encoder:
+            # Pulso -> metro. Nao ha fator de correcao aqui de proposito: o
+            # `odometry_correction_factor` existe para compensar o erro entre
+            # o passo comandado e a roda real, e quando se mede a roda esse
+            # erro simplesmente nao existe mais. Aplicar os dois seria corrigir
+            # duas vezes.
+            metros_por_pulso = 1.0 / self._encoder_pulsos_por_metro
+            distancia_esquerda_m = pulso_esquerda * metros_por_pulso
+            distancia_direita_m = pulso_direita * metros_por_pulso
+        else:
+            metros_por_passo = 1.0 / self._steps_per_meter
+            distancia_esquerda_m = delta_esquerda * metros_por_passo * self._fator_correcao
+            distancia_direita_m = delta_direita * metros_por_passo * self._fator_correcao
+            # Comandou e a roda nao girou: com pulso disponivel, isto NAO pode
+            # somar na pose. E o caso exato de 30/07, e nao adianta so avisar
+            # no log - a interface le a pose, nao o log.
+            if rodas_confirmadas is False:
+                distancia_esquerda_m = 0.0
+                distancia_direita_m = 0.0
 
         distancia_centro_m = (distancia_direita_m + distancia_esquerda_m) / 2.0
         # rotacao diferencial classica: roda direita andou mais -> robo gira
@@ -227,7 +322,7 @@ class FusaoSensores:
         # a partir do que foi comandado, e vai marcada como tal - quem exibe
         # nao tem como saber isso por conta propria, e foi assim que a interface
         # passou a afirmar 85 cm com os motores desligados.
-        origem = ORIGEM_ENCODER if self._tem_encoder(payload) else ORIGEM_PASSOS_COMANDADOS
+        origem = ORIGEM_ENCODER if usar_encoder else ORIGEM_PASSOS_COMANDADOS
         await self._event_bus.publish(
             "motion.position",
             {
@@ -236,18 +331,85 @@ class FusaoSensores:
                 "orientacao_graus": round(math.degrees(self._orientacao_rad), 2),
                 "velocidade_m_s": round(velocidade_m_s, 4),
                 "origem": origem,
-                "medida": origem == ORIGEM_ENCODER,
+                "medida": usar_encoder,
+                # None = sem encoder na telemetria, "nao sei". True = mandou e
+                # a roda girou (ou nao mandou nada). False = MANDOU E A RODA
+                # NAO GIROU, e a pose foi segurada por causa disso. Os tres
+                # casos sao diferentes e a interface precisa distinguir os
+                # tres - foi juntar "nao sei" com "tudo bem" que produziu a
+                # pose mentirosa.
+                "rodas_confirmadas": rodas_confirmadas,
             },
         )
+
+    def _delta_encoder(
+        self,
+        payload: dict[str, Any],
+        delta_passos_esquerda: int,
+        delta_passos_direita: int,
+    ) -> tuple[int | None, int | None]:
+        """Pulsos desde a telemetria anterior, ou (None, None) sem encoder.
+
+        Guarda a base na primeira leitura, como a contagem de passos ja faz -
+        um contador acumulado desde o boot da placa nao diz nada sozinho; o
+        que a odometria consome e a diferenca entre duas leituras.
+        """
+        if not self._tem_encoder(payload):
+            return (None, None)
+
+        esquerda = int(payload[CAMPOS_ENCODER[0]])
+        direita = int(payload[CAMPOS_ENCODER[1]])
+
+        if self._encoder_esquerda_anterior is None:
+            self._encoder_esquerda_anterior = esquerda
+            self._encoder_direita_anterior = direita
+            return (None, None)
+
+        delta_e = esquerda - self._encoder_esquerda_anterior
+        delta_d = direita - self._encoder_direita_anterior
+        self._encoder_esquerda_anterior = esquerda
+        self._encoder_direita_anterior = direita
+
+        # O CONTADOR DE PULSOS NUNCA DIMINUI, e essa e a limitacao central
+        # desta montagem: um sensor indutivo por roda, sem quadratura, conta
+        # chapa passando e nao sabe para que lado. Delta negativo aqui so pode
+        # ser reinicio da placa - resincroniza sem mexer na pose.
+        if delta_e < 0 or delta_d < 0:
+            logger.warning(
+                "Contador de encoder regrediu (esq=%+d dir=%+d) - reinicio da "
+                "placa, resincronizando sem atualizar pose",
+                delta_e,
+                delta_d,
+            )
+            return (None, None)
+
+        # O SENTIDO VEM DO COMANDO, porque o sensor nao sabe dizer.
+        #
+        # Um sensor indutivo por roda conta chapa passando; ele nao distingue
+        # frente de tras (isso exigiria quadratura, ou seja um segundo sensor
+        # defasado por roda). Entao o SINAL vem de qual sentido foi comandado
+        # naquela roda - que e o que `delta_passos_*` ja carrega, porque o
+        # firmware decrementa `passosAcumulados` ao andar para tras.
+        #
+        # Isto NAO devolve a mentira pela janela: o comando decide apenas o
+        # SINAL, e a MAGNITUDE - o quanto a roda de fato girou - continua
+        # vindo do pulso. Com a roda travada, zero pulso e zero metro qualquer
+        # que seja o sinal. O que se perde e saber que o robo foi EMPURRADO a
+        # mao com o motor parado: os pulsos aparecem sem comando, e sem
+        # sentido conhecido eles nao viram deslocamento.
+        sinal_e = -1 if delta_passos_esquerda < 0 else 1
+        sinal_d = -1 if delta_passos_direita < 0 else 1
+        return (delta_e * sinal_e, delta_d * sinal_d)
 
     @staticmethod
     def _tem_encoder(payload: dict[str, Any]) -> bool:
         """True quando a telemetria trouxe pulso REAL de roda.
 
-        Hoje devolve False em producao: nenhum campo com "pulso" ou "encoder"
-        existe no pacote (verificado ao vivo em 2026-07-30). Nao e codigo morto
-        - e o contrato que a interface consome, e o unico ponto que precisa
-        mudar no dia em que o firmware passar a mandar `CAMPOS_ENCODER`.
+        Passou a devolver True em producao a partir de 2026-08-02: o firmware
+        do ESP32 manda `CAMPOS_ENCODER` no pacote reduzido. Antes disso ficava
+        sempre False - o `EncoderManager` contava pulso por interrupcao e a
+        telemetria mandava os campos do MotorManager, nao os dele. O dado
+        certo era coletado e ninguem lia.
         """
         return all(payload.get(campo) is not None for campo in CAMPOS_ENCODER)
 

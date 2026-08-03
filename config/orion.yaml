@@ -94,6 +94,27 @@ motion:
   # PI*diametro - o robo andava PI/2 = 1,571x mais do que o comandado.
   # TEM que bater com PASSOS_POR_METRO em firmware/.../motor_manager.h.
   steps_per_meter: 2546          # base; ajustado pela autocalibracao
+
+  # Quantos PULSOS de encoder valem um metro percorrido pela roda.
+  #
+  # null = AINDA NAO MEDIDO, e esse e o valor honesto ate alguem empurrar o
+  # robo um metro com fita metrica e ler o contador. Nao da para deduzir de
+  # catalogo: depende do diametro real da roda com o peso do robo em cima, e
+  # a conta teorica erra justo no que a odometria mais sente.
+  #
+  # Enquanto for null a pose continua vindo dos passos comandados (marcada
+  # como NAO MEDIDA), mas os pulsos ja servem para desmentir: passo subindo
+  # com pulso parado = roda travada, e a pose deixa de avancar.
+  #
+  # Montagem: sensor indutivo NPN + 6 chapas por roda, uma delas MAIOR
+  # (marca de volta). Ordem de grandeza esperada com roda de ~6,5 cm:
+  # ~29 pulsos/m, ou seja 3,4 cm por pulso.
+  #
+  # COMO MEDIR: marque o chao, empurre o robo 1 metro em linha reta com os
+  # motores desligados e leia `pulsos_esquerdo`/`pulsos_direito` na
+  # telemetria antes e depois. A diferenca E o numero. Empurrar a mao e
+  # melhor que andar com motor: absorve o escorregamento real da roda.
+  encoder_pulses_per_meter: null
   odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
   autocalibrate_on_first_boot: true
   min_front_distance_cm: 25      # parada reativa (Camada 1)
