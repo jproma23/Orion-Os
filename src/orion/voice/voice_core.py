@@ -54,6 +54,7 @@ class VoiceCore:
         transcritor_ativacao: Transcritor | None = None,
         detector_atividade: "DetectorAtividadeSonora | None" = None,
         assentamento_pos_fala_s: float = 0.9,
+        silencios_para_fechar_sessao: int = 2,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -98,6 +99,13 @@ class VoiceCore:
         #: barato perto de ele responder a si mesmo. Se ainda escapar eco,
         #: SUBIR este numero antes de mexer em qualquer outra coisa.
         self._assentamento_pos_fala_s = assentamento_pos_fala_s
+        #: Quantas janelas de silencio seguidas fecham a conversa.
+        #:
+        #: 2 janelas de comando (5 s cada) = ~10 s de silencio. Curto o
+        #: bastante para o robo nao ficar escutando a casa inteira depois
+        #: que a pessoa saiu, e longo o bastante para ela pensar antes de
+        #: responder sem ser expulsa da conversa.
+        self._silencios_para_fechar_sessao = silencios_para_fechar_sessao
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
         )
@@ -215,23 +223,126 @@ class VoiceCore:
         await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
         await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
 
+        await self._responder(texto_comando)
+        await self._conversar_ate_o_silencio()
+        await self._definir_estado(EstadoVoz.IDLE)
+        return True
+
+    async def _responder(self, texto_comando: str) -> None:
+        """Pensa e fala. Extraido de `ciclo_uma_vez` para a sessao poder
+        repetir isto sem repetir a deteccao da palavra de ativacao."""
         await self._definir_estado(EstadoVoz.THINKING)
         if self._processar_comando_em_frases is not None:
             await self._responder_falando_por_frases(texto_comando)
-        else:
+            return
+        try:
+            resposta = await self._processar_comando(texto_comando)
+        except Exception:
+            logger.exception("Falha ao processar comando de voz")
+            resposta = "Desculpa, tive um problema para processar isso."
+
+        await self._definir_estado(EstadoVoz.SPEAKING)
+        await self._event_bus.publish("voice.response_started", {"texto": resposta})
+        await self._falar_com_protecao(resposta)
+        await self._event_bus.publish("voice.response_finished", {"texto": resposta})
+
+    async def _conversar_ate_o_silencio(self) -> None:
+        """A CONVERSA CONTINUA SEM PRECISAR CHAMAR DE NOVO (2026-08-02).
+
+        Pedido do dono, depois de testar: *"ta horrivel"* - ele tinha que
+        dizer "Fofao" antes de CADA frase.
+
+        E o log mostrou que nao era o microfone. Numa das tentativas ele falou
+        tres vezes seguidas e as tres foram transcritas LIMPAS:
+
+            'Voce ja jogou bola?'
+            'Voce ja jogou bola alguma vez?'
+            'Voce gosta de jogar bola?'
+
+        O robo ouviu perfeitamente as tres e DESCARTOU as tres, porque nenhuma
+        tinha a palavra de ativacao. Ele repetiu e reformulou achando que nao
+        tinha sido ouvido. Tinha.
+
+        Aqui a palavra de ativacao passa a ABRIR uma sessao: enquanto a pessoa
+        continuar falando, cada fala e um comando. O silencio e que encerra -
+        e ai a palavra volta a ser exigida.
+
+        Isto so e seguro por causa do assentamento pos-fala (ver
+        `_falar_com_protecao`): sem ele, a sessao aberta faria o robo ouvir a
+        propria resposta e conversar consigo mesmo em laco - que e exatamente
+        o que aconteceu em 2026-08-02 antes daquele conserto.
+        """
+        silencios = 0
+        while silencios < self._silencios_para_fechar_sessao:
+            await self._definir_estado(EstadoVoz.LISTENING)
             try:
-                resposta = await self._processar_comando(texto_comando)
-            except Exception:
-                logger.exception("Falha ao processar comando de voz")
-                resposta = "Desculpa, tive um problema para processar isso."
+                audio = await self._gravar_audio(self._duracao_comando_s)
+            except ErroAudio as erro:
+                await self._publicar_erro_audio(erro)
+                return
 
-            await self._definir_estado(EstadoVoz.SPEAKING)
-            await self._event_bus.publish("voice.response_started", {"texto": resposta})
-            await self._falar_com_protecao(resposta)
-            await self._event_bus.publish("voice.response_finished", {"texto": resposta})
+            if self._detector_atividade is not None and not self._detector_atividade.tem_som(
+                audio
+            ):
+                silencios += 1
+                continue
 
-        await self._definir_estado(EstadoVoz.IDLE)
-        return True
+            texto = await self._transcritor.transcrever(audio)
+            if not texto or not texto.strip():
+                silencios += 1
+                continue
+            if self._parece_alucinacao(texto):
+                # Nao conta como silencio NEM como fala: o Whisper entrou em
+                # laco, e nao ha informacao nenhuma ali - nem para responder,
+                # nem para concluir que a pessoa foi embora.
+                logger.info("descartando transcricao em laco (alucinacao): %.60s...", texto)
+                continue
+
+            logger.info("sessao aberta - comando sem palavra de ativacao: %r", texto)
+            await self._event_bus.publish("voice.command_received", {"texto": texto})
+            await self._event_bus.publish("voice.transcription_ready", {"texto": texto})
+            await self._responder(texto)
+            silencios = 0
+
+        logger.info("sessao encerrada por silencio - a palavra de ativacao volta a ser exigida")
+
+    #: Quantas repeticoes da MESMA frase curta denunciam laco do Whisper.
+    _REPETICOES_PARA_ALUCINACAO = 5
+
+    @classmethod
+    def _parece_alucinacao(cls, texto: str) -> bool:
+        """Whisper em laco, capturado ao vivo em 2026-08-02:
+
+            'O que e o que e o que e o que e ...'   (~60 vezes)
+
+        Ele faz isso com audio de pouco conteudo, e o robo respondia aquilo
+        como se fosse pergunta - gastando um turno da conversa. Numa sessao
+        aberta seria pior: viraria realimentacao.
+
+        A assinatura e um trecho curto repetido muitas vezes seguidas. Fala
+        humana nao faz isso; quando faz (alguem repetindo por enfase), sao
+        duas ou tres vezes, nao cinco.
+        """
+        # MINUSCULAS e sem pontuacao: o Whisper alterna a caixa entre as
+        # repeticoes ("O que e o que e...") e um unico "O" contra "o" quebrava
+        # a comparacao - o laco passava batido justamente no caso real que
+        # motivou este codigo.
+        palavras = [p.strip(".,!?;:").lower() for p in texto.split()]
+        palavras = [p for p in palavras if p]
+        # O piso e o proprio numero de repeticoes, nao o dobro: "sim sim sim
+        # sim sim sim" tem 6 palavras e ja e claramente um laco.
+        if len(palavras) < cls._REPETICOES_PARA_ALUCINACAO:
+            return False
+        for tamanho in range(1, 6):  # trechos de 1 a 5 palavras
+            trecho = palavras[:tamanho]
+            repeticoes = 0
+            for inicio in range(0, len(palavras) - tamanho + 1, tamanho):
+                if palavras[inicio : inicio + tamanho] != trecho:
+                    break
+                repeticoes += 1
+            if repeticoes >= cls._REPETICOES_PARA_ALUCINACAO:
+                return True
+        return False
 
     def interromper_fala(self) -> None:
         """Descarta o que ainda nao foi falado da resposta em andamento.
