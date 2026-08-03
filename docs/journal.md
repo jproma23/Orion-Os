@@ -5354,3 +5354,172 @@ esta pronto e provado.
 3. **TB6600 a 3,3 V** - o unico risco que so a bancada responde. A pergunta e
    uma so: *o robo anda?* Se nao disparar, o conserto e um level shifter na
    linha PUL/DIR, **nao mexer no firmware**. Rodas no ar.
+
+## Sessao de 2026-08-03 (tarde) - a fiacao muda de placa, e tres defeitos que so apareceram porque o robo passou a enxergar
+
+De manha o assunto foi o corpo morto. A tarde o dono **refez a fiacao inteira
+do Mega para o ESP32** - ele tem adaptador de bornes a parafuso, entao o que
+parecia trabalho de dias foi de minutos. E aí quase tudo que estava dormente
+acordou de uma vez: camera, servos, visao. Cada coisa que voltou a funcionar
+revelou um defeito que ninguem via enquanto estava tudo desligado.
+
+### Ver o Fofao de fora de casa
+
+Tailscale instalado no Pi (`fofao-pi`, 100.112.10.2, MagicDNS ligado). Nada
+de abrir porta no roteador.
+
+| o que | onde |
+|---|---|
+| interface | `http://fofao-pi:8080` |
+| camera, 1 quadro | `http://fofao-pi:8091/snapshot` (~13 KB) |
+| camera ao vivo | `http://fofao-pi:8091/stream` (~16 KB/s, ~58 MB/h) |
+
+**Pegadinha da instalacao**, para nao repetir: `tailscale up` fica BLOQUEADO
+segurando o handshake. Se o processo morrer - sessao SSH que fecha, um
+`pkill` - a URL de autenticacao vira lixo e o node continua em `NeedsLogin`
+mesmo depois do dono clicar. Rodar desacoplado:
+
+    sudo sh -c 'setsid tailscale up --hostname=fofao-pi >/tmp/ts.log 2>&1 </dev/null &'
+
+`tailscale ping` mostrou caminho DIRETO na LAN, com queda para relay (DERP
+sao) fora de casa.
+
+### A camera estava desplugada, e NADA acusava
+
+Pedido do dono: *"uma pagina geral onde eu possa ter menus e acesso geral do
+robo de qualquer lugar"*. A pagina ja existia - o dashboard ja tinha nav,
+viewport e o volante. Faltava a camera, que vivia sozinha na porta 8091:
+`grep -r "8091|/stream|snapshot"` em `motion_core/webui/static/` dava VAZIO.
+
+Ao ligar o painel, o dono viu "no signal". E aqui esta o achado que importa
+mais que o painel:
+
+    systemctl --user is-active orion-camera-stream  ->  active
+    curl :8091/snapshot                             ->  HTTP 200, 13845 bytes, image/jpeg
+
+Servico ativo, HTTP 200, JPEG valido. **A camera estava fisicamente fora do
+robo.** O `ustreamer` roda com `--persistent` e, sem device, serve uma imagem
+"NO SIGNAL" com 200 - o `onerror` do navegador nunca dispara. A unica pista
+era o tamanho: **13845 bytes exatos, sempre iguais**. Com a camera de volta:
+10106 / 10158 / 10123, tres hashes distintos.
+
+Familia de bug ja registrada aqui varias vezes: **ausencia de erro lida como
+sucesso**.
+
+No painel, o host NAO e configuravel de proposito - o navegador monta a URL
+com o `location.hostname` da propria pagina, entao serve na LAN e pelo
+Tailscale sem reconfigurar. Fixar o host quebraria justamente o acesso
+remoto. FOTO e o padrao, por custo de dados. Commit `d17dbcf`.
+
+### "Os servos estao loucos" - eram TRES causas empilhadas
+
+Comecou no instante em que a camera entrou no ar. Cada correcao revelava a
+proxima.
+
+**1. A visao estava cega havia 3 horas.** O Vision Core subiu as 06:44, antes
+de a camera existir, e ficou agarrado ao stream que servia o "NO SIGNAL".
+Reiniciar o servico levou de **0 para 18 `vision.person_detected` em 30 s**.
+
+**2. A cabeca trocava de dono a cada piscada.** Medido: `acompanhar_pessoa`
+assumia e soltava a cada 2-5 s com o dono parado na frente da camera. O
+`vision.person_lost` tinha um "caminho rapido" que largava a cabeca no ato -
+so que perder o alvo por um instante e NORMAL. Cada solta devolve a cabeca ao
+`Repouso`, que publica pan=0/tilt=0: a cabeca ia a zero de tranco e a visao
+pegava de volta calculando a partir de uma posicao que ja nao era a real.
+Agora `person_lost` e informativo e quem decide e o silencio, que subiu de
+3 s para 6 s. Commit `7435f06`.
+
+**3. O controlador perseguia pixel.** Com a cabeca finalmente segura, sobrou
+a malha da visao. `calcular_correcao` corrigia em TODO quadro, por menor que
+fosse o erro - com a pessoa ja centralizada, a caixa do YOLO oscilando 2 ou
+3 px virava comando de servo a 2 Hz. Isso nao e seguir alguem, e tremer.
+
+E o detalhe que define a tarde: **a tolerancia que resolve JA EXISTIA** -
+`alvo_centralizado()` e `tolerancia_centralizado_percent: 5.0` - mas so era
+usada por quem PERGUNTAVA se o alvo estava centralizado, nunca por quem
+DECIDIA mover. O numero estava na config, documentado, e entrava na conta de
+ninguem. Commit `c9df6dc`. Veredito do dono: *"SERVOS OTMO"*.
+
+Correcao de registro: `CalculadoraPanTilt.sincronizar()` ja esta implementado
+E chamado (`vision_core.py:135`). A proposta que o journal de 29/07 deixou em
+aberto sobre os "dois donos" ja foi feita - o journal e a memoria a davam como
+pendente.
+
+### Arduino sai do vocabulario vivo
+
+*"arduino nao existe mais"*, *"apagar toda referencia"*. Virou
+`hardware_core` e nao `esp32` de proposito: e como o modulo ja se identifica
+em toda a troca de mensagens e e agnostico de placa - trocar o hardware de
+novo nao vai obrigar a renomear tudo outra vez, que e exatamente o que acabou
+de acontecer.
+
+**O criterio, que vale para a proxima vez: corrigir o que hoje e FALSO,
+preservar o que registra POR QUE as coisas sao como sao.** Este journal fica
+intacto - o Mega existiu de verdade ate 02/08. E o comentario que explica o
+`baud_rate: 250000` pelo buffer de 64 bytes do Mega fica tambem: apagar o
+Mega dali deixaria o numero orfao. Commit `fe162f5`.
+
+### O I2C nao sobe - e a caca ensinou mais que o resultado
+
+`i2c_total = 0`: IMU, bussola e DHT mudos. **Oito hipoteses eliminadas com
+numero** - pinos, GND comum, 5 V vs 3,3 V, 400 -> 100 kHz, SDA/SCL
+invertidos, bornes frouxos, varredura velha, e GPIO 21/22 danificados.
+
+**O metodo:** firmware temporario media as linhas antes de o `Wire` assumir os
+pinos - `pinMode(INPUT)` le, `pinMode(INPUT_PULLUP)` le. `solto=1` significa
+pull-up externo; `pullup=0` significa linha presa no GND.
+
+**E o CONTROLE foi o que salvou.** A primeira rodada deu `pullup=0` nas duas
+linhas e eu quase escrevi "GPIO 21/22 queimados" com numero e confianca. So
+nao escrevi porque medi tambem dois pinos livres (32/33) do mesmo jeito: eles
+leram 1, o metodo se provou, e na releitura os pinos do I2C tambem leram 1.
+**Medicao sem controle nao vale** - e a mesma licao que o teste do
+`SCAN_FRONT` desta manha ja tinha dado.
+
+Estado atual: linhas sadias, nenhum pull-up externo aparece, ninguem
+responde. Eletricamente e como se **nao houvesse nada ligado nos pinos**,
+mesmo com a MPU parafusada. Falta a medida que so o multimetro da: tensao
+entre VCC e GND *da plaquinha* e continuidade GPIO 21 -> pino SDA do modulo.
+
+### Dois erros meus na mesma hora
+
+**Botei `escanearI2c()` no `loop()`** para o dono ver o barramento mudar ao
+vivo enquanto mexia no fio. A ideia era boa; a conta que faltou: a varredura
+percorre 112 enderecos e, com o barramento PRESO - justamente o caso que se
+queria investigar - cada um gasta o timeout. Sao ~3 s numa volta do laco. **O
+ESP32 ficou mudo e o corpo caiu.** Se voltar, sondar so 0x68/0x69 e 0x1C:
+quatro transacoes, nao 112. *Ferramenta de diagnostico nao pode custar mais
+que o defeito que investiga.*
+
+**E culpei meu codigo cedo demais.** Reverti a mudanca - continuou mudo.
+Reverti o arquivo inteiro para o commit - continuou mudo. So entao ficou
+claro que nao era software. Tres gravacoes ate testar a hipotese que separava
+as duas coisas.
+
+### RESET POR DTR NAO E POWER CYCLE
+
+Com o ESP32 travado no boot, **nada em software o trouxe de volta**:
+reiniciar o servico, regravar o firmware e o pulso de DTR/RTS falharam todos.
+A ROM mostrava boot normal (`rst:0x1 POWERON_RESET`, `entry 0x400805e4`) e
+depois silencio - travava no `setup()`, no ponto em que varre o I2C.
+
+Quem resolveu foi o dono: *"reinicia o rasp q ele reinicia tb"*. O ESP32 e
+alimentado pela USB do Pi, entao `systemctl reboot` derruba a energia de
+verdade. Voltou na primeira.
+
+**Guardar: corpo mudo que nao volta com regravacao - reinicie o Pi antes de
+suspeitar de hardware queimado.**
+
+### Estado ao fim da sessao
+
+- Pi e Notebook sincronizados; corpo no ar, 0 perdas de heartbeat.
+- Fiacao TODA no ESP32. Servos, rele e camera funcionando.
+- Acesso remoto por Tailscale, com a camera dentro do dashboard.
+- **Suite no Pi: 590 passam, 3 falham** (`numpy` e `cv2` ausentes no venv do
+  Pi - divida anterior, sem relacao com esta sessao).
+
+### Proximo passo
+
+1. **I2C**: multimetro na plaquinha - tensao VCC/GND e continuidade ate SDA.
+2. Medir consumo antes de deixar tudo energizado por muito tempo.
+3. TB6600 a 3,3 V - a pergunta continua sendo uma so: *o robo anda?*
