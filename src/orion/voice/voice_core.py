@@ -53,6 +53,7 @@ class VoiceCore:
         frase_ativacao: str | None = None,
         transcritor_ativacao: Transcritor | None = None,
         detector_atividade: "DetectorAtividadeSonora | None" = None,
+        assentamento_pos_fala_s: float = 0.9,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -89,6 +90,14 @@ class VoiceCore:
         # None = comportamento antigo (transcreve toda janela).
         self._detector_atividade = detector_atividade
         # injetavel para testar sem microfone/hardware real
+        #: Quanto esperar depois de falar antes de voltar a gravar.
+        #:
+        #: 0,9 s cobre com folga o rastro de audio em transito do ESP32 pela
+        #: WiFi (ver _falar_com_protecao). Custo: o robo demora isso a mais
+        #: para voltar a escutar - imperceptivel numa conversa falada, e
+        #: barato perto de ele responder a si mesmo. Se ainda escapar eco,
+        #: SUBIR este numero antes de mexer em qualquer outra coisa.
+        self._assentamento_pos_fala_s = assentamento_pos_fala_s
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
         )
@@ -124,6 +133,32 @@ class VoiceCore:
             await self._event_bus.publish(
                 "voice.audio_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
             )
+        finally:
+            # ASSENTAMENTO DEPOIS DE FALAR (2026-08-02) - o robo estava
+            # ouvindo a PROPRIA VOZ e tratando como fala do usuario.
+            #
+            # Capturado no log ao vivo:
+            #     22:50:06  ouvi: 'Fofao!'
+            #     22:50:15  ouvi: 'Como e que voce esta hoje?'  <- ele mesmo
+            #     22:50:15  diario: pedido_ouvido {...}         <- como pedido DO DONO
+            #
+            # Nao adianta limpar o buffer: OuvidosEsp32.gravar() JA faz
+            # self._bruto.clear() antes de cada gravacao. O problema e o
+            # audio EM TRANSITO. Os ouvidos sao um ESP32 mandando 62,8 KB/s
+            # por WiFi: quando o alto-falante cala, ainda existe audio ja
+            # capturado pelo microfone e ainda viajando pela rede. O clear()
+            # limpa o que chegou; o que esta no ar aterrissa logo depois e e
+            # gravado como se fosse 'agora'.
+            #
+            # Esperar aqui deixa esse rastro CHEGAR - e ai o clear() que ja
+            # existe o descarta. Uma linha no lugar certo, em vez de uma API
+            # nova de descarte.
+            #
+            # Isto piorou junto com a persona nova (b44d57e): antes o robo
+            # terminava com ponto final, agora termina com PERGUNTA - e
+            # pergunta e o que mais parece comando quando volta pelo microfone.
+            if self._assentamento_pos_fala_s > 0:
+                await asyncio.sleep(self._assentamento_pos_fala_s)
 
     async def ciclo_uma_vez(self) -> bool:
         """Um ciclo: escuta uma janela curta, verifica a palavra de
