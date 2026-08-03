@@ -526,6 +526,16 @@ async def principal() -> None:
             # 2026-07-29 esta IA recebia uma linha de contexto e decidia
             # praticamente cega. Ver o comentario em IaEstrategica.__init__.
             montar_contexto=_contexto_para_ia,
+            # O QUE LIGA O GOAP (2026-08-03). Com o retrato em maos a IA passa
+            # a escolher um OBJETIVO e o planejador monta a sequencia ate ele -
+            # que e o que `goap.py` promete desde 02/08 sem nunca ter sido
+            # chamado por ninguem fora dos testes.
+            #
+            # E `mundo.retrato` (o metodo, sem parenteses): o estado tem que
+            # ser lido NA HORA de planejar. Passar o retrato ja montado aqui
+            # congelaria o mundo no instante do boot - exatamente o "dado velho
+            # nao e dado" que o EstadoDoMundo existe para impedir.
+            retrato=mundo.retrato,
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum

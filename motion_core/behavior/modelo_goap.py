@@ -86,7 +86,22 @@ _MODELO: dict[str, tuple[dict[str, bool], dict[str, bool]]] = {
     # `parar` nao exige nada: e a unica acao que continua valendo com o corpo
     # mudo, tombado ou depois de uma batida. Uma acao sem precondicao alguma
     # e o piso do planejador.
-    "parar": ({}, {}),
+    #
+    # O EFEITO `parado` FOI ACRESCENTADO EM 2026-08-03, e conserta um objetivo
+    # que nao funcionava. `ficar_em_seguranca` pedia `sem_impacto: True`, e
+    # NENHUMA acao produz esse predicado - impacto e leitura de sensor, nao
+    # consequencia de decisao. Varrendo os 256 mundos possiveis, aquele
+    # objetivo nao gerava plano em nenhum: ou ja estava satisfeito (plano
+    # vazio) ou era impossivel (None).
+    #
+    # O tamanho do problema so aparece com o GOAP ligado: a IA escolhe entre 4
+    # objetivos, e um deles se chama "ficar em seguranca". E o nome mais
+    # atraente justamente quando as coisas vao mal - e escolhe-lo fazia o robo
+    # nao fazer nada, sem erro, sem log, sem nada denunciando.
+    #
+    # `parado` sai de `estado_hardware == "IDLE"`, que a telemetria reporta -
+    # respeita a regra de que todo efeito tem que ser observavel no retrato.
+    "parar": ({}, {"parado": True}),
     # --- Cuidar de si -----------------------------------------------------
     # Calibrar exige o robo PARADO na pratica, mas isso nao e um predicado do
     # vocabulario e nao vale inventar um que ninguem mede (ver PREDICADOS em
@@ -161,7 +176,11 @@ OBJETIVOS: tuple[Objetivo, ...] = (
     Objetivo(
         nome="ficar_em_seguranca",
         descricao="parar e nao piorar a situacao",
-        alvo={"sem_impacto": True},
+        # `parado`, e nao `sem_impacto` (corrigido em 2026-08-03): o alvo tem
+        # que ser algo que uma acao ALCANCE. Ninguem "faz" o impacto sumir -
+        # ele e leitura de sensor. O que o robo pode fazer para nao piorar a
+        # situacao e exatamente o que o nome do objetivo diz: parar.
+        alvo={"parado": True},
     ),
 )
 

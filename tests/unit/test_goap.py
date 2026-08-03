@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from motion_core.behavior import contrato, modelo_goap
+from motion_core.behavior import contrato, goap, modelo_goap
 from motion_core.behavior.goap import (
     PREDICADOS,
     Objetivo,
@@ -221,3 +221,66 @@ def test_objetivo_fora_da_lista_nunca_vira_chute():
     assert modelo_goap.resolver_objetivo("") is None
     assert modelo_goap.resolver_objetivo(contrato.ABSTENCAO) is None
     assert modelo_goap.resolver_objetivo("encontrar_alguem") is not None
+
+
+# ---------------------------------------------------------------------------
+# NENHUM OBJETIVO PODE SER DECORATIVO (2026-08-03)
+#
+# `ficar_em_seguranca` pedia `sem_impacto: True`, e nenhuma acao produz esse
+# efeito - impacto e leitura de sensor, nao consequencia de decisao. Varrendo
+# os 2^N mundos possiveis, o objetivo nao gerava plano em NENHUM. Com o GOAP
+# ligado a IA escolhe entre 4 objetivos: um deles ser mudo custa caro, e o
+# nome "ficar em seguranca" e o mais atraente justamente quando as coisas vao
+# mal.
+# ---------------------------------------------------------------------------
+
+
+def test_todo_objetivo_produz_plano_em_algum_mundo():
+    """Varre todos os mundos possiveis: cada objetivo tem que ser alcancavel
+    em pelo menos um deles, senao ele so enfeita a lista oferecida a IA."""
+    from itertools import product
+
+    predicados = sorted(goap.PREDICADOS)
+    for objetivo in modelo_goap.OBJETIVOS:
+        alcancavel = any(
+            goap.planejar(
+                dict(zip(predicados, combo)), objetivo, modelo_goap.ACOES_PLANEJAVEIS
+            )
+            for combo in product([False, True], repeat=len(predicados))
+        )
+        assert alcancavel, (
+            f"o objetivo '{objetivo.nome}' nao produz plano em nenhum mundo - "
+            f"a IA pode escolhe-lo e o robo nao faz nada, sem erro nenhum"
+        )
+
+
+def test_ficar_em_seguranca_manda_parar():
+    """O caso concreto: robo em movimento, objetivo de seguranca -> `parar`."""
+    andando = {**MUNDO_BOM, "parado": False}
+    plano = _planejar(andando, "ficar_em_seguranca")
+    assert _nomes(plano) == ["parar"]
+
+
+def test_conferir_modelo_recusa_objetivo_decorativo():
+    """A trava roda no IMPORT - quem criar outro objetivo mudo descobre no
+    boot, nao no quintal."""
+    mudo = goap.Objetivo(
+        nome="impossivel", descricao="pede o que ninguem faz", alvo={"sem_impacto": True}
+    )
+    with pytest.raises(RuntimeError, match="decorativo"):
+        goap.conferir_modelo(modelo_goap.ACOES_PLANEJAVEIS, [mudo])
+
+
+def test_heuristica_nunca_superestima():
+    """`olhar_em_volta` fecha DOIS predicados de uma vez. Um alvo que peca os
+    dois juntos e alcancavel em 1 passo - a heuristica nao pode dizer 2, ou o
+    A* deixa de devolver o plano mais curto."""
+    composto = {"frente_conhecida": True, "pessoa_visivel": True}
+    vazio = dict.fromkeys(goap.PREDICADOS, False)
+    assert goap._distancia(vazio, composto) <= 1
+
+    objetivo = goap.Objetivo(nome="ver_tudo", descricao="", alvo=composto)
+    plano = goap.planejar(
+        {**vazio, "corpo_vivo": True}, objetivo, modelo_goap.ACOES_PLANEJAVEIS
+    )
+    assert _nomes(plano) == ["olhar_em_volta"], "havia caminho de UM passo"

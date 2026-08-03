@@ -940,3 +940,123 @@ async def test_volante_volta_para_auto_depois_de_ocioso(monkeypatch):
     await laco
     bus.parar()
     await tarefa_bus
+
+
+# ---------------------------------------------------------------------------
+# GOAP LIGADO NA IA (2026-08-03)
+#
+# O planejador existia desde 02/08 - 500 linhas, testes, travas de import - e
+# `modelo_goap` so era importado por `tests/unit/test_goap.py`. Nada em
+# producao o chamava, apesar de o docstring do `goap.py` dizer "isto SUBSTITUI
+# a escolha de acao unica". Estes testes cobrem a ligacao que faltava.
+# ---------------------------------------------------------------------------
+
+
+class _RetratoFalso:
+    """Duble do RetratoDoMundo - so os campos que `goap.estado_de` le."""
+
+    def __init__(self, **campos) -> None:
+        self.telemetria_viva = campos.get("telemetria_viva", True)
+        self.obstaculo_frente_cm = campos.get("obstaculo_frente_cm", 200.0)
+        self.inclinacao_graus = campos.get("inclinacao_graus", 2.0)
+        self.bateria_nivel = campos.get("bateria_nivel", "OK")
+        self.impacto = campos.get("impacto", False)
+        self.pessoa_presente = campos.get("pessoa_presente", False)
+        self.pessoa_conhecida = campos.get("pessoa_conhecida", False)
+        self.estado_hardware = campos.get("estado_hardware", "IDLE")
+
+
+@pytest.mark.asyncio
+async def test_goap_oferece_objetivos_e_nao_acoes():
+    """Com retrato em maos, a IA escolhe OBJETIVO. E a troca de vocabulario que
+    o GOAP significa - e ela nao exige nada do outro lado do fio, porque o
+    conselheiro do Notebook so usa `opcoes` como enum."""
+    from motion_core.behavior import modelo_goap
+
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="entender_o_ambiente")
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso())
+
+    await ia._consultar()
+
+    assert comm.pedidos[0]["opcoes"] == list(modelo_goap.NOMES_OBJETIVOS)
+    assert "avancar" not in comm.pedidos[0]["opcoes"]
+
+
+@pytest.mark.asyncio
+async def test_goap_monta_plano_de_dois_passos():
+    """O caso que o esquema de acao unica NUNCA conseguiu produzir: querer
+    seguir alguem sem estar vendo ninguem. Antes `seguir_pessoa` simplesmente
+    nao servia e nada sabia dizer "entao olhe em volta primeiro"."""
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    # Frente bloqueada e desconhecida: chegar a "frente livre" exige medir
+    # antes de girar.
+    retrato = _RetratoFalso(obstaculo_frente_cm=None)
+    ia = IaEstrategica(bus, comm, retrato=lambda: retrato)
+
+    await ia._consultar()
+
+    assert len(ia._plano_atual) == 2, ia._plano_atual
+    assert ia._plano_atual[0] == "observar_ambiente"
+    # SO o primeiro passo vira acao: o mundo pode mudar antes do segundo.
+    assert ia._acao_atual == "observar_ambiente"
+    assert ia._objetivo_atual == "poder_seguir_em_frente"
+
+
+@pytest.mark.asyncio
+async def test_goap_sem_caminho_e_abstencao_e_nao_chute():
+    """Corpo mudo: nao ha plano para quase nada. Abster-se e a resposta certa,
+    e o maestro segue pela escada de prioridades."""
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso(telemetria_viva=False))
+
+    await ia._consultar()
+
+    assert ia._acao_atual is None
+    assert ia.quer_rodar() is False
+
+
+@pytest.mark.asyncio
+async def test_goap_objetivo_fora_da_lista_vira_abstencao():
+    """Mesma regra 6 do contrato, agora no vocabulario dos objetivos."""
+    bus = EventBus()
+    ia = IaEstrategica(bus, _ComunicacaoFalsa(acao="dominar_o_mundo"),
+                       retrato=lambda: _RetratoFalso())
+
+    await ia._consultar()
+
+    assert ia._acao_atual is None
+    assert ia._plano_atual == []
+
+
+@pytest.mark.asyncio
+async def test_retrato_quebrado_nao_derruba_a_ia():
+    """Ler o mundo pode falhar. Sem estado nao ha plano - mas o robo continua
+    de pe, decidindo pela escada normal."""
+    bus = EventBus()
+
+    def _explode():
+        raise RuntimeError("barramento caiu (simulado)")
+
+    ia = IaEstrategica(bus, _ComunicacaoFalsa(acao="entender_o_ambiente"), retrato=_explode)
+
+    await ia._consultar()  # nao levanta
+
+    assert ia._acao_atual is None
+
+
+@pytest.mark.asyncio
+async def test_sem_retrato_continua_no_modo_antigo():
+    """Retrocompatibilidade: sem modelo de mundo (ferramentas de bancada,
+    testes antigos) a IA volta a escolher UMA acao, como antes."""
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="observar_ambiente")
+    ia = IaEstrategica(bus, comm)  # sem retrato
+
+    await ia._consultar()
+
+    assert "observar_ambiente" in comm.pedidos[0]["opcoes"]
+    assert ia._acao_atual == "observar_ambiente"
+    assert ia._plano_atual == []

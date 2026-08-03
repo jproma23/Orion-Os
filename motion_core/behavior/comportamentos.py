@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 
-from motion_core.behavior import contrato
+from motion_core.behavior import contrato, goap, modelo_goap
 from motion_core.behavior.comportamento import (
     AUTORIDADE_AUTONOMA,
     AUTORIDADE_MANUAL,
@@ -383,10 +383,32 @@ class IaEstrategica(Comportamento):
         intervalo_s: float = 30.0,
         acoes_validas: tuple[str, ...] = contrato.NOMES,
         montar_contexto=None,
+        retrato=None,
+        objetivos_validos: tuple[str, ...] = modelo_goap.NOMES_OBJETIVOS,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
+        #: O QUE LIGA O GOAP (2026-08-03). Callable que devolve o
+        #: `RetratoDoMundo` - tipicamente `EstadoDoMundo.retrato`.
+        #:
+        #: O planejador existia desde 02/08, com 500 linhas, testes e travas de
+        #: import, e **ninguem o chamava**: `modelo_goap` so era importado por
+        #: `tests/unit/test_goap.py`. O proprio docstring do `goap.py` diz
+        #: "isto SUBSTITUI a escolha de acao unica" - a substituicao nunca
+        #: aconteceu. Codigo orfao nao e codigo pronto.
+        #:
+        #: Opcional de proposito: sem retrato nao ha como saber o estado do
+        #: mundo, e sem estado nao ha plano. Nesse caso a IA volta a escolher
+        #: UMA acao, exatamente como antes - o que mantem validos os testes
+        #: existentes e as ferramentas de bancada que constroem este
+        #: comportamento sem modelo de mundo.
+        self._retrato = retrato
+        self._objetivos_validos = objetivos_validos
+        #: Os nomes do plano em vigor, so para log e dashboard. O robo executa
+        #: apenas o PRIMEIRO passo e replaneja no ciclo seguinte.
+        self._plano_atual: list[str] = []
+        self._objetivo_atual: str = ""
         #: De onde sai o QUADRO DO MUNDO que vai no prompt (2026-07-29).
         #:
         #: Ate esta data o contexto desta IA era literalmente
@@ -480,13 +502,19 @@ class IaEstrategica(Comportamento):
                 logger.warning("falha ao montar o contexto do mundo", exc_info=True)
         partes.append(f"comportamento_ativo: {nome_ativo}")
         estado = "\n".join(p for p in partes if p)
+        # COM GOAP a IA escolhe um OBJETIVO; sem ele, uma acao. A lista muda,
+        # o protocolo nao: o conselheiro do Notebook e generico quanto as
+        # `opcoes` (ele so as usa como enum do schema), entao a troca nao exige
+        # nenhuma mudanca do outro lado do fio.
+        em_goap = self._retrato is not None
+        opcoes = list(self._objetivos_validos if em_goap else self._acoes_validas)
         try:
             resposta = await self._comm.request(
                 "mission_core",
                 {
                     "comando": "behavior.aconselhar",
                     "contexto": estado,
-                    "opcoes": list(self._acoes_validas),
+                    "opcoes": opcoes,
                     "seguranca_ativa": seguranca_ativa,
                 },
                 timeout_s=25.0,
@@ -498,17 +526,69 @@ class IaEstrategica(Comportamento):
             logger.debug("IA indisponivel (sem Notebook/internet?)", exc_info=True)
             escolha, motivo = None, ""
 
-        acao = contrato.resolver(escolha)
-        if escolha and acao is None:
-            # Regra 6 do contrato: fora do catalogo nunca vira chute.
-            logger.info("maestro: IA respondeu %r, fora do contrato - abstendo", escolha)
+        if em_goap:
+            nome_acao, motivo = self._planejar(escolha, motivo)
+        else:
+            acao = contrato.resolver(escolha)
+            if escolha and acao is None:
+                # Regra 6 do contrato: fora do catalogo nunca vira chute.
+                logger.info("maestro: IA respondeu %r, fora do contrato - abstendo", escolha)
+            nome_acao = acao.nome if acao is not None else None
 
-        nome_acao = acao.nome if acao is not None else None
         mudou = nome_acao != self._acao_atual
         self._acao_atual = nome_acao
         self._motivo_atual = motivo
         if mudou:
             self._reavaliar()
+
+    def _planejar(self, escolha: str | None, motivo: str) -> tuple[str | None, str]:
+        """Objetivo escolhido pela IA -> PRIMEIRO passo do plano ate ele.
+
+        So o primeiro passo. O plano inteiro nao e guardado de proposito: os
+        efeitos das acoes sao INTENCAO, nao promessa (ver goap.py), e o mundo
+        muda entre um ciclo e outro. Guardar um plano de tres passos e
+        executa-lo cegamente seria agir sobre um mundo que ja passou; medir de
+        novo e replanejar custa alguns milhares de nos e sempre cabe no ciclo.
+        """
+        self._plano_atual = []
+        self._objetivo_atual = ""
+
+        objetivo = modelo_goap.resolver_objetivo(escolha)
+        if objetivo is None:
+            if escolha:
+                logger.info("maestro: IA pediu o objetivo %r, fora da lista - abstendo", escolha)
+            return None, ""
+
+        try:
+            estado = goap.estado_de(self._retrato())
+        except Exception:
+            # Sem retrato nao ha estado, e sem estado planejar seria inventar.
+            logger.warning("nao consegui ler o retrato do mundo - sem plano", exc_info=True)
+            return None, ""
+
+        plano = goap.planejar(estado, objetivo, modelo_goap.ACOES_PLANEJAVEIS)
+        if plano is None:
+            # Abstencao legitima e frequente: com o corpo mudo, tombado ou com
+            # a bateria no fim nao existe caminho ate a maioria dos objetivos.
+            logger.info(
+                "maestro: sem caminho ate '%s' no mundo atual - abstendo", objetivo.nome
+            )
+            return None, ""
+        if not plano:
+            # Plano VAZIO e diferente de plano impossivel: o objetivo ja esta
+            # satisfeito. Nao ha o que fazer, e isso e sucesso, nao falha.
+            logger.info("maestro: '%s' ja esta satisfeito - nada a fazer", objetivo.nome)
+            return None, ""
+
+        self._plano_atual = [acao.nome for acao in plano]
+        self._objetivo_atual = objetivo.nome
+        logger.info(
+            "maestro: objetivo '%s' -> plano %s (executando so o 1o passo)",
+            objetivo.nome,
+            " -> ".join(self._plano_atual),
+        )
+        rastro = f"objetivo '{objetivo.nome}' via {' -> '.join(self._plano_atual)}"
+        return self._plano_atual[0], f"{motivo} [{rastro}]" if motivo else rastro
 
     def quer_rodar(self) -> bool:
         return self._acao_atual is not None
@@ -517,7 +597,17 @@ class IaEstrategica(Comportamento):
         acao = contrato.resolver(self._acao_atual)
         await self._event_bus.publish(
             "behavior.status",
-            {"estado": self.nome, "acao": self._acao_atual, "motivo": self._motivo_atual},
+            {
+                "estado": self.nome,
+                "acao": self._acao_atual,
+                "motivo": self._motivo_atual,
+                # Vazios quando o GOAP nao esta ligado. Vao para o dashboard
+                # poder mostrar o PORQUE do passo, e nao so o passo: "avancar"
+                # sozinho nao explica nada; "avancar, rumo a poder_seguir_em_
+                # frente" explica.
+                "objetivo": self._objetivo_atual,
+                "plano": list(self._plano_atual),
+            },
         )
         logger.info("maestro: IA decidiu '%s' (%s)", self._acao_atual, self._motivo_atual)
         if acao is not None:

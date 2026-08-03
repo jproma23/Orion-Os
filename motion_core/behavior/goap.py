@@ -48,7 +48,7 @@ from __future__ import annotations
 
 import heapq
 from dataclasses import dataclass
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 #: Limiar de "frente livre", em centimetros.
 #:
@@ -82,8 +82,14 @@ PREDICADOS: frozenset[str] = frozenset(
         "nivelado",
         "bateria_ok",
         "sem_impacto",
+        "parado",
     }
 )
+
+#: O estado em que o corpo esta de fato parado, conforme o firmware reporta.
+#: Os outros que existem hoje (`OBSTACLE_DETECTED`, `SAFE_MODE`) descrevem um
+#: robo que PAROU POR ALGUM MOTIVO - situacao a resolver, nao repouso.
+ESTADO_PARADO = "IDLE"
 
 #: Um estado do mundo: predicado -> verdadeiro/falso.
 Estado = Mapping[str, bool]
@@ -123,6 +129,11 @@ def estado_de(retrato) -> dict[str, bool]:
         # e um risco gradual que o dono ja aceitou ao deixar o divisor fora.
         "bateria_ok": nivel != "CRITICA",
         "sem_impacto": not bool(getattr(retrato, "impacto", False)),
+        # Estado desconhecido (`None`) vira False, como todo o resto: se o
+        # robo NAO SABE que esta parado, planejar um `parar` e a resposta
+        # certa. O erro cai para o lado barato - mandar parar quem ja estava
+        # parado nao custa nada.
+        "parado": getattr(retrato, "estado_hardware", None) == ESTADO_PARADO,
     }
 
 
@@ -153,13 +164,33 @@ def _chave(estado: Estado) -> tuple:
 
 
 def _distancia(estado: Estado, alvo: Mapping[str, bool]) -> int:
-    """Heuristica do A*: quantos predicados do alvo ainda estao errados.
+    """Heuristica do A*: falta alguma coisa (1) ou ja chegamos (0)?
 
-    E admissivel (nunca superestima) porque cada acao muda pelo menos um
-    predicado - entao nunca da para fechar N pendencias em menos de N passos.
-    Isso e o que garante que o primeiro plano encontrado e o mais curto.
+    ## Por que nao contar os predicados pendentes
+
+    Era o que esta funcao fazia, justificado assim: *"cada acao muda pelo menos
+    um predicado, entao nunca da para fechar N pendencias em menos de N
+    passos"*. O raciocinio esta invertido. Para a heuristica nunca
+    SUPERESTIMAR, o que precisaria valer e o contrario - que cada acao fechasse
+    no MAXIMO um predicado do alvo. E isso e falso aqui: `olhar_em_volta` fecha
+    `frente_conhecida` e `pessoa_visivel` no mesmo passo (conferido em
+    2026-08-03).
+
+    Um alvo pedindo esses dois juntos e alcancavel em UM passo, e a contagem
+    responderia DOIS. Heuristica que superestima quebra a garantia do A*: o
+    primeiro plano encontrado deixa de ser o mais curto, silenciosamente.
+
+    Hoje nenhum objetivo pede mais de um predicado, entao as duas versoes dao
+    o mesmo numero e nada muda no comportamento. A diferenca aparece no dia em
+    que alguem escrever um objetivo composto - e ai seria um plano
+    desnecessariamente longo, sem erro nenhum aparecendo. Este projeto ja tem
+    defeitos demais dessa familia.
+
+    Esta versao nunca superestima (o custo real e sempre >= 1 quando falta
+    algo). Ela e mais fraca, o que so significa explorar alguns nos a mais -
+    com `limite_passos=4` e um catalogo de 16 acoes, isso e irrelevante.
     """
-    return sum(1 for chave, valor in alvo.items() if estado.get(chave) != valor)
+    return 1 if any(estado.get(chave) != valor for chave, valor in alvo.items()) else 0
 
 
 def planejar(
@@ -254,10 +285,31 @@ def conferir_modelo(acoes: Iterable, objetivos: Iterable[Objetivo]) -> None:
                     f"o(s) predicado(s) {sorted(desconhecidos)!r}, que nao "
                     f"existe(m) em PREDICADOS - nada saberia medir isso"
                 )
+    acoes = list(acoes)
     for objetivo in objetivos:
         desconhecidos = set(objetivo.alvo) - PREDICADOS
         if desconhecidos:
             raise RuntimeError(
                 f"modelo GOAP invalido: o objetivo {objetivo.nome!r} pede "
                 f"{sorted(desconhecidos)!r}, que nao existe(m) em PREDICADOS"
+            )
+
+        # OBJETIVO DECORATIVO: existe na lista, nunca produz plano.
+        #
+        # Um alvo que nenhuma acao sabe alcancar so tem dois destinos - ja
+        # estar satisfeito (plano vazio) ou ser impossivel (None). Nos dois o
+        # robo nao faz nada, e nada denuncia: nao ha erro, nao ha log, o
+        # objetivo aparece bonito na lista oferecida a IA.
+        #
+        # Foi exatamente o que aconteceu com `ficar_em_seguranca`, que pedia
+        # `sem_impacto` - predicado que so o sensor produz (achado de
+        # 2026-08-03, varrendo os 2^N mundos possiveis). Com o GOAP ligado a
+        # IA escolhe entre poucos objetivos: um deles ser mudo custa caro.
+        for predicado, desejado in objetivo.alvo.items():
+            if any(acao.efeitos.get(predicado) == desejado for acao in acoes):
+                continue
+            raise RuntimeError(
+                f"objetivo GOAP decorativo: {objetivo.nome!r} pede "
+                f"{predicado}={desejado}, e nenhuma acao produz esse efeito - "
+                f"ele nunca geraria plano, e o robo ficaria parado em silencio"
             )
