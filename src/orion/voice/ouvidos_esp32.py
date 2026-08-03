@@ -186,7 +186,7 @@ class OuvidosESP32:
                 while len(self._bruto) < necessario:
                     self._chegou.clear()
                     await self._chegou.wait()
-        except (asyncio.TimeoutError, TimeoutError) as erro:
+        except TimeoutError as erro:
             raise ErroAudio(
                 f"ouvidos do ESP32 pararam de entregar áudio "
                 f"({len(self._bruto)} de {necessario} bytes em {limite_s:.1f}s)"

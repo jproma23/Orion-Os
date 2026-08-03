@@ -318,7 +318,7 @@ class BehaviorCore:
             self._acordar.clear()
             try:
                 await asyncio.wait_for(self._acordar.wait(), timeout=INTERVALO_TICK_S)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         await self._trocar_para(None)

@@ -6,7 +6,6 @@ tem que ser "seguir pela regra", nunca um comportamento errado aceito.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 from types import SimpleNamespace
 

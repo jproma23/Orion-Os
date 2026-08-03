@@ -29,7 +29,7 @@ restaurado.
 from __future__ import annotations
 
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Evento
 
@@ -45,7 +45,7 @@ class AlivioCarga:
     def __init__(
         self,
         event_bus: EventBus,
-        descarregar_modelo: Callable[[], "Awaitable[None]"] | None = None,
+        descarregar_modelo: Callable[[], Awaitable[None]] | None = None,
         pausar_visao: Callable[[], None] | None = None,
         retomar_visao: Callable[[], None] | None = None,
     ) -> None:

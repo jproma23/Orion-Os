@@ -16,7 +16,8 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any
+from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Prioridade
 

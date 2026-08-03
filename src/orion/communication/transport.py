@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import AsyncIterator, Awaitable, Callable, Protocol
+from typing import Protocol
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import serial
 

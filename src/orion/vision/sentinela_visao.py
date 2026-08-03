@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Callable
+from collections.abc import Callable
 
 from orion.kernel.event_bus import EventBus, Prioridade
 

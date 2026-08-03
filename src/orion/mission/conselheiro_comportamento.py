@@ -135,7 +135,7 @@ class ConselheiroComportamento:
                 asyncio.to_thread(self._chamar, contexto_texto, permitidas),
                 timeout=self._timeout_s,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("IA demorou mais de %.1fs - seguindo pela regra", self._timeout_s)
             return None
         except Exception:

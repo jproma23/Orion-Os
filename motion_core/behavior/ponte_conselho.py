@@ -77,7 +77,7 @@ class PonteConselhoIA:
 
         try:
             return await asyncio.wait_for(futuro, timeout=self._timeout_s)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.info("sem conselho em %.1fs - seguindo pela regra", self._timeout_s)
             return None
         finally:

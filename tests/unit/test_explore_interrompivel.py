@@ -1,5 +1,4 @@
 """Teste do achado da revisao de 2026-07-30: o trecho do explore e interrompivel."""
-import asyncio
 
 import pytest
 

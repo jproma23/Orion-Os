@@ -23,7 +23,7 @@ import asyncio
 import logging
 import random
 import time
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Evento
 

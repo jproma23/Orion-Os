@@ -13,7 +13,8 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Awaitable, Callable
+from typing import Any
+from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger("orion.kernel.event_bus")
 
@@ -91,7 +92,7 @@ class EventBus:
         while self._executando:
             try:
                 _, _, evento = await asyncio.wait_for(self._fila.get(), timeout=0.5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             await self._despachar(evento)
             self._fila.task_done()

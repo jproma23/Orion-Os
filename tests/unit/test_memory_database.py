@@ -1,6 +1,6 @@
 """Testes do Database Manager (Cap 15)."""
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 import pytest
 
@@ -162,7 +162,7 @@ def test_limpar_retencao_remove_registros_expirados(tmp_path):
     gm = _criar_gerenciador(tmp_path)
     gm.iniciar()
 
-    antigo = (datetime.now(timezone.utc) - timedelta(days=100)).isoformat()
+    antigo = (datetime.now(UTC) - timedelta(days=100)).isoformat()
     recente = agora_iso()
 
     gm.conexao.execute(

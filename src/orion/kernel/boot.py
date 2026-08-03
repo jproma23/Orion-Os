@@ -77,7 +77,7 @@ async def _conectar_raspberry(
     cliente = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
     try:
         await asyncio.wait_for(cliente.conectar(), timeout=TIMEOUT_CONEXAO_RASPBERRY_S)
-    except (ErroTransporte, asyncio.TimeoutError) as erro:
+    except (TimeoutError, ErroTransporte) as erro:
         logger.warning(
             "Raspberry (Motion Core) inalcancavel em %s:%d: %s",
             conf_raspberry["host"],

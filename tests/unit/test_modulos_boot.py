@@ -4,7 +4,6 @@ Tudo com dublês: nao sobe HTTP de verdade, nao chama IA, nao precisa de
 chave de API. O que se testa aqui e o CICLO DE VIDA que o Boot Manager
 depende - subir, responder se esta saudavel, desligar sem explodir.
 """
-import asyncio
 
 import pytest
 

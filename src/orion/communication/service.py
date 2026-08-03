@@ -167,7 +167,7 @@ class ComunicacaoService:
                     return await asyncio.wait_for(
                         asyncio.shield(futuro), timeout=self._ack_timeout_s
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning(
                         "ACK nao recebido de '%s' (tentativa %d/%d, msg_id=%s)",
                         destino,
@@ -232,7 +232,7 @@ class ComunicacaoService:
             raise ErroComunicacao(
                 f"Falha ao enviar pedido para '{destino}': {erro}"
             ) from erro
-        except asyncio.TimeoutError as erro:
+        except TimeoutError as erro:
             raise ErroComunicacao(
                 f"Sem resposta de '{destino}' em {timeout_s}s (msg_id={mensagem.id})"
             ) from erro

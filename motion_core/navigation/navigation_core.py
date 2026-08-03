@@ -292,7 +292,7 @@ class NavigationCore:
         await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
         try:
             leituras = await asyncio.wait_for(self._scan_pendente, timeout=TIMEOUT_SCAN_S)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("motion.scan_complete nao chegou em %.1fs apos SCAN_FRONT", TIMEOUT_SCAN_S)
             leituras = []
         finally:

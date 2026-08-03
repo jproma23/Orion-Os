@@ -13,7 +13,7 @@ Os dois riscos que estes testes guardam:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import pytest
 
@@ -350,9 +350,8 @@ async def test_registro_com_fuso_nao_quebra_a_leitura() -> None:
     perdia o bloco de observacoes justamente no dia em que ele deixou de vir
     vazio. Ficou escondido porque a lista sempre chegava sem registros.
     """
-    from datetime import timezone
 
-    quando = AGORA.replace(hour=10, tzinfo=timezone.utc)
+    quando = AGORA.replace(hour=10, tzinfo=UTC)
     registro = {
         "origem": ORIGEM,
         "tipo": TIPO_PESSOA_VISTA,

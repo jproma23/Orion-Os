@@ -36,6 +36,31 @@ display = ["aiohttp>=3.9"]
 line-length = 100
 target-version = "py311"
 
+# AS REGRAS SAO ESCOLHIDAS AQUI, e nao herdadas do humor da versao instalada
+# (2026-08-03).
+#
+# Sem esta secao o ruff aplica o conjunto padrao DELE, que muda entre versoes.
+# O 0.16 passou a ligar dezenas de familias que ninguem escolheu (YTT, ASYNC,
+# S, BLE...) e, ao mesmo tempo, DESLIGOU o `E402` - justamente a regra contra a
+# qual este projeto escreveu 105 comentarios `# noqa: E402` nos testes que
+# fazem `pytest.importorskip` antes dos imports.
+#
+# O resultado era um linter que se contradizia: 105 avisos de "noqa inutil"
+# apontando para comentarios que estao certos, afogando os problemas de
+# verdade. 275 avisos, quase nenhum acionavel - ou seja, ninguem olhava.
+#
+# Com o conjunto fixado aqui: 275 -> 163, os `noqa` voltam a ser necessarios
+# (so 1 E402 escapa) e o que sobra e real, incluindo 8 imports mortos.
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle: inclui E402 (import fora do topo), que este repo usa
+    "F",   # pyflakes: import morto, variavel nao usada, f-string vazia
+    "W",   # espaco em branco
+    "I",   # ordem dos imports
+    "UP",  # sintaxe que envelheceu (o projeto exige Python >= 3.11)
+    "B",   # bugbear: armadilhas comuns
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]   # "." expoe motion_core/ como pacote importavel
 markers = ["sim: testes de integracao com simuladores"]

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from orion.communication.service import ComunicacaoService
 from orion.kernel.event_bus import EventBus, Evento, Prioridade

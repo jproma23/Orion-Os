@@ -42,7 +42,7 @@ async def main() -> int:
         for leitura in leituras:
             valido = "ok" if leitura.get("valida") else "SEM LEITURA"
             print(f"  {leitura.get('angulo'):>3} graus: {leitura.get('distancia_cm'):6.1f}cm ({valido})")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("Nao chegou motion.scan_complete em 5s.")
 
     bus.parar()

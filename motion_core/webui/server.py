@@ -602,7 +602,7 @@ class WebUIServer:
                 try:
                     await asyncio.wait_for(self._encerrando.wait(), timeout=_INTERVALO_PING_S)
                     break  # encerrando foi sinalizado - sai sem mandar mais ping
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass  # timeout normal - hora do ping
                 await resposta.write(b": ping\n\n")
         except (ConnectionResetError, asyncio.CancelledError):

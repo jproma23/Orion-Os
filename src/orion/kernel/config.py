@@ -62,7 +62,7 @@ class ConfigurationManager:
     def caminho(self) -> Path:
         return self._caminho
 
-    def carregar(self) -> "ConfigurationManager":
+    def carregar(self) -> ConfigurationManager:
         """Le o YAML do disco, faz o parse e valida contra o esquema minimo.
 
         Levanta ErroConfiguracaoInvalida com mensagem clara em qualquer

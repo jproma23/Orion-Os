@@ -15,7 +15,7 @@ from _serial_bancada import BAUD, PORTA
 
 NOTEBOOK = "jproma23@10.20.20.195"
 PASTA_NB = "/tmp/orion_pano"
-CAP = f"~/orion-os/.venv/bin/python ~/orion-os/tools/capturar_frame.py"
+CAP = "~/orion-os/.venv/bin/python ~/orion-os/tools/capturar_frame.py"
 
 
 def capturar(nome: str) -> None:

@@ -12,10 +12,8 @@ import os
 
 import pytest
 
-from conftest import FakeTransporte
 
-from motion_core.__main__ import _abrir_memoria, _conectar_hardware_core, _iniciar_manutencao
-from motion_core.memory.replica import ReceptorReplica
+from motion_core.__main__ import _abrir_memoria, _conectar_hardware_core
 from orion.communication.framing import DecodificadorSerial, codificar_serial
 from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService

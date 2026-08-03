@@ -15,7 +15,7 @@ import asyncio
 import logging
 import shutil
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 from motion_core.memory.schema import MIGRACOES
@@ -28,7 +28,7 @@ BACKUPS_SEMANAIS_MANTIDOS = 4
 
 
 def agora_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class ErroBancoDeDados(Exception):
@@ -158,7 +158,7 @@ class DatabaseManager:
     def fazer_backup(self) -> Path:
         """Copia consistente via API de backup do SQLite (nao para o
         sistema); rotaciona mantendo os backups mais recentes."""
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         destino = self._diretorio_backup / f"orion_{timestamp}.db"
         alvo = sqlite3.connect(str(destino))
         try:
@@ -203,7 +203,7 @@ class DatabaseManager:
         logs_erro_dias: int = 180,
     ) -> dict[str, int]:
         """Remove registros expirados por politica de retencao e roda VACUUM."""
-        agora = datetime.now(timezone.utc)
+        agora = datetime.now(UTC)
 
         def limite(dias: int) -> str:
             return (agora - timedelta(days=dias)).isoformat()

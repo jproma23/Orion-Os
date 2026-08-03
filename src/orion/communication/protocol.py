@@ -80,7 +80,7 @@ class Mensagem:
         destino: str,
         payload: dict[str, Any] | None = None,
         id_referencia: str | None = None,
-    ) -> "Mensagem":
+    ) -> Mensagem:
         """Cria uma mensagem original: gera id/timestamp e calcula o checksum."""
         campos = {
             "protocolo": VERSAO_PROTOCOLO,
@@ -106,7 +106,7 @@ class Mensagem:
         )
 
     @classmethod
-    def ack(cls, mensagem_original: "Mensagem", origem: str) -> "Mensagem":
+    def ack(cls, mensagem_original: Mensagem, origem: str) -> Mensagem:
         return cls.nova(
             TipoMensagem.ACK,
             origem=origem,
@@ -115,7 +115,7 @@ class Mensagem:
         )
 
     @classmethod
-    def nack(cls, mensagem_original: "Mensagem", origem: str, motivo: str) -> "Mensagem":
+    def nack(cls, mensagem_original: Mensagem, origem: str, motivo: str) -> Mensagem:
         return cls.nova(
             TipoMensagem.NACK,
             origem=origem,
@@ -154,7 +154,7 @@ class Mensagem:
         return self.to_json().encode("utf-8")
 
     @classmethod
-    def from_dict(cls, dados: dict[str, Any]) -> "Mensagem":
+    def from_dict(cls, dados: dict[str, Any]) -> Mensagem:
         """Reconstroi uma mensagem recebida. Nao recalcula o checksum - ele
         e preservado como veio, para `checksum_valido()` poder detectar
         corrupcao no transporte."""
@@ -183,7 +183,7 @@ class Mensagem:
         )
 
     @classmethod
-    def from_json(cls, texto: str) -> "Mensagem":
+    def from_json(cls, texto: str) -> Mensagem:
         try:
             dados = json.loads(texto)
         except json.JSONDecodeError as erro:
@@ -193,7 +193,7 @@ class Mensagem:
         return cls.from_dict(dados)
 
     @classmethod
-    def from_bytes(cls, dados: bytes) -> "Mensagem":
+    def from_bytes(cls, dados: bytes) -> Mensagem:
         return cls.from_json(dados.decode("utf-8"))
 
 

@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from enum import Enum
-from typing import Any, Awaitable, Callable
+from typing import Any
+from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Prioridade
 from orion.voice.captura_audio import ErroAudio, gravar_trecho
@@ -52,7 +53,7 @@ class VoiceCore:
         gravar_audio: CallbackGravarAudio | None = None,
         frase_ativacao: str | None = None,
         transcritor_ativacao: Transcritor | None = None,
-        detector_atividade: "DetectorAtividadeSonora | None" = None,
+        detector_atividade: DetectorAtividadeSonora | None = None,
         assentamento_pos_fala_s: float = 0.9,
         silencios_para_fechar_sessao: int = 2,
     ) -> None:
