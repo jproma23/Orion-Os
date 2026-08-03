@@ -534,3 +534,106 @@ for (const botao of document.querySelectorAll('.volante-opcao')) {
     }
   });
 }
+
+
+// ---------------------------------------------------------------------------
+// JOYSTICK DA CABEÇA (2026-08-03)
+//
+// Espelha o joystick das rodas - mesma zona morta, mesmo intervalo mínimo, mesmo
+// tratamento de erro - com UMA diferença que importa: aqui o comando é ÂNGULO
+// ABSOLUTO, não incremento.
+//
+// A posição do punho É a posição da cabeça. Incremento acumularia erro a cada
+// comando perdido pela rede, e a interface passaria a discordar do servo -
+// exatamente a doença que o pan/tilt já tem (dois donos comandando por caminhos
+// independentes, sem nunca ressincronizar). Absoluto não deriva: cada comando
+// corrige o anterior.
+//
+// ATENÇÃO CONHECIDA: enquanto a visão estiver rastreando alguém, ela também
+// comanda estes servos. Mexer aqui no meio disso faz os dois disputarem a
+// cabeça. Não resolvi isso agora - está anotado.
+// ---------------------------------------------------------------------------
+const cbBase = document.getElementById('joystick-cabeca');
+const cbPunho = document.getElementById('joystick-cabeca-punho');
+const cbStatus = document.getElementById('cabeca-status');
+const cbCentro = document.getElementById('cabeca-centro');
+
+if (cbBase && cbPunho) {
+  const CB_RAIO_PX = 44;
+  const CB_ZONA_MORTA = 0.10;   // menor que o das rodas: olhar é gesto fino
+  const CB_INTERVALO_MS = 120;  // servo aceita mais ritmo que o motor de passo
+  const PAN_MAX = 80;           // iguais aos limites do servidor
+  const TILT_MIN = -30, TILT_MAX = 45;
+
+  let cbArrastando = false;
+  let cbUltimoEnvio = 0;
+
+  async function enviarCabeca(pan, tilt) {
+    try {
+      const r = await fetch('/cabeca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pan, tilt }),
+      });
+      if (!r.ok) {
+        const corpo = await r.json().catch(() => ({}));
+        cbStatus.className = 'erro';
+        cbStatus.textContent = corpo.erro || `recusado (HTTP ${r.status})`;
+        return;
+      }
+      cbStatus.className = '';
+      cbStatus.textContent = `cabeça: ${Math.round(pan)}° / ${Math.round(tilt)}°`;
+    } catch (e) {
+      cbStatus.className = 'erro';
+      cbStatus.textContent = 'sem resposta do robô';
+    }
+  }
+
+  function moverPunho(x, y) {
+    cbPunho.style.transform = `translate(${x * CB_RAIO_PX}px, ${y * CB_RAIO_PX}px)`;
+  }
+
+  function daPosicao(evento) {
+    const caixa = cbBase.getBoundingClientRect();
+    const toque = evento.touches ? evento.touches[0] : evento;
+    const x = (toque.clientX - (caixa.left + caixa.width / 2)) / (caixa.width / 2);
+    const y = (toque.clientY - (caixa.top + caixa.height / 2)) / (caixa.height / 2);
+    return [Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y))];
+  }
+
+  function aoArrastar(evento) {
+    if (!cbArrastando) return;
+    evento.preventDefault();
+    const [x, y] = daPosicao(evento);
+    moverPunho(x, y);
+    if (Math.hypot(x, y) < CB_ZONA_MORTA) return;
+    const agora = Date.now();
+    if (agora - cbUltimoEnvio < CB_INTERVALO_MS) return;
+    cbUltimoEnvio = agora;
+    // y para CIMA na tela (negativo) = olhar para cima = tilt positivo.
+    const tilt = y < 0 ? -y * TILT_MAX : -y * -TILT_MIN;
+    enviarCabeca(x * PAN_MAX, tilt);
+  }
+
+  function aoSoltar() {
+    if (!cbArrastando) return;
+    cbArrastando = false;
+    // A cabeça FICA onde parou - diferente das rodas, que param ao soltar.
+    // Olhar é um estado, andar é uma ação: quem virou a cabeça para a porta
+    // quer continuar vendo a porta.
+  }
+
+  cbBase.addEventListener('mousedown', (e) => { cbArrastando = true; aoArrastar(e); });
+  cbBase.addEventListener('touchstart', (e) => { cbArrastando = true; aoArrastar(e); }, { passive: false });
+  window.addEventListener('mousemove', aoArrastar);
+  window.addEventListener('touchmove', aoArrastar, { passive: false });
+  window.addEventListener('mouseup', aoSoltar);
+  window.addEventListener('touchend', aoSoltar);
+
+  if (cbCentro) {
+    cbCentro.addEventListener('click', () => {
+      moverPunho(0, 0);
+      enviarCabeca(0, 0);
+    });
+  }
+}

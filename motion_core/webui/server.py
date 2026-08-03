@@ -280,6 +280,7 @@ class WebUIServer:
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_post("/comando", self._handler_comando)
         self._app.router.add_post("/controle", self._handler_controle)
+        self._app.router.add_post("/cabeca", self._handler_cabeca)
         self._app.router.add_get("/", self._handler_index)
         self._app.router.add_get("/mapa", self._handler_mapa)
         self._app.router.add_get("/diagnostico", self._handler_diagnostico)
@@ -515,6 +516,50 @@ class WebUIServer:
         ficar inutilizável.
         """
         return self._maestro is None or self._maestro.modo_controle == MODO_MANUAL
+
+    #: Limites fisicos do pan/tilt, iguais aos do orion.yaml (vision).
+    #: Duplicar numero e ruim, mas o Motion Core nao le a secao `vision` - ela
+    #: e do Notebook. Ficam aqui com o mesmo valor e um teste que os prende:
+    #: melhor um numero repetido e conferido que um servo forcado contra o
+    #: batente, que foi o que derrubou o ESP32 inteiro em 2026-08-03.
+    PAN_MIN, PAN_MAX = -80.0, 80.0
+    TILT_MIN, TILT_MAX = -30.0, 45.0
+
+    @staticmethod
+    def _limitar(valor: float, minimo: float, maximo: float) -> float:
+        return max(minimo, min(maximo, valor))
+
+    async def _handler_cabeca(self, request: web.Request) -> web.Response:
+        """O JOYSTICK DA CABECA (2026-08-03).
+
+        Pedido do dono: *"poem um joystick para mover a cabeca tambem, assim
+        posso olhar para todos os lados"* - o caso de uso e olhar a casa de
+        longe pela camera, sem depender de o robo decidir para onde olhar.
+
+        ANGULO ABSOLUTO, e nao incremento. A posicao do punho E a posicao da
+        cabeca. Incremento acumularia erro a cada comando perdido pela rede e a
+        interface passaria a discordar do servo - que e exatamente a doenca que
+        o pan/tilt ja tem (dois donos comandando por caminhos independentes,
+        sem nunca ressincronizar). Absoluto nao deriva: cada comando corrige o
+        anterior.
+
+        Publica no MESMO topico que os comportamentos usam (`motion.pan_tilt`),
+        e nao por um caminho novo. Um segundo caminho ate os servos seria um
+        terceiro dono da cabeca, e o projeto ja paga caro por ter dois.
+        """
+        if not self._acesso_permitido(request):
+            return web.json_response({"erro": "acesso negado"}, status=403)
+        try:
+            dados = await request.json()
+            pan = float(dados["pan"])
+            tilt = float(dados["tilt"])
+        except (ValueError, KeyError, TypeError):
+            return web.json_response({"erro": "envie pan e tilt numericos"}, status=400)
+
+        pan = self._limitar(pan, self.PAN_MIN, self.PAN_MAX)
+        tilt = self._limitar(tilt, self.TILT_MIN, self.TILT_MAX)
+        await self._event_bus.publish("motion.pan_tilt", {"pan": pan, "tilt": tilt})
+        return web.json_response({"ok": True, "pan": pan, "tilt": tilt})
 
     async def _handler_controle(self, request: web.Request) -> web.Response:
         """O BOTÃO: entrega o volante ao operador ou ao robô.

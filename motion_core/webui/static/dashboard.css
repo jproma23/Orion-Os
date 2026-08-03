@@ -449,3 +449,34 @@ dd {
   color: var(--texto-fraco);
   margin-left: auto;
 }
+
+
+/* --- Joystick da cabeça (2026-08-03) --------------------------------------
+   Reaproveita as classes `.joystick*` das rodas: mesma aparência, mesmo gesto,
+   nada novo para aprender. Só o tamanho muda - ele divide espaço com a imagem
+   e não deve competir com ela por atenção. */
+.cabeca-caixa {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.joystick--pequeno {
+  width: 108px;
+  height: 108px;
+  flex: 0 0 auto;
+}
+
+.cabeca-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+#cabeca-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--texto-fraco);
+}

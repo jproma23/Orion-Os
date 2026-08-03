@@ -26,6 +26,24 @@
     <div class="camera-moldura">
       <img id="camera-img" alt="Imagem da câmera do pan/tilt" />
     </div>
+    <!-- JOYSTICK DA CABECA (2026-08-03): mora DENTRO do painel da camera de
+         proposito. O objetivo do dono e *"olhar para todos os lados"* vendo a
+         imagem - separar os dois esconderia que um comanda o que o outro
+         mostra, o mesmo motivo pelo qual "quem controla" mora dentro do painel
+         do joystick das rodas. -->
+    <div class="cabeca-caixa">
+      <div id="joystick-cabeca" class="joystick joystick--pequeno" role="application"
+           aria-label="Joystick da cabeça: arraste para olhar em volta">
+        <div class="joystick-eixo joystick-eixo--v"></div>
+        <div class="joystick-eixo joystick-eixo--h"></div>
+        <div id="joystick-cabeca-punho" class="joystick-punho"></div>
+      </div>
+      <div class="cabeca-lado">
+        <p id="cabeca-status">cabeça: centro</p>
+        <button id="cabeca-centro" type="button" class="camera-opcao">centralizar</button>
+      </div>
+    </div>
+
     <div class="camera-controles">
       <button type="button" class="camera-opcao ativo"
               id="camera-foto" data-modo="foto">Foto</button>
