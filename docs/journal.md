@@ -5523,3 +5523,155 @@ suspeitar de hardware queimado.**
 1. **I2C**: multimetro na plaquinha - tensao VCC/GND e continuidade ate SDA.
 2. Medir consumo antes de deixar tudo energizado por muito tempo.
 3. TB6600 a 3,3 V - a pergunta continua sendo uma so: *o robo anda?*
+
+## Sessao de 2026-08-03 (noite) - quatro defeitos que os testes nao pegavam porque os testes nao rodavam
+
+Pedido do dono: *"faz uma revisao geral de tudo vamos melhorar em todos os
+sentindo limpeza nos codigos e melhoria na conversacao e melhoramento do
+goap"*, e logo depois *"enriquecer os codigos e ligar ao banco e a
+inteligencia"*.
+
+O primeiro comando foi rodar a suite. Ela nao rodava. E esse detalhe explica
+todo o resto da sessao: **os tres defeitos seguintes estavam escondidos atras
+de uma suite que nao chegava a existir.**
+
+### A suite do Pi coletava 11 testes, nao 590
+
+Nao 11 falhando - 11 COLETADOS. `tests/unit/test_fala_por_frases.py` importa
+`voice_core`, que importa `captura_audio`, que faz `import numpy` no topo. O
+Pi nao instala o extra `mission` de proposito. O `ModuleNotFoundError` subia
+durante a COLETA, e erro de coleta **interrompe a suite inteira**, nao so o
+arquivo culpado:
+
+    11 skipped, 1 error in 1.81s
+    !!!! Interrupted: 1 error during collection !!!!
+
+O projeto ja tinha a resposta em 13 outros arquivos - `pytest.importorskip`
+antes dos imports pesados. Faltava em tres pontos, cada um com um extra
+diferente: `numpy`/`sounddevice`, `cv2` e `ollama`.
+
+Os dois de visao sao sutis. O `ModuloVisao` usa import tardio dentro de
+`_construir` justamente para nao exigir cv2 - mas o `monkeypatch.setattr` do
+teste aponta para dentro de `vision_core`, e **resolver esse nome importa o
+modulo de verdade**. A protecao existia para quem importa o arquivo, nao para
+quem mira o alvo.
+
+**Nota de honestidade sobre a entrada anterior:** o registro da tarde diz
+"suite no Pi: 590 passam, 3 falham". Hoje a medida deu 11 coletados. Depois de
+recolocar a primeira guarda, deu exatamente 590/3 - o mesmo numero da tarde.
+Ou seja: aquele numero foi medido antes de algo mudar, e ninguem reconferiu.
+*Numero de suite envelhece como qualquer outro dado.*
+
+Ao fim: **605 passando, 15 pulados, 0 falhando.** Commit `d9b1df4`.
+
+### O GOAP tinha 500 linhas e ninguem o chamava
+
+Escrito em 02/08 com testes, travas de import e um docstring afirmando *"isto
+SUBSTITUI a escolha de acao unica"*. A substituicao nunca aconteceu: o unico
+arquivo do repo que importava `modelo_goap` era `tests/unit/test_goap.py`.
+
+**Codigo orfao nao e codigo pronto.** E o modo mais caro de errar aqui, porque
+tudo parece feito - o modulo existe, os testes passam, o journal registra a
+entrega - e o robo continua exatamente como antes.
+
+*Guardar o cheque: antes de dar um modulo por entregue, `grep` por quem o
+importa fora dos testes.*
+
+A ligacao: `IaEstrategica` ganhou `retrato=` (o `EstadoDoMundo.retrato`,
+passado no boot). Com ele, a IA passa a escolher um **OBJETIVO** e o
+planejador monta a sequencia - executando **so o primeiro passo**, e
+replanejando no ciclo seguinte. Efeito de acao e INTENCAO, nao promessa;
+cumprir um plano de tres passos cegamente seria agir sobre um mundo que ja
+passou.
+
+Sem `retrato`, cai no modo antigo de acao unica. O conselheiro do Notebook nao
+precisou de uma linha: ele so usa `opcoes` como enum do schema.
+
+### Um objetivo que a IA podia escolher e que nao fazia nada
+
+Varrendo os 2^8 mundos possiveis, `ficar_em_seguranca` **nao gerava plano em
+nenhum**. Ele pedia `sem_impacto: True`, e nenhuma acao produz esse predicado
+- impacto e leitura de sensor, nao consequencia de decisao.
+
+O tamanho disso so aparece com o GOAP ligado. A IA escolhe entre quatro
+objetivos, e *"ficar em seguranca"* e o nome mais atraente justamente quando
+as coisas vao mal. Escolhe-lo fazia o robo **nao fazer nada, sem erro, sem
+log, sem nada denunciando** - a mesma familia de "publicar no vazio" que este
+projeto ja tomou tres vezes.
+
+Agora o alvo e `parado`, que sai de `estado_hardware == "IDLE"` (a telemetria
+reporta) e que `parar` de fato produz. Ha trava no import recusando qualquer
+objetivo decorativo futuro.
+
+Junto: a heuristica do A* **superestimava**. Ela contava predicados pendentes,
+justificada por "cada acao muda pelo menos um predicado". O raciocinio esta
+invertido - para nunca superestimar, precisaria valer que cada acao fechasse
+no MAXIMO um predicado do alvo. E `olhar_em_volta` fecha dois de uma vez.
+Hoje nenhum objetivo pede dois, entao nada muda de comportamento; so mordia no
+futuro. Commit `eefdd6d`.
+
+### 152 conversas, zero fatos
+
+A tabela `conhecimento` estava vazia. Nao por falta de produtor: o
+`ExtratorFatos` existia, estava ligado no `mission_planner` e funcionava. Ele
+so nunca chegava a rodar. Duas causas somadas, ambas medidas no banco real:
+
+1. **`encerrar()` nunca era chamado por ninguem.** O `conversar_fofao.py`
+   encerra voz, ouvidos, visao, link e servidor - e nao o planner. Todo lote
+   incompleto morria no desligamento.
+2. **`turnos_por_lote=4` foi escolhido sem medir.** As 37 sessoes gravadas
+   dizem outra coisa: **32 delas (86%) tem menos de 4 turnos.**
+
+Juntas, garantiam o resultado observado: consumidor pronto (o `ai_manager` ja
+injeta os fatos no prompt), produtor ligado, e nada passando.
+
+O conserto e destilar tambem por **ociosidade**: 90 s sem turno novo encerram a
+conversa e o que houver e destilado. O relogio conta SILENCIO - turno novo
+rearma a espera, para nao cortar conversa pelo meio. Com um piso de
+substancia, porque *"Fofao!"* sozinho e a sessao mais comum do banco e nao ha
+fato dentro de um chamado, so custo de modelo.
+
+**O FTS5 foi adiado de proposito.** Indexar uma tabela de zero linhas nao
+entrega nada. Ele so vale depois de confirmar que os fatos acumulam -
+conferir com `SELECT COUNT(*) FROM conhecimento`. Commit `77c7cba`.
+
+### O linter escolhia as proprias regras
+
+`[tool.ruff]` tinha `line-length` e `target-version`, e mais nada. **Sem
+`select`, quem escolhe as regras e o padrao da versao instalada** - que muda
+sozinho.
+
+O ruff 0.16 ligou dezenas de familias que ninguem pediu (YTT, ASYNC, S,
+BLE...) e DESLIGOU o `E402` - exatamente a regra contra a qual o repo escreveu
+**105 comentarios `# noqa: E402`**. O resultado era um linter que se
+contradizia: 105 avisos de *"noqa inutil"* apontando para comentarios que
+estao certos, afogando os problemas reais. 275 avisos, quase nenhum acionavel.
+**Linter que ninguem olha nao e linter.**
+
+Regras fixadas no pyproject (`E F W I UP B`) e 55 correcoes seguras aplicadas
+(8 imports mortos, sintaxe obsoleta). **275 -> 127**, e os 127 sao reais.
+
+Nao automatizado: 33 `I001` (ordem de import). O isort moveria os imports para
+CIMA do `pytest.importorskip`, quebrando o skip nas maquinas sem os extras - o
+Pi, por exemplo. Seria reintroduzir por automacao o defeito que o primeiro
+commit da sessao acabou de consertar. Commit `b552a1e`.
+
+### Estado ao fim da sessao
+
+- **Suite no Pi: 605 passando, 15 pulados, 0 falhando** (eram 11 coletados).
+- **Linter: 127 avisos** (eram 275), com as regras escolhidas por nos.
+- GOAP **ligado** na IaEstrategica; Motion Core importa limpo.
+- Extrator de fatos com gatilho por ociosidade e `encerrar()` no desligamento.
+- Quatro commits tematicos no master do Pi. Arvore limpa.
+- CRLF entrou por `scp` do Windows em 3 arquivos e o `.gitattributes`
+  segurou - conferido blob por blob, zero CR dentro dos commits.
+
+### Proximo passo
+
+1. **Bancada com o GOAP.** Ele move o robo por um caminho novo que passou nos
+   testes e **nunca rodou no hardware**. Ligar com a mao perto do botao.
+2. Conferir se os fatos comecam a aparecer: `SELECT COUNT(*) FROM
+   conhecimento`. So depois disso o FTS5 passa a valer.
+3. A conversacao em si (`ai_manager`, prompt, historico) segue intocada -
+   nesta sessao foi consertado o ABASTECIMENTO dela, nao ela.
+4. Continua de pe do dia anterior: multimetro no I2C, consumo, TB6600 a 3,3 V.
