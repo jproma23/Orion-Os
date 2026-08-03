@@ -257,3 +257,60 @@ async def test_palavras_curtas_nao_entram_na_busca(contexto):
     contexto_ia = await api.context(None, sobre="de o e a")
     # Volta pelo caminho do "completa por data", nao por ter casado.
     assert len(contexto_ia["conhecimento_relevante"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# FILTRAR POR PESSOA NAO PODE ZERAR O HISTORICO (regressao de 2026-08-03)
+#
+# Quando o reconhecimento facial passou a preencher `pessoa_id`, o filtro
+# `WHERE pessoa_id = ?` encontrou ZERO linhas: as 202 conversas ja gravadas
+# tinham todas `pessoa_id = NULL`, porque foram gravadas antes de existir quem
+# as atribuisse. O robo perdeu o historico inteiro no instante em que aprendeu
+# de quem ele era, e passou a responder mais seco - o dono percebeu na hora.
+#
+# E o espelho do bug de 02/08: la o filtro nunca acertava, aqui ele acerta e
+# nao ha o que achar. Precisao que devolve nada e pior que aproximacao que
+# devolve algo.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pessoa_identificada_nao_perde_o_historico_sem_dono(contexto):
+    api, _ = contexto
+    pid = await api.remember("pessoas", {"nome": "Joao", "autorizacao": "membro_familia"})
+    # Conversas antigas, gravadas antes de existir atribuicao.
+    for i in range(4):
+        await api.remember(
+            "conversas", {"pessoa_id": None, "papel": "usuario", "texto": f"antiga {i}"}
+        )
+
+    ctx = await api.context(pessoa_id=pid, limite_conversas=10)
+
+    assert len(ctx["conversas_recentes"]) == 4, (
+        "identificar a pessoa nao pode apagar o historico da casa"
+    )
+
+
+@pytest.mark.asyncio
+async def test_as_conversas_da_pessoa_vem_primeiro(contexto):
+    api, _ = contexto
+    pid = await api.remember("pessoas", {"nome": "Marah", "autorizacao": "membro_familia"})
+    await api.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "da casa"})
+    await api.remember("conversas", {"pessoa_id": pid, "papel": "usuario", "texto": "dela"})
+
+    ctx = await api.context(pessoa_id=pid, limite_conversas=10)
+    textos = [c["texto"] for c in ctx["conversas_recentes"]]
+
+    assert "dela" in textos and "da casa" in textos
+    assert len(textos) == len(set(textos)), "nao pode repetir a mesma conversa"
+
+
+@pytest.mark.asyncio
+async def test_sem_pessoa_continua_trazendo_o_recente(contexto):
+    """O comportamento de antes segue valendo quando ninguem foi reconhecido."""
+    api, _ = contexto
+    for i in range(3):
+        await api.remember("conversas", {"pessoa_id": None, "papel": "robo", "texto": f"x{i}"})
+
+    ctx = await api.context(pessoa_id=None, limite_conversas=10)
+    assert len(ctx["conversas_recentes"]) == 3

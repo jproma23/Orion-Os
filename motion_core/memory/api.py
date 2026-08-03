@@ -254,18 +254,55 @@ class MemoryAPI:
             # Com pessoa identificada, continua filtrando por ela: e mais
             # preciso. Sem pessoa, traz as ultimas de qualquer um - imperfeito
             # numa casa com varias pessoas, e infinitamente melhor que nada.
+            # AS DA PESSOA PRIMEIRO, E O RECENTE COMPLETA (2026-08-03).
+            #
+            # Filtrar SO pela pessoa parece mais preciso e foi uma regressao
+            # real: quando o reconhecimento facial passou a preencher
+            # `pessoa_id`, a consulta encontrou ZERO linhas - as 202 conversas
+            # ja gravadas tem todas `pessoa_id = NULL`, porque foram gravadas
+            # antes de existir quem as atribuisse. O robo perdeu o historico
+            # inteiro no instante em que aprendeu de quem ele era, e passou a
+            # responder mais seco. O dono percebeu na hora: *"antes ele estava
+            # conversando bastante respondendo tudo, agora ele parou"*.
+            #
+            # E o espelho exato do bug de 02/08, quando a busca vivia dentro de
+            # `if pessoa_id is not None` e devolvia sempre vazio. Da outra vez
+            # o filtro nunca acertava; desta vez ele acerta e nao ha o que
+            # achar. A licao e a mesma: **precisao que devolve nada e pior que
+            # aproximacao que devolve algo.**
+            #
+            # Mesmo idioma de `_conhecimento_relevante`: o especifico primeiro,
+            # o resto completa por data. Conforme as conversas novas forem
+            # ganhando dono, a parte de baixo encolhe sozinha - sem migracao,
+            # sem data marcada.
+            conversas: list[dict] = []
+            vistos: set = set()
             if pessoa_id is not None:
-                consulta = (
-                    "SELECT * FROM conversas WHERE pessoa_id = ? "
-                    "ORDER BY timestamp DESC LIMIT ?"
-                )
-                parametros: tuple = (pessoa_id, limite_conversas)
-            else:
-                consulta = "SELECT * FROM conversas ORDER BY timestamp DESC LIMIT ?"
-                parametros = (limite_conversas,)
-            conversas = [
-                dict(linha) for linha in self._db.conexao.execute(consulta, parametros).fetchall()
-            ]
+                for linha in self._db.conexao.execute(
+                    "SELECT * FROM conversas WHERE pessoa_id = ? ORDER BY timestamp DESC LIMIT ?",
+                    (pessoa_id, limite_conversas),
+                ).fetchall():
+                    registro = dict(linha)
+                    vistos.add(registro["id"])
+                    conversas.append(registro)
+
+            if len(conversas) < limite_conversas:
+                for linha in self._db.conexao.execute(
+                    "SELECT * FROM conversas ORDER BY timestamp DESC LIMIT ?",
+                    (limite_conversas,),
+                ).fetchall():
+                    registro = dict(linha)
+                    if registro["id"] in vistos:
+                        continue
+                    vistos.add(registro["id"])
+                    conversas.append(registro)
+                    if len(conversas) >= limite_conversas:
+                        break
+
+            # Reordena por tempo: a mistura das duas consultas pode intercalar,
+            # e conversa fora de ordem cronologica confunde o modelo.
+            conversas.sort(key=lambda c: str(c.get("timestamp") or ""), reverse=True)
+            conversas = conversas[:limite_conversas]
 
             # CONHECIMENTO *RELEVANTE*, e nao apenas recente.
             #
