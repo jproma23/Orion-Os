@@ -5199,3 +5199,158 @@ serial de fabrica `0001` e os dois se confundiriam no boot.
 2. Ligar o GOAP na `IaEstrategica`.
 3. Ligar o reconhecimento facial ao `pessoa_id` das conversas - hoje grava
    `None` sempre, entao a memoria e da casa e nao de cada pessoa.
+
+## Sessao de 2026-08-03 - o log gritava software, e o defeito era qual cabo estava em qual porta
+
+Sessao inteira de diagnostico, com **uma unica linha de codigo mudada no fim**.
+O fio que costura tudo: quase todo teste que eu fiz media a coisa certa e
+respondia a pergunta errada - e o dono viu antes de mim.
+
+### O sintoma
+
+Desde as 00:05 o Motion Core empilhava centenas de linhas por minuto:
+
+    ACK nao recebido de 'hardware_core' (tentativa 3/3, msg_id=...)
+    Heartbeat perdido: modulo='hardware_core'
+    motion_core: nao consegui mover o pan/tilt (pan=0.0 tilt=0.0)
+
+O palpite natural (do dono, e razoavel) foi *"as mudancas de ontem a noite"*.
+Nao era: dos 14 commits de 02/08, nenhum tocou a serial - o unico que mexeu em
+`config/orion.yaml` foi o `3c5c298`, no bloco de **odometria**. `baud_rate`
+seguia 250000 e `port` seguia `"auto"`.
+
+### A causa: `"auto"` nao escolhe, pega a primeira
+
+O Mega morto **continuou plugado no Pi** enquanto o ESP32 - o corpo novo -
+ficou no Notebook, sem ninguem falando com ele. E `port: "auto"` varre
+`PORTAS_SERIAIS_CANDIDATAS` em ordem (`motion_core/__main__.py:76`), com o
+CH340 do Mega enumerando como `/dev/ttyUSB0`.
+
+Ou seja: **o robo adotava o cadaver**, e o `WHO_ARE_YOU` falhava exatamente
+como falharia com um bug de protocolo. O sintoma era de software; a causa era
+qual cabo estava em qual porta.
+
+`"auto"` foi escrito quando havia UMA serial no Pi. Com duas, ele nao decide.
+
+### O conserto
+
+`communication.arduino.port` deixou de ser `"auto"` e passou a ser o caminho
+**by-id** do CP2102 do ESP32. O by-id e montado pelo udev a partir dos
+descritores USB, entao aponta para a **placa** e nao para a ordem de
+enumeracao - com os dois conversores ligados, so o certo casa. Mesma licao que
+a camera ja tinha aprendido quando trocou `/dev/video0` por um caminho estavel.
+
+**Nao houve codigo novo.** `_conectar_arduino` ja tentava so a porta
+configurada quando ela nao e `"auto"` (`__main__.py:115`), e
+`tools/_serial_bancada.py` ja lia a mesma chave - as ferramentas de bancada
+seguiram junto sem uma edicao. Se a porta nao existir, a conexao devolve False
+e loga (Cap 6 s.8): o robo sobe sem corpo, em vez de nao subir.
+
+Commit `3400cbb`. Medido depois:
+
+| | antes | depois |
+|---|---|---|
+| ACK/heartbeat perdidos | centenas por minuto | **0** |
+| link | placa morta | `Arduino conectado e confirmado` no CP2102 |
+| `SCAN_FRONT` | sem resposta | varredura dos 7 angulos completa |
+
+As distancias voltam `-1` e isso e o esperado, nao defeito: os HC-SR04 seguem
+desplugados de proposito.
+
+**Teste ao contrario, para nao ficar so na afirmacao:** apontar a config de
+volta para o by-id do Mega reproduz o defeito original na hora
+(`Arduino nao encontrado` + ACK perdido). Config restaurada em seguida.
+
+### O Mega: o chip estava VIVO, quem morreu foi a UART do CH340
+
+Aqui esta o erro da sessao, e ele e meu.
+
+Eu declarei a placa morta com base em cinco caminhos independentes de
+silencio: leitura crua em 3 bauds, `avrdude` do sistema, `avrdude` com **dez
+resets manuais** dados pelo dono, `avrdude` do PlatformIO, e leitura de flash
+e EEPROM - tudo isso em **duas portas USB diferentes**. Um chip vivo teria
+devolvido a assinatura pelo bootloader, que e independente do sketch e de todo
+o codigo do ORION.
+
+So que o dono observou duas coisas que eu nao podia ver daqui:
+
+1. o pino do rele **mudou de estado** no power-on;
+2. o **servo do radar varre** - e o ESP32 estava VAZIO, sem nada ligado nele.
+
+As duas exigem codigo executando. E o firmware confirma: `setup()` chama
+`radar.iniciarVarredura()` e `loop()` chama `radar.atualizar()` - a varredura
+e **autonoma, nasce no boot e nao depende de serial nenhuma**.
+
+Diagnostico correto: **o ATmega2560 esta vivo e rodando o firmware. O que
+morreu e o lado UART do CH340.** Isso encaixa em cada medicao, inclusive nas
+que eu li errado - o CH340 ENUMERA no USB (lado USB vivo, aparece no `lsusb`),
+mas nao passa um byte em nenhuma direcao. Por isso o HEARTBEAT de 1 s nunca
+chega, e por isso o **bootloader tambem** parece morto: ele fala pela mesma
+UART quebrada. Foi exatamente ai que eu tirei a conclusao errada.
+
+**O erro metodologico, que vale mais que o diagnostico:** mandei `SCAN_FRONT`
+pelo ESP32, o dono viu o servo girar, e eu li isso como prova de que o servo
+estava no ESP32. Nao provava nada - a varredura do Mega roda o tempo todo e ia
+coincidir com qualquer coisa que eu fizesse.
+
+> **Um teste so vale se o resultado for DIFERENTE nas duas hipoteses.**
+
+Isso e irmao do bug recorrente de publicar evento no vazio: nos dois casos a
+ausencia de falha foi lida como sucesso.
+
+### O que continua valendo dos testes
+
+Uma pergunta do dono no fim expos um furo real: eu tinha testado o bootloader
+so em 115200. Varri entao programador x baud x chip; 10 das 24 combinacoes
+sairam antes da decisao de abandonar a placa, **todas `timeout`**.
+
+E o argumento que fecha nao e o log, e este:
+
+> **Baud errado da lixo, nao silencio.** Se houvesse sinal na linha e eu
+> escutasse na velocidade errada, chegariam bytes embaralhados. Zero byte em
+> 250000, 115200 e 9600 significa que nao ha atividade eletrica no fio -
+> nenhuma configuracao de software produz isso.
+
+**Nao ha backup da flash do Mega e nao havera:** ler e gravar entram pela mesma
+porta, entao `avrdude -U flash:r:` falha pelo mesmo timeout que gravar.
+Diferente do ESP32-CAM, cujo esptool conseguiu dumpar a flash antiga. Nada se
+perdeu de verdade - o fonte do firmware esta no git em `0c9e9ba^`.
+
+### Decisao do dono: abandonar o Mega
+
+*"abandono o mega"*, *"foca no esp32 mesmo"* - tomada **sabendo** que o
+ATmega estava vivo e que existia caminho de recuperacao (conversor USB-TTL
+externo nos pinos 0/1, ignorando o CH340 inteiro). Nao insistir em ressuscitar
+a placa em sessoes futuras; o USB-TTL volta a ser so item do LiDAR.
+
+### O que essa decisao custa - e nao e software
+
+O dono revelou o dado mais importante da sessao: **o ESP32 esta VAZIO.** A
+migracao de 02/08 foi so de **firmware**. O robo inteiro - servos (radar, pan,
+tilt), TB6600, rele, I2C (MPU6050 + QMC6310), DHT22, encoders - continua
+fiado no Mega.
+
+Entao "focar no ESP32" e um trabalho **fisico**, nao de codigo. O software ja
+esta pronto e provado.
+
+### Estado ao fim da sessao
+
+- Pi e Notebook sincronizados em `3400cbb` (fast-forward; a alteracao local
+  do Notebook em `tools/conversar_fofao.py` - tirar o mic local de reserva -
+  foi preservada, nao commitada).
+- `orion-motion` ativo, 0 perdas de heartbeat, corpo respondendo.
+- **Suite no Pi: 590 passam, 3 falham, 11 skip.** As 3 falhas sao `numpy` e
+  `cv2` ausentes no venv do Pi (testes de voz e visao, cujas libs vivem no
+  Notebook). Anterior a esta sessao, mas e divida real - a suite NAO passa
+  limpa no Pi.
+
+### Proximo passo
+
+1. **Medir consumo ANTES de religar tudo.** A suspeita de que o Mega morreu
+   por corrente anormal nao foi descartada - se ha falta na fiacao, ela ainda
+   esta la, e o ESP32 e menos tolerante.
+2. **Refiar os servos primeiro** (radar, pan, tilt): de graca, sem resistor, e
+   provam a cadeia decisao -> firmware -> movimento com o robo parado.
+3. **TB6600 a 3,3 V** - o unico risco que so a bancada responde. A pergunta e
+   uma so: *o robo anda?* Se nao disparar, o conserto e um level shifter na
+   linha PUL/DIR, **nao mexer no firmware**. Rodas no ar.
