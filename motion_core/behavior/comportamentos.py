@@ -163,27 +163,58 @@ class AcompanharPessoa(Comportamento):
     #: uma detecção que nunca confirma não gera "perdi" nenhum. Sem este
     #: timeout o comportamento seguraria a cabeça para sempre e o Repouso
     #: nunca mais nivelaria - troca de um bug por outro pior.
-    TIMEOUT_SEM_NOTICIA_S = 3.0
+    #:
+    #: 3,0 -> 6,0 em 2026-08-03. Este número é a HISTERESE do rastreamento, e
+    #: com 3 s ela era curta demais: assim que a câmera do pan/tilt entrou no
+    #: ar, o comportamento passou a assumir e soltar a cabeça a cada 2-5 s com
+    #: o dono parado na frente dela (medido no log). Relato: *"a camera quando
+    #: me ver os servos enlouqece"*.
+    #:
+    #: Por que cada solta vira tranco: ao soltar, o `Repouso` assume e publica
+    #: pan=0/tilt=0 - a cabeça vai a zero de uma vez. Quando a visão pega de
+    #: volta, ela corrige a partir da posição que ACHA que os servos têm, que
+    #: já não é a real. Ou seja, cada piscada do rastreador custa dois
+    #: movimentos bruscos.
+    #:
+    #: Perder o alvo por um instante é NORMAL: a pessoa vira de lado, passa
+    #: atrás de algo, o rastreador hesita. Só é "foi embora" se não voltar.
+    #: Seis segundos cobrem a piscada e continuam curtos o bastante para o
+    #: Repouso nivelar a cabeça quando a sala esvazia de verdade.
+    TIMEOUT_SEM_NOTICIA_S = 6.0
 
     def __init__(self, event_bus: EventBus, timeout_s: float | None = None) -> None:
         super().__init__(event_bus)
         self._timeout_s = timeout_s if timeout_s is not None else self.TIMEOUT_SEM_NOTICIA_S
         self._vendo = False
         self._ultimo_visto = 0.0
+        #: quando a visão avisou que perdeu o alvo - só para o log
+        self._perdido_em: float | None = None
         event_bus.subscribe("vision.person_detected", self._ao_ver)
         event_bus.subscribe("vision.person_lost", self._ao_perder)
 
     async def _ao_ver(self, evento: Evento) -> None:
         self._ultimo_visto = time.monotonic()
+        self._perdido_em = None
         if not self._vendo:
             self._vendo = True
             self._reavaliar()
 
     async def _ao_perder(self, evento: Evento) -> None:
-        # Caminho rápido: a visão avisou que perdeu, não espera o timeout.
+        # NÃO solta na hora (mudou em 2026-08-03). Até aqui este era um
+        # "caminho rápido" que largava a cabeça no instante em que a visão
+        # dizia ter perdido o alvo - e era ele que fazia o comportamento
+        # oscilar, porque o rastreador perde e reencontra a mesma pessoa
+        # várias vezes por minuto.
+        #
+        # Agora `person_lost` é INFORMATIVO: quem decide soltar é o silêncio
+        # de TIMEOUT_SEM_NOTICIA_S sem `person_detected`. Isso dá a mesma
+        # resposta quando a pessoa foi embora de fato (o "perdi" e o silêncio
+        # começam juntos), e nenhuma resposta quando ela só sumiu por um
+        # segundo - que é o caso comum.
+        #
+        # O timestamp fica guardado só para o log dizer POR QUE soltou.
         if self._vendo:
-            self._vendo = False
-            self._reavaliar()
+            self._perdido_em = time.monotonic()
 
     def quer_rodar(self) -> bool:
         return self._vendo
@@ -196,10 +227,14 @@ class AcompanharPessoa(Comportamento):
                 await asyncio.sleep(0.5)
                 if time.monotonic() - self._ultimo_visto > self._timeout_s:
                     logger.info(
-                        "maestro: %.1fs sem notícia de pessoa - soltando a cabeça",
+                        "maestro: %.1fs sem notícia de pessoa%s - soltando a cabeça",
                         self._timeout_s,
+                        " (a visão já tinha avisado que perdeu)"
+                        if self._perdido_em is not None
+                        else "",
                     )
                     self._vendo = False
+                    self._perdido_em = None
                     self._reavaliar()
                     return
         except asyncio.CancelledError:
