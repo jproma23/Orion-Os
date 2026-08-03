@@ -58,7 +58,7 @@ class HealthMonitor:
         """Timeout deste modulo especifico.
 
         Enlaces diferentes merecem paciencia diferente. O link com o
-        Arduino precisa de deteccao rapida (e o caminho da seguranca
+        Hardware Core precisa de deteccao rapida (e o caminho da seguranca
         reativa); o link com o Notebook precisa TOLERAR pausas longas,
         porque uma inferencia de IA local satura a CPU da maquina por
         dezenas de segundos e atrasa os heartbeats sem que nada esteja

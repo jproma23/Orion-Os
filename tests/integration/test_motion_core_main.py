@@ -14,7 +14,7 @@ import pytest
 
 from conftest import FakeTransporte
 
-from motion_core.__main__ import _abrir_memoria, _conectar_arduino, _iniciar_manutencao
+from motion_core.__main__ import _abrir_memoria, _conectar_hardware_core, _iniciar_manutencao
 from motion_core.memory.replica import ReceptorReplica
 from orion.communication.framing import DecodificadorSerial, codificar_serial
 from orion.communication.protocol import Mensagem, TipoMensagem
@@ -68,7 +68,7 @@ async def _arduino_simulado(master_fd: int) -> None:
 
 
 @pytest.mark.asyncio
-async def test_conectar_arduino_com_sucesso_via_pty():
+async def test_conectar_hardware_core_com_sucesso_via_pty():
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
     tarefa_arduino = asyncio.create_task(_arduino_simulado(master_fd))
@@ -77,7 +77,7 @@ async def test_conectar_arduino_com_sucesso_via_pty():
     tarefa_bus = asyncio.create_task(bus.iniciar())
     comm = ComunicacaoService("motion_core", bus, versao_modulo="test-0.1")
 
-    conectado = await _conectar_arduino(
+    conectado = await _conectar_hardware_core(
         comm, {"port": caminho_escravo, "baud_rate": 115200}, bus, _LOGGER_TESTE
     )
 
@@ -95,7 +95,7 @@ async def test_conectar_arduino_com_sucesso_via_pty():
 
 
 @pytest.mark.asyncio
-async def test_conectar_arduino_tolera_porta_inexistente():
+async def test_conectar_hardware_core_tolera_porta_inexistente():
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
     comm = ComunicacaoService("motion_core", bus, versao_modulo="test-0.1")
@@ -103,7 +103,7 @@ async def test_conectar_arduino_tolera_porta_inexistente():
     erros: list = []
     bus.subscribe("diagnostic.error", lambda e: erros.append(e))
 
-    conectado = await _conectar_arduino(
+    conectado = await _conectar_hardware_core(
         comm, {"port": "/dev/ttyDOESNOTEXIST", "baud_rate": 115200}, bus, _LOGGER_TESTE
     )
     await bus.aguardar_fila_vazia()
@@ -119,7 +119,7 @@ async def test_conectar_arduino_tolera_porta_inexistente():
 
 
 @pytest.mark.asyncio
-async def test_conectar_arduino_tolera_falta_de_resposta_who_are_you():
+async def test_conectar_hardware_core_tolera_falta_de_resposta_who_are_you():
     # pty aberto mas ninguem responde do outro lado - simula um dispositivo
     # serial presente mas que nao fala o protocolo ORION (porta errada).
     master_fd, escravo_fd = os.openpty()
@@ -129,7 +129,7 @@ async def test_conectar_arduino_tolera_falta_de_resposta_who_are_you():
     tarefa_bus = asyncio.create_task(bus.iniciar())
     comm = ComunicacaoService("motion_core", bus, versao_modulo="test-0.1", ack_timeout_ms=100)
 
-    conectado = await _conectar_arduino(
+    conectado = await _conectar_hardware_core(
         comm, {"port": caminho_escravo, "baud_rate": 115200}, bus, _LOGGER_TESTE
     )
 
@@ -152,7 +152,7 @@ communication:
   raspberry:
     host: "10.20.20.195"
     tcp_port: 5757
-  arduino:
+  hardware_core:
     baud_rate: 115200
   ack_timeout_ms: 500
   max_retries: 3

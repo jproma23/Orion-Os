@@ -36,7 +36,7 @@ TIMEOUT_CONEXAO_RASPBERRY_S = 3.0
 # desta lista - agora e uma tentativa de conexao de verdade (ver
 # _conectar_raspberry), nao so um aviso.
 _ETAPAS_PENDENTES = (
-    ("arduino", "Deteccao do Arduino via Raspberry (Fase 2/4)"),
+    ("hardware_core", "Deteccao do Hardware Core via Raspberry (Fase 2/4)"),
     ("database", "Banco de dados no SSD (Fase 3)"),
     ("ai", "IA / Ollama (Fase 6)"),
     ("motion_hardware", "Motion Core + Hardware Core (Fase 4/7)"),

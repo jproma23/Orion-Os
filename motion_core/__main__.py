@@ -69,7 +69,7 @@ from orion.kernel.registry import EstadoModulo, ServiceRegistry
 VERSAO_MOTION_CORE = "0.1.0"
 NOME_MODULO = "motion_core"
 
-#: "auto" em communication.arduino.port (Cap 17) = tentar estas portas em
+#: "auto" em communication.hardware_core.port (Cap 17) = tentar estas portas em
 #: ordem ate uma responder ao WHO_ARE_YOU. O CH340 do Mega re-enumera entre
 #: ttyUSB0/ttyUSB1 quando o USB e replugado ou ha varias reconexoes (visto
 #: 2026-07-19) - varrer a lista evita "Arduino sumiu" por causa disso.
@@ -83,7 +83,7 @@ async def _tentar_porta(
     event_bus: EventBus,
     logger: logging.Logger,
 ) -> bool:
-    """Tenta abrir UMA porta e confirmar o Arduino por WHO_ARE_YOU."""
+    """Tenta abrir UMA porta e confirmar o Hardware Core por WHO_ARE_YOU."""
     transporte = SerialTransport(porta, baud_rate=baud_rate)
     try:
         await transporte.conectar()
@@ -98,27 +98,27 @@ async def _tentar_porta(
         # uma proxima candidata que responda sobrescreve "hardware_core".
         return False
 
-    logger.info("Arduino (Hardware Core) conectado e confirmado em %s", porta)
+    logger.info("Hardware Core (ESP32) conectado e confirmado em %s", porta)
     return True
 
 
-async def _conectar_arduino(
+async def _conectar_hardware_core(
     comm: ComunicacaoService,
-    config_arduino: dict,
+    config_hardware_core: dict,
     event_bus: EventBus,
     logger: logging.Logger,
 ) -> bool:
     """Abre o link serial com o Hardware Core e confirma via WHO_ARE_YOU.
     Retorna False (tolerado, Cap 6 s.8) se nenhuma porta responder - nunca
     levanta excecao."""
-    porta = config_arduino["port"]
+    porta = config_hardware_core["port"]
     candidatas = PORTAS_SERIAIS_CANDIDATAS if porta == "auto" else (porta,)
 
     for candidata in candidatas:
-        if await _tentar_porta(comm, candidata, config_arduino["baud_rate"], event_bus, logger):
+        if await _tentar_porta(comm, candidata, config_hardware_core["baud_rate"], event_bus, logger):
             return True
 
-    logger.warning("Arduino nao encontrado em nenhuma porta: %s", ", ".join(candidatas))
+    logger.warning("Hardware Core nao encontrado em nenhuma porta: %s", ", ".join(candidatas))
     await event_bus.publish(
         "diagnostic.error",
         {"modulo": "hardware_core", "motivo": "serial_indisponivel", "portas": list(candidatas)},
@@ -250,8 +250,8 @@ async def principal() -> None:
     )
 
     # 2. Ponte serial com o Arduino (Cap 14 s.2) - tolera ausencia.
-    arduino_conectado = await _conectar_arduino(comm, conf_comm["arduino"], event_bus, logger)
-    if arduino_conectado:
+    hardware_core_conectado = await _conectar_hardware_core(comm, conf_comm["hardware_core"], event_bus, logger)
+    if hardware_core_conectado:
         # Sem tolerancia extra DE PROPOSITO: este e o caminho da seguranca
         # reativa - descobrir tarde que o Mega sumiu e pior que um falso
         # alarme (Cap 18).

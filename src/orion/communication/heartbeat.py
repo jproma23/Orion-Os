@@ -66,7 +66,7 @@ class MonitorHeartbeat:
 
         `heartbeats_perdidos_limite` da a ESTE enlace uma paciencia
         diferente da global (None = herda). Serve para nao tratar todos os
-        links igual: o Arduino precisa de deteccao rapida, o Notebook
+        links igual: o Hardware Core precisa de deteccao rapida, o Notebook
         precisa aguentar pausas longas de CPU. Ver HealthMonitor.timeout_de.
         """
         # Idempotente de proposito: `monitorar` e chamado do callback de

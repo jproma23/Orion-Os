@@ -11,7 +11,7 @@ tools/conversar_fofao.py. Este arquivo e o primeiro passo para devolver o
 sistema ao lugar que o Cap 6 define.
 
 Modulos ausentes continuam tolerados (Cap 6 secao 8): o boot nao aborta
-quando o Raspberry, o Arduino ou o banco nao respondem.
+quando o Raspberry, o Hardware Core ou o banco nao respondem.
 """
 from __future__ import annotations
 

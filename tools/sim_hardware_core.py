@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simulador do Arduino Mega / Hardware Core (Fase 2, Cap 5, 10, 14).
+"""Simulador do Hardware Core (Fase 2, Cap 5, 10, 14).
 
 Expoe uma porta serial virtual (par de pseudo-terminais) que fala o mesmo
 enquadramento/protocolo do firmware real (STX/ETX/escape + CRC16): responde
@@ -8,7 +8,7 @@ periodico - o suficiente para testar o Raspberry (Motion Core) sem o Mega
 fisico.
 
 Uso:
-    python tools/sim_arduino.py
+    python tools/sim_hardware_core.py
     # imprime o caminho da ponta "escravo" (ex.: /dev/pts/7) - aponte o
     # SerialTransport do Raspberry para esse caminho.
 """
@@ -31,14 +31,14 @@ from orion.communication.protocol import (  # noqa: E402
 )
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("sim_arduino")
+logger = logging.getLogger("sim_hardware_core")
 
 NOME_MODULO = "hardware_core"
 VERSAO_SIMULADOR = "sim-0.1.0"
 INTERVALO_HEARTBEAT_S = 1.0
 
 
-class ArduinoSimulado:
+class HardwareCoreSimulado:
     """Fala o protocolo diretamente sobre o fd "mestre" do pty - o lado
     "escravo" e quem o Raspberry abre com um SerialTransport de verdade."""
 
@@ -109,11 +109,11 @@ class ArduinoSimulado:
 async def main() -> None:
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
-    print(f"Arduino simulado pronto. Porta serial virtual: {caminho_escravo}")
+    print(f"Hardware Core simulado pronto. Porta serial virtual: {caminho_escravo}")
     print(f'Aponte o SerialTransport do Raspberry para "{caminho_escravo}".')
     logger.info("Escutando em %s", caminho_escravo)
 
-    simulado = ArduinoSimulado(master_fd)
+    simulado = HardwareCoreSimulado(master_fd)
     try:
         await asyncio.gather(simulado.ler_continuamente(), simulado.enviar_heartbeats())
     finally:

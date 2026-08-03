@@ -28,7 +28,7 @@ from orion.kernel.config import ConfigurationManager
 RAIZ = Path(__file__).resolve().parent.parent
 
 _conf = (
-    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["arduino"]
+    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["hardware_core"]
 )
 
 #: Mesma ordem que o `PORTAS_SERIAIS_CANDIDATAS` do motion_core/__main__.py.

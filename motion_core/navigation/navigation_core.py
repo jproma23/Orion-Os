@@ -8,7 +8,7 @@ do ComunicacaoService (comm.send/request), igual qualquer outro modulo
 
 Sem hardware fisico montado ainda (motores/sensores - ver docs/journal.md)
 - toda a logica daqui e validada em nivel de protocolo, contra
-`tools/sim_arduino.py` ou um FakeTransporte de teste, nunca com movimento
+`tools/sim_hardware_core.py` ou um FakeTransporte de teste, nunca com movimento
 real. Mesmo padrao ja usado nas Fases 4 e 5.
 
 Escopo desta primeira versao: HOLD, MANUAL, GOTO e PATROL estao completos

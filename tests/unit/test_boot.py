@@ -53,7 +53,7 @@ async def test_boot_nao_aborta_com_modulos_de_fases_futuras_ausentes(tmp_path):
     boot_manager = BootManager(caminho_log=tmp_path / "orion.log", simulado=True)
     sistema = await boot_manager.iniciar()
 
-    for nome in ("raspberry", "arduino", "database", "ai", "vision", "motion_hardware"):
+    for nome in ("raspberry", "hardware_core", "database", "ai", "vision", "motion_hardware"):
         assert not sistema.registry.existe(nome)
 
     await sistema.encerrar()

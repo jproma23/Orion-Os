@@ -4,7 +4,7 @@ transportes diretamente - so por meio desta classe.
 
 Roteamento (Cap 14 secao 7): uma mensagem cujo destino nao e este modulo e
 encaminhada automaticamente pelo link correto, com base no campo destino -
-e assim que o Raspberry repassa mensagens entre o Notebook e o Arduino de
+e assim que o Raspberry repassa mensagens entre o Notebook e o Hardware Core de
 forma transparente, sem o Mission Core nem o Hardware Core saberem disso.
 """
 from __future__ import annotations
@@ -39,7 +39,7 @@ class ComunicacaoService:
     "motion_core"). Cada link adicionado com `adicionar_link` representa uma
     conexao direta com um peer; `alcancaveis_via` declara quem mais pode ser
     alcancado atraves dele (ex.: o Raspberry alcanca "hardware_core" atraves
-    do link serial com o Arduino).
+    do link serial com o Hardware Core).
     """
 
     def __init__(
@@ -78,7 +78,7 @@ class ComunicacaoService:
 
         `exigir_checksum_mensagem=False` desliga a validacao do campo
         "checksum" da mensagem para este link (usar no link serial com o
-        Arduino): o firmware em C++ nao reproduz byte a byte a serializacao
+        Hardware Core): o firmware em C++ nao reproduz byte a byte a serializacao
         JSON canonica do Python, entao recalcular esse checksum no lado
         Python daria falso-negativo. A integridade do link serial ja e
         garantida pelo CRC16 da camada de enquadramento (Cap 14 s.3), que e

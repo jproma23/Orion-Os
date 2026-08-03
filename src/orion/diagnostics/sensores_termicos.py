@@ -12,7 +12,7 @@ O que ISTO mede e o que NAO mede:
 
   - NAO MEDE temperatura nem umidade AMBIENTE. Esses sensores estao dentro
     da carcaca e sobem junto com a carga da maquina. O item do Cap 16
-    "Temperatura/umidade ambiente" continua dependendo do DHT no Arduino -
+    "Temperatura/umidade ambiente" continua dependendo do DHT no Hardware Core -
     os dois se complementam, um nao substitui o outro.
 
 Valores tipicos medidos em 2026-07-19:

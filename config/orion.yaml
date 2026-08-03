@@ -21,7 +21,7 @@ communication:
     host: "10.20.20.196"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP, atualizado 2026-07-24
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
-  arduino:                    # enlace Raspberry <-> Arduino (Hardware Core)
+  hardware_core:              # enlace Raspberry <-> ESP32 (Hardware Core)
     # Caminho FIXO por by-id, nao "auto" (2026-08-03). O Mega morreu e o corpo
     # virou ESP32, mas o cadaver do Mega continuou plugado no Pi - e "auto"
     # varre /dev/ttyUSB0 primeiro (ver PORTAS_SERIAIS_CANDIDATAS em

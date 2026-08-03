@@ -25,7 +25,7 @@ from orion.kernel.event_bus import EventBus
 
 RAIZ = Path(__file__).resolve().parent.parent
 _conf = (
-    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["arduino"]
+    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["hardware_core"]
 )
 PORTA = "/dev/ttyUSB0" if _conf.get("port", "auto") == "auto" else _conf["port"]
 BAUD = _conf["baud_rate"]

@@ -1,7 +1,7 @@
 """Transportes do Communication Core (Cap 14 secao 2-3).
 
 Duas variantes sob a mesma interface: TcpTransport (Notebook->Raspberry,
-lado cliente) e SerialTransport (Raspberry<->Arduino). Os modulos nunca
+lado cliente) e SerialTransport (Raspberry<->ESP32). Os modulos nunca
 acessam sockets ou portas seriais diretamente (Cap 14 secao 7) - so atraves
 destas classes, que ja entregam/recebem quadros completos (bytes de uma
 mensagem), sem o chamador se preocupar com enquadramento.
@@ -157,7 +157,7 @@ async def iniciar_servidor_tcp(
 
 
 class SerialTransport:
-    """Porta serial: usada pelo Raspberry para falar com o Arduino Mega
+    """Porta serial: usada pelo Raspberry para falar com o Hardware Core (ESP32)
     (Cap 14 s.2). pyserial e sincrono - leitura e escrita rodam em thread
     separada (executor) para nao bloquear o event loop."""
 

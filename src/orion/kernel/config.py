@@ -25,7 +25,7 @@ _ESQUEMA: tuple[tuple[str, type], ...] = (
     ("system.profile", str),
     ("communication.raspberry.host", str),
     ("communication.raspberry.tcp_port", int),
-    ("communication.arduino.baud_rate", int),
+    ("communication.hardware_core.baud_rate", int),
     ("communication.ack_timeout_ms", int),
     ("communication.max_retries", int),
     ("communication.heartbeat_interval_s", (int, float)),

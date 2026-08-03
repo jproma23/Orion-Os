@@ -2,7 +2,7 @@
 
 TCP e testado com um servidor de loopback real (127.0.0.1). Serial e
 testado com um par de pseudo-terminais (pty) conectados - a mesma tecnica
-que os simuladores da Fase 2 (tools/sim_arduino.py) vao usar para expor uma
+que os simuladores da Fase 2 (tools/sim_hardware_core.py) vao usar para expor uma
 "porta serial virtual" sem hardware real.
 """
 import asyncio

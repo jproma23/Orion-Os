@@ -5,7 +5,7 @@ da memoria (Cap 11, via MemoryClient/comm.request). Dois backends atras da
 mesma interface (EDR-0021): OpenAI remoto (provider="openai", padrao) cai
 automaticamente para o Ollama local se a chamada remota falhar - sem
 internet, erro de API, timeout - nunca deixa a conversa muda (Cap 6 s.8,
-mesma tolerancia ja usada para Arduino/SSD/Notebook ausentes).
+mesma tolerancia ja usada para Hardware Core/SSD/Notebook ausentes).
 
 Chave da API (OPENAI_API_KEY) nunca fixa no codigo/config (regra 6 do
 CLAUDE.md) - vem de variavel de ambiente (EDR-0021).

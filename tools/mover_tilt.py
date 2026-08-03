@@ -22,14 +22,14 @@ from orion.kernel.config import ConfigurationManager
 from orion.kernel.event_bus import EventBus
 
 RAIZ = Path(__file__).resolve().parent.parent
-_conf_arduino = (
-    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["arduino"]
+_conf_hardware_core = (
+    ConfigurationManager(RAIZ / "config" / "orion.yaml").carregar().secao("communication")["hardware_core"]
 )
 #: `port: "auto"` na config significa descoberta por WHO_ARE_YOU (feita pelo
 #: Motion Core). Aqui, com o Motion Core parado, cai no unico CH340 presente.
-_porta_conf = _conf_arduino.get("port", "auto")
+_porta_conf = _conf_hardware_core.get("port", "auto")
 PORTA = "/dev/ttyUSB0" if _porta_conf == "auto" else _porta_conf
-BAUD = _conf_arduino["baud_rate"]
+BAUD = _conf_hardware_core["baud_rate"]
 PAUSA_S = 4.0
 
 

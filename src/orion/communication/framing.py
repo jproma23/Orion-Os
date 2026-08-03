@@ -1,6 +1,6 @@
 """Camada de enquadramento (Cap 14 secao 3).
 
-Serial (Raspberry<->Arduino): delimitadores STX/ETX, escape de bytes
+Serial (Raspberry<->ESP32): delimitadores STX/ETX, escape de bytes
 (byte-stuffing) e CRC16 - necessario porque a porta serial e um fluxo de
 bytes sem nocao de mensagem. CRC invalido -> descarte silencioso (Cap 14
 secao 5); quem chama decide se pede retransmissao (NACK).

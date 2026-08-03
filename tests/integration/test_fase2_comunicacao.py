@@ -69,7 +69,7 @@ async def test_notebook_conversa_com_raspberry_via_tcp_real():
 async def test_raspberry_conversa_com_arduino_via_serial_pty():
     """SerialTransport real (Raspberry) <-> ponta mestre de um pty
     respondendo como o firmware (WHO_ARE_YOU/ACK) - equivalente ao que
-    tools/sim_arduino.py expoe, mas inline para nao depender de subprocesso."""
+    tools/sim_hardware_core.py expoe, mas inline para nao depender de subprocesso."""
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
 

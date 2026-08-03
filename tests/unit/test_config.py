@@ -10,7 +10,7 @@ CONFIG_MINIMA_VALIDA = {
     "system": {"robot_name": "Fofão", "log_level": "INFO", "profile": "HOME"},
     "communication": {
         "raspberry": {"host": "10.20.20.196", "tcp_port": 5757},
-        "arduino": {"baud_rate": 115200},
+        "hardware_core": {"baud_rate": 115200},
         "ack_timeout_ms": 500,
         "max_retries": 3,
         "heartbeat_interval_s": 1.0,
@@ -64,7 +64,7 @@ def test_tipo_incorreto_falha(tmp_path):
         "system": {"robot_name": "Fofão", "log_level": "INFO", "profile": "HOME"},
         "communication": {
             "raspberry": {"host": "10.20.20.196", "tcp_port": "5757"},  # deveria ser int
-            "arduino": {"baud_rate": 115200},
+            "hardware_core": {"baud_rate": 115200},
             "ack_timeout_ms": 500,
             "max_retries": 3,
             "heartbeat_interval_s": 1.0,

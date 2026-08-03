@@ -1,7 +1,7 @@
 """Protocolo de mensagens do ORION OS (Cap 5 secao 5; Cap 14 secoes 3-4).
 
 Mesmo formato de mensagem nos dois enlaces (TCP Notebook<->Raspberry e
-Serial Raspberry<->Arduino) - so o transporte muda. Cada mensagem carrega:
+Serial Raspberry<->ESP32) - so o transporte muda. Cada mensagem carrega:
 protocolo, origem, destino, tipo, id unico, timestamp, payload e um
 checksum (CRC16) sobre os demais campos.
 """

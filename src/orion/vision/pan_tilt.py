@@ -1,7 +1,7 @@
 """Calculo de correcao Pan/Tilt (Cap 8 secao 8).
 
-O Vision Core so calcula os angulos - a execucao fisica e do Arduino
-(Hardware Core), comandada pela cadeia Notebook -> Raspberry -> Arduino
+O Vision Core so calcula os angulos - a execucao fisica e do Hardware Core
+(Hardware Core), comandada pela cadeia Notebook -> Raspberry -> ESP32
 (Cap 3, 5; EDR-0018) via o comando SET_PAN_TILT (extensao do Cap 10 s.5:
 o hardware pan/tilt esta listado no Cap 10 s.2, mas o comando nao constava
 na lista original - ver firmware/hardware_core/include/command_executor.h).
