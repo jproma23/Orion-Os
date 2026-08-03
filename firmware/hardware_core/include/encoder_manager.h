@@ -18,8 +18,11 @@ class EncoderManager {
   long pulsosDireito() const;
 
  private:
-  static void _isrEsquerdo();
-  static void _isrDireito();
+  // IRAM_ATTR: ver a explicacao completa em encoder_manager.cpp. Resumo:
+  // sem isso o robo reinicia se uma interrupcao cair durante uma escrita
+  // na flash (e este firmware grava calibracao na EEPROM emulada).
+  static void IRAM_ATTR _isrEsquerdo();
+  static void IRAM_ATTR _isrDireito();
 };
 
 }  // namespace orion

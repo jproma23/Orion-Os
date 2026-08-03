@@ -12,15 +12,15 @@
 //                                 |
 //                                 +--- A0 do Mega
 //
-//   18V no pack -> 3,83V em A0 (folga sob os 5V da entrada)
-//   21V no pack -> 4,46V em A0 (ainda seguro, se o pack vier mais cheio)
-//   consumo do divisor: ~0,14mA (nao descarrega o pack)
+// Os numeros que ficavam aqui eram do divisor antigo (100k/27k) medido no A0
+// do Mega e NAO VALEM MAIS - ver a conta nova, para o ADC de 3,3V do ESP32,
+// logo abaixo nas constantes.
 //
-// ATENCAO - GND COMUM: este divisor exige que o GND do Mega e o GND da
+// ATENCAO - GND COMUM: este divisor exige que o GND da placa e o GND da
 // bateria sejam o mesmo. Os motores hoje sao opto-isolados nos TB6600 e
 // NAO precisavam disso (ver pins.h), mas a medicao de tensao precisa: sem
-// referencia comum a leitura nao significa nada. Como o Mega passa a ser
-// alimentado pelo buck 5V da propria bateria, o GND ja fica comum.
+// referencia comum a leitura nao significa nada. Como a placa passa a ser
+// alimentada pelo buck 5V da propria bateria, o GND ja fica comum.
 #pragma once
 
 #include <Arduino.h>
@@ -36,14 +36,41 @@ namespace orion {
 #define ORION_BATERIA_INSTALADA 0
 
 // --- Divisor resistivo (ajuste aqui se trocar os resistores) ---
+//
+// *** VALORES REFEITOS NA MIGRACAO PARA O ESP32 (2026-08-02) ***
+// Eram 100k/27k, dimensionados para o ADC de 5V do Mega. Naquela conta o
+// pack cheio de 21V entregava 4,46V no pino - folgado sob os 5V do Mega, mas
+// **acima dos 3,3V que o ESP32 aguenta**. Se o divisor tivesse sido montado
+// antes da troca de placa, ligar a bateria danificaria o GPIO 36.
+//
+// Nao houve dano porque o divisor NUNCA foi montado (ver a chave abaixo) -
+// mas os valores anotados viraram uma armadilha e por isso foram trocados
+// aqui, e nao num comentario.
+//
+// Conta nova, com 100k/15k:
+//   fator = 15/(100+15) = 0,1304
+//   18V no pack (nominal) -> 2,35V no pino
+//   21V no pack (cheio)   -> 2,74V no pino   (folga de 0,56V sob os 3,3V)
+//   consumo do divisor: ~0,18mA (nao descarrega o pack)
+//
+// A folga e de proposito maior que a antiga: o ADC do ESP32 e conhecido por
+// ser nao-linear perto do teto da escala, entao trabalhar longe de 3,3V vale
+// mais que aproveitar a faixa inteira.
 constexpr float BATERIA_R1_OHMS = 100000.0f;
-constexpr float BATERIA_R2_OHMS = 27000.0f;
+constexpr float BATERIA_R2_OHMS = 15000.0f;
 constexpr float BATERIA_FATOR_DIVISOR =
     BATERIA_R2_OHMS / (BATERIA_R1_OHMS + BATERIA_R2_OHMS);
 
-// --- ADC do Mega: 10 bits, referencia de 5V ---
-constexpr float ADC_TENSAO_REFERENCIA = 5.0f;
-constexpr int ADC_PASSOS = 1024;
+// --- ADC do ESP32: 12 bits, fundo de escala ~3,3V (atenuacao de 11dB, que e
+// o padrao do Arduino-ESP32). Era 10 bits e 5V no Mega.
+//
+// AVISO PARA QUANDO O DIVISOR FOR MONTADO: o ADC do ESP32 nao e linear como
+// o do AVR - o erro chega a algumas dezenas de mV e varia de chip para chip.
+// Para nivel de bateria (faixas de OK/AVISO/CRITICA separadas por 1,5V) isso
+// e irrelevante. Se algum dia alguem quiser tensao PRECISA, calibrar contra
+// um multimetro em vez de confiar nesta conta.
+constexpr float ADC_TENSAO_REFERENCIA = 3.3f;
+constexpr int ADC_PASSOS = 4096;
 
 // --- Limiares do pack 5S Li-ion (por celula: 3,6V nominal / 3,0V vazio) ---
 constexpr float BATERIA_TENSAO_CHEIA_V = 18.0f;    // maximo informado pelo usuario

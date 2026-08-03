@@ -151,7 +151,14 @@ class ImuManager {
     _limiteImpactoG = limiteG;
     LimiarImpactoGravado dados{EEPROM_MAGICO_LIMIAR, limiteG};
     EEPROM.put(EEPROM_ENDERECO_LIMIAR, dados);
-    return true;
+    // commit() OBRIGATORIO no ESP32 (2026-08-02). No Mega a EEPROM era
+    // memoria de verdade e o put() ja gravava. Aqui ela e EMULADA em flash:
+    // o put() so mexe numa copia em RAM, e sem commit() o valor some no
+    // proximo reset. E some CALADO - put() nao reclama, nao retorna erro, e
+    // a leitura seguinte (ainda na mesma execucao) devolve o valor certo.
+    // So depois de desligar e ligar e que o limiar volta sozinho para o
+    // default de 2,5 G, sem nada no log explicando.
+    return EEPROM.commit();
   }
 
   // Congela a orientacao atual como "nivelado" e grava na EEPROM.
@@ -168,7 +175,11 @@ class ImuManager {
 
     CalibracaoImu dados{EEPROM_MAGICO_IMU, _refX, _refY, _refZ};
     EEPROM.put(EEPROM_ENDERECO_IMU, dados);
-    return true;
+    // Ver a explicacao em definirLimiteImpacto: sem commit() a calibracao
+    // feita na bancada se perde no primeiro reset, em silencio. Aqui doi
+    // mais: o robo volta a achar que os 9,3 graus de desalinhamento do
+    // modulo sao inclinacao de verdade.
+    return EEPROM.commit();
   }
 
   bool conectado() const { return _conectado; }

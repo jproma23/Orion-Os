@@ -7,7 +7,9 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Servo.h>
+// Ver a nota em command_executor.h: <Servo.h> e do AVR, ESP32Servo tem a
+// mesma API e o mesmo nome de classe.
+#include <ESP32Servo.h>
 
 #include "pins.h"
 #include "sensor_ultrassonico.h"
