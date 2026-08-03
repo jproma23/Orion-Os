@@ -175,7 +175,59 @@ class MemoryAPI:
         )
         return removido
 
-    async def context(self, pessoa_id: int | None = None, limite_conversas: int = 10) -> dict:
+    #: Palavras curtas demais para discriminar qualquer coisa. Sem este filtro,
+    #: "e", "de" e "o" casariam com quase todo fato guardado e a busca
+    #: devolveria tudo - o mesmo resultado de nao buscar.
+    _MINIMO_LETRAS_BUSCA = 4
+
+    def _conhecimento_relevante(self, sobre: str | None, limite: int = 20) -> list[dict]:
+        """Fatos que casam com a fala atual, completados pelos mais recentes."""
+        import re
+
+        encontrados: list[dict] = []
+        vistos: set[int] = set()
+
+        if sobre:
+            palavras = [
+                p
+                for p in re.findall(r"[\wÀ-ÿ]+", sobre.lower())
+                if len(p) >= self._MINIMO_LETRAS_BUSCA
+            ][:6]  # teto: 6 palavras ja cobrem uma frase falada
+            for palavra in palavras:
+                alvo = f"%{palavra}%"
+                for linha in self._db.conexao.execute(
+                    "SELECT * FROM conhecimento "
+                    "WHERE lower(chave) LIKE ? OR lower(valor) LIKE ? "
+                    "ORDER BY confianca DESC, criado_em DESC LIMIT ?",
+                    (alvo, alvo, limite),
+                ).fetchall():
+                    registro = dict(linha)
+                    if registro["id"] in vistos:
+                        continue
+                    vistos.add(registro["id"])
+                    encontrados.append(registro)
+
+        if len(encontrados) < limite:
+            for linha in self._db.conexao.execute(
+                "SELECT * FROM conhecimento ORDER BY criado_em DESC LIMIT ?",
+                (limite,),
+            ).fetchall():
+                registro = dict(linha)
+                if registro["id"] in vistos:
+                    continue
+                vistos.add(registro["id"])
+                encontrados.append(registro)
+                if len(encontrados) >= limite:
+                    break
+
+        return encontrados[:limite]
+
+    async def context(
+        self,
+        pessoa_id: int | None = None,
+        limite_conversas: int = 10,
+        sobre: str | None = None,
+    ) -> dict:
         """Monta o contexto persistido para a IA (Cap 11 s.3/s.6): dados da
         pessoa (se identificada), janela de conversa recente e conhecimento
         relevante. Estado em RAM (missao em execucao, sensores, etc.) fica a
@@ -183,26 +235,59 @@ class MemoryAPI:
 
         def _montar() -> dict:
             pessoa = None
-            conversas: list[dict] = []
             if pessoa_id is not None:
                 linha = self._db.conexao.execute(
                     "SELECT * FROM pessoas WHERE id = ?", (pessoa_id,)
                 ).fetchone()
                 pessoa = dict(linha) if linha is not None else None
-                conversas = [
-                    dict(linha)
-                    for linha in self._db.conexao.execute(
-                        "SELECT * FROM conversas WHERE pessoa_id = ? "
-                        "ORDER BY timestamp DESC LIMIT ?",
-                        (pessoa_id, limite_conversas),
-                    ).fetchall()
-                ]
-            conhecimento = [
-                dict(linha)
-                for linha in self._db.conexao.execute(
-                    "SELECT * FROM conhecimento ORDER BY criado_em DESC LIMIT 20"
-                ).fetchall()
+
+            # AS CONVERSAS VOLTAM MESMO SEM PESSOA IDENTIFICADA (2026-08-02).
+            #
+            # Ate aqui a busca inteira vivia dentro de `if pessoa_id is not
+            # None`, entao `conversas_recentes` voltava SEMPRE VAZIO na
+            # pratica: as 146 linhas gravadas na tabela tinham todas
+            # `pessoa_id = None`, porque o robo conversa por voz sem
+            # necessariamente reconhecer o rosto de quem fala. O robo guardava
+            # tudo e nunca lia nada - o consumidor existia (ai_manager monta o
+            # bloco no prompt) e o produtor devolvia lista vazia.
+            #
+            # Com pessoa identificada, continua filtrando por ela: e mais
+            # preciso. Sem pessoa, traz as ultimas de qualquer um - imperfeito
+            # numa casa com varias pessoas, e infinitamente melhor que nada.
+            if pessoa_id is not None:
+                consulta = (
+                    "SELECT * FROM conversas WHERE pessoa_id = ? "
+                    "ORDER BY timestamp DESC LIMIT ?"
+                )
+                parametros: tuple = (pessoa_id, limite_conversas)
+            else:
+                consulta = "SELECT * FROM conversas ORDER BY timestamp DESC LIMIT ?"
+                parametros = (limite_conversas,)
+            conversas = [
+                dict(linha) for linha in self._db.conexao.execute(consulta, parametros).fetchall()
             ]
+
+            # CONHECIMENTO *RELEVANTE*, e nao apenas recente.
+            #
+            # O nome do campo prometia relevancia desde sempre; a consulta era
+            # `ORDER BY criado_em DESC LIMIT 20`, ou seja os 20 ultimos fatos
+            # independentemente do assunto. Com a tabela vazia isso nunca
+            # apareceu; com ela cheia, o robo levaria 20 fatos aleatorios ao
+            # prompt e o que importa para a pergunta ficaria de fora.
+            #
+            # A busca e por LIKE em `chave` e `valor`, com as palavras da fala
+            # atual. Nao e busca semantica - "carro" nao acha "automovel" - e
+            # essa limitacao esta aceita de proposito: FTS5 ou embeddings
+            # exigiriam indice novo ou modelo carregado, e o Notebook ja roda
+            # YOLO, reconhecimento facial e Whisper em 7,6 GB (o Ollama local
+            # foi removido justamente por travar essa maquina). Comecar por
+            # LIKE entrega valor hoje sem gastar RAM; se faltar, o proximo
+            # passo e FTS5 no MESMO arquivo, ainda sem processo novo.
+            #
+            # Os relevantes vem primeiro; o resto completa por data, para o
+            # robo nunca ficar sem nenhum fato so porque a pergunta nao casou
+            # com palavra nenhuma.
+            conhecimento = self._conhecimento_relevante(sobre)
             return {
                 "pessoa": pessoa,
                 "conversas_recentes": list(reversed(conversas)),

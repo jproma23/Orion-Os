@@ -112,7 +112,11 @@ class PonteMemoria:
             return await self._memory_api.forget(payload["categoria"], payload["id"])
         if operacao == "context":
             return await self._memory_api.context(
-                payload.get("pessoa_id"), payload.get("limite_conversas", 10)
+                payload.get("pessoa_id"),
+                payload.get("limite_conversas", 10),
+                # O assunto da fala atual, para o banco poder escolher
+                # QUAIS fatos mandar em vez dos 20 mais recentes.
+                sobre=payload.get("sobre"),
             )
         if operacao == "stats":
             return await self._memory_api.stats()

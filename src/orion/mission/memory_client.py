@@ -61,9 +61,17 @@ class MemoryClient:
     async def forget(self, categoria: str, id: int) -> bool:
         return await self._chamar("forget", categoria=categoria, id=id)
 
-    async def context(self, pessoa_id: int | None = None, limite_conversas: int = 10) -> dict:
+    async def context(
+        self,
+        pessoa_id: int | None = None,
+        limite_conversas: int = 10,
+        sobre: str | None = None,
+    ) -> dict:
+        """`sobre` e a fala atual do usuario. Vai junto para o banco poder
+        devolver conhecimento RELEVANTE aquilo, e nao apenas o mais
+        recente - ver `MemoryAPI._conhecimento_relevante`."""
         return await self._chamar(
-            "context", pessoa_id=pessoa_id, limite_conversas=limite_conversas
+            "context", pessoa_id=pessoa_id, limite_conversas=limite_conversas, sobre=sobre
         )
 
     async def stats(self) -> dict:

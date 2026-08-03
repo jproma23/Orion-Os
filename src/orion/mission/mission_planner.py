@@ -190,7 +190,14 @@ class MissionPlanner:
 
         if self._memory_client is not None:
             try:
-                contexto.update(await self._memory_client.context(pessoa_id) or {})
+                # `sobre=texto_usuario` fecha a ultima ponta da memoria de
+                # longo prazo (2026-08-02). O texto ja estava aqui - este
+                # metodo o recebe - e simplesmente nao era repassado, entao
+                # o banco escolhia os fatos por DATA, sem saber do que a
+                # pessoa estava falando.
+                contexto.update(
+                    await self._memory_client.context(pessoa_id, sobre=texto_usuario) or {}
+                )
             except Exception:
                 logger.exception("Falha ao consultar contexto da memoria")
 

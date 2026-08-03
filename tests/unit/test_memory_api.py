@@ -187,3 +187,73 @@ async def test_coluna_invalida_no_filtro_de_recall_falha(contexto):
     api, bus = contexto
     with pytest.raises(ErroColunaInvalida):
         await api.recall("pessoas", {"coluna_que_nao_existe": 1})
+
+
+# ---------------------------------------------------------------------------
+# A memoria de longo prazo passa a ser LIDA (2026-08-02)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_conversas_voltam_mesmo_sem_pessoa_identificada(contexto):
+    """O bug que deixava a memoria de longo prazo inutil.
+
+    A busca inteira vivia dentro de `if pessoa_id is not None`, e o robo
+    conversa por voz sem necessariamente reconhecer o rosto de quem fala - as
+    146 linhas gravadas no banco de producao tinham TODAS `pessoa_id = None`.
+    Resultado: ele guardava cada conversa e nunca lia nenhuma.
+    """
+    api, bus = contexto
+    await api.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "vou viajar"})
+    await api.remember("conversas", {"pessoa_id": None, "papel": "robo", "texto": "boa viagem"})
+
+    contexto_ia = await api.context(None)
+
+    assert len(contexto_ia["conversas_recentes"]) == 2
+    assert contexto_ia["conversas_recentes"][0]["texto"] == "vou viajar"
+
+
+@pytest.mark.asyncio
+async def test_conhecimento_e_filtrado_pela_fala_atual(contexto):
+    """`conhecimento_relevante` prometia relevancia e entregava os 20 mais
+    RECENTES, sem relacao com a pergunta."""
+    api, bus = contexto
+    await api.remember(
+        "conhecimento", {"chave": "cafe", "valor": "gosta de cafe forte", "confianca": 0.9}
+    )
+    await api.remember(
+        "conhecimento", {"chave": "alergia", "valor": "alergico a amendoim", "confianca": 0.9}
+    )
+
+    contexto_ia = await api.context(None, sobre="posso te oferecer um cafe?")
+
+    chaves = [c["chave"] for c in contexto_ia["conhecimento_relevante"]]
+    assert chaves[0] == "cafe"  # o que casa vem PRIMEIRO
+
+
+@pytest.mark.asyncio
+async def test_sem_casar_palavra_o_robo_nao_fica_sem_fato_nenhum(contexto):
+    """Busca que nao casa nao pode devolver vazio: o robo perderia o que sabe
+    sobre a pessoa so porque a frase usou outras palavras."""
+    api, bus = contexto
+    await api.remember(
+        "conhecimento", {"chave": "cafe", "valor": "gosta de cafe forte", "confianca": 0.9}
+    )
+
+    contexto_ia = await api.context(None, sobre="que horas sao?")
+
+    assert len(contexto_ia["conhecimento_relevante"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_palavras_curtas_nao_entram_na_busca(contexto):
+    """"de", "o" e "e" casariam com quase tudo - buscar por elas e o mesmo que
+    nao buscar, so que mais devagar."""
+    api, bus = contexto
+    await api.remember(
+        "conhecimento", {"chave": "rotina", "valor": "acorda cedo", "confianca": 0.9}
+    )
+    # "de" aparece dentro de "cedo"; se palavras curtas entrassem, casaria.
+    contexto_ia = await api.context(None, sobre="de o e a")
+    # Volta pelo caminho do "completa por data", nao por ter casado.
+    assert len(contexto_ia["conhecimento_relevante"]) == 1
