@@ -67,6 +67,32 @@ class CalculadoraPanTilt:
         altura_frame: int,
         intervalo_s: float,
     ) -> tuple[float, float]:
+        # ZONA MORTA (2026-08-03). Relato do dono, com a camera do pan/tilt
+        # finalmente entregando quadros de verdade: *"ele fica louco... em
+        # menor escala"*.
+        #
+        # O QUE ACONTECIA: este metodo corrigia em TODO quadro, por menor que
+        # fosse o erro. Com a pessoa parada e ja centralizada, um alvo que
+        # oscila dois ou tres pixels entre quadros (respiracao, ruido da
+        # caixa do YOLO, compressao do MJPEG) virava comando de servo a 2 Hz,
+        # sem parar. Isso nao e seguir alguem: e tremer.
+        #
+        # A tolerancia que resolve JA EXISTIA na classe - `alvo_centralizado`
+        # e `tolerancia_centralizado_percent` - mas so era usada por quem
+        # PERGUNTAVA se o alvo estava centralizado, nunca por quem decidia
+        # mover. O valor entrava na conta de ninguem.
+        #
+        # 5% do quadro sao +-32 px em 640x480. A pessoa continua enquadrada;
+        # o que se perde e a perseguicao ao pixel, que nao servia para nada -
+        # o objetivo e manter alguem NO QUADRO, nao no centro exato.
+        #
+        # Devolver a posicao atual (em vez de nao publicar) e de proposito:
+        # quem chama publica `motion.pan_tilt` sempre, e o avatar espelha
+        # essa direcao. Sumir com o evento faria a cabeca do avatar congelar
+        # em vez de ficar parada onde esta - dois estados diferentes.
+        if self.alvo_centralizado(centro_alvo_x, centro_alvo_y, largura_frame, altura_frame):
+            return self.pan_atual, self.tilt_atual
+
         erro_x = (centro_alvo_x - largura_frame / 2) / (largura_frame / 2)
         erro_y = (centro_alvo_y - altura_frame / 2) / (altura_frame / 2)
 
