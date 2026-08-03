@@ -380,9 +380,23 @@ dd {
    que no celular tira o dedo do lugar em que ele estava. */
 .painel--camera {
   grid-column: 1 / -1;
+  /* METADE DO TAMANHO NO MONITOR (2026-08-03, pedido do dono).
+     O limite vai no CARTAO, e nao na moldura: encolher so a moldura deixava
+     um painel largo com um video pequeno no meio e muito vazio em volta.
+     Assim moldura, imagem e controles diminuem juntos e o bloco continua
+     coerente. `grid-column: 1 / -1` fica, para ele seguir sozinho na linha. */
+  max-width: 50%;
+  margin-inline: auto;
 }
 
 .camera-moldura {
+  /* METADE DO TAMANHO NO MONITOR (2026-08-03, pedido do dono).
+     O painel ocupa a largura toda do grid (`grid-column: 1 / -1`) e o
+     `aspect-ratio` faz a altura acompanhar - entao quanto mais larga a tela,
+     maior a janela ficava. Limitar a moldura resolve sem mexer no painel, que
+     continua ocupando a linha inteira e mantendo os controles alinhados.
+     No celular (Tailscale) volta a ocupar tudo: metade la seria pequeno
+     demais para ver alguma coisa. */
   aspect-ratio: 4 / 3;
   background: #000;
   border: 1px solid var(--borda);
@@ -397,6 +411,12 @@ dd {
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+@media (max-width: 700px) {
+  /* Celular: a camera volta a ocupar a largura toda - o dono confirmou que
+     nessa tela o tamanho ja estava bom. */
+  .painel--camera { max-width: 100%; }
 }
 
 .camera-controles {
