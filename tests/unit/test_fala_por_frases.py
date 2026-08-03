@@ -10,8 +10,16 @@ import asyncio
 
 import pytest
 
-from orion.kernel.event_bus import EventBus
-from orion.voice.voice_core import EstadoVoz, VoiceCore
+# O Motion Core (Pi) nao instala o extra `mission`, entao `numpy` e companhia
+# nao existem la - e `voice_core` os importa em cadeia. Sem estas guardas a
+# COLETA do pytest quebra e leva a suite INTEIRA junto: em 2026-08-03 o Pi
+# rodava 11 testes em vez de 538 por causa desta linha faltando. Mesmo idioma
+# de test_voice_core.py e test_vision_core.py.
+pytest.importorskip("numpy")
+pytest.importorskip("sounddevice")
+
+from orion.kernel.event_bus import EventBus  # noqa: E402
+from orion.voice.voice_core import VoiceCore  # noqa: E402
 
 
 class SintetizadorEspiao:

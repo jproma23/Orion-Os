@@ -175,6 +175,12 @@ async def test_openai_falha_cai_para_ollama(ai_manager, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_descarregar_nao_levanta_e_pede_keep_alive_zero(ai_manager):
+    # `descarregar()` faz `import ollama` dentro da funcao, entao o cliente
+    # falso nao evita o import - o Pi nao tem o extra `mission`. O teste irmao
+    # (`..._usa_o_atributo_que_existe`) prova o mesmo bug sem precisar do
+    # pacote, entao a regressao continua coberta la mesmo quando este pula.
+    pytest.importorskip("ollama")
+
     class _ClienteFalso:
         def __init__(self) -> None:
             self.chamadas: list[dict] = []
