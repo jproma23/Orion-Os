@@ -5979,3 +5979,221 @@ Licao repetida: **a nota de meio-dia nao substitui o journal do fim do dia.**
   ou sai.
 - `database.ready` / `database.rebuilt` / `database.backup_failed` seguem sem
   consumidor. O log cobre, mas backup que falha merece aparecer na tela.
+
+## Sessao de 2026-08-04 (noite) - o robo estava preso num laco de 8 horas, e o recado nunca teve como sair
+
+Pedido do dono: *"faz uma revisao no raps e no debian, vamos fazer umas
+implementacoes"*. A sessao virou seis entregas, porque o dono foi pedindo
+enquanto a bancada acontecia - a lanterna, a cabeca, o botao de desligar, o
+recado que nao saiu. Sete commits.
+
+O ponto de partida era o melhor de todos ate hoje: **as duas maquinas no MESMO
+commit (`8686dc8`), sem nada nao-commitado, suites verdes (Pi 673, Notebook
+777), zero unidades falhando**. Primeira vez sem divergencia. E foi justamente
+por isso que a revisao teve que ir atras de outra coisa.
+
+### O que a revisao achou, e nao estava em teste nenhum
+
+**A IA estava presa num laco havia 8 horas.** De 31 em 31 segundos, desde as
+09h:
+
+    IA decidiu 'observar_ambiente' (nao sei a distancia a frente)
+    objetivo 'entender_o_ambiente' -> plano observar_ambiente
+
+`observar_ambiente` promete `frente_conhecida: True`. Os ultrassons estao
+desplugados desde 03/08 - escolha do dono, o ToF vai substituir - entao
+`obstaculo_frente_cm` e None e `frente_conhecida` nunca vira True. O robo
+olhava, continuava sem saber, e decidia olhar de novo. A condicao que ele
+queria satisfazer era **fisicamente impossivel de satisfazer**, e ele nao tinha
+como perceber isso.
+
+Custo: uma chamada paga ao OpenRouter a cada 31 s, para sempre. E o plano do
+GOAP que nunca passava do primeiro passo.
+
+**O log tinha engolido 13 MB em 8 horas.** O contexto inteiro da IA - 4 KB de
+texto - era escrito a cada decisao: **3.051 copias**. Para ler qualquer outra
+coisa do log eu precisei de `grep -v "contexto da IA"` em TODO comando. O log
+tinha virado o problema em vez da ferramenta.
+
+**O heartbeat do Notebook mentia.** O painel dizia `status: "ok"` com timestamp
+de 8.397 s atras - exatamente o instante da conexao. O campo guarda quando o
+Notebook conectou e nunca mais e atualizado. O link estava vivo de verdade
+(eventos de visao chegando), mas o indicador nao indica saude: **se o Notebook
+morrer, a tela continua dizendo ok para sempre**. Fica aberto.
+
+### O conserto do laco, e a linha que eu quase passei errado
+
+A regra que faltava e geral, e nao sobre ultrassom: **uma acao que promete um
+efeito e nunca o entrega para de ser planejada**, e volta sozinha se o efeito
+reaparecer. Vale igual quando o LiDAR falhar ou um servo travar - nenhum deles
+vai precisar de codigo novo.
+
+A primeira versao cobrava TODO efeito. **O teste do log pegou o estrago**:
+`virar_esquerda` promete `frente_livre`, e o proprio modelo documenta aquilo
+como INTENCAO - girar PROCURANDO saida. Um robo encarando um canto giraria tres
+vezes, nao acharia saida e **perderia a acao de girar**, preso exatamente onde
+ela e indispensavel.
+
+So e cobravel o que fala de uma **faculdade do proprio robo**
+(`PREDICADOS_PROMETIDOS`): olhar torna a frente conhecida - se nao torna, o
+sensor esta fora do ar. Mandar parar torna o robo parado. O resto e intencao
+sobre um mundo que pode nao colaborar.
+
+**Licao:** efeito de GOAP e intencao por padrao. Cobrar promessa e a excecao, e
+precisa ser declarada uma a uma.
+
+A volta e conferida contra o ESTADO, e nao contra uma nova execucao - a acao
+descartada nunca mais seria planejada, entao esperar por ela seria esperar para
+sempre. Esse detalhe quase virou bug.
+
+Verificado no robo as 17:57:31: a promessa foi cobrada e a acao caiu. Com o
+codigo velho, **20 de 20 ciclos presos**.
+
+### A cabeca: dois consertos, e um terceiro que o dono RECUSOU
+
+O dono relatou na bancada: *"um toquinho e o servo faz um movimento muito
+grande"*, *"tem q ser de 10 em 10 graus"*, *"eu aperto e volta"*.
+
+Os dois primeiros viraram conserto. O angulo agora vai de 10 em 10, e dentro do
+mesmo degrau NADA e enviado - o punho e pequeno e o curso vale 160 graus, entao
+o angulo mudava a cada pixel e a cabeca tremia em vez de ir para um lugar. E em
+modo MANUAL a cabeca passou a ser do operador: antes o `Repouso` publicava
+pan/tilt 0,0 ao assumir e a puxava ao centro 10 s depois.
+
+O terceiro nao. Soltar o joystick manda a cabeca ao centro, e isso PARECIA o
+defeito - copia do joystick das rodas, onde soltar = parar esta certo porque
+roda e velocidade e cabeca e posicao. A correcao chegou a ser escrita. No meio
+disso o dono usou o joystick e decidiu: *"ate que ta bom assim"*, *"eu gostei
+aprendi usar"*, *"tem q segurar"*.
+
+Ficou como estava, e o comentario no `soltar()` **registra a decisao no codigo**
+para ninguem reconsertar achando que e descuido.
+
+No meio dessa parte o dono me corrigiu: *"nao mexi no q esta bom sem ler
+tudo"*. Estava certo - eu tinha reescrito o `soltar()` antes de entender que o
+comportamento era intencional. Dai em diante li o mecanismo inteiro antes de
+tocar.
+
+### Codigo orfao, de novo: o botao de desligar
+
+`motion_core/desligamento.py` e os 5 testes dele estavam no repo desde 03/08 e
+**ninguem os chamava**. Faltavam a rota, o botao e a construcao no boot. **E o
+segundo caso no mesmo mes**, depois do GOAP: escrever, testar e commitar nao
+liga nada sozinho.
+
+O botao fica no fim do dashboard, sozinho no painel e APAGADO no estado normal -
+o oposto do PARAR, que e vermelho e grita. Os dois sao irreversiveis de jeitos
+opostos: parar e sempre seguro e precisa ser achado em um segundo; desligar
+nunca e a saida de um imprevisto e nao deve atrair o dedo.
+
+Confirmacao em DOIS CLIQUES no mesmo botao, que muda de cor e expira em 5 s -
+nao `confirm()` do navegador, que no celular e aceito por reflexo.
+
+Conferido de fora sem desligar nada: `POST /desligar` de outra maquina devolve
+**401**. Um `GET` devolve 404 e nao prova nada - o `add_static("/")` engole.
+
+### A lanterna ficava acesa porque o pino virou rele
+
+Relato do dono: *"o rele da lanterna esta sempre em low sendo que meu modulo e
+low, ai ela fica ligada o tempo todo"*.
+
+O GPIO 2 era o LED embutido e o firmware o tratava como LED: HIGH acende. Agora
+ele aciona um MODULO DE RELE ativo em LOW. Com a logica antiga, "apagar"
+escrevia LOW - que no rele significa ACENDER. **`LIGHT_OFF` mantinha a lanterna
+ligada.**
+
+`LED_LANTERNA` virou `RELE_LANTERNA`, os niveis ganharam nome
+(`LANTERNA_ACESA`/`LANTERNA_APAGADA` - foi ler HIGH/LOW cru que criou o
+defeito), e o estado seguro passou a ser escrito ANTES do `pinMode(OUTPUT)`,
+como nos outros dois reles. O protocolo nao mudou: qual nivel acende e fato de
+hardware e mora no firmware.
+
+**Fica registrado e NAO resolvido:** o GPIO 2 e strapping pin e nasce em LOW,
+ou seja, nasce ACESO para um rele ativo em LOW. Entre o reset da placa e o
+`setup()` a lanterna pisca. Acabar com isso exige mudar o rele para um GPIO que
+nasca em HIGH - a mesma decisao que tirou o rele dos MOTORES do pino 13 do Mega
+em 24/07. La era obrigatorio; aqui e um pisca.
+
+### O recado nunca teve como sair
+
+O dono mandou o Fofao avisar a Marah que precisava falar com ela, mandou o robo
+ir ate ela, o robo **cumprimentou e nao deu o recado**. Segunda vez.
+
+Da primeira (03/08) nao havia mecanismo nenhum - a promessa era do modelo.
+Desta vez estava tudo la: o recado guardado no banco, `mesmo_nome` casando
+"Mara" com "Marah" corretamente, a saudacao chamando a entrega. Todo o caminho
+certo, menos o ultimo degrau.
+
+`MemoryAPI.recall` montava `coluna = ?` para todo filtro, **inclusive quando o
+valor era None**. Em SQL, `coluna = NULL` nunca casa com linha nenhuma, nem com
+as vazias: comparar com NULL da NULL, que nao e verdadeiro. O certo e
+`IS NULL`.
+
+Como `pendentes()` busca `{"entregue_em": None}` - "os que ainda nao entreguei"
+- ela recebia **lista vazia SEMPRE**. O recurso inteiro nunca funcionou desde
+que nasceu.
+
+E nada denunciava: lista vazia e resposta legitima de `recall`, indistinguivel
+de "nao ha recado pendente". Sem erro, sem excecao, sem teste vermelho.
+
+O conserto foi na FONTE (`MemoryAPI`) e nao nos recados: **qualquer** consulta
+por coluna vazia estava quebrada do mesmo jeito.
+
+O journal de 03/08 tinha escrito, sobre os recados: *"ponta a ponta so com
+fakes, falta uma chegada real para confirmar"*. Nao era detalhe. **Os fakes nao
+tinham SQL.**
+
+### E ela atende por tres nomes
+
+*"marah mara ou marisane"*. O prefixo ja fazia Mara <-> Marah casarem - apelido
+costuma ser o nome cortado. Mas "Marisane" nao se parece com nenhum dos dois, e
+**nenhuma regra de string ligaria**: sao a mesma pessoa porque o dono DIZ que
+sao. Recado deixado para a Marisane sumia, guardado com um nome e procurado com
+outro - mesmo sintoma, causa diferente.
+
+A secao `familia` do orion.yaml passou a aceitar `apelidos:`, carregados no boot
+da MESMA lista que a saudacao, o planner e a IA ja usam. So a Marah tem, por
+escolha do dono: *"so pra ela"*.
+
+A trava que importa: apelido nao pode juntar quem nao e a mesma pessoa. Com uma
+tabela declarada, um engano ligaria duas pessoas de verdade - e o recado do dono
+para a Marah nao pode ser lido para o Kamal, que tem 3 anos. Ha teste, e
+"Mario" continua sendo outra pessoa.
+
+Medido no banco de producao: Marah, Mara e Marisane -> 3 recados; Kamal -> 0.
+
+### Um susto que nao era do robo
+
+No meio da sessao o Pi sumiu da rede por uns minutos depois de um reboot, e eu
+comecei a tratar como falha de boot. Era a internet da casa que tinha caido -
+o dono avisou. Vale a nota porque eu ja estava montando hipotese sobre SSD e
+mDNS: **a maquina nao responder nao prova que a maquina esta com problema**.
+
+Depois do reboot o ESP32 voltou a falar as 18:40:54. Antes disso ele ficou mudo
+apos a gravacao do firmware, e o `Hard resetting via RTS` nao bastou - mais uma
+confirmacao de que reset por DTR/RTS nao e power cycle.
+
+### Estado ao fim da sessao
+
+- **Suites: Pi 685 passam / 16 pulados; Notebook 789.** Eram 673 e 777.
+- **12 testes novos**, cada um conferido REVERTENDO o codigo. Com o codigo
+  velho: 20 de 20 ciclos presos no laco, 5 linhas de log identicas onde deve
+  haver 1, e os 3 do banco falhando.
+- Ruff: 11 avisos antes e 11 depois no escopo tocado - nenhum novo.
+- As duas maquinas em `41f6541`, servicos no ar.
+- Firmware regravado no ESP32 (RAM 15.2%, Flash 69.4%).
+
+### Fica aberto
+
+- **O heartbeat que mente** - `status: "ok"` congelado na hora da conexao. Se o
+  Notebook morrer, a tela nunca vai dizer. Nenhum watchdog pode se apoiar nisso.
+- **O pisca da lanterna no boot** - exige mudar o rele de GPIO, com fio na
+  bancada.
+- **`reboot` no Notebook** - o sudoers so libera `poweroff` sem senha. Reiniciar
+  a outra maquina pela interface exige uma regra nova.
+- Os tres de 03/08 seguem intocados: `/api/conversa/mensagem` sem sessao,
+  `voice.transcription_ready` publicado no vazio, `database.backup_failed` sem
+  consumidor.
+- **O teste de verdade dos recados ainda nao aconteceu**: os 3 pendentes so
+  saem quando ela chegar e for cumprimentada. Dois consertos ja falharam nesse
+  ponto - o terceiro so conta com gente na frente.
