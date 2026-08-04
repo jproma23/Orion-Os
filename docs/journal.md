@@ -5675,3 +5675,154 @@ commit da sessao acabou de consertar. Commit `b552a1e`.
 3. A conversacao em si (`ai_manager`, prompt, historico) segue intocada -
    nesta sessao foi consertado o ABASTECIMENTO dela, nao ela.
 4. Continua de pe do dia anterior: multimetro no I2C, consumo, TB6600 a 3,3 V.
+
+---
+
+## 2026-08-03 (noite) — o robô passa a AGIR quando pedem, e a cumprir o que promete
+
+Três pedidos do dono, na ordem em que ele os fez: *"o robô está muito de
+conversação"*, *"ele tem que saber mexer a cabeça quando eu pedir"*, *"ele tem
+que saber todos os comandos"* — e, no meio da sessão, o relato de uma falha que
+tinha acabado de acontecer: *"pedi para avisar a Mara quando a visse que eu
+queria falar com ela, ela foi até ele, ele cumprimentou ela mas não deu o
+recado"*.
+
+### O que o caminho falado alcançava (medido, não estimado)
+
+Sete frases. `_PADROES_COMANDO`, no `mission_planner`: luz (acender/apagar),
+parar, varrer, frente e os dois lados. O catálogo do robô (`contrato.py`) tinha
+dezesseis ações, e a **cabeça não estava em nenhuma das duas listas**. Não
+havia como pedir "olha pra esquerda" por voz — não por dificuldade, por
+ausência.
+
+### A troca: o modelo escolhe o NOME, o código decide o que ele faz
+
+`src/orion/mission/acoes_faladas.py` — catálogo fechado de 14 ações, conferido
+no import. O modelo começa a resposta com uma linha `#acao:nome` e o resto é o
+que ele fala; o marcador é retirado antes de virar áudio.
+
+É a regra 1 do contrato de autoridade aplicada ao caminho falado: *"a IA nunca
+emite comando cru; ela escolhe um NOME deste catálogo"*. Nome fora do catálogo
+não vira chute — vira nada, e a frase segue como conversa.
+
+**Por que não mais regex.** Está escrito no próprio `contrato.py` que *"o
+caminho antigo casava por SUBSTRING - e 'parar' casa dentro de 'preparar'"*.
+Cada comando novo por padrão fixo seria mais uma armadilha dessas, e "olha pra
+cima" tem variação demais ("levanta a cabeça", "olha pro teto") para caber em
+regex.
+
+**Parar continua sendo regex, e é a única.** Não é sobra do sistema antigo: é a
+única ordem que não pode depender de a internet estar de pé.
+
+**O marcador vai no COMEÇO** porque o robô fala frase a frase enquanto o modelo
+ainda escreve. No fim, o servo só se mexeria depois de a fala acabar — a pessoa
+ouviria "olhando pra esquerda" com a cabeça parada.
+
+**Mover a cabeça são DUAS coisas**, e omitir a segunda é o bug conhecido do
+projeto: manda `SET_PAN_TILT` e **avisa a visão** pelo barramento. Ela guarda
+uma estimativa da posição dos servos e calcula a correção seguinte a partir
+dela; quem mexe por fora sem avisar deixa essa estimativa mentindo — é o
+"pan/tilt fica maluco depois de horas funcionando bem".
+
+Os ângulos param em 60°, não nos 80° do limite: encostar no batente faz o servo
+puxar corrente até travar, e foi assim que um servo em estol derrubou o ESP32
+inteiro.
+
+### O recado da Mara: nada estava quebrado, porque não havia nada
+
+O robô respondeu que sim porque **um modelo de linguagem que ouve um pedido
+gentil responde que sim**. Não havia tabela, não havia ação, não havia entrega.
+É a mesma família de falha já catalogada aqui (publicar num tópico sem
+assinante): **a promessa não falha, então nada denuncia**. Só que desta vez a
+testemunha era uma pessoa esperando por um recado.
+
+    quem PEDE    -> a conversa, no Notebook  (ação deixar_recado)
+    quem GUARDA  -> o orion.db, no Pi        (tabela recados, migração 002)
+    quem ENTREGA -> a saudação, no Notebook  (na CHEGADA da pessoa)
+
+A entrega mora na `saudacao.py` porque ela já é o **único lugar do sistema que
+distingue "estou vendo a Mara" (até 15x por segundo) de "a Mara CHEGOU"** — e
+"quando a vir" quer dizer chegou. Um vigia separado reimplementaria essa
+distinção, e o robô passaria a ter duas ideias de chegada. O recado sai DEPOIS
+do cumprimento: ouvir um recado antes de um "oi" é o robô tratando a pessoa
+como caixa de entrada.
+
+Casamento por NOME e não por id — quem deixa o recado diz "a Mara" e quem chega
+é reconhecido por nome. Primeiro nome, sem acento: "Marah" no `orion.yaml`,
+"Mara" na fala e "mara" no banco são a mesma pessoa.
+
+**O que mais importa aqui é o caminho da falha.** Se o banco recusar, o robô
+NÃO devolve a frase do modelo — ela diz "combinado, eu aviso", que é exatamente
+a mentira que custou o recado. Ele diz que não conseguiu guardar. Pelo mesmo
+motivo, `deixar_recado` sem destinatário não vira ação nenhuma: prometer sem
+poder cumprir é o defeito original com mais código em volta.
+
+Entregue não apaga o registro (é a prova de que ele cumpriu) e só é marcado
+DEPOIS de a fala terminar: se a voz falhar no meio, o recado volta na próxima
+chegada. Repetir é chato; perder é quebrar a promessa.
+
+### A cabeça fica com quem a virou
+
+Vinha da sessão anterior, sem commit. O joystick "não funcionava" visto de fora
+de casa: o dono virava a cabeça e ela voltava sozinha em segundos.
+`observar_ambiente` varre de -60 a +60 e o GOAP escolhe esse objetivo a cada
+~30 s. Quem mexe no joystick fica dono da cabeça por 10 s, e a janela **expira
+sozinha** — um "modo manual" com botão teria o defeito oposto: o robô pararia
+de olhar em volta para sempre porque alguém esqueceu de devolver o controle.
+
+O limitador de taxa era MAIOR que o intervalo do joystick (150 ms contra
+120 ms) e descartava quase um comando em cada dois — e como o comando é ângulo
+absoluto, perder o último para a cabeça onde o penúltimo mandou, com a tela
+mostrando outra coisa. Caiu para 100 ms.
+
+### Pi e Notebook tinham divergido de novo
+
+14 commits de um lado, 3 do outro. **Um único conflito**, trivial: cada máquina
+acrescentou um import na mesma linha. As duas ficaram em `9bc84d0`.
+
+Custou um susto no meio: copiei arquivos novos do Pi sobre a árvore velha do
+Notebook e o `orion-avatar` entrou em laço de reinício (`ModuleNotFoundError:
+orion.mission.quem_fala`). **Copiar arquivo solto entre máquinas que divergiram
+não é deploy — é sorte.** Serviço recuperado em 35 s com `git checkout --`.
+
+### Testes que mudaram de dono
+
+Os seis testes que fixavam a regex foram reescritos para o contrato novo. As
+duas regressões de 19/07 (`apague`/`desligue`) foram guardadas onde elas agora
+moram: distinguir "apague" de "acenda" virou trabalho de quem entende
+português; o que continua sendo nosso é cada nome levar ao comando certo.
+
+Os três testes de schema conferiam a versão literal `1` e quebraram com a
+migração 002. Passaram a derivar de `MIGRACOES` — **um teste que precisa ser
+editado a cada migração não guarda a regra, guarda o dia em que foi escrito.**
+
+### Estado ao fim da sessão
+
+- **Suíte: 754 passam no Notebook, 657 no Pi, 0 falhando.**
+- Migração 002 aplicada no banco de produção (`schema_version = 2`, tabela
+  `recados` criada, 0 linhas).
+- `orion-motion` e `orion-avatar` no ar com o código novo, ESP32 conectado.
+- Commits: `6a0af79` (cabeça do operador), `a3b2b20` (ações faladas),
+  `d1ca729` (merge), `9bc84d0` (recados).
+
+### Falta CONFIRMAR NO HARDWARE (nada disto é 🟢 ainda)
+
+1. **A cabeça vira para o lado certo?** O sinal do pan foi tirado do joystick
+   da webui, não medido com a cabeça na frente. Se estiver espelhado, o
+   conserto é uma linha em `acoes_faladas.py` — e está espelhado para todo
+   mundo, não só aqui.
+2. **O recado sobrevive a uma chegada de verdade?** Testado com fakes ponta a
+   ponta; nunca com a Mara entrando na sala.
+3. **O modelo escreve o marcador com que frequência?** Se ele esquecer, a ação
+   não acontece e o robô só conversa — que é exatamente a queixa que abriu a
+   sessão. Vale olhar `acao falada:` no log do Notebook depois de alguns dias.
+
+### Pendências que continuam de pé
+
+- O botão de desligar (`motion_core/desligamento.py` + 5 testes) segue **órfão**:
+  escrito, testado, e ninguém o chama. Falta rota, botão e a regra de sudoers
+  no Notebook (o `sudo` de lá pede senha; o do Pi não). O bloco
+  `communication.notebook` já está no `orion.yaml`, sem uso.
+- Multímetro no I2C, consumo, TB6600 a 3,3 V.
+- Bancada com o GOAP: ele move o robô por um caminho que nunca rodou no
+  hardware.
