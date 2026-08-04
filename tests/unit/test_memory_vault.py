@@ -77,3 +77,65 @@ def test_diretorio_e_criado_automaticamente(tmp_path):
     caminho = tmp_path / "vault_inexistente" / "sub"
     VaultConhecimento(caminho)
     assert caminho.is_dir()
+
+
+# ---------------------------------------------------------------------------
+# BUSCA POR PERGUNTA DE VERDADE (2026-08-04)
+#
+# Os testes acima buscavam sempre UMA palavra ("kamal", "pizza") - e foi por
+# isso que o defeito passou. Quem chama `buscar` na vida real e o
+# mission_planner, passando a FALA INTEIRA da pessoa. A versao antiga
+# procurava a consulta toda como substring, entao nenhuma pergunta de verdade
+# achava coisa nenhuma: o vault era uma gaveta que ninguem conseguia abrir.
+#
+# A licao geral: consulta de teste que nao se parece com a consulta real nao
+# esta testando a funcao, esta testando o exemplo.
+# ---------------------------------------------------------------------------
+
+
+def test_pergunta_inteira_acha_a_nota(tmp_path):
+    """O DEFEITO ORIGINAL. Antes disto, isto devolvia []."""
+    vault = VaultConhecimento(tmp_path / "vault")
+    vault.escrever_nota("portao dos fundos", "O portao dos fundos trava quando chove.")
+
+    achados = vault.buscar("Fofao, o portao dos fundos esta travando de novo?")
+
+    assert [n["titulo"] for n in achados] == ["portao dos fundos"]
+
+
+def test_acento_nao_atrapalha(tmp_path):
+    """Quem fala diz "portão" e quem digitou pode ter escrito "portao"."""
+    vault = VaultConhecimento(tmp_path / "vault")
+    vault.escrever_nota("Portão", "O portão trava quando chove.")
+
+    assert len(vault.buscar("o portao esta travado?")) == 1
+
+
+def test_a_nota_com_MAIS_palavras_em_comum_vem_primeiro(tmp_path):
+    """Ordenar por data traria a mais recente, que nem sempre e a que responde
+    a pergunta."""
+    vault = VaultConhecimento(tmp_path / "vault")
+    vault.escrever_nota("chuva", "Quando chove a rua alaga.")
+    vault.escrever_nota("portao", "O portao dos fundos trava quando chove.")
+
+    achados = vault.buscar("o portao trava com chuva?")
+
+    assert achados[0]["titulo"] == "portao"
+
+
+def test_pergunta_so_de_palavras_de_ligacao_nao_traz_tudo(tmp_path):
+    """"e ai, o que voce acha?" nao pode despejar o vault inteiro no prompt -
+    seria pior que nao buscar, porque enche o contexto de coisa irrelevante."""
+    vault = VaultConhecimento(tmp_path / "vault")
+    vault.escrever_nota("uma nota", "conteudo qualquer")
+    vault.escrever_nota("outra nota", "outro conteudo")
+
+    assert vault.buscar("e ai, o que voce acha?") == []
+
+
+def test_palavra_curta_nao_casa_dentro_de_outra(tmp_path):
+    """"sol" dentro de "resolver" traria nota nenhuma a ver com a pergunta."""
+    vault = VaultConhecimento(tmp_path / "vault")
+    vault.escrever_nota("nota", "preciso resolver isso amanha")
+
+    assert vault.buscar("sol") == []

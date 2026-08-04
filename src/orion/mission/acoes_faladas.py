@@ -79,7 +79,7 @@ SEPARADOR_ARGUMENTO = "|"
 #: Quem pode executar uma acao. Conjunto fechado, conferido no import: uma
 #: entrega escrita errada ("cabeça", com cedilha) cairia em nenhum despachante
 #: e a acao nao faria nada, sem erro nenhum - a falha silenciosa de sempre.
-ENTREGAS = frozenset({"hardware", "cabeca", "recado"})
+ENTREGAS = frozenset({"hardware", "cabeca", "recado", "conhecimento"})
 
 #: Limites dos servos da cabeca. Os MESMOS numeros do webui/server.py e do
 #: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por
@@ -251,6 +251,31 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         precisa_argumento=True,
         resposta="Combinado, eu aviso.",
     ),
+    # ---- APRENDER UM FATO DA CASA (2026-08-04) ---------------------------
+    # Pedido do dono: "vamos inserir conhecimento pra ele".
+    #
+    # O vault (memoria de longo prazo em texto livre) existia desde 23/07 com
+    # ZERO notas dentro: `nota_escrever` funcionava ponta a ponta e nunca
+    # tinha sido chamado por ninguem. Esta acao e o caminho que faltava.
+    #
+    # Vai para o VAULT e nao para a tabela `conhecimento` de proposito: a
+    # tabela guarda par chave/valor e e alimentada sozinha pelo ExtratorFatos
+    # a partir das conversas. Aqui e o contrario - e a pessoa DIZENDO uma
+    # coisa para ele guardar, em texto livre, do tamanho que for.
+    AcaoFalada(
+        nome="guardar_conhecimento",
+        descricao=(
+            "guardar para sempre uma informacao que te ensinaram sobre a casa, "
+            "as pessoas ou o mundo (guarda isso, anota que..., lembra que..., "
+            "quero que voce saiba que...). Escreva o argumento como "
+            "`titulo curto | a informacao completa`. O titulo e como voce vai "
+            "reencontrar isso depois - use as palavras que alguem usaria ao "
+            "perguntar. NAO use para recado a uma pessoa, isso e deixar_recado"
+        ),
+        entrega="conhecimento",
+        precisa_argumento=True,
+        resposta="Guardei.",
+    ),
 )
 
 ACOES: dict[str, AcaoFalada] = {acao.nome: acao for acao in _CATALOGO}
@@ -345,13 +370,17 @@ def extrair(texto: str) -> tuple[AcaoFalada | None, str, str]:
     return acao, argumento, resto
 
 
-def partir_recado(argumento: str) -> tuple[str, str]:
+def partir_argumento(argumento: str) -> tuple[str, str]:
     """`"Mara | quero falar com ela"` -> `("Mara", "quero falar com ela")`.
 
+    Serve as duas acoes que carregam argumento, porque as duas tem a mesma
+    forma: um rotulo curto e um texto. No recado o rotulo e a PESSOA; no
+    conhecimento e o TITULO da nota.
+
     Devolve `("", "")` quando falta uma das duas metades. Adivinhar seria
-    perigoso nos dois sentidos: sem separador, tratar tudo como nome guardaria
-    um recado para uma pessoa chamada "mara quero falar com ela", e tratar
-    tudo como mensagem guardaria um recado para ninguem.
+    perigoso nos dois sentidos: sem separador, tratar tudo como rotulo
+    guardaria um recado para uma pessoa chamada "mara quero falar com ela", e
+    tratar tudo como texto guardaria um recado para ninguem.
     """
     if SEPARADOR_ARGUMENTO not in argumento:
         return "", ""

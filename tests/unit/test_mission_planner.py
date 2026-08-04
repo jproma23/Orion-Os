@@ -365,3 +365,44 @@ async def test_recado_sem_destinatario_nao_e_guardado():
 
     assert guardados == []
     assert "combinado" not in resposta.lower()
+
+
+@pytest.mark.asyncio
+async def test_conhecimento_ensinado_na_conversa_vai_para_o_vault():
+    """"vamos inserir conhecimento pra ele" (2026-08-04). Ate aqui o vault
+    tinha ZERO notas: `nota_escrever` funcionava e ninguem chamava."""
+    ai = AiManagerFalso(
+        resposta="#acao:guardar_conhecimento portao dos fundos | "
+        "O portao dos fundos trava quando chove.\nGuardei."
+    )
+    guardados = []
+
+    async def guardar(titulo, conteudo):
+        guardados.append((titulo, conteudo))
+        return True
+
+    planner = MissionPlanner(ai_manager=ai, guardar_conhecimento=guardar)
+    resposta = await planner.processar(
+        "guarda isso: o portao dos fundos trava quando chove"
+    )
+
+    assert guardados == [
+        ("portao dos fundos", "O portao dos fundos trava quando chove.")
+    ]
+    assert resposta == "Guardei."
+
+
+@pytest.mark.asyncio
+async def test_conhecimento_que_o_vault_recusou_nao_pode_soar_como_guardado():
+    """Mesma regra do recado: "guardei" so pode ser dito se guardou. Aqui e
+    ainda mais traicoeiro, porque quem ensinou vai perguntar semanas depois."""
+    ai = AiManagerFalso(resposta="#acao:guardar_conhecimento x | y\nGuardei!")
+
+    async def recusar(titulo, conteudo):
+        return False
+
+    planner = MissionPlanner(ai_manager=ai, guardar_conhecimento=recusar)
+    resposta = await planner.processar("guarda isso")
+
+    assert "guardei" not in resposta.lower()
+    assert "não consegui" in resposta.lower() or "nao consegui" in resposta.lower()

@@ -10,7 +10,7 @@ from orion.mission.acoes_faladas import (
     MARCADOR,
     bloco_para_prompt,
     extrair,
-    partir_recado,
+    partir_argumento,
 )
 
 
@@ -89,17 +89,17 @@ def test_recado_com_argumento_carrega_pessoa_e_mensagem():
     )
 
     assert acao is not None and acao.nome == "deixar_recado"
-    assert partir_recado(argumento) == ("Mara", "o Joao quer falar com voce")
+    assert partir_argumento(argumento) == ("Mara", "o Joao quer falar com voce")
     assert falado == "Combinado."
 
 
-def test_argumento_sem_separador_nao_vira_recado():
+def test_argumento_sem_separador_nao_vira_nada():
     """Adivinhar erraria dos dois jeitos: tudo como nome guardaria um recado
     para uma pessoa chamada "mara quero falar com ela"; tudo como mensagem
     guardaria um recado para ninguem."""
-    assert partir_recado("Mara quero falar com ela") == ("", "")
-    assert partir_recado("| so a mensagem") == ("", "")
-    assert partir_recado("so o nome |") == ("", "")
+    assert partir_argumento("Mara quero falar com ela") == ("", "")
+    assert partir_argumento("| so a mensagem") == ("", "")
+    assert partir_argumento("so o nome |") == ("", "")
 
 
 def test_acao_sem_argumento_ignora_lixo_na_linha():
@@ -119,3 +119,29 @@ def test_o_prompt_lista_o_catalogo_inteiro():
 
     for nome in ACOES:
         assert nome in bloco, f"{nome} nao aparece no prompt"
+
+
+def test_guardar_conhecimento_carrega_titulo_e_conteudo():
+    """"vamos inserir conhecimento pra ele" (2026-08-04). Mesma forma do
+    recado - rotulo curto, texto - porque as duas acoes carregam a mesma
+    coisa: algo que so existe na frase."""
+    acao, argumento, falado = extrair(
+        "#acao:guardar_conhecimento portao dos fundos | Trava quando chove muito.\n"
+        "Guardei."
+    )
+
+    assert acao is not None and acao.nome == "guardar_conhecimento"
+    assert partir_argumento(argumento) == (
+        "portao dos fundos",
+        "Trava quando chove muito.",
+    )
+    assert falado == "Guardei."
+
+
+def test_toda_acao_que_exige_argumento_explica_o_formato_no_prompt():
+    """O modelo so acerta o formato se ele estiver escrito. Acao com
+    `precisa_argumento` e descricao que nao menciona a barra vertical vira
+    argumento malformado - e argumento malformado NAO guarda nada."""
+    for acao in ACOES.values():
+        if acao.precisa_argumento:
+            assert "|" in acao.descricao, f"{acao.nome} nao explica o formato"

@@ -29,7 +29,7 @@ from collections.abc import Awaitable, Callable
 from orion.mission.acoes_faladas import AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
-from orion.mission.acoes_faladas import partir_recado as _partir_recado
+from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.mission.ai_manager import AiManager
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
@@ -43,6 +43,9 @@ CallbackCabeca = Callable[[float, float], Awaitable[None]]
 #: retorno importa: o robo so pode dizer "combinado" se algo foi de fato
 #: guardado. Foi prometer sem guardar que criou este caminho inteiro.
 CallbackRecado = Callable[[str, str, str], Awaitable[bool]]
+#: Guarda um fato no vault (titulo, conteudo). Devolve se CONSEGUIU, pela
+#: mesma razao do recado: "guardei" so pode ser dito se guardou.
+CallbackConhecimento = Callable[[str, str], Awaitable[bool]]
 
 #: "voce viu a Ana hoje?", "viu o Bruno?", "voce viu Ana por aqui?"
 #: O nome vai ate o fim ou ate uma palavra de corte (hoje/por aqui/ai...).
@@ -124,6 +127,7 @@ class MissionPlanner:
         familia: list[dict] | None = None,
         mover_cabeca: CallbackCabeca | None = None,
         deixar_recado: CallbackRecado | None = None,
+        guardar_conhecimento: CallbackConhecimento | None = None,
     ) -> None:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
@@ -139,6 +143,10 @@ class MissionPlanner:
         #: Quem guarda os recados. Ver `orion/mission/recados.py` - e o modulo
         #: que existe porque o robo prometeu avisar a Mara e nao avisou.
         self._deixar_recado = deixar_recado
+        #: Quem escreve no vault de longo prazo. Ate 2026-08-04 o vault tinha
+        #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
+        #: codigo do robo o chamava. Este e o fio que faltava.
+        self._guardar_conhecimento = guardar_conhecimento
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -323,17 +331,19 @@ class MissionPlanner:
                 await self._despachar_comando(acao)
             elif acao.entrega == "cabeca":
                 await self._despachar_cabeca(acao)
-            else:
+            elif acao.entrega == "recado":
                 await self._despachar_recado(argumento)
+            else:
+                await self._despachar_conhecimento(argumento)
         except _SemCaminho as erro:
             logger.warning("acao %r pedida sem caminho ate o hardware: %s", acao.nome, erro)
             return falado or "Ainda nao consigo fazer isso."
         except _NaoGuardou:
             # NAO devolve `falado`: a frase do modelo diz "combinado, eu
-            # aviso", e essa e exatamente a mentira que este caminho existe
-            # para nao repetir. Quem esta ouvindo precisa saber que nao pode
-            # contar com isso.
-            return "Desculpe, nao consegui guardar esse recado."
+            # aviso" ou "guardei", e essa e exatamente a mentira que este
+            # caminho existe para nao repetir. Quem esta ouvindo precisa saber
+            # que nao pode contar com isso.
+            return "Desculpe, nao consegui guardar isso."
         except Exception:
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
@@ -352,11 +362,20 @@ class MissionPlanner:
     async def _despachar_recado(self, argumento: str) -> None:
         if self._deixar_recado is None:
             raise _SemCaminho("sem callback de recado")
-        para, mensagem = _partir_recado(argumento)
+        para, mensagem = _partir_argumento(argumento)
         if not para:
             raise _NaoGuardou(f"argumento sem destinatario ou sem texto: {argumento!r}")
         if not await self._deixar_recado(para, mensagem, ""):
             raise _NaoGuardou(f"o banco recusou o recado para {para!r}")
+
+    async def _despachar_conhecimento(self, argumento: str) -> None:
+        if self._guardar_conhecimento is None:
+            raise _SemCaminho("sem callback de conhecimento")
+        titulo, conteudo = _partir_argumento(argumento)
+        if not titulo:
+            raise _NaoGuardou(f"argumento sem titulo ou sem conteudo: {argumento!r}")
+        if not await self._guardar_conhecimento(titulo, conteudo):
+            raise _NaoGuardou(f"o vault recusou a nota {titulo!r}")
 
     async def _responder_sobre_quem_viu(
         self, texto: str, contexto: dict | None

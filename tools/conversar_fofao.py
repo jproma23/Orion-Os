@@ -528,6 +528,27 @@ async def principal() -> None:
     # pessoa chega) - ver orion/mission/recados.py.
     recados = Recados(MemoryClient(comm))
 
+    async def guardar_conhecimento(titulo: str, conteudo: str) -> bool:
+        """Escreve um fato no vault de longo prazo, no SSD do Pi.
+
+        O VAULT EXISTIA E ESTAVA VAZIO. Desde 23/07 havia `nota_escrever`
+        funcionando ponta a ponta - cliente, ponte e disco - e NENHUM codigo do
+        robo chamava. A pasta tinha zero notas, e o `nota_buscar` que roda a
+        cada conversa procurava numa gaveta vazia. Mesmo padrao do GOAP orfao:
+        caminho pronto, ninguem passando por ele.
+
+        Devolve se conseguiu, e nao levanta: quem chama transforma isso em
+        "guardei" ou "nao consegui guardar". Dizer que guardou sem ter guardado
+        e o defeito que o recado da Mara ja custou uma vez.
+        """
+        try:
+            await MemoryClient(comm).nota_escrever(titulo, conteudo)
+        except Exception:
+            logger.warning("nao consegui gravar a nota %r no vault", titulo, exc_info=True)
+            return False
+        logger.info("conhecimento guardado no vault: %r", titulo)
+        return True
+
     planner = MissionPlanner(
         ia,
         enviar_comando_hardware=enviar_comando_hardware,
@@ -543,6 +564,9 @@ async def principal() -> None:
         mover_cabeca=mover_cabeca,
         # Guardar de verdade o que ele promete guardar (2026-08-03).
         deixar_recado=recados.deixar,
+        # "vamos inserir conhecimento pra ele" (2026-08-04): o fio que faltava
+        # entre a conversa e o vault de longo prazo.
+        guardar_conhecimento=guardar_conhecimento,
     )
 
     # QUEM ESTA FALANDO (2026-08-03). Ate aqui `processar()` recebia
