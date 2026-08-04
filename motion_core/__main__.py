@@ -481,7 +481,21 @@ async def principal() -> None:
     # barramento do Pi so entram comandos de COMPORTAMENTO (Repouso ao
     # assumir, Ronda varrendo), que sao raros - nao existe aqui a enxurrada
     # de 15 quadros/s que motivou a deduplicacao original.
-    ultimo_pan_tilt = {"ts": 0.0, "operador_ts": 0.0}
+    ultimo_pan_tilt = {"ts": 0.0, "operador_ts": 0.0, "centrada": True}
+
+    #: Recentragem automatica da cabeca (2026-08-04), pedida pelo dono.
+    #:
+    #: 3 min de OCIOSIDADE, nao de relogio - ver `_recentrar_cabeca_ociosa`.
+    #: A checagem e grossa (15 s) porque o alvo e "esqueceram a cabeca virada",
+    #: e nao um instante exato: acordar de 15 em 15 s para comparar dois floats
+    #: nao custa nada e evita um timer que precisaria ser rearmado a cada
+    #: comando.
+    RECENTRAGEM_OCIOSIDADE_S = 180.0
+    RECENTRAGEM_CHECAGEM_S = 15.0
+    #: Assinatura da recentragem, para o handler a deixar passar mesmo em
+    #: MANUAL. Nome proprio e nao `ORIGEM_OPERADOR` de mentira: quem mandou foi
+    #: o robo, e o log tem que poder dizer isso.
+    ORIGEM_RECENTRAGEM = "recentragem_ociosidade"
 
     #: Preenchido mais abaixo (o BehaviorCore nasce depois deste handler).
     #: Declarado aqui para o closure ter o nome ligado se um evento de pan/tilt
@@ -520,6 +534,12 @@ async def principal() -> None:
 
         if do_operador:
             ultimo_pan_tilt["operador_ts"] = agora
+        elif evento.dados.get("origem") == ORIGEM_RECENTRAGEM:
+            # A recentragem por ociosidade PASSA por cima de tudo, e e a unica
+            # que passa. Ver `_recentrar_cabeca_ociosa`: ela so dispara depois
+            # de 3 min sem NENHUM comando, entao nunca disputa a cabeca com
+            # ninguem - quando ela fala, nao ha mais ninguem falando.
+            pass
         elif maestro is not None and maestro.modo_controle == MODO_MANUAL:
             # EM MANUAL A CABECA E DO OPERADOR, E NAO POR 10 SEGUNDOS
             # (2026-08-04).
@@ -552,6 +572,10 @@ async def principal() -> None:
         if agora - ultimo_pan_tilt["ts"] < INTERVALO_MINIMO_S:
             return
         ultimo_pan_tilt["ts"] = agora
+        # Sai do centro? entao volta a haver o que recentrar. Sem esta linha a
+        # recentragem aconteceria UMA vez e nunca mais - o defeito silencioso
+        # classico: funciona no teste da bancada e morre no segundo dia.
+        ultimo_pan_tilt["centrada"] = pan == 0 and tilt == 0
         try:
             await comm.send(
                 "hardware_core",
@@ -565,6 +589,49 @@ async def principal() -> None:
             logger.warning("nao consegui mover o pan/tilt (pan=%.1f tilt=%.1f)", pan, tilt)
 
     event_bus.subscribe("motion.pan_tilt", _mover_servos_do_maestro)
+
+    async def _recentrar_cabeca_ociosa() -> None:
+        """Depois de 3 min sem ninguem mexer, a cabeca volta ao centro.
+
+        PEDIDO DO DONO (2026-08-04): *"poe um alerta pra cabeca se centralizar
+        automaticamente a cada 3 minutos"*.
+
+        POR OCIOSIDADE, E NAO PELO RELOGIO. Recentrar a cada 3 min de relogio
+        arrancaria a cabeca do dedo do dono no meio do uso - e o mesmo defeito
+        que o `Repouso` causava aos 10 s, so que mais raro e por isso MAIS
+        dificil de entender quando acontecesse. Contando desde o ULTIMO
+        comando, ela so age quando ninguem mais esta agindo.
+
+        POR QUE PRECISOU EXISTIR: hoje o modo MANUAL passou a segurar a cabeca
+        para o operador indefinidamente (ver `_mover_servos_do_maestro`), o que
+        conserta o *"eu aperto e volta"* mas deixa a cabeca virada para um canto
+        para sempre se o dono sair sem centralizar. Esta e a rede embaixo
+        daquilo: quem esquecer, o robo desfaz sozinho.
+
+        A camera do pan/tilt e como o dono ve a casa de fora. Uma cabeca
+        apontada para a parede desde ontem e uma camera que nao serve para
+        nada, sem nada denunciando.
+        """
+        while True:
+            await asyncio.sleep(RECENTRAGEM_CHECAGEM_S)
+            ocioso = time.monotonic() - max(
+                ultimo_pan_tilt["ts"], ultimo_pan_tilt["operador_ts"]
+            )
+            if ocioso < RECENTRAGEM_OCIOSIDADE_S:
+                continue
+            if ultimo_pan_tilt.get("centrada"):
+                # Ja esta no centro: nao ha o que recentrar, e repetir gastaria
+                # serial e log a cada checagem, para sempre.
+                continue
+            logger.info(
+                "cabeca ociosa ha %.0f s - voltando ao centro sozinha", ocioso
+            )
+            await event_bus.publish(
+                "motion.pan_tilt", {"pan": 0, "tilt": 0, "origem": ORIGEM_RECENTRAGEM}
+            )
+            ultimo_pan_tilt["centrada"] = True
+
+    tarefa_recentragem = asyncio.create_task(_recentrar_cabeca_ociosa())
 
     # ...e o Notebook precisa SABER que a cabeca se mexeu (2026-07-29).
     #
@@ -750,6 +817,7 @@ async def principal() -> None:
     logger.info("Motion Core: iniciando desligamento seguro")
     heartbeat.parar()
     tarefa_heartbeat.cancel()
+    tarefa_recentragem.cancel()
     maestro.parar()
     tarefa_maestro.cancel()
     if tarefa_ia_estrategica is not None:
