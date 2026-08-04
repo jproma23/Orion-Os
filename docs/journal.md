@@ -6197,3 +6197,133 @@ confirmacao de que reset por DTR/RTS nao e power cycle.
 - **O teste de verdade dos recados ainda nao aconteceu**: os 3 pendentes so
   saem quando ela chegar e for cumprimentada. Dois consertos ja falharam nesse
   ponto - o terceiro so conta com gente na frente.
+
+## Sessao de 2026-08-04 (madrugada) - a cabeca ganha rede de seguranca, e o n8n nao subiu
+
+Continuacao direta da entrada anterior, na mesma noite. Aqui entram um conserto
+pequeno e bem fechado, uma decisao de produto do dono, e uma falha minha que
+vale registrar mais que o resto.
+
+### A cabeca volta ao centro sozinha
+
+Pedido: *"poe um alerta pra cabeca se centralizar automaticamente a cada 3
+minutos"*.
+
+Feito **por ociosidade, e nao pelo relogio** - a unica diferenca em relacao ao
+pedido literal, e ela importa. Recentrar a cada 3 min de relogio arrancaria a
+cabeca do dedo do dono no meio do uso: e o mesmo defeito que o `Repouso` causava
+aos 10 s, so que mais raro e por isso MAIS dificil de entender quando
+acontecesse. Contando desde o ultimo comando, ela so age quando ninguem mais
+esta agindo.
+
+Isto e a **rede embaixo do conserto de mais cedo**. O modo MANUAL passou a
+segurar a cabeca para o operador indefinidamente, o que resolve o *"eu aperto e
+volta"* - mas deixaria a cabeca virada para um canto para sempre se o dono
+saisse sem centralizar. A camera do pan/tilt e como ele ve a casa de fora: uma
+cabeca apontada para a parede desde ontem e uma camera que nao serve para nada,
+**sem nada denunciando**. Todo conserto abre uma porta nova; esta fechou junto.
+
+A recentragem passa por cima do bloqueio do MANUAL e e a UNICA que passa. Nunca
+disputa a cabeca com ninguem - quando ela fala, ja faz 3 min que ninguem falava.
+Assinada com origem propria (`recentragem_ociosidade`) e nao com
+`ORIGEM_OPERADOR` de mentira: quem mandou foi o robo, e o log tem que poder
+dizer isso.
+
+O sinalizador `centrada` evita os dois extremos: sem ele a recentragem
+aconteceria uma vez e nunca mais, ou gastaria serial e log a cada 15 s para
+sempre.
+
+Verificado as 20:18:41: *"cabeca ociosa ha 188 s - voltando ao centro sozinha"*.
+
+### A decisao do dono sobre senha - ENCERRADA
+
+Ao desenhar o acesso ao e-mail eu levantei que `/api/conversa/mensagem` nao
+exige sessao, e que com Gmail ligado isso mudaria o pior caso. O dono foi
+direto: *"eu nao quero senha no chat"*, e depois *"chega de senha"*.
+
+**E decisao dele, e o motivo e bom**: o Kamal tem 3 anos e nao escreve, a Marah
+fala por voz. Senha ali mataria exatamente o canal que faz o Fofao ser o que e.
+Nao e descuido - e escolha de produto correta.
+
+Fica registrado para nao ser reaberto. As mitigacoes que sobram nao dependem de
+autenticacao: **so remetente e assunto em voz alta, nunca o corpo** (2FA e banco
+chegam por e-mail, e o robo fala num comodo com gente), e o e-mail entrando como
+**dado citado**, fora do canal onde o `#acao:` e lido - senao um e-mail de
+estranho pode mandar o robo andar.
+
+### E-mail: o desenho combinado
+
+O dono quer que o robo leia os e-mails e avise **so os importantes**, a cada
+**40 minutos**, nos dois modos: aviso automatico e leitura sob demanda.
+
+**Quem julga a importancia NAO e a IA.** O Gmail ja tem o marcador `IMPORTANT`,
+treinado no comportamento dele ha anos - `is:important is:unread` e gratis,
+deterministico e ja personalizado. A IA so redige o aviso. Deixar o modelo
+decidir custaria uma chamada por varredura e daria resultado que muda de humor
+entre execucoes, sem saber que aquele remetente e a escola do Kamal.
+
+**Um e-mail importante e estruturalmente um RECADO**, e reusa o mecanismo que
+foi consertado horas antes: tabela com `entregue_em`, entrega na CHEGADA, e nao
+repete o que ja entregou. Sem camada nova.
+
+Falta o dono listar os remetentes que sao sempre importantes, e criar o cliente
+OAuth no Google Cloud (unico passo que exige ele logado). Escopo recomendado:
+`gmail.readonly`.
+
+### YouTube Music nao vem por ferramenta de automacao
+
+O dono perguntou por n8n e depois por Node-RED. A resposta e a mesma nos dois, e
+vale escrita para nao ser refeita: **todo no de YouTube, em qualquer ferramenta,
+envelopa a Data API v3** - a mesma que ja tinhamos descoberto que nao entrega
+historico. Trocar a caixa em volta da chamada nao cria uma API que o Google
+removeu.
+
+E para o YT Music especificamente **nenhuma das duas e o caminho certo**: o
+`ytmusicapi` e biblioteca **Python**, e o Mission Core e Python. Ela entra
+direto, sem runtime a mais e sem um salto de rede.
+
+### A falha que mais vale registrar: eu li exit 0 como sucesso
+
+Rodei `npm install -g n8n 2>&1 | tail -8`, o comando saiu com **codigo 0**, e eu
+anunciei ao dono que a instalacao tinha terminado. **Nao tinha.** O `| tail`
+consome o codigo de saida do npm e devolve o do `tail`, que sempre da certo. O
+npm tinha falhado.
+
+E exatamente o defeito que este projeto ja nomeou varias vezes - *ausencia de
+erro lida como sucesso* - so que desta vez o defeito foi meu, na ferramenta de
+diagnostico, e nao no robo. **Pipe mascara codigo de saida.** Quando o valor do
+comando e "deu certo ou nao", nao passar por pipe, ou usar `PIPESTATUS`.
+
+A falha real: o modulo nativo **`isolated-vm`** nao compilou. As ferramentas de
+build estao todas presentes (`python3`, `make`, `g++`), entao a causa provavel e
+**memoria**: o npm chamou `node-gyp rebuild -j max`, que dispara um compilador
+por nucleo, e o `isolated-vm` e pesadissimo em C++. Com 4,5 GB livres e o
+Notebook ja rodando YOLO, Whisper, avatar e reconhecimento facial, os
+compiladores foram mortos.
+
+Caminhos, na ordem de atrito: recompilar com `-j 1`; ou Docker, cuja imagem
+oficial ja traz o `isolated-vm` pronto (mas exige sudo com senha, que o Notebook
+nao tem).
+
+**E vale a pergunta de escopo, registrada para a proxima sessao:** o n8n e um
+runtime Node inteiro em cima de uma maquina que ja carrega quatro cargas
+pesadas, e no plano atual ele existe basicamente para segurar um token OAuth. Um
+script Python com a lib do Google faria o Gmail sem runtime novo. Se o dono
+quiser a interface visual para montar fluxos, o custo se justifica - se era so
+pelo Gmail, ha caminho mais barato. **Nao decidido.**
+
+### Estado ao fim
+
+- **Pi 685 passam / 16 pulados**, as duas maquinas em `0362d7a`.
+- Ruff sem aviso novo. Servicos no ar.
+- **n8n NAO instalado** - `~/.npm-global/lib/node_modules/` vazio, o link em
+  `bin/n8n` aponta para o nada.
+
+### Fica aberto (alem do que ja estava)
+
+- Escolher entre n8n com `-j 1`, Docker, ou Python puro para o Gmail.
+- O dono listar os remetentes sempre-importantes.
+- O cliente OAuth no Google Cloud - so ele pode.
+- Tudo o que a entrada anterior ja listava: o heartbeat que mente, o pisca da
+  lanterna no boot, o `reboot` do Notebook sem regra de sudoers, e os tres de
+  03/08.
