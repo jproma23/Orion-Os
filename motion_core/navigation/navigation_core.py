@@ -771,6 +771,23 @@ class NavigationCore:
             DESTINO_HARDWARE,
             {"comando": "MOVE_DISTANCE", "distancia_cm": distancia_cm, "velocidade_percent": velocidade},
         )
+        # "COMPLETADO" PASSA A SIGNIFICAR COMPLETADO (2026-08-04).
+        #
+        # Este evento saia logo apos o `send`, e o `send` so garante o ACK - que
+        # diz que o comando CHEGOU, nao que o robo andou. O firmware executa
+        # MOVE_DISTANCE de forma assincrona (ver INTERVALO_CHECAGEM_OCIOSO_S),
+        # entao `segment_completed` era publicado com o robo ainda parado, no
+        # instante em que o movimento MAL COMECOU.
+        #
+        # Quem consome pela palavra - diario, interface, quem for medir trecho
+        # percorrido - lia um segmento pronto que ainda nao existia. Um evento
+        # que mente e pior que um evento que falta: o segundo se percebe.
+        #
+        # Nao custa tempo novo: o proximo passo do EXPLORE ja esperava aqui de
+        # qualquer jeito (`_escanear_a_frente` espera ficar ocioso desde hoje),
+        # e o PATROL ja esperava no inicio do segmento seguinte. A espera so
+        # mudou de lugar - e agora o evento sai na hora certa.
+        await self._aguardar_ocioso()
         await self._event_bus.publish(
             "navigation.segment_completed", {"graus": graus, "distancia_cm": distancia_cm}
         )

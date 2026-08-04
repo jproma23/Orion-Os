@@ -141,6 +141,10 @@ class FusaoSensores:
         #: mapeamento. Numero muito diferente disso significa chapa contada a
         #: mais (ruido) ou a menos.
         self._encoder_pulsos_por_metro = config_motion.get("encoder_pulses_per_meter")
+        #: True quando a leitura ATUAL foi um reinicio de placa - ver
+        #: `_delta_encoder`. Existe para separar "nao ha encoder" de "o encoder
+        #: acabou de resincronizar", que pedem respostas opostas na pose.
+        self._encoder_resincronizou = False
 
         self._encoder_esquerda_anterior: int | None = None
         self._encoder_direita_anterior: int | None = None
@@ -257,9 +261,16 @@ class FusaoSensores:
         # comparacao - e e a comparacao que desmente a pose. Foi a falta dela
         # que deixou a interface afirmar 85 cm e 80 graus com os motores
         # fisicamente desligados.
+        self._encoder_resincronizou = False
         pulso_esquerda, pulso_direita = self._delta_encoder(
             payload, delta_esquerda, delta_direita
         )
+        if self._encoder_resincronizou:
+            # Placa reiniciada nesta amostra: a base do encoder acabou de ser
+            # refeita e os passos comandados nao descrevem o intervalo. Pular a
+            # integracao perde UM quadro de telemetria (~1 s) e mantem a pose
+            # honesta - o proximo quadro ja volta ao normal.
+            return
         comandou = delta_esquerda != 0 or delta_direita != 0
         girou = pulso_esquerda is not None and (pulso_esquerda != 0 or pulso_direita != 0)
         # None enquanto nao houver encoder na telemetria: "nao sei" nao pode
@@ -381,6 +392,19 @@ class FusaoSensores:
                 delta_e,
                 delta_d,
             )
+            # A PROMESSA DO LOG PASSA A SER VERDADE (2026-08-04).
+            #
+            # Ate hoje este `return (None, None)` era indistinguivel de "nao ha
+            # encoder nesta montagem", e o chamador tratava os dois igual: caia
+            # no ramo dos PASSOS COMANDADOS e somava a pose assim mesmo. Ou
+            # seja, a linha acima dizia "sem atualizar pose" enquanto a pose era
+            # atualizada - e pela via menos confiavel que existe aqui,
+            # justamente na amostra em que a placa acabou de reiniciar e os
+            # passos tambem nao valem nada.
+            #
+            # Era pequeno (so no reinicio) e era exatamente a doenca que este
+            # arquivo existe para nao ter: a pose afirmando o que ninguem mediu.
+            self._encoder_resincronizou = True
             return (None, None)
 
         # O SENTIDO VEM DO COMANDO, porque o sensor nao sabe dizer.

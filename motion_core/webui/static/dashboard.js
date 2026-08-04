@@ -21,6 +21,72 @@ function formatar(valor, sufixo = '', casas = 1) {
   return `${texto}${sufixo}`;
 }
 
+// ---------- entrar, quando o robô pedir senha (2026-08-04) ----------
+//
+// Dirigir o robô pela rede passou a exigir sessão, como a cabeça e a
+// configuração já exigiam. Do próprio Raspberry (o kiosk) nada muda: o
+// servidor libera 127.0.0.1 sem senha. De fora - celular na LAN, Tailscale -
+// o robô responde 401 e esta função abre o campo de senha.
+//
+// Reaproveita `/api/configuracao/entrar` e o `.form-senha` que a página de
+// configuração já usava: um segundo caminho de login seria uma segunda coisa
+// para manter em dia, e o cookie que ele devolve vale para as duas telas.
+let overlaySenhaAberto = false;
+
+function pedirSenha(mensagem) {
+  // Uma de cada vez: o joystick dispara vários comandos seguidos, e cada 401
+  // abriria uma caixa nova por cima da anterior.
+  if (overlaySenhaAberto) return Promise.resolve(false);
+  overlaySenhaAberto = true;
+
+  return new Promise((resolver) => {
+    const fundo = document.createElement('div');
+    fundo.className = 'overlay-senha';
+    const form = document.createElement('form');
+    form.className = 'form-senha';
+    form.innerHTML = `
+      <p></p>
+      <input type="password" id="senha-dashboard" autocomplete="current-password"
+             placeholder="senha" required />
+      <button type="submit">Entrar</button>
+      <button type="button" class="cancelar">Agora não</button>
+      <p class="erro-senha"></p>`;
+    form.querySelector('p').textContent = mensagem;
+
+    const fechar = (ok) => {
+      overlaySenhaAberto = false;
+      fundo.remove();
+      resolver(ok);
+    };
+
+    form.querySelector('.cancelar').addEventListener('click', () => fechar(false));
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      const erroEl = form.querySelector('.erro-senha');
+      erroEl.textContent = '';
+      try {
+        const resposta = await fetch('/api/configuracao/entrar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ senha: form.querySelector('#senha-dashboard').value }),
+        });
+        if (resposta.ok) {
+          fechar(true);
+          return;
+        }
+        const corpo = await resposta.json().catch(() => ({}));
+        erroEl.textContent = corpo.erro || 'não foi possível entrar';
+      } catch (e) {
+        erroEl.textContent = 'sem resposta do robô';
+      }
+    });
+
+    fundo.appendChild(form);
+    document.body.appendChild(fundo);
+    form.querySelector('input').focus();
+  });
+}
+
 // Desenha o botão a partir do que o SERVIDOR diz, nunca do último clique:
 // o modo pode ter mudado em outra aba, ou o Motion Core pode ter reiniciado.
 // Um botão que só sabe do próprio clique mente sobre o estado do robô.
@@ -357,6 +423,21 @@ if (jsBase && jsPunho) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comando, ...extra }),
       });
+      if (resposta.status === 401) {
+        // NÃO repete o comando depois de entrar, e isso é de propósito: um
+        // comando de movimento guardado enquanto alguém digita a senha
+        // chegaria atrasado ao robô, que é o pior comportamento possível num
+        // controle manual - a mesma razão pela qual a navegação descarta
+        // comando velho em vez de enfileirar. Entrou, é só voltar ao joystick.
+        jsStatus.className = 'erro';
+        jsStatus.textContent = 'entre com a senha para dirigir';
+        const entrou = await pedirSenha('Para dirigir o robô daqui, informe a senha.');
+        if (entrou) {
+          jsStatus.className = '';
+          jsStatus.textContent = 'pronto — use o joystick';
+        }
+        return;
+      }
       if (!resposta.ok) {
         const corpo = await resposta.json().catch(() => ({}));
         jsStatus.className = 'erro';
@@ -470,6 +551,14 @@ for (const botao of document.querySelectorAll('.volante-opcao')) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modo: botao.dataset.modo }),
       });
+      if (resposta.status === 401) {
+        // Aqui a repetição FAZ sentido, ao contrário do joystick: trocar o
+        // volante não tem validade curta - a intenção continua valendo depois
+        // de digitar a senha.
+        const entrou = await pedirSenha('Para trocar quem comanda, informe a senha.');
+        if (entrou) botao.click();
+        return;
+      }
       const corpo = await resposta.json().catch(() => ({}));
       if (!resposta.ok) {
         alvo.className = 'erro';

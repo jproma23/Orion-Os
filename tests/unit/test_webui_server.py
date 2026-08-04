@@ -10,7 +10,7 @@ from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
 
 from motion_core.memory.api import MemoryAPI  # noqa: E402
 from motion_core.memory.database import DatabaseManager  # noqa: E402
-from motion_core.webui.server import WebUIServer  # noqa: E402
+from motion_core.webui.server import VARIAVEL_SENHA_CONFIG, WebUIServer  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 
 
@@ -433,3 +433,129 @@ async def test_api_configuracao_com_config_retorna_parametros():
 
     assert corpo["aviso"] is None
     assert corpo["parametros"]["system"]["robot_name"]
+
+
+# ---------------------------------------------------------------------------
+# DIRIGIR PELA REDE EXIGE SESSÃO (2026-08-04)
+#
+# Até a varredura de hoje `/cabeca` exigia sessão e `/comando` não: virar a
+# cabeça pedia senha, avançar e dar ré não. Estes testes prendem as duas
+# metades da regra - o que move exige, e o PARAR nunca exige.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_comando_que_move_exige_sessao_de_fora(cenario, monkeypatch):
+    http, _ = cenario
+    # o TestClient conecta pelo loopback, que é liberado por projeto; fingir que
+    # a requisição veio da rede é o que põe o caminho protegido à prova
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+
+    resposta = await http.post("/comando", json={"comando": "MOVE_FORWARD"})
+
+    assert resposta.status == 401
+    corpo = await resposta.json()
+    assert corpo["precisa_senha"] is True
+
+
+@pytest.mark.asyncio
+async def test_parar_nunca_exige_senha(cenario, monkeypatch):
+    """O STOP é o item mais importante desta interface.
+
+    Quem vê o robô indo para um lugar ruim precisa poder pará-lo AGORA - exigir
+    senha para PARAR trocaria um risco por outro pior. Mesma razão pela qual o
+    STOP já estava fora da disputa do volante.
+    """
+    http, bus = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    recebidos = []
+    bus.subscribe("navigation.comando", lambda e: recebidos.append(e.dados))
+
+    resposta = await http.post("/comando", json={"comando": "STOP"})
+    await bus.aguardar_fila_vazia()
+
+    assert resposta.status == 200
+    assert recebidos and recebidos[0]["comando"] == "STOP"
+
+
+@pytest.mark.asyncio
+async def test_luz_e_ventilador_tambem_passam_sem_senha(cenario, monkeypatch):
+    # não movem nada - entram pela mesma porta do STOP
+    http, _ = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+
+    for comando in ("LIGHT_ON", "FAN_OFF"):
+        resposta = await http.post("/comando", json={"comando": comando})
+        assert resposta.status == 200, comando
+
+
+@pytest.mark.asyncio
+async def test_trocar_o_volante_exige_sessao_de_fora(cenario, monkeypatch):
+    http, _ = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+
+    resposta = await http.post("/controle", json={"modo": "manual"})
+
+    assert resposta.status == 401
+    corpo = await resposta.json()
+    assert corpo["precisa_senha"] is True
+
+
+@pytest.mark.asyncio
+async def test_depois_de_entrar_com_a_senha_o_robo_obedece(cenario, monkeypatch):
+    """O caminho completo: 401, entra, e o mesmo comando passa.
+
+    Sem este, os testes acima provariam só que a porta fecha - não que ela abre.
+    """
+    http, bus = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setenv(VARIAVEL_SENHA_CONFIG, "abre-te-sesamo")
+    recebidos = []
+    bus.subscribe("navigation.comando", lambda e: recebidos.append(e.dados))
+
+    assert (await http.post("/comando", json={"comando": "MOVE_FORWARD"})).status == 401
+
+    entrada = await http.post("/api/configuracao/entrar", json={"senha": "abre-te-sesamo"})
+    assert entrada.status == 200  # o cookie de sessão fica guardado no TestClient
+
+    resposta = await http.post("/comando", json={"comando": "MOVE_FORWARD"})
+    await bus.aguardar_fila_vazia()
+
+    assert resposta.status == 200
+    assert recebidos and recebidos[0]["comando"] == "MOVE_FORWARD"
+
+
+@pytest.mark.asyncio
+async def test_senha_errada_nao_abre_a_porta(cenario, monkeypatch):
+    http, _ = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setenv(VARIAVEL_SENHA_CONFIG, "abre-te-sesamo")
+
+    entrada = await http.post("/api/configuracao/entrar", json={"senha": "chute"})
+
+    assert entrada.status == 401
+    assert (await http.post("/comando", json={"comando": "MOVE_FORWARD"})).status == 401
+
+
+@pytest.mark.asyncio
+async def test_teto_de_sessoes_descarta_a_mais_antiga_e_nao_a_nova(monkeypatch):
+    """`set.pop()` removia um elemento ARBITRÁRIO - podia ser justamente o token
+    recém-criado, e a pessoa acertava a senha para já entrar deslogada."""
+    from motion_core.webui.server import MAXIMO_SESSOES
+
+    bus = EventBus()
+    servidor = WebUIServer(bus)
+    monkeypatch.setenv(VARIAVEL_SENHA_CONFIG, "abre-te-sesamo")
+    for i in range(MAXIMO_SESSOES):
+        servidor._sessoes[f"antigo-{i}"] = float(i)
+
+    async with TestClient(TestServer(servidor._app)) as http:
+        resposta = await http.post(
+            "/api/configuracao/entrar", json={"senha": "abre-te-sesamo"}
+        )
+
+    assert resposta.status == 200
+    assert len(servidor._sessoes) == MAXIMO_SESSOES
+    assert "antigo-0" not in servidor._sessoes  # saiu o mais antigo
+    # e o novo continua valendo: era ele que o set.pop() podia levar
+    assert any(nome.startswith("antigo-") is False for nome in servidor._sessoes)

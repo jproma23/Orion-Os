@@ -378,6 +378,30 @@ class WebUIServer:
                 },
                 status=400,
             )
+        # QUEM PODE DIRIGIR: SÓ QUEM ENTROU (2026-08-04).
+        #
+        # Até a varredura de hoje, `/cabeca` exigia sessão e ESTE endpoint não:
+        # virar a cabeça pedia senha, mas avançar, girar e dar ré não. Quem
+        # alcançasse a porta 8080 dirigia o robô. Não era decisão de ninguém -
+        # era o que sobrou de a proteção ter nascido junto com a página de
+        # configuração e não com o joystick.
+        #
+        # `COMANDOS_SEM_VOLANTE` fica DE FORA da exigência, e isso é
+        # deliberado: o STOP é o item mais importante desta interface. Quem vê
+        # o robô indo para um lugar ruim precisa poder pará-lo AGORA - exigir
+        # senha para PARAR seria trocar um risco por outro pior. O mesmo
+        # argumento que já tirou o STOP da disputa do volante vale aqui, e pela
+        # mesma razão. Acender a luz e ligar o ventilador vêm junto por não
+        # moverem nada.
+        #
+        # 401 e não 403: a página distingue "preciso entrar" (abre o campo de
+        # senha) de "o volante está com a IA" (409, pede o volante).
+        if comando not in COMANDOS_SEM_VOLANTE and not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para dirigir o robô", "precisa_senha": True},
+                status=401,
+            )
+
         # QUEM ESTÁ NO VOLANTE MANDA (2026-07-30).
         #
         # Recusar aqui, na FONTE, e não deixar o comando entrar no barramento
@@ -683,6 +707,14 @@ class WebUIServer:
         de quem tem o direito de fazê-la, em vez de emergir de um empate de
         números.
         """
+        # Trocar quem manda no robô é decisão de dono, não de quem passou na
+        # rede (2026-08-04) - mesma razão do `/comando`. Aqui não há exceção a
+        # abrir: nenhum dos dois modos é uma parada de emergência.
+        if not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para trocar o modo", "precisa_senha": True},
+                status=401,
+            )
         if self._maestro is None:
             return web.json_response(
                 {"erro": "sem Behavior Core nesta instancia - nao ha volante a entregar"},

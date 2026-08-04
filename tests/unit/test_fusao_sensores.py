@@ -398,3 +398,33 @@ async def test_re_com_encoder_anda_para_tras(cenario):
     pose = cenario.posicoes[-1]
     assert pose["medida"] is True
     assert pose["x_m"] == pytest.approx(-1.0, rel=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_reinicio_da_placa_nao_move_a_pose(cenario):
+    """O log prometia "resincronizando sem atualizar pose" e a pose era
+    atualizada assim mesmo.
+
+    O `return (None, None)` do resync era indistinguível de "não há encoder
+    nesta montagem", e o chamador então caía no ramo dos PASSOS COMANDADOS - a
+    via menos confiável que existe aqui, justo na amostra em que a placa acabou
+    de reiniciar e os passos comandados também não descrevem o intervalo.
+    """
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, pulsos_esquerdo=0, pulsos_direito=0
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=4000, passos_direita=4000, pulsos_esquerdo=120, pulsos_direito=120
+    )
+    assert len(cenario.posicoes) == 1
+    pose_antes = cenario.posicoes[-1]
+
+    # a placa reinicia: os contadores de pulso voltam para baixo enquanto os
+    # passos comandados seguem subindo
+    await cenario.enviar_telemetria(
+        passos_esquerda=8000, passos_direita=8000, pulsos_esquerdo=3, pulsos_direito=3
+    )
+
+    assert len(cenario.posicoes) == 1, "publicou pose numa amostra que não dava para medir"
+    assert cenario.fusao._x_m == pytest.approx(pose_antes["x_m"], abs=1e-9)
+    assert cenario.fusao._y_m == pytest.approx(pose_antes["y_m"], abs=1e-9)

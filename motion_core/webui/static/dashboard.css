@@ -210,6 +210,27 @@ dd {
 
 /* ---- Formulário de senha da página CONFIGURAÇÃO ---- */
 
+/* Caixa de senha por cima da página (2026-08-04) - o `.form-senha` abaixo já
+   existia para a tela de configuração e é reaproveitado inteiro aqui. */
+.overlay-senha {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+.overlay-senha .form-senha {
+  width: 100%;
+  background: var(--fundo-painel, #16181d);
+  border: 1px solid var(--borda, #2a2e37);
+  border-radius: 10px;
+  padding: 18px;
+}
+.overlay-senha .cancelar { background: transparent; border: 1px solid var(--borda, #2a2e37); }
+
 .form-senha { display: flex; flex-direction: column; gap: 10px; max-width: 280px; }
 .form-senha p { margin: 0; color: var(--texto-fraco); font-size: 12px; line-height: 1.5; }
 .form-senha input {

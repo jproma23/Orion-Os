@@ -706,3 +706,46 @@ async def test_obstaculo_medido_continua_reportando_obstaculo(cenario):
     assert "MOVE_FORWARD" not in cenario.comandos_enviados()
     recusas = [e for e in cenario.eventos if e.topico == "navigation.obstacle_avoided"]
     assert recusas[-1].dados["motivo"] == "obstaculo_frontal"
+
+
+@pytest.mark.asyncio
+async def test_segmento_so_se_declara_completo_depois_do_movimento(cenario):
+    """`segment_completed` saía no instante em que o movimento MAL COMEÇAVA.
+
+    O `send` garante o ACK, e o ACK diz que o comando CHEGOU - não que o robô
+    andou (o firmware executa MOVE_DISTANCE de forma assíncrona, ver
+    INTERVALO_CHECAGEM_OCIOSO_S). O evento afirmava um segmento pronto que ainda
+    não existia; quem consome pela palavra - diário, interface, quem for medir
+    trecho percorrido - lia errado.
+
+    O firmware é imitado no ponto exato em que ele age: ao RECEBER o
+    MOVE_DISTANCE o corpo passa a EXECUTING_MISSION, como o
+    `command_executor.h` faz. Sem isso o teste passaria dos dois jeitos - a
+    espera do início do segmento comeria o tempo todo e nada seria provado.
+    """
+    nav = cenario.nav
+    send_original = nav._comm.send
+
+    async def send_que_ocupa_o_corpo(destino, payload, *args, **kwargs):
+        resultado = await send_original(destino, payload, *args, **kwargs)
+        if payload.get("comando") == "MOVE_DISTANCE":
+            nav._estado_hardware = "EXECUTING_MISSION"
+        return resultado
+
+    nav._comm.send = send_que_ocupa_o_corpo
+
+    tarefa = asyncio.create_task(
+        nav._executar_segmento(graus=0.0, distancia_cm=30.0, velocidade_percent=None)
+    )
+    # tempo de sobra para o MOVE_DISTANCE sair e o evento sair junto, se saísse
+    await asyncio.sleep(0.4)
+
+    assert "MOVE_DISTANCE" in cenario.comandos_enviados(), "o segmento nem chegou a andar"
+    concluidos = [e for e in cenario.eventos if e.topico == "navigation.segment_completed"]
+    assert concluidos == [], "declarou o segmento completo com o robô ainda em movimento"
+
+    nav._estado_hardware = "IDLE"  # o corpo terminou de andar
+    assert await asyncio.wait_for(tarefa, timeout=2.0) is True
+
+    concluidos = [e for e in cenario.eventos if e.topico == "navigation.segment_completed"]
+    assert len(concluidos) == 1
