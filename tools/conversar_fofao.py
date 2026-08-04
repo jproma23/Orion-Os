@@ -482,6 +482,32 @@ async def principal() -> None:
         await comm.send("hardware_core", {"comando": comando})
         logger.info("Comando '%s' entregue ao Hardware Core (ACK recebido)", comando)
 
+    async def mover_cabeca(pan: float, tilt: float) -> None:
+        """Move os servos da cabeca a pedido de quem esta CONVERSANDO.
+
+        SAO DUAS COISAS, e omitir a segunda e o bug conhecido deste projeto.
+
+        1. `comm.send` move o servo de verdade.
+        2. `bus.publish` avisa a VISAO. Ela guarda uma estimativa em software
+           de onde a cabeca esta (`CalculadoraPanTilt`) e calcula a proxima
+           correcao do rastreamento a partir dela. Quem move a cabeca por fora
+           sem avisar deixa essa estimativa mentindo, e a correcao seguinte sai
+           de uma base que nao existe - e o "pan/tilt fica maluco depois de
+           horas funcionando bem". O `VisionCore` ja escuta este topico e
+           ressincroniza sozinho: basta a origem NAO ser a dele.
+
+        A ordem e essa de proposito: primeiro o mundo, depois quem o observa.
+        Se o `send` falhar, o servo nao se mexeu e a visao continua com a
+        estimativa antiga - que e a correta, justamente porque nada mudou.
+        """
+        assert comm is not None
+        await comm.send(
+            "hardware_core",
+            {"comando": "SET_PAN_TILT", "pan_graus": pan, "tilt_graus": tilt},
+        )
+        await bus.publish("motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": "conversa"})
+        logger.info("cabeca movida a pedido falado: pan=%.1f tilt=%.1f", pan, tilt)
+
     def _ram_livre_mb() -> int:
         """RAM disponivel do Notebook em MB, lida de /proc/meminfo
         (MemAvailable - o que o kernel estima que da pra usar sem swap)."""
@@ -526,6 +552,11 @@ async def principal() -> None:
         # A mesma `familia` que a saudacao e a IA estrategica usam - uma fonte
         # so, para o robo nao ter duas ideias de quem vive nesta casa.
         familia=familia_conf,
+        # "olha pra esquerda" (2026-08-03). Sem este fio, o catalogo de acoes
+        # tem a cabeca e a cabeca nao se mexe - o robo responderia "ainda nao
+        # consigo fazer isso", que e o que o codigo deve dizer quando nao ha
+        # caminho, mas nao e o que se quer ouvir.
+        mover_cabeca=mover_cabeca,
     )
 
     # QUEM ESTA FALANDO (2026-08-03). Ate aqui `processar()` recebia

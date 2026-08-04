@@ -437,6 +437,16 @@ class AiManager:
             resumo = "\n".join(f"- {n['titulo']}: {n['trecho']}" for n in notas[:5])
             partes.append(f"Notas relevantes da sua memoria de longo prazo:\n{resumo}")
 
+        # O QUE ELE SABE FAZER vai por ULTIMO, e isso e escolha e nao acaso:
+        # e a unica parte do prompt que pede um FORMATO de resposta, e formato
+        # obedecido e o que estiver mais perto da hora de escrever. Quem monta
+        # este bloco e o mission_planner, a partir do catalogo em codigo - aqui
+        # ele so e colado, para nao existir uma segunda lista de acoes que
+        # envelhece sozinha.
+        acoes = contexto.get("acoes")
+        if acoes:
+            partes.append(acoes)
+
         # `partes` ja comeca com self._prompt_sistema (acima) - concatenar de
         # novo aqui duplicaria o prompt inteiro no pedido ao modelo.
         return "\n\n".join(partes)

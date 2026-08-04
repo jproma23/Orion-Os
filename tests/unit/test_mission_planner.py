@@ -7,6 +7,15 @@ pytest.importorskip("ollama")
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 
 
+def _coletor(destino: list):
+    """Callback de hardware que so anota o que foi pedido."""
+
+    async def enviar(comando):
+        destino.append(comando)
+
+    return enviar
+
+
 class AiManagerFalso:
     def __init__(self, resposta: str = "resposta da IA") -> None:
         self.resposta = resposta
@@ -61,8 +70,15 @@ async def test_pergunta_geral_vai_para_ia():
 
 
 @pytest.mark.asyncio
-async def test_comando_de_lanterna_aciona_hardware_e_nao_chama_ia():
-    ai = AiManagerFalso()
+async def test_comando_de_lanterna_aciona_hardware():
+    """MUDOU EM 2026-08-03: quem reconhece o pedido e o modelo, nao uma regex.
+
+    Antes este teste dizia tambem `ai.chamadas == []` - "comando reconhecido
+    nao cai na IA". Hoje cai de proposito: e a IA quem entende o pedido, e o
+    catalogo em codigo que decide o que ele faz. O que continua valendo, e e o
+    que importa, e que o comando CHEGA ao hardware.
+    """
+    ai = AiManagerFalso(resposta="#acao:acender_luz\nPronto, acendi a lanterna.")
     comandos_enviados = []
 
     async def enviar(comando):
@@ -73,45 +89,110 @@ async def test_comando_de_lanterna_aciona_hardware_e_nao_chama_ia():
     resposta = await planner.processar("Fofao, acenda a lanterna")
 
     assert comandos_enviados == ["LIGHT_ON"]
-    assert "lanterna" in resposta.lower()
+    # O marcador nao pode sobrar no texto: ele viraria audio.
+    assert "#acao" not in resposta
+    assert resposta == "Pronto, acendi a lanterna."
+
+
+@pytest.mark.asyncio
+async def test_acao_sem_frase_depois_usa_a_resposta_do_catalogo():
+    """Agir em silencio parece ter travado. Se o modelo so mandou a acao, o
+    robo diz a frase pronta do catalogo em vez de ficar mudo."""
+    ai = AiManagerFalso(resposta="#acao:acender_luz")
+    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=_coletor([]))
+
+    resposta = await planner.processar("acende a luz")
+
+    assert resposta == "Lanterna ligada."
+
+
+@pytest.mark.asyncio
+async def test_acao_inventada_pelo_modelo_nao_alcanca_o_hardware():
+    """Regra 1 do contrato, no caminho falado: nome fora do catalogo nao vira
+    chute. E o marcador some do texto assim mesmo - uma alucinacao do modelo
+    nao pode virar ruido no alto-falante."""
+    ai = AiManagerFalso(resposta="#acao:decolar\nJa estou voando.")
+    comandos_enviados = []
+
+    planner = MissionPlanner(
+        ai_manager=ai, enviar_comando_hardware=_coletor(comandos_enviados)
+    )
+    resposta = await planner.processar("decola")
+
+    assert comandos_enviados == []
+    assert resposta == "Ja estou voando."
+
+
+@pytest.mark.asyncio
+async def test_pedido_de_cabeca_move_os_servos():
+    """O buraco que motivou tudo isto (2026-08-03): nao havia como pedir
+    "olha pra esquerda" por voz."""
+    ai = AiManagerFalso(resposta="#acao:olhar_esquerda\nOlhando.")
+    movimentos = []
+
+    async def mover(pan, tilt):
+        movimentos.append((pan, tilt))
+
+    planner = MissionPlanner(ai_manager=ai, mover_cabeca=mover)
+    resposta = await planner.processar("olha pra esquerda")
+
+    assert movimentos == [(-60.0, 0.0)]
+    assert resposta == "Olhando."
+
+
+@pytest.mark.asyncio
+async def test_cabeca_sem_fio_ligado_diz_que_nao_consegue():
+    """Sem o callback de cabeca a acao existe no catalogo e nao tem caminho.
+    O robo tem que DIZER - o modo de falha que este projeto mais repete e a
+    acao nao acontecer e ninguem ficar sabendo."""
+    ai = AiManagerFalso(resposta="#acao:olhar_cima")
+    planner = MissionPlanner(ai_manager=ai)
+
+    resposta = await planner.processar("olha pra cima")
+
+    assert "consigo" in resposta.lower()
+
+
+@pytest.mark.asyncio
+async def test_parar_nao_passa_pela_ia():
+    """PARAR e a UNICA ordem que continua por palavra-chave, e por isso
+    importa testar que ela nao chama o modelo: se a internet cair com o robo
+    andando, este e o caminho que sobra."""
+    ai = AiManagerFalso()
+    comandos_enviados = []
+
+    planner = MissionPlanner(
+        ai_manager=ai, enviar_comando_hardware=_coletor(comandos_enviados)
+    )
+    await planner.processar("pare agora")
+
+    assert comandos_enviados == ["STOP"]
     assert ai.chamadas == []
 
 
 @pytest.mark.asyncio
-async def test_comando_stop():
+async def test_preparar_o_almoco_nao_para_o_robo():
+    """A armadilha que o projeto ja tomou: "parar" casa DENTRO de "preparar".
+    Os `\\b` do padrao sao o que impede o robo de obedecer a uma frase sobre o
+    almoco."""
     comandos_enviados = []
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(), enviar_comando_hardware=_coletor(comandos_enviados)
+    )
 
-    async def enviar(comando):
-        comandos_enviados.append(comando)
+    await planner.processar("voce sabe preparar o almoco?")
 
-    planner = MissionPlanner(ai_manager=AiManagerFalso(), enviar_comando_hardware=enviar)
-    await planner.processar("pare agora")
-
-    assert comandos_enviados == ["STOP"]
-
-
-@pytest.mark.asyncio
-async def test_comando_varredura_manda_scan_e_nao_chama_ia():
-    ai = AiManagerFalso()
-    comandos_enviados = []
-
-    async def enviar(comando):
-        comandos_enviados.append(comando)
-
-    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
-    resposta = await planner.processar("Fofao, faz uma varredura")
-
-    assert comandos_enviados == ["SCAN_FRONT"]
-    assert "varr" in resposta.lower()
-    assert ai.chamadas == []  # comando reconhecido, nao cai na IA
+    assert comandos_enviados == []
 
 
 @pytest.mark.asyncio
 async def test_falha_ao_enviar_comando_retorna_mensagem_de_erro():
+    ai = AiManagerFalso(resposta="#acao:acender_luz\nAcendendo.")
+
     async def enviar_com_erro(comando):
         raise RuntimeError("sem link com o hardware")
 
-    planner = MissionPlanner(ai_manager=AiManagerFalso(), enviar_comando_hardware=enviar_com_erro)
+    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar_com_erro)
     resposta = await planner.processar("acenda a lanterna")
 
     assert "não consegui" in resposta.lower() or "nao consegui" in resposta.lower()
@@ -125,7 +206,23 @@ async def test_contexto_e_passado_para_a_ia():
 
     await planner.processar("qual seu nome", pessoa_id=5)
 
-    assert ai.chamadas[0][1] == {"pessoa": {"nome": "Joao"}}
+    contexto = ai.chamadas[0][1]
+    assert contexto["pessoa"] == {"nome": "Joao"}
+
+
+@pytest.mark.asyncio
+async def test_o_catalogo_de_acoes_vai_sempre_no_contexto():
+    """Sem banco, sem diario, sem familia: o robo tem que continuar sabendo o
+    que sabe fazer. Um robo que so as vezes mexe a cabeca e pior que um que
+    nunca mexeu - ninguem descobre a regra."""
+    ai = AiManagerFalso()
+    planner = MissionPlanner(ai_manager=ai)
+
+    await planner.processar("oi")
+
+    acoes = ai.chamadas[0][1]["acoes"]
+    assert "olhar_esquerda" in acoes
+    assert "acender_luz" in acoes
 
 
 @pytest.mark.asyncio
@@ -186,35 +283,29 @@ async def test_falha_na_memoria_nao_derruba_o_processamento():
 
 
 @pytest.mark.asyncio
-async def test_apague_no_subjuntivo_desliga_a_lanterna():
-    """Regressao (2026-07-19): 'apague a lanterna' caia na IA - o padrao
-    antigo apag[ae] nao cobria o subjuntivo 'apague'."""
-    ai = AiManagerFalso()
+async def test_apagar_e_acender_sao_acoes_diferentes_no_catalogo():
+    """AS DUAS REGRESSOES DE 2026-07-19, guardadas onde elas agora moram.
+
+    Elas existiam porque a deteccao era por substring: 'apague a lanterna' nao
+    casava com `apag[ae]`, e 'desligue a luz' contem 'ligue a luz' - com
+    LIGHT_ON testado primeiro, desligar LIGAVA a lanterna. A ordem dos padroes
+    era o que segurava.
+
+    Nao ha mais padrao nem ordem: sao dois nomes distintos de um catalogo
+    fechado, e distinguir 'apague' de 'acenda' e trabalho de quem entende
+    portugues. O que continua sendo nosso e cada nome levar ao comando certo -
+    e e disso que este teste cuida.
+    """
+    from orion.mission.acoes_faladas import ACOES
+
+    assert ACOES["apagar_luz"].comando == "LIGHT_OFF"
+    assert ACOES["acender_luz"].comando == "LIGHT_ON"
+
     comandos_enviados = []
-
-    async def enviar(comando):
-        comandos_enviados.append(comando)
-
-    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(resposta="#acao:apagar_luz\nApaguei."),
+        enviar_comando_hardware=_coletor(comandos_enviados),
+    )
     await planner.processar("Fofao, apague a lanterna")
 
     assert comandos_enviados == ["LIGHT_OFF"]
-    assert ai.chamadas == []
-
-
-@pytest.mark.asyncio
-async def test_desligue_a_luz_nao_liga_a_lanterna():
-    """Regressao (2026-07-19): 'desligue a luz' contem 'ligue a luz' como
-    substring - com LIGHT_ON testado primeiro, desligar LIGARIA a
-    lanterna. A ordem dos padroes (OFF antes de ON) protege disso."""
-    ai = AiManagerFalso()
-    comandos_enviados = []
-
-    async def enviar(comando):
-        comandos_enviados.append(comando)
-
-    planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
-    await planner.processar("desligue a luz")
-
-    assert comandos_enviados == ["LIGHT_OFF"]
-    assert ai.chamadas == []

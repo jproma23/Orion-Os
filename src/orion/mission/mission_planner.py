@@ -12,9 +12,12 @@
 7. Monitorar execucao (o callback injetado e quem aguarda o ACK/erro).
 8. Registrar resultado (memory.remember em "conversas").
 
-Classificacao de comando por palavra-chave - um NLU de verdade fica para
-uma fase futura; o "minimo" aqui cobre exatamente os casos do criterio de
-pronto da Fase 6 (pergunta de hora, comando de lanterna).
+QUEM CLASSIFICA O PEDIDO (mudou em 2026-08-03). Ate aqui era palavra-chave:
+sete expressoes regulares cobriam luz, parar, varrer, frente e os dois lados,
+e o resto do que o robo sabe fazer era inalcancavel pela voz - a cabeca, entre
+outros. Hoje quem entende a frase e o modelo, escolhendo um nome de catalogo
+FECHADO (`acoes_faladas.py`); o que cada nome faz continua em codigo. O
+"minimo" da Fase 6 virou o catalogo inteiro.
 """
 from __future__ import annotations
 
@@ -23,6 +26,9 @@ import re
 from datetime import datetime
 from collections.abc import Awaitable, Callable
 
+from orion.mission.acoes_faladas import AcaoFalada
+from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
+from orion.mission.acoes_faladas import extrair as _extrair_acao
 from orion.mission.ai_manager import AiManager
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
@@ -30,6 +36,8 @@ from orion.mission.memory_client import MemoryClient
 logger = logging.getLogger("orion.mission.mission_planner")
 
 CallbackComandoHardware = Callable[[str], Awaitable[None]]
+#: Move os servos da cabeca para um angulo absoluto (pan, tilt) em graus.
+CallbackCabeca = Callable[[float, float], Awaitable[None]]
 
 #: "voce viu a Ana hoje?", "viu o Bruno?", "voce viu Ana por aqui?"
 #: O nome vai ate o fim ou ate uma palavra de corte (hoje/por aqui/ai...).
@@ -63,32 +71,32 @@ def _mesmo_nome(nome: str, descricao: str) -> str:
     return alvo in texto or alvo.split()[0] in texto.split()
 
 
-_PADROES_COMANDO = (
-    # LIGHT_OFF ANTES de LIGHT_ON: "desligue a luz" contem "ligue a luz"
-    # como substring - se ON fosse testado primeiro, desligar LIGARIA a
-    # lanterna. \w* cobre as conjugacoes (apaga/apague/apagar, desliga/
-    # desligue...), que o padrao antigo [ae] nao cobria (bug real: "apague
-    # a lanterna" caia na IA, achado no teste de 2026-07-19).
-    (re.compile(r"apag\w*.*(lanterna|luz)|deslig\w*.*(lanterna|luz)"), "LIGHT_OFF"),
-    (re.compile(r"acend\w*.*(lanterna|luz)|lig\w*.*(lanterna|luz)|luz.*lig"), "LIGHT_ON"),
-    (re.compile(r"\bpar[ae]\b|\bparar\b|\bstop\b"), "STOP"),
-    (re.compile(r"\bvarredura\b|\bvarrer\b|\bvarre\b|escanea\w*|\bscan\b"), "SCAN_FRONT"),
-    (re.compile(r"anda[re]? para frente|va[i]? para frente|siga em frente"
-     r"|(?:pra|para) frente"  # 2026-07-25: o Whisper ouve "nao da PRA FRENTE"
-     r"|segue em frente"), "MOVE_FORWARD"),
-    (re.compile(r"vir[ae] (a|para a) esquerda|gir[ae] (a|para a) esquerda"), "TURN_LEFT"),
-    (re.compile(r"vir[ae] (a|para a) direita|gir[ae] (a|para a) direita"), "TURN_RIGHT"),
-)
+#: A UNICA ordem que ainda e reconhecida por palavra-chave, e a razao nao e
+#: sobra do sistema antigo: **parar nao pode depender da internet**.
+#:
+#: Todo o resto do catalogo e escolhido pelo modelo remoto - o que e melhor
+#: para entender o pedido e pior para garanti-lo. Se a rede cair no instante em
+#: que alguem grita "para!" com o robo andando, esta linha e o que sobra. Ela
+#: nao chama modelo nenhum, nao sai da maquina e responde no mesmo milissegundo.
+#:
+#: O `\b` nas duas pontas continua sendo o que impede o bug que o projeto ja
+#: tomou: sem ele, "parar" casa dentro de "preparar" e o robo obedeceria a uma
+#: frase sobre o almoco.
+_PADRAO_PARAR = re.compile(r"\bpar[ae]\b|\bparar\b|\bstop\b")
 
-_RESPOSTAS_COMANDO = {
-    "LIGHT_ON": "Lanterna ligada.",
-    "LIGHT_OFF": "Lanterna desligada.",
-    "STOP": "Parado.",
-    "SCAN_FRONT": "Varrendo a frente.",
-    "MOVE_FORWARD": "Indo para frente.",
-    "TURN_LEFT": "Virando a esquerda.",
-    "TURN_RIGHT": "Virando a direita.",
-}
+#: O que ele diz ao parar. Texto pronto: este caminho existe justamente para
+#: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.
+RESPOSTA_PARAR = "Parado."
+
+
+class _SemCaminho(RuntimeError):
+    """A acao existe no catalogo, mas nao ha fio ligado ate o hardware.
+
+    Separada de uma falha de execucao de proposito: "nao consegui agora"
+    (a serial caiu, o servo nao respondeu) e passageiro, e "ainda nao consigo"
+    (o Mission Core subiu sem o callback) e configuracao. Dizer a mesma coisa
+    nos dois casos manda procurar o problema no lugar errado.
+    """
 
 
 class MissionPlanner:
@@ -99,9 +107,19 @@ class MissionPlanner:
         memory_client: MemoryClient | None = None,
         diario=None,
         familia: list[dict] | None = None,
+        mover_cabeca: CallbackCabeca | None = None,
     ) -> None:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
+        #: Quem move os servos da cabeca. Callback e nao `comm.send` direto de
+        #: proposito: mover a cabeca aqui nao e so mandar SET_PAN_TILT - a
+        #: visao mantem uma ESTIMATIVA da posicao dos servos e calcula a
+        #: correcao seguinte a partir dela. Quem mexe na cabeca por fora tem
+        #: que avisa-la, senao a proxima correcao sai de uma base que nao
+        #: existe e a cabeca da um pulo ("o pan/tilt fica maluco depois de
+        #: horas funcionando bem"). Quem monta o Mission Core e que sabe fazer
+        #: as duas coisas; aqui so se pede.
+        self._mover_cabeca = mover_cabeca
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -121,9 +139,8 @@ class MissionPlanner:
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
 
-        comando_detectado = self._detectar_comando(texto_usuario)
-        if comando_detectado is not None:
-            resposta = await self._executar_comando(comando_detectado)
+        if self._pediu_para_parar(texto_usuario):
+            resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -131,7 +148,8 @@ class MissionPlanner:
         )) is not None:
             resposta = resposta_diario
         else:
-            resposta = await self._ai_manager.responder(texto_usuario, contexto)
+            bruta = await self._ai_manager.responder(texto_usuario, contexto)
+            resposta = await self._cumprir_acao_pedida(bruta)
 
         await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
         return resposta
@@ -143,18 +161,17 @@ class MissionPlanner:
         gerada. Medido pareado, com o prompt real: 3,33 s -> 1,84 s ate o
         primeiro som (-45%).
 
-        Os caminhos CURTOS (comando reconhecido, pergunta de hora, resposta
-        tirada do diario) nao passam pela IA: sao texto pronto, e saem numa
-        frase so. Nao ha o que transmitir em pedacos, e picotar uma frase de
-        seis palavras deixaria a fala pior, nao melhor.
+        Os caminhos CURTOS (parar, pergunta de hora, resposta tirada do
+        diario) nao passam pela IA: sao texto pronto, e saem numa frase so.
+        Nao ha o que transmitir em pedacos, e picotar uma frase de seis
+        palavras deixaria a fala pior, nao melhor.
 
         So o caminho da IA usa o streaming - e e justamente o unico que demora.
         """
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
 
-        comando_detectado = self._detectar_comando(texto_usuario)
-        if comando_detectado is not None:
-            resposta = await self._executar_comando(comando_detectado)
+        if self._pediu_para_parar(texto_usuario):
+            resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -174,7 +191,20 @@ class MissionPlanner:
         # vez de gravadas uma a uma. Gravar por frase encheria o historico de
         # fragmentos e quebraria o "conversas_recentes" que volta no contexto.
         partes = []
+        primeira = True
         async for frase in self._ai_manager.responder_em_frases(texto_usuario, contexto):
+            if primeira:
+                # A ACAO SO PODE ESTAR AQUI. O marcador e a primeira coisa que
+                # o modelo escreve (ver acoes_faladas), entao ele vem colado na
+                # primeira frase - e e por isso que o servo comeca a se mexer
+                # junto com o primeiro som, e nao depois da fala inteira.
+                primeira = False
+                frase = await self._cumprir_acao_pedida(frase)
+                if not frase:
+                    # A resposta era so o marcador. Nao ha o que falar ainda -
+                    # e um yield vazio faria o sintetizador carregar o Piper
+                    # para produzir silencio.
+                    continue
             partes.append(frase)
             yield frase
         if partes:
@@ -182,6 +212,15 @@ class MissionPlanner:
 
     async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
         contexto: dict = {}
+
+        # O CATALOGO DE ACOES entra sempre, como a familia: nao depende de
+        # rede, de banco nem de diario. Um robo que so as vezes sabe mexer a
+        # cabeca e pior que um que nunca soube - ninguem descobre a regra.
+        #
+        # Gerado do codigo a cada consulta e nao guardado: e uma juncao de
+        # strings, custa nada, e cache aqui so criaria uma segunda versao do
+        # catalogo com prazo de validade proprio.
+        contexto["acoes"] = _bloco_acoes()
 
         # A familia entra SEMPRE, e primeiro: nao depende de rede, de banco nem
         # de diario, e e o que faz ele falar com uma pessoa em vez de com um
@@ -227,21 +266,61 @@ class MissionPlanner:
         return contexto or None
 
     @staticmethod
-    def _detectar_comando(texto: str) -> str | None:
-        texto_normalizado = texto.lower()
-        for padrao, comando in _PADROES_COMANDO:
-            if padrao.search(texto_normalizado):
-                return comando
-        return None
+    def _pediu_para_parar(texto: str) -> bool:
+        return _PADRAO_PARAR.search(texto.lower()) is not None
 
-    async def _executar_comando(self, comando: str) -> str:
+    async def _executar_comando(self, comando: str, resposta_pronta: str = "Feito.") -> str:
         if self._enviar_comando_hardware is not None:
             try:
                 await self._enviar_comando_hardware(comando)
             except Exception:
                 logger.exception("Falha ao enviar comando '%s' ao Hardware Core", comando)
                 return "Nao consegui executar esse comando agora."
-        return _RESPOSTAS_COMANDO.get(comando, "Feito.")
+        return resposta_pronta
+
+    async def _cumprir_acao_pedida(self, texto: str) -> str:
+        """Faz o que o modelo pediu e devolve so o que deve ser FALADO.
+
+        Sem marcador, devolve o texto intacto - que e o caso da maioria
+        esmagadora das frases, porque conversa nao e pedido.
+
+        A FALA TEM PREFERENCIA SOBRE A FRASE PRONTA do catalogo. O modelo
+        escreveu "Claro, olhando pra esquerda agora" sabendo com quem esta
+        falando e do que estavam falando; a `resposta` do catalogo nao sabe de
+        nada disso. Ela so entra quando o modelo mandou a acao e nao escreveu
+        nada depois - um robo que age em silencio parece um robo que travou.
+
+        FALHAR AQUI NAO EMUDECE O ROBO: se o servo nao responde, ele diz que
+        nao conseguiu. O modo de falha que este projeto mais repete e o
+        contrario - a acao nao acontece e ninguem fica sabendo.
+        """
+        acao, falado = _extrair_acao(texto)
+        if acao is None:
+            return falado
+
+        logger.info("acao falada: %s", acao.nome)
+        try:
+            if acao.comando:
+                await self._despachar_comando(acao)
+            else:
+                await self._despachar_cabeca(acao)
+        except _SemCaminho as erro:
+            logger.warning("acao %r pedida sem caminho ate o hardware: %s", acao.nome, erro)
+            return falado or "Ainda nao consigo fazer isso."
+        except Exception:
+            logger.exception("falha ao executar a acao %r", acao.nome)
+            return "Nao consegui fazer isso agora."
+        return falado or acao.resposta
+
+    async def _despachar_comando(self, acao: AcaoFalada) -> None:
+        if self._enviar_comando_hardware is None:
+            raise _SemCaminho("sem callback de comando de hardware")
+        await self._enviar_comando_hardware(acao.comando)
+
+    async def _despachar_cabeca(self, acao: AcaoFalada) -> None:
+        if self._mover_cabeca is None:
+            raise _SemCaminho("sem callback de cabeca")
+        await self._mover_cabeca(float(acao.pan or 0.0), float(acao.tilt or 0.0))
 
     async def _responder_sobre_quem_viu(
         self, texto: str, contexto: dict | None
