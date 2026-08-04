@@ -130,7 +130,37 @@ CREATE INDEX IF NOT EXISTS idx_logs_nivel_timestamp ON logs (nivel, timestamp);
 CREATE INDEX IF NOT EXISTS idx_objetos_ambiente ON objetos (ambiente_id);
 """
 
-MIGRACOES: tuple[Migracao, ...] = ((1, _MIGRACAO_001),)
+#: RECADOS (2026-08-03). Nasceu de uma falha real, e vale registrar qual:
+#: o dono pediu *"avise a Mara quando a vir que eu quero falar com ela"*, o
+#: robo respondeu que sim, e quando a Mara chegou ele a cumprimentou e nao deu
+#: o recado. A promessa era do MODELO, nao do sistema - nao havia nada em lugar
+#: nenhum que guardasse aquilo. E a familia de falha que este projeto mais
+#: repete: alguem publica no vazio e nada denuncia.
+#:
+#: POR QUE `para_nome` E NAO `pessoa_id`. Quem deixa o recado diz um NOME
+#: ("a Mara"), e quem chega e reconhecido por NOME (`vision.person_recognized`
+#: carrega `nome`). Exigir o id obrigaria a resolver a pessoa no instante do
+#: pedido - e um recado para alguem ainda nao cadastrado simplesmente nao
+#: poderia ser deixado, o que e pior que um recado guardado por nome.
+#:
+#: `entregue_em` NULL e o que significa "pendente". Apagar o registro na
+#: entrega perderia a unica prova de que o robo cumpriu o combinado.
+_MIGRACAO_002 = """
+CREATE TABLE IF NOT EXISTS recados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    para_nome TEXT NOT NULL,
+    de_nome TEXT,
+    texto TEXT NOT NULL,
+    criado_em TEXT NOT NULL,
+    entregue_em TEXT
+);
+
+-- O unico acesso quente: "ha recado pendente para quem acabou de chegar?".
+-- Roda a cada chegada de pessoa, entao merece indice proprio.
+CREATE INDEX IF NOT EXISTS idx_recados_pendentes ON recados (para_nome, entregue_em);
+"""
+
+MIGRACOES: tuple[Migracao, ...] = ((1, _MIGRACAO_001), (2, _MIGRACAO_002))
 
 #: Tabelas mapeadas por categoria da API de memoria (Cap 11 s.6) - usadas
 #: por MemoryAPI para traduzir `categoria` em nome de tabela sem expor SQL
@@ -144,4 +174,5 @@ TABELAS_POR_CATEGORIA: dict[str, str] = {
     "conversas": "conversas",
     "conhecimento": "conhecimento",
     "configuracao_memoria": "configuracao_memoria",
+    "recados": "recados",
 }

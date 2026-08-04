@@ -64,7 +64,22 @@ MARCADOR = "#acao:"
 #: pontos, e come a quebra de linha seguinte para nao sobrar linha vazia na
 #: fala. `\A` e nao `^` de proposito: sem MULTILINE, um marcador no meio do
 #: texto e texto, nao comando.
-_RE_MARCADOR = re.compile(rf"\A\s*{re.escape(MARCADOR)}\s*([a-z_]+)\s*\n?")
+#:
+#: O segundo grupo e o ARGUMENTO: o resto da LINHA, que so algumas acoes usam.
+#: Fica limitado a uma linha porque o que vem depois e a fala, e nao ha
+#: delimitador de fim melhor que a quebra de linha num texto que o modelo
+#: escreve livremente.
+_RE_MARCADOR = re.compile(rf"\A\s*{re.escape(MARCADOR)}\s*([a-z_]+)([^\n]*)\n?")
+
+#: Separa o destinatario do conteudo dentro do argumento de um recado.
+#: Barra vertical porque ela nao aparece em fala humana - virgula e dois
+#: pontos aparecem dentro da propria mensagem ("diga que sim, eu vou").
+SEPARADOR_ARGUMENTO = "|"
+
+#: Quem pode executar uma acao. Conjunto fechado, conferido no import: uma
+#: entrega escrita errada ("cabeça", com cedilha) cairia em nenhum despachante
+#: e a acao nao faria nada, sem erro nenhum - a falha silenciosa de sempre.
+ENTREGAS = frozenset({"hardware", "cabeca", "recado"})
 
 #: Limites dos servos da cabeca. Os MESMOS numeros do webui/server.py e do
 #: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por
@@ -95,11 +110,19 @@ class AcaoFalada:
 
     nome: str
     descricao: str
-    #: Comando de firmware, quando a acao se resolve num comando so.
+    #: Quem executa: "hardware" (um comando de firmware), "cabeca" (os servos)
+    #: ou "recado" (a memoria). Campo EXPLICITO e nao deduzido dos outros: a
+    #: versao anterior inferia pela presenca de `comando`, e acrescentar o
+    #: terceiro tipo transformaria essa deducao num "se o nome for tal", que e
+    #: onde catalogos comecam a mentir.
+    entrega: str = "hardware"
+    #: Comando de firmware, quando `entrega == "hardware"`.
     comando: str = ""
-    #: Posicao da cabeca, quando a acao mexe a cabeca. Ausente = nao mexe.
+    #: Posicao da cabeca, quando `entrega == "cabeca"`.
     pan: float | None = None
     tilt: float | None = None
+    #: Se a acao precisa do texto que vem depois do nome, na mesma linha.
+    precisa_argumento: bool = False
     #: O que o robo diz ao fazer. So e usado quando ele nao tem nada melhor a
     #: dizer - a resposta do proprio modelo tem preferencia, porque ela sabe
     #: do contexto e esta nao sabe.
@@ -119,6 +142,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="olhar_esquerda",
         descricao="virar a cabeca para a esquerda (olha pra esquerda, olha pra la)",
+        entrega="cabeca",
         pan=-PAN_LADO,
         tilt=0.0,
         resposta="Olhando pra esquerda.",
@@ -126,6 +150,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="olhar_direita",
         descricao="virar a cabeca para a direita",
+        entrega="cabeca",
         pan=PAN_LADO,
         tilt=0.0,
         resposta="Olhando pra direita.",
@@ -133,6 +158,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="olhar_cima",
         descricao="levantar a cabeca, olhar para cima ou para o teto",
+        entrega="cabeca",
         pan=0.0,
         tilt=TILT_CIMA,
         resposta="Olhando pra cima.",
@@ -140,6 +166,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="olhar_baixo",
         descricao="abaixar a cabeca, olhar para baixo ou para o chao",
+        entrega="cabeca",
         pan=0.0,
         tilt=TILT_BAIXO,
         resposta="Olhando pra baixo.",
@@ -147,6 +174,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="olhar_frente",
         descricao="voltar a cabeca ao centro, olhar para a frente, endireitar a cabeca",
+        entrega="cabeca",
         pan=0.0,
         tilt=0.0,
         resposta="Olhando pra frente.",
@@ -201,6 +229,28 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         comando="FAN_OFF",
         resposta="Ventilador desligado.",
     ),
+    # ---- RECADO (2026-08-03) --------------------------------------------
+    # Nasceu de uma falha real: o dono pediu "avise a Mara quando a vir que eu
+    # quero falar com ela", o robo respondeu que sim, e quando a Mara chegou
+    # ele a cumprimentou e nao deu o recado. A promessa era do MODELO; nao
+    # havia nada em lugar nenhum que a guardasse.
+    #
+    # E a UNICA acao com argumento, e a razao e que ela e a unica que carrega
+    # informacao que so existe na frase: a quem, e o que. "Olhar para a
+    # esquerda" e sempre a mesma coisa; um recado nunca e.
+    AcaoFalada(
+        nome="deixar_recado",
+        descricao=(
+            "guardar um recado para alguem e entregar quando essa pessoa "
+            "aparecer (avise fulano que..., diga a fulano que..., quando "
+            "voce ver fulano fale que...). Escreva o argumento como "
+            "`nome da pessoa | a mensagem`, e a mensagem na TERCEIRA pessoa, "
+            "como voce vai fala-la depois"
+        ),
+        entrega="recado",
+        precisa_argumento=True,
+        resposta="Combinado, eu aviso.",
+    ),
 )
 
 ACOES: dict[str, AcaoFalada] = {acao.nome: acao for acao in _CATALOGO}
@@ -215,21 +265,24 @@ def _conferir_catalogo() -> None:
     ESP32 uma vez.
     """
     for acao in _CATALOGO:
-        mexe_cabeca = acao.pan is not None or acao.tilt is not None
-        if not mexe_cabeca and not acao.comando:
-            raise RuntimeError(
-                f"acao {acao.nome!r} nao faz nada: sem comando e sem cabeca"
-            )
-        if mexe_cabeca and acao.comando:
-            # As duas coisas na mesma acao dariam dois caminhos ate o hardware
-            # no mesmo instante, e nenhum jeito de dizer qual chegou primeiro.
-            raise RuntimeError(
-                f"acao {acao.nome!r} mexe a cabeca E manda comando - escolha um"
-            )
-        if acao.pan is not None and not PAN_MIN <= acao.pan <= PAN_MAX:
-            raise RuntimeError(f"acao {acao.nome!r}: pan {acao.pan} fora dos limites")
-        if acao.tilt is not None and not TILT_MIN <= acao.tilt <= TILT_MAX:
-            raise RuntimeError(f"acao {acao.nome!r}: tilt {acao.tilt} fora dos limites")
+        if acao.entrega not in ENTREGAS:
+            raise RuntimeError(f"acao {acao.nome!r}: entrega {acao.entrega!r} nao existe")
+        if acao.entrega == "hardware" and not acao.comando:
+            raise RuntimeError(f"acao {acao.nome!r} entrega por hardware e nao tem comando")
+        if acao.entrega == "cabeca":
+            if acao.pan is None or acao.tilt is None:
+                # Meia posicao nao existe: mandar so o pan deixaria o tilt
+                # onde a ultima ordem tiver deixado, e "olha pra esquerda"
+                # daria resultados diferentes conforme o passado.
+                raise RuntimeError(f"acao {acao.nome!r} mexe a cabeca sem pan/tilt completo")
+            if not PAN_MIN <= acao.pan <= PAN_MAX:
+                raise RuntimeError(f"acao {acao.nome!r}: pan {acao.pan} fora dos limites")
+            if not TILT_MIN <= acao.tilt <= TILT_MAX:
+                raise RuntimeError(f"acao {acao.nome!r}: tilt {acao.tilt} fora dos limites")
+        if acao.entrega != "hardware" and acao.comando:
+            # Dois caminhos ate o hardware no mesmo instante, e nenhum jeito de
+            # dizer qual chegou primeiro.
+            raise RuntimeError(f"acao {acao.nome!r} nao e de hardware mas tem comando")
 
 
 _conferir_catalogo()
@@ -252,28 +305,58 @@ def bloco_para_prompt() -> str:
         "Se ninguem pediu nada disso, nao escreva essa linha - a maior parte\n"
         "da conversa nao e pedido.\n\n"
         "O que voce sabe fazer:\n" + "\n".join(linhas) + "\n\n"
-        "Exemplo:\n"
+        "Exemplos:\n"
         f"{MARCADOR}olhar_esquerda\n"
-        "Olhando pra esquerda."
+        "Olhando pra esquerda.\n\n"
+        f"{MARCADOR}deixar_recado Mara {SEPARADOR_ARGUMENTO} o Joao Paulo quer "
+        "falar com voce\n"
+        "Combinado, aviso a Mara assim que eu a vir.\n\n"
+        "NUNCA prometa avisar alguem sem escrever a linha do recado. Sem ela\n"
+        "voce nao esta guardando nada, e a pessoa vai contar com isso."
     )
 
 
-def extrair(texto: str) -> tuple[AcaoFalada | None, str]:
+def extrair(texto: str) -> tuple[AcaoFalada | None, str, str]:
     """Separa a acao pedida do que deve ser FALADO.
 
-    Devolve `(acao, texto_limpo)`. Sem marcador, ou com um nome que nao esta no
-    catalogo, devolve `(None, texto)` - o texto segue inteiro e a frase vira
-    conversa normal. Inventar acao a partir de nome desconhecido seria
-    exatamente o que este catalogo existe para impedir.
+    Devolve `(acao, argumento, texto_limpo)`. Sem marcador, ou com um nome que
+    nao esta no catalogo, devolve `(None, "", texto)` - o texto segue inteiro e
+    a frase vira conversa normal. Inventar acao a partir de nome desconhecido
+    seria exatamente o que este catalogo existe para impedir.
+
+    Acao que EXIGE argumento e veio sem ele tambem cai fora. Um `deixar_recado`
+    vazio guardaria um recado sem destinatario e sem mensagem, que nunca seria
+    entregue a ninguem - e o robo teria dito "combinado" assim mesmo. Prometer
+    e nao ter como cumprir e pior que dizer que nao entendeu.
     """
     casado = _RE_MARCADOR.match(texto)
     if casado is None:
-        return None, texto
+        return None, "", texto
     resto = texto[casado.end():].lstrip()
+    argumento = casado.group(2).strip()
     acao = ACOES.get(casado.group(1))
     if acao is None:
         # Nome fora do catalogo: o marcador some do texto assim mesmo. Ele
         # nao pode ser FALADO, e deixa-lo passar seria transformar uma
         # alucinacao do modelo em ruido no alto-falante.
-        return None, resto
-    return acao, resto
+        return None, "", resto
+    if acao.precisa_argumento and not argumento:
+        return None, "", resto
+    return acao, argumento, resto
+
+
+def partir_recado(argumento: str) -> tuple[str, str]:
+    """`"Mara | quero falar com ela"` -> `("Mara", "quero falar com ela")`.
+
+    Devolve `("", "")` quando falta uma das duas metades. Adivinhar seria
+    perigoso nos dois sentidos: sem separador, tratar tudo como nome guardaria
+    um recado para uma pessoa chamada "mara quero falar com ela", e tratar
+    tudo como mensagem guardaria um recado para ninguem.
+    """
+    if SEPARADOR_ARGUMENTO not in argumento:
+        return "", ""
+    nome, _, mensagem = argumento.partition(SEPARADOR_ARGUMENTO)
+    nome, mensagem = nome.strip(), mensagem.strip()
+    if not nome or not mensagem:
+        return "", ""
+    return nome, mensagem

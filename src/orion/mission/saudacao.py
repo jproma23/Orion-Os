@@ -103,9 +103,20 @@ class SaudacaoEspontanea:
         compor=None,
         relogio: Callable[[], time.struct_time] | None = None,
         observacoes: Callable[[], Awaitable[list[dict]]] | None = None,
+        recados=None,
     ) -> None:
         self._bus = event_bus
         self._falar = falar
+        #: QUEM ENTREGA OS RECADOS (2026-08-03). A entrega mora aqui e nao num
+        #: modulo proprio porque este ja e o unico lugar do sistema que sabe
+        #: distinguir "estou vendo a Mara" (ate 15 vezes por segundo) de "a
+        #: Mara CHEGOU" - e "quando a vir" quer dizer chegou, nao apareceu no
+        #: quadro. Um vigia separado teria que reimplementar essa distincao, e
+        #: entao haveria duas ideias de chegada no mesmo robo.
+        #:
+        #: Opcional como todo o resto: sem banco, o robo cumprimenta e nao
+        #: entrega, em vez de nao cumprimentar.
+        self._recados = recados
         #: nome -> relação, vinda do orion.yaml. Nome fora daqui recebe o
         #: cumprimento genérico em vez de nenhum.
         self._relacao_de = {
@@ -200,6 +211,43 @@ class SaudacaoEspontanea:
             # Falha na voz não pode derrubar a visão (Cap 6 s.8). Um
             # cumprimento perdido é irrelevante perto de perder o alvo.
             logger.warning("não consegui falar o cumprimento para %s", nome, exc_info=True)
+            # Sem voz não há como entregar recado nenhum, e marcá-lo como
+            # entregue seria dar por cumprida uma promessa que ninguém ouviu.
+            return
+
+        await self._entregar_recados(nome)
+
+    async def _entregar_recados(self, nome: str) -> None:
+        """O que faltava quando a Mara chegou (2026-08-03).
+
+        DEPOIS do cumprimento, e não no lugar dele: chegar em casa e ouvir um
+        recado antes de um "oi" é o robô tratando a pessoa como caixa de
+        entrada. E depois de FALAR, não em paralelo - as duas falas sairiam
+        por cima uma da outra no mesmo alto-falante.
+
+        Marcar como entregue só DEPOIS de a fala terminar. Se a voz falhar no
+        meio, o recado continua pendente e volta na próxima chegada: repetir
+        um recado é chato, perder um é quebrar a promessa.
+        """
+        if self._recados is None:
+            return
+        try:
+            pendentes = await self._recados.pendentes(nome)
+        except Exception:
+            logger.warning("não consegui consultar recados de %s", nome, exc_info=True)
+            return
+
+        for recado in pendentes:
+            texto = str(recado.get("texto", "")).strip()
+            if not texto:
+                continue
+            try:
+                await self._falar(texto)
+            except Exception:
+                logger.warning("não consegui falar o recado para %s", nome, exc_info=True)
+                return
+            logger.info("recado entregue a %s: %r", nome, texto)
+            await self._recados.marcar_entregue(recado["id"])
 
     async def _contexto_do_momento(self, nome: str, anterior: float | None) -> str:
         """O que muda de um cumprimento para o outro.

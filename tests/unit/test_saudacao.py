@@ -467,3 +467,104 @@ async def test_cada_pessoa_tem_a_sua_propria_memoria_de_frases(bus):
 
     assert recebidas["Kamal"][1] == ["oi Kamal"], "nao mistura com a outra pessoa"
     assert recebidas["Marah"][0] == []
+
+
+# ---------------------------------------------------------------------------
+# RECADOS (2026-08-03)
+#
+# O dono pediu "avise a Mara quando a vir que eu quero falar com ela". O robô
+# respondeu que sim, a Mara chegou, ele a CUMPRIMENTOU - e não deu o recado.
+# Nada falhou: não havia nada. Estes testes são a rede que faltava.
+# ---------------------------------------------------------------------------
+
+
+class CaixaDeRecadosFalsa:
+    def __init__(self, pendentes=None, explodir: str = "") -> None:
+        self._pendentes = list(pendentes or [])
+        self.entregues: list[int] = []
+        self._explodir = explodir
+
+    async def pendentes(self, nome: str):
+        if self._explodir == "pendentes":
+            raise RuntimeError("banco fora do ar (simulado)")
+        return [r for r in self._pendentes if r["para_nome"] == nome]
+
+    async def marcar_entregue(self, recado_id: int) -> bool:
+        self.entregues.append(recado_id)
+        self._pendentes = [r for r in self._pendentes if r["id"] != recado_id]
+        return True
+
+
+async def _ceder(vezes: int = 20) -> None:
+    """O cumprimento roda fora do laço da visão e a entrega vem depois dele -
+    são mais awaits do que o `_ver` cede sozinho."""
+    for _ in range(vezes):
+        await asyncio.sleep(0)
+
+
+@pytest.mark.asyncio
+async def test_entrega_o_recado_depois_de_cumprimentar(bus):
+    """A ORDEM É O TESTE. Chegar em casa e ouvir um recado antes de um "oi" é
+    o robô tratando a pessoa como caixa de entrada."""
+    caixa = CaixaDeRecadosFalsa(
+        [{"id": 7, "para_nome": "Marah", "texto": "o João Paulo quer falar com você"}]
+    )
+    _, ditas = _montar(bus, recados=caixa)
+
+    await _ver(bus, "Marah")
+    await _ceder()
+
+    assert len(ditas) == 2
+    assert "Marah" in ditas[0], "o cumprimento vem primeiro"
+    assert ditas[1] == "o João Paulo quer falar com você"
+
+
+@pytest.mark.asyncio
+async def test_recado_entregue_e_marcado(bus):
+    """Sem isto ele repetiria o mesmo recado a cada chegada, para sempre."""
+    caixa = CaixaDeRecadosFalsa([{"id": 7, "para_nome": "Marah", "texto": "oi"}])
+    _montar(bus, recados=caixa)
+
+    await _ver(bus, "Marah")
+    await _ceder()
+
+    assert caixa.entregues == [7]
+
+
+@pytest.mark.asyncio
+async def test_recado_de_outra_pessoa_nao_e_lido_em_voz_alta(bus):
+    """Recado é entre duas pessoas. Ler o da Marah para o Kamal é pior que
+    não entregar."""
+    caixa = CaixaDeRecadosFalsa(
+        [{"id": 7, "para_nome": "Marah", "texto": "segredo da Marah"}]
+    )
+    _, ditas = _montar(bus, recados=caixa)
+
+    await _ver(bus, "Kamal")
+    await _ceder()
+
+    assert len(ditas) == 1
+    assert "segredo" not in ditas[0]
+
+
+@pytest.mark.asyncio
+async def test_sem_caixa_de_recados_ele_ainda_cumprimenta(bus):
+    """Degradação graciosa (Cap 6 s.8): sem banco, cumprimenta e não entrega -
+    em vez de não cumprimentar."""
+    _, ditas = _montar(bus)
+
+    await _ver(bus, "Marah")
+    await _ceder()
+
+    assert len(ditas) == 1
+
+
+@pytest.mark.asyncio
+async def test_falha_ao_consultar_recados_nao_derruba_o_cumprimento(bus):
+    caixa = CaixaDeRecadosFalsa(explodir="pendentes")
+    _, ditas = _montar(bus, recados=caixa)
+
+    await _ver(bus, "Marah")
+    await _ceder()
+
+    assert len(ditas) == 1, "o cumprimento tem que ter saído assim mesmo"

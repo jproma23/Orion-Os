@@ -5,6 +5,14 @@ from datetime import datetime, timedelta, UTC
 import pytest
 
 from motion_core.memory.database import DatabaseManager, agora_iso
+from motion_core.memory.schema import MIGRACOES
+
+#: Derivado da lista real, e nao um numero escrito a mao. A versao 002 (a
+#: tabela de recados) quebrou os tres testes abaixo por eles conferirem o
+#: literal `1` - um teste que precisa ser editado a cada migracao nao esta
+#: guardando a regra, esta guardando o dia em que foi escrito. A regra e:
+#: o banco novo nasce na ULTIMA versao, e cada migracao e registrada uma vez.
+ULTIMA_VERSAO = max(numero for numero, _ in MIGRACOES)
 
 
 def _criar_gerenciador(tmp_path) -> DatabaseManager:
@@ -45,7 +53,7 @@ def test_iniciar_registra_versao_do_schema(tmp_path):
     gm.iniciar()
 
     versao = gm.conexao.execute("SELECT MAX(versao) FROM schema_version").fetchone()[0]
-    assert versao == 1
+    assert versao == ULTIMA_VERSAO
     gm.fechar()
 
 
@@ -58,7 +66,7 @@ def test_iniciar_e_idempotente(tmp_path):
     gm2 = _criar_gerenciador(tmp_path)
     gm2.iniciar()
     quantidade = gm2.conexao.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0]
-    assert quantidade == 1
+    assert quantidade == len(MIGRACOES)
     gm2.fechar()
 
 
@@ -133,7 +141,7 @@ def test_banco_corrompido_e_reconstruido_sem_backup(tmp_path):
 
     assert gm2.foi_reconstruido is True
     versao = gm2.conexao.execute("SELECT MAX(versao) FROM schema_version").fetchone()[0]
-    assert versao == 1
+    assert versao == ULTIMA_VERSAO
     gm2.fechar()
 
 

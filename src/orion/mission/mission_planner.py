@@ -29,6 +29,7 @@ from collections.abc import Awaitable, Callable
 from orion.mission.acoes_faladas import AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
+from orion.mission.acoes_faladas import partir_recado as _partir_recado
 from orion.mission.ai_manager import AiManager
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
@@ -38,6 +39,10 @@ logger = logging.getLogger("orion.mission.mission_planner")
 CallbackComandoHardware = Callable[[str], Awaitable[None]]
 #: Move os servos da cabeca para um angulo absoluto (pan, tilt) em graus.
 CallbackCabeca = Callable[[float, float], Awaitable[None]]
+#: Guarda um recado (para_quem, texto, de_quem). Devolve se CONSEGUIU - e o
+#: retorno importa: o robo so pode dizer "combinado" se algo foi de fato
+#: guardado. Foi prometer sem guardar que criou este caminho inteiro.
+CallbackRecado = Callable[[str, str, str], Awaitable[bool]]
 
 #: "voce viu a Ana hoje?", "viu o Bruno?", "voce viu Ana por aqui?"
 #: O nome vai ate o fim ou ate uma palavra de corte (hoje/por aqui/ai...).
@@ -99,6 +104,16 @@ class _SemCaminho(RuntimeError):
     """
 
 
+class _NaoGuardou(RuntimeError):
+    """Prometeu-se um recado e ele nao foi guardado.
+
+    Existe separada porque a resposta ao usuario tem que ser DIFERENTE: nas
+    outras falhas o robo pode devolver a frase que o modelo escreveu, e aqui
+    nao pode - a frase diz "combinado, eu aviso", e e justamente a promessa
+    vazia que este caminho inteiro existe para nao repetir.
+    """
+
+
 class MissionPlanner:
     def __init__(
         self,
@@ -108,6 +123,7 @@ class MissionPlanner:
         diario=None,
         familia: list[dict] | None = None,
         mover_cabeca: CallbackCabeca | None = None,
+        deixar_recado: CallbackRecado | None = None,
     ) -> None:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
@@ -120,6 +136,9 @@ class MissionPlanner:
         #: horas funcionando bem"). Quem monta o Mission Core e que sabe fazer
         #: as duas coisas; aqui so se pede.
         self._mover_cabeca = mover_cabeca
+        #: Quem guarda os recados. Ver `orion/mission/recados.py` - e o modulo
+        #: que existe porque o robo prometeu avisar a Mara e nao avisou.
+        self._deixar_recado = deixar_recado
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -294,19 +313,27 @@ class MissionPlanner:
         nao conseguiu. O modo de falha que este projeto mais repete e o
         contrario - a acao nao acontece e ninguem fica sabendo.
         """
-        acao, falado = _extrair_acao(texto)
+        acao, argumento, falado = _extrair_acao(texto)
         if acao is None:
             return falado
 
-        logger.info("acao falada: %s", acao.nome)
+        logger.info("acao falada: %s %s", acao.nome, argumento)
         try:
-            if acao.comando:
+            if acao.entrega == "hardware":
                 await self._despachar_comando(acao)
-            else:
+            elif acao.entrega == "cabeca":
                 await self._despachar_cabeca(acao)
+            else:
+                await self._despachar_recado(argumento)
         except _SemCaminho as erro:
             logger.warning("acao %r pedida sem caminho ate o hardware: %s", acao.nome, erro)
             return falado or "Ainda nao consigo fazer isso."
+        except _NaoGuardou:
+            # NAO devolve `falado`: a frase do modelo diz "combinado, eu
+            # aviso", e essa e exatamente a mentira que este caminho existe
+            # para nao repetir. Quem esta ouvindo precisa saber que nao pode
+            # contar com isso.
+            return "Desculpe, nao consegui guardar esse recado."
         except Exception:
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
@@ -321,6 +348,15 @@ class MissionPlanner:
         if self._mover_cabeca is None:
             raise _SemCaminho("sem callback de cabeca")
         await self._mover_cabeca(float(acao.pan or 0.0), float(acao.tilt or 0.0))
+
+    async def _despachar_recado(self, argumento: str) -> None:
+        if self._deixar_recado is None:
+            raise _SemCaminho("sem callback de recado")
+        para, mensagem = _partir_recado(argumento)
+        if not para:
+            raise _NaoGuardou(f"argumento sem destinatario ou sem texto: {argumento!r}")
+        if not await self._deixar_recado(para, mensagem, ""):
+            raise _NaoGuardou(f"o banco recusou o recado para {para!r}")
 
     async def _responder_sobre_quem_viu(
         self, texto: str, contexto: dict | None

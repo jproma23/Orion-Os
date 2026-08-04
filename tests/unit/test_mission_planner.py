@@ -309,3 +309,59 @@ async def test_apagar_e_acender_sao_acoes_diferentes_no_catalogo():
     await planner.processar("Fofao, apague a lanterna")
 
     assert comandos_enviados == ["LIGHT_OFF"]
+
+
+@pytest.mark.asyncio
+async def test_recado_pedido_na_conversa_e_guardado():
+    """A falha de 2026-08-03: o robo prometeu avisar a Mara e nao guardou
+    nada. Aqui a promessa e o registro andam juntos ou nao andam."""
+    ai = AiManagerFalso(
+        resposta="#acao:deixar_recado Mara | o Joao Paulo quer falar com voce\n"
+        "Combinado, aviso assim que eu a vir."
+    )
+    guardados = []
+
+    async def guardar(para, texto, de):
+        guardados.append((para, texto))
+        return True
+
+    planner = MissionPlanner(ai_manager=ai, deixar_recado=guardar)
+    resposta = await planner.processar("avise a Mara que eu quero falar com ela")
+
+    assert guardados == [("Mara", "o Joao Paulo quer falar com voce")]
+    assert resposta == "Combinado, aviso assim que eu a vir."
+
+
+@pytest.mark.asyncio
+async def test_recado_que_nao_foi_guardado_NAO_pode_soar_como_combinado():
+    """O CORACAO DESTE CONSERTO. Se o banco recusa, a frase do modelo diz
+    'combinado, eu aviso' - e essa e exatamente a mentira que custou o recado
+    da Mara. Quem esta ouvindo precisa saber que nao pode contar com isso."""
+    ai = AiManagerFalso(resposta="#acao:deixar_recado Mara | oi\nCombinado, eu aviso!")
+
+    async def recusar(para, texto, de):
+        return False
+
+    planner = MissionPlanner(ai_manager=ai, deixar_recado=recusar)
+    resposta = await planner.processar("avise a Mara")
+
+    assert "combinado" not in resposta.lower()
+    assert "não consegui" in resposta.lower() or "nao consegui" in resposta.lower()
+
+
+@pytest.mark.asyncio
+async def test_recado_sem_destinatario_nao_e_guardado():
+    """Sem o separador nao da para saber quem e o dono do recado, e adivinhar
+    guardaria um recado para uma pessoa chamada 'Mara quero falar com ela'."""
+    ai = AiManagerFalso(resposta="#acao:deixar_recado Mara quero falar\nCombinado!")
+    guardados = []
+
+    async def guardar(para, texto, de):
+        guardados.append((para, texto))
+        return True
+
+    planner = MissionPlanner(ai_manager=ai, deixar_recado=guardar)
+    resposta = await planner.processar("avise a Mara")
+
+    assert guardados == []
+    assert "combinado" not in resposta.lower()

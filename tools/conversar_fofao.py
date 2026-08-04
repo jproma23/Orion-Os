@@ -61,6 +61,7 @@ from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
+from orion.mission.recados import Recados  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
@@ -522,6 +523,11 @@ async def principal() -> None:
 
     diario = DiarioObservacoes(bus, MemoryClient(comm))
 
+    # A caixa de recados. Uma so no robo, compartilhada por quem GUARDA (o
+    # planner, quando alguem pede) e por quem ENTREGA (a saudacao, quando a
+    # pessoa chega) - ver orion/mission/recados.py.
+    recados = Recados(MemoryClient(comm))
+
     planner = MissionPlanner(
         ia,
         enviar_comando_hardware=enviar_comando_hardware,
@@ -535,6 +541,8 @@ async def principal() -> None:
         # consigo fazer isso", que e o que o codigo deve dizer quando nao ha
         # caminho, mas nao e o que se quer ouvir.
         mover_cabeca=mover_cabeca,
+        # Guardar de verdade o que ele promete guardar (2026-08-03).
+        deixar_recado=recados.deixar,
     )
 
     # QUEM ESTA FALANDO (2026-08-03). Ate aqui `processar()` recebia
@@ -739,6 +747,12 @@ async def principal() -> None:
         # planner le - uma fonte so, para o robo nao ter duas memorias do
         # proprio dia que possam discordar.
         observacoes=diario.observacoes_de_hoje,
+        # "avise a Mara quando a vir" (2026-08-03). O MESMO objeto que o
+        # planner usa para guardar: uma so caixa de recados no robo. Duas
+        # instancias funcionariam igual - as duas falam com o mesmo banco -
+        # mas seriam duas ideias do que e um recado, e a proxima mudanca
+        # precisaria lembrar das duas.
+        recados=recados,
     )
     logger.info(
         "Saudacao espontanea ativa para: %s",
