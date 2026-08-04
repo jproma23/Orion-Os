@@ -1,5 +1,6 @@
 """Testes dos comportamentos concretos plugados no maestro (EDR-0020)."""
 import asyncio
+import logging
 
 import pytest
 
@@ -1060,3 +1061,157 @@ async def test_sem_retrato_continua_no_modo_antigo():
     assert "observar_ambiente" in comm.pedidos[0]["opcoes"]
     assert ia._acao_atual == "observar_ambiente"
     assert ia._plano_atual == []
+
+
+# ---------------------------------------------------------------------------
+# PROMESSA VAZIA: a acao que promete um efeito e nunca o entrega (2026-08-04)
+#
+# O robo passou 8 horas repetindo, de 31 em 31 segundos:
+#
+#     IA decidiu 'observar_ambiente' (nao sei a distancia a frente)
+#     objetivo 'entender_o_ambiente' -> plano observar_ambiente
+#
+# `observar_ambiente` promete `frente_conhecida: True`. Com os ultrassons
+# desplugados (escolha do dono desde 03/08) esse efeito nunca chega, e o
+# planejador acreditava na promessa para sempre. Nada denunciava: sem erro,
+# sem excecao, sem teste vermelho.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_promessa_nunca_cumprida_tira_a_acao_do_planejador():
+    """O laco de producao inteiro, reproduzido: sensor de frente mudo e a IA
+    pedindo 'entender_o_ambiente' a cada ciclo.
+
+    Sem o conserto este teste roda 20 ciclos e a acao continua sendo planejada
+    nos 20 - que e exatamente o que o robo fez durante 8 horas.
+    """
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="entender_o_ambiente")
+    # Ultrassom fora do ar: `obstaculo_frente_cm` e None para sempre, entao
+    # `frente_conhecida` nunca vira True por mais que o robo olhe.
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso(obstaculo_frente_cm=None))
+
+    for _ in range(20):
+        await ia._consultar()
+
+    # As DUAS acoes que prometem `frente_conhecida` foram desmascaradas.
+    assert "observar_ambiente" in ia._acoes_sem_efeito
+    assert "olhar_em_volta" in ia._acoes_sem_efeito
+    # E sem elas nao ha caminho ate o objetivo: a IA se abstem em vez de
+    # repetir o mesmo passo inutil, e o maestro segue pela escada.
+    assert ia._acao_atual is None
+    assert ia.quer_rodar() is False
+
+
+@pytest.mark.asyncio
+async def test_acao_que_cumpre_a_promessa_continua_no_planejador():
+    """A trava nao pode morder quem trabalha.
+
+    Com o sensor de frente RESPONDENDO, `observar_ambiente` entrega o que
+    promete e tem que seguir disponivel - senao o conserto acima teria custado
+    o planejador inteiro.
+    """
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    # Frente medida e bloqueada (10 cm): `frente_conhecida` e True, entao a
+    # promessa de `observar_ambiente` esta cumprida a cada ciclo.
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso(obstaculo_frente_cm=10.0))
+
+    for _ in range(20):
+        await ia._consultar()
+
+    assert ia._acoes_sem_efeito == set()
+    assert ia._promessas_quebradas == {}
+
+
+@pytest.mark.asyncio
+async def test_acao_descartada_volta_quando_o_efeito_reaparece():
+    """O descarte e temporario, e a volta NAO depende de a acao ser planejada
+    de novo.
+
+    Este e o ponto que quase virou bug: uma acao fora do planejador nunca mais
+    seria escolhida, entao esperar por uma nova execucao dela para reabilita-la
+    seria esperar para sempre. A conferencia e feita contra o ESTADO DO MUNDO -
+    o ToF instalado, o ultrassom religado, e ela volta.
+    """
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="entender_o_ambiente")
+    retrato = _RetratoFalso(obstaculo_frente_cm=None)
+    ia = IaEstrategica(bus, comm, retrato=lambda: retrato)
+
+    for _ in range(20):
+        await ia._consultar()
+    assert "observar_ambiente" in ia._acoes_sem_efeito
+
+    # O sensor volta a responder.
+    retrato.obstaculo_frente_cm = 150.0
+    await ia._consultar()
+
+    assert ia._acoes_sem_efeito == set()
+
+
+@pytest.mark.asyncio
+async def test_acao_sem_efeito_modelado_nunca_e_descartada():
+    """`avancar` e a maioria das acoes de movimento tem efeito VAZIO de
+    proposito (ver o cabecalho do modelo_goap): elas mudam o mundo fisico sem
+    mudar predicado nenhum. Quem nao promete nada nao pode ser cobrado - se
+    fosse, o robo perderia justamente as acoes que o movem."""
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    # Frente livre e conhecida: o plano ate `poder_seguir_em_frente` ja esta
+    # satisfeito, entao forcamos o passo pela mao para cobrar `avancar`.
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso())
+
+    ia._passo_anterior = "avancar"
+    for _ in range(20):
+        await ia._consultar()
+        ia._passo_anterior = "avancar"
+
+    assert "avancar" not in ia._acoes_sem_efeito
+
+
+@pytest.mark.asyncio
+async def test_plano_repetido_nao_repete_a_linha_de_log(caplog):
+    """O log e ferramenta de diagnostico, nao metrica de ciclo.
+
+    Em 2026-08-04 o mesmo plano foi registrado 3.051 vezes e foi preciso
+    filtrar o log com `grep -v` para conseguir ler qualquer outra coisa.
+    """
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso(obstaculo_frente_cm=10.0))
+
+    with caplog.at_level(logging.INFO, logger="motion_core.behavior.comportamentos"):
+        for _ in range(5):
+            await ia._consultar()
+
+    linhas = [r for r in caplog.records if "-> plano" in r.getMessage()]
+    assert len(linhas) == 1, [r.getMessage() for r in linhas]
+
+
+@pytest.mark.asyncio
+async def test_girar_sem_achar_saida_nao_tira_o_girar_do_planejador():
+    """A trava de promessa NAO pode morder quem so tentou.
+
+    Este teste existe por um defeito MEU, pego pelo teste do log em
+    2026-08-04: a primeira versao de `_cobrar_promessas` cobrava todo efeito,
+    e `virar_esquerda` promete `frente_livre: True`. O modelo diz, com todas as
+    letras, que ali e INTENCAO - girar procurando saida. Um robo encarando um
+    canto giraria tres vezes, nao acharia saida nenhuma e perderia a acao de
+    girar, ficando preso exatamente onde ela e indispensavel.
+
+    Ele fica 20 ciclos de cara para uma parede que nao sai do lugar.
+    """
+    bus = EventBus()
+    comm = _ComunicacaoFalsa(acao="poder_seguir_em_frente")
+    # Parede a 10 cm que nunca some, por mais que ele gire.
+    ia = IaEstrategica(bus, comm, retrato=lambda: _RetratoFalso(obstaculo_frente_cm=10.0))
+
+    for _ in range(20):
+        await ia._consultar()
+
+    assert "virar_esquerda" not in ia._acoes_sem_efeito
+    assert "virar_direita" not in ia._acoes_sem_efeito
+    # E ele continua tentando, que e o comportamento certo.
+    assert ia._acao_atual in ("virar_esquerda", "virar_direita")

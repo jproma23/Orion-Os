@@ -150,6 +150,56 @@ ACOES_PLANEJAVEIS: tuple[AcaoPlanejavel, ...] = tuple(
     if nome in contrato.ACOES
 )
 
+#: acao -> o que ela PROMETE. Mesmo conteudo dos efeitos acima, indexado por
+#: nome para quem precisa COBRAR a promessa depois de executar a acao.
+#:
+#: O cabecalho deste arquivo diz que efeito e intencao, nao promessa - e o
+#: planejador trata assim de proposito, replanejando a cada ciclo. Mas
+#: intencao que falha SEMPRE deixa de ser intencao e vira mentira: e o caso de
+#: `observar_ambiente` prometendo `frente_conhecida` com o sensor de frente
+#: desligado. Ver `IaEstrategica._cobrar_promessas`.
+EFEITOS_POR_ACAO: dict[str, dict[str, bool]] = {
+    acao.nome: dict(acao.efeitos) for acao in ACOES_PLANEJAVEIS
+}
+
+#: A LINHA ENTRE PROMESSA E INTENCAO (2026-08-04).
+#:
+#: Quase todo efeito deste modelo e intencao: `virar_esquerda` poe
+#: `frente_livre: True` porque gira PROCURANDO saida - se depois do giro a
+#: parede continuar la, ninguem mentiu, o mundo e que nao colaborou. Cobrar
+#: isso seria um desastre: o robo encarando um canto giraria tres vezes, nao
+#: acharia saida e PERDERIA a acao de girar - ficaria preso justamente onde
+#: mais precisa dela. (Este paragrafo nao e teorico: a primeira versao do
+#: `_cobrar_promessas` fazia exatamente isso, e o teste do log pegou.)
+#:
+#: Estes dois sao diferentes. Nao falam do mundo, falam de uma FACULDADE DO
+#: PROPRIO ROBO:
+#:
+#: - `frente_conhecida`: olhar torna a frente conhecida. Isso nao depende de
+#:   sorte nem da colaboracao de ninguem - depende do sensor existir e
+#:   responder. Se olhar nao produz medida, o sensor esta fora do ar.
+#: - `parado`: mandar parar torna o robo parado. Um corpo que recebe a ordem e
+#:   nunca reporta IDLE esta quebrado, e nao azarado.
+#:
+#: So o que esta aqui pode ser cobrado. E so no sentido POSITIVO: o
+#: `frente_conhecida: False` de `virar_esquerda` invalida uma medida velha, e
+#: invalidar nao e prometer.
+PREDICADOS_PROMETIDOS: frozenset[str] = frozenset({"frente_conhecida", "parado"})
+
+
+def promessa_de(nome_acao: str) -> dict[str, bool]:
+    """O que esta acao promete e pode ser COBRADO depois de executa-la.
+
+    Devolve o subconjunto dos efeitos que fala de uma faculdade do robo (ver
+    `PREDICADOS_PROMETIDOS`). Vazio significa "esta acao nao prometeu nada" -
+    o caso da maioria - e quem nao promete nao pode ser cobrado.
+    """
+    return {
+        chave: valor
+        for chave, valor in (EFEITOS_POR_ACAO.get(nome_acao) or {}).items()
+        if valor is True and chave in PREDICADOS_PROMETIDOS
+    }
+
 
 #: O que a IA passa a escolher, no lugar de uma acao solta.
 #:

@@ -30,6 +30,15 @@ logger = logging.getLogger("motion_core.behavior.comportamentos")
 #: repete.
 TOPICO_RECONSIDERAR = "behavior.reconsiderar"
 
+#: Quantas vezes seguidas uma acao pode prometer um efeito e nao entrega-lo
+#: antes de sair do planejador. Ver `IaEstrategica._cobrar_promessas`.
+#:
+#: Tres, e nao um: o mundo tem atraso. A telemetria chega em ciclo proprio e um
+#: unico ciclo sem o efeito pode ser so a medida que ainda nao subiu. Tres
+#: ciclos de 30 s sao um minuto e meio - tempo de sobra para qualquer sensor
+#: vivo responder, e curto o bastante para o robo nao passar a tarde num laco.
+PROMESSAS_QUEBRADAS_ATE_DESCARTAR = 3
+
 
 class Repouso(Comportamento):
     """Base da escada (prio 10): quer rodar sempre, mas perde para qualquer
@@ -409,6 +418,20 @@ class IaEstrategica(Comportamento):
         #: apenas o PRIMEIRO passo e replaneja no ciclo seguinte.
         self._plano_atual: list[str] = []
         self._objetivo_atual: str = ""
+        #: O QUE QUEBRA O LACO DA PROMESSA VAZIA (2026-08-04).
+        #:
+        #: O primeiro passo planejado no ciclo ANTERIOR. No ciclo seguinte ele
+        #: e cobrado: o efeito que ele prometia apareceu no mundo? Ver
+        #: `_cobrar_promessas`.
+        self._passo_anterior: str | None = None
+        #: acao -> quantas vezes seguidas ela prometeu e nao entregou.
+        self._promessas_quebradas: dict[str, int] = {}
+        #: Acoes que ja passaram do limite e estao FORA do planejador ate o
+        #: efeito delas voltar a aparecer no mundo por qualquer via.
+        self._acoes_sem_efeito: set[str] = set()
+        #: Ultima linha de plano/abstencao registrada, para nao repetir a mesma
+        #: frase a cada 30 s (o log e para diagnostico, nao para metrica).
+        self._ultimo_registro_plano: str = ""
         #: De onde sai o QUADRO DO MUNDO que vai no prompt (2026-07-29).
         #:
         #: Ate esta data o contexto desta IA era literalmente
@@ -557,6 +580,7 @@ class IaEstrategica(Comportamento):
         if objetivo is None:
             if escolha:
                 logger.info("maestro: IA pediu o objetivo %r, fora da lista - abstendo", escolha)
+            self._passo_anterior = None
             return None, ""
 
         try:
@@ -564,31 +588,132 @@ class IaEstrategica(Comportamento):
         except Exception:
             # Sem retrato nao ha estado, e sem estado planejar seria inventar.
             logger.warning("nao consegui ler o retrato do mundo - sem plano", exc_info=True)
+            self._passo_anterior = None
             return None, ""
 
-        plano = goap.planejar(estado, objetivo, modelo_goap.ACOES_PLANEJAVEIS)
+        self._cobrar_promessas(estado)
+
+        plano = goap.planejar(estado, objetivo, self._acoes_confiaveis())
         if plano is None:
             # Abstencao legitima e frequente: com o corpo mudo, tombado ou com
             # a bateria no fim nao existe caminho ate a maioria dos objetivos.
-            logger.info(
-                "maestro: sem caminho ate '%s' no mundo atual - abstendo", objetivo.nome
+            self._registrar_plano(
+                f"maestro: sem caminho ate '{objetivo.nome}' no mundo atual - abstendo"
             )
+            self._passo_anterior = None
             return None, ""
         if not plano:
             # Plano VAZIO e diferente de plano impossivel: o objetivo ja esta
             # satisfeito. Nao ha o que fazer, e isso e sucesso, nao falha.
-            logger.info("maestro: '%s' ja esta satisfeito - nada a fazer", objetivo.nome)
+            self._registrar_plano(f"maestro: '{objetivo.nome}' ja esta satisfeito - nada a fazer")
+            self._passo_anterior = None
             return None, ""
 
         self._plano_atual = [acao.nome for acao in plano]
         self._objetivo_atual = objetivo.nome
-        logger.info(
-            "maestro: objetivo '%s' -> plano %s (executando so o 1o passo)",
-            objetivo.nome,
-            " -> ".join(self._plano_atual),
+        self._registrar_plano(
+            f"maestro: objetivo '{objetivo.nome}' -> plano "
+            f"{' -> '.join(self._plano_atual)} (executando so o 1o passo)"
         )
+        self._passo_anterior = self._plano_atual[0]
         rastro = f"objetivo '{objetivo.nome}' via {' -> '.join(self._plano_atual)}"
         return self._plano_atual[0], f"{motivo} [{rastro}]" if motivo else rastro
+
+    def _registrar_plano(self, texto: str) -> None:
+        """Registra a decisao de plano, sem repetir a mesma frase em laco.
+
+        O planejador roda a cada 30 s e, com o mundo parado, produz a MESMA
+        frase indefinidamente - em 2026-08-04 foram 8 horas de
+        *"objetivo 'entender_o_ambiente' -> plano observar_ambiente"* de 31 em
+        31 segundos, e foi preciso filtrar o log com `grep -v` para conseguir
+        ler qualquer outra coisa. Repeticao identica nao e informacao nova: a
+        primeira linha ja disse tudo, e as mil seguintes so afogam o resto.
+
+        A frase repetida continua saindo em DEBUG - quem quiser confirmar que o
+        ciclo esta vivo tem onde olhar, sem custo no log normal.
+        """
+        if texto == self._ultimo_registro_plano:
+            logger.debug("%s (repetido)", texto)
+            return
+        self._ultimo_registro_plano = texto
+        logger.info("%s", texto)
+
+    def _acoes_confiaveis(self) -> tuple:
+        """As acoes planejaveis menos as que provaram nao cumprir o que prometem."""
+        if not self._acoes_sem_efeito:
+            return modelo_goap.ACOES_PLANEJAVEIS
+        return tuple(
+            acao
+            for acao in modelo_goap.ACOES_PLANEJAVEIS
+            if acao.nome not in self._acoes_sem_efeito
+        )
+
+    def _cobrar_promessas(self, estado: dict[str, bool]) -> None:
+        """A acao do ciclo anterior entregou o efeito que prometia?
+
+        POR QUE EXISTE (2026-08-04). O robo passou 8 horas neste laco:
+
+            IA decidiu 'observar_ambiente' (nao sei a distancia a frente)
+            objetivo 'entender_o_ambiente' -> plano observar_ambiente
+            [30 s depois, identico, para sempre]
+
+        `observar_ambiente` promete `frente_conhecida: True`. Os ultrassons
+        estao desplugados desde 03/08 (escolha do dono, o ToF vai substituir),
+        entao `obstaculo_frente_cm` e None e `frente_conhecida` nunca vira
+        True. O planejador acreditava na promessa a cada ciclo, para sempre, e
+        NADA denunciava: sem erro, sem excecao, sem teste vermelho - o mesmo
+        formato de defeito do evento publicado no vazio.
+
+        O conserto nao e sobre ultrassom. E a regra geral que faltava: **uma
+        acao que promete um efeito e nunca o entrega para de ser planejada.**
+        Vale igual quando o LiDAR falhar, quando a camera cair ou quando um
+        servo travar - nenhum deles vai precisar de codigo novo aqui.
+
+        Volta sozinha: se o efeito reaparecer no mundo por qualquer via (o
+        sensor religado, o ToF instalado), a acao volta ao planejador no ciclo
+        seguinte. A conferencia de volta e feita contra o ESTADO, e nao contra
+        uma nova execucao - a acao descartada nunca mais seria planejada, entao
+        esperar por ela seria esperar para sempre.
+        """
+        # 1. As descartadas voltam se o mundo mostrar a promessa delas de novo.
+        for nome in sorted(self._acoes_sem_efeito):
+            promessa = modelo_goap.promessa_de(nome)
+            if all(estado.get(chave) == valor for chave, valor in promessa.items()):
+                self._acoes_sem_efeito.discard(nome)
+                self._promessas_quebradas.pop(nome, None)
+                logger.info(
+                    "maestro: '%s' voltou a cumprir %s - de volta ao planejador",
+                    nome,
+                    promessa,
+                )
+
+        passo = self._passo_anterior
+        if passo is None:
+            return
+        promessa = modelo_goap.promessa_de(passo)
+        if not promessa:
+            # A acao nao prometeu nada COBRAVEL - ou tem efeito vazio
+            # (`avancar` e quase toda acao de movimento), ou o efeito dela e
+            # intencao sobre o mundo e nao sobre o proprio robo. Ver
+            # `modelo_goap.PREDICADOS_PROMETIDOS`, que e onde essa linha e
+            # explicada, e o teste do girar que obrigou a traca-la.
+            return
+
+        if all(estado.get(chave) == valor for chave, valor in promessa.items()):
+            self._promessas_quebradas.pop(passo, None)
+            return
+
+        vezes = self._promessas_quebradas.get(passo, 0) + 1
+        self._promessas_quebradas[passo] = vezes
+        if vezes >= PROMESSAS_QUEBRADAS_ATE_DESCARTAR and passo not in self._acoes_sem_efeito:
+            self._acoes_sem_efeito.add(passo)
+            logger.warning(
+                "maestro: '%s' foi planejada %d vezes seguidas e a promessa %s nunca "
+                "se cumpriu - tirando do planejador (sensor fora do ar?)",
+                passo,
+                vezes,
+                promessa,
+            )
 
     def quer_rodar(self) -> bool:
         return self._acao_atual is not None

@@ -334,7 +334,12 @@ async def principal() -> None:
     # closure abaixo ve a variavel, nao o valor do momento.
     diario_leitura = None
 
+    #: O ultimo contexto que FOI registrado, para nao repetir o mesmo texto de
+    #: 4 KB a cada 30 s. Ver a nota no fim de `_contexto_para_ia`.
+    ultimo_contexto_logado = ""
+
     async def _contexto_para_ia() -> str:
+        nonlocal ultimo_contexto_logado
         r = mundo.retrato()
         # Falha ao ler o diario NAO cancela a decisao: decidir com menos
         # contexto e ruim, decidir nunca e pior (Cap 6 s.8).
@@ -385,9 +390,25 @@ async def principal() -> None:
         #
         # Sem esta linha, perguntas como "sera que a inclinacao esta alta e ela
         # esta com medo de andar?" nao tem resposta possivel - viram opiniao.
-        # Uma linha por ciclo (30s), com as quebras trocadas por " | " para
-        # caber num registro so e dar para acompanhar com `grep`.
-        logger.info("contexto da IA: %s", contexto.replace("\n", " | "))
+        # As quebras viram " | " para caber num registro so e dar para
+        # acompanhar com `grep`.
+        #
+        # SO QUANDO MUDA (2026-08-04). Uma linha por ciclo custava caro demais:
+        # o texto tem ~4 KB e o ciclo e de 30 s, entao em 8 horas foram 3.051
+        # copias e 13 MB - o log virou o problema em vez da ferramenta, e para
+        # ler qualquer outra coisa era preciso `grep -v "contexto da IA"`.
+        #
+        # Registrar so a MUDANCA nao perde a evidencia: o contexto vale ate ser
+        # substituido, entao a ultima linha registrada e exatamente o que a IA
+        # recebeu em todos os ciclos seguintes. Com o mundo parado sao poucas
+        # linhas; quando algo muda de verdade, a mudanca aparece sozinha em vez
+        # de ficar escondida entre mil repeticoes iguais.
+        uma_linha = contexto.replace("\n", " | ")
+        if uma_linha != ultimo_contexto_logado:
+            ultimo_contexto_logado = uma_linha
+            logger.info("contexto da IA: %s", uma_linha)
+        else:
+            logger.debug("contexto da IA: sem mudanca desde o registro anterior")
         return contexto
 
     # O pedido de conselho nasce no Pi e precisa CHEGAR ao Notebook (onde
