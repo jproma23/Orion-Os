@@ -575,3 +575,80 @@ for (const botao of document.querySelectorAll('.volante-opcao')) {
     }
   });
 }
+
+// ---------- DESLIGAR AS DUAS MÁQUINAS (2026-08-04) ----------
+//
+// PEDE CONFIRMAÇÃO EM DOIS CLIQUES, e não com um confirm() do navegador.
+// Este é o único botão do dashboard cuja ação não tem volta pela própria
+// interface: depois dele só alguém fisicamente perto das máquinas religa o
+// robô. Um toque acidental no celular, de fora de casa, custaria a noite.
+//
+// Dois cliques e não confirm() porque a página é usada no celular, onde o
+// diálogo do navegador aparece fora do contexto e é fácil de aceitar por
+// reflexo. O segundo clique acontece no MESMO botão, que muda de texto e de
+// cor - quem está confirmando lê o que vai fazer.
+//
+// A confirmação expira: quem clicou uma vez e largou o celular não deixa um
+// gatilho armado para o próximo toque.
+{
+  const botao = document.getElementById('botao-desligar');
+  const alvo = document.getElementById('desligar-status');
+  const SEGUNDOS_PARA_CONFIRMAR = 5;
+  const ROTULO = 'DESLIGAR TUDO';
+  let armado = false;
+  let relogio = null;
+
+  function desarmar() {
+    armado = false;
+    if (relogio) clearTimeout(relogio);
+    relogio = null;
+    if (botao) {
+      botao.textContent = ROTULO;
+      botao.classList.remove('confirmando');
+    }
+  }
+
+  botao?.addEventListener('click', async () => {
+    if (!armado) {
+      armado = true;
+      botao.textContent = 'CLIQUE DE NOVO PARA CONFIRMAR';
+      botao.classList.add('confirmando');
+      alvo.className = '';
+      alvo.textContent = `desliga o Notebook e o Raspberry (expira em ${SEGUNDOS_PARA_CONFIRMAR}s)`;
+      relogio = setTimeout(() => {
+        desarmar();
+        alvo.textContent = 'cancelado';
+      }, SEGUNDOS_PARA_CONFIRMAR * 1000);
+      return;
+    }
+    desarmar();
+    botao.disabled = true;
+    alvo.className = '';
+    alvo.textContent = 'mandando desligar...';
+    try {
+      const resposta = await fetch('/desligar', { method: 'POST' });
+      if (resposta.status === 401) {
+        // NÃO repete depois de entrar, ao contrário do volante: desligar é
+        // destrutivo demais para acontecer como efeito colateral de digitar
+        // uma senha. Quem quiser mesmo, clica de novo com a sessão aberta.
+        botao.disabled = false;
+        await pedirSenha('Para desligar o robô, informe a senha.');
+        alvo.textContent = 'entre com a senha e clique de novo';
+        return;
+      }
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) {
+        botao.disabled = false;
+        alvo.className = 'erro';
+        alvo.textContent = corpo.erro || `recusado (HTTP ${resposta.status})`;
+        return;
+      }
+      alvo.textContent = corpo.aviso || 'desligando...';
+    } catch (e) {
+      // A rede cair AQUI é o esperado, não um erro: o Raspberry está se
+      // desligando, e é ele quem serve esta página. Dizer "sem resposta do
+      // robô" faria o dono achar que falhou e clicar de novo.
+      alvo.textContent = 'desligando - a página vai parar de responder';
+    }
+  });
+}

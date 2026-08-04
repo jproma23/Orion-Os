@@ -501,3 +501,41 @@ dd {
   font-size: 13px;
   color: var(--texto-fraco);
 }
+
+/* ---------- DESLIGAR AS DUAS MAQUINAS (2026-08-04) ----------
+   Deliberadamente APAGADO no estado normal, ao contrario do PARAR, que e
+   vermelho e grita. Os dois sao irreversiveis de jeitos opostos: parar e
+   sempre seguro e precisa ser achado em um segundo; desligar nunca e a saida
+   de um imprevisto e nao deve atrair o dedo. So fica vermelho depois do
+   primeiro clique, quando ja e uma confirmacao consciente. */
+.painel--desligar { border-color: rgba(255, 255, 255, .08); }
+
+.desligar-aviso {
+  margin: 0 0 10px;
+  opacity: .7;
+  font-size: .85em;
+  line-height: 1.4;
+}
+
+.botao-desligar {
+  width: 100%;
+  background: transparent;
+  color: var(--alerta);
+  border: 1px solid var(--alerta);
+  border-radius: 8px;
+  /* padding e peso iguais aos do .botao-parar - sao irmaos de familia */
+  padding: 11px;
+  font: inherit; font-weight: 700; letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.botao-desligar:disabled { opacity: .5; cursor: default; }
+
+/* Confirmando: o botao passa a se parecer com o PARAR - preenchido e opaco.
+   A troca de aparencia e parte do aviso, nao enfeite: o mesmo botao esta
+   dizendo outra coisa, e precisa PARECER outro botao. */
+.botao-desligar.confirmando {
+  background: var(--alerta);
+  color: #1a0603;
+  letter-spacing: .04em;
+}

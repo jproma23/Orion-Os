@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Fofão — Dashboard</title>
-<link rel="stylesheet" href="dashboard.css?v=20260803c" />
+<link rel="stylesheet" href="dashboard.css?v=20260804b" />
 </head>
 <body>
 <header>
@@ -139,9 +139,25 @@
     <ul id="lista-eventos"></ul>
   </section>
 
+  <!-- DESLIGAR fica por ÚLTIMO na página, e sozinho no painel, de propósito:
+       é a única ação daqui que não tem volta pela própria interface - depois
+       dela só alguém fisicamente perto do botão de energia religa o robô.
+       Perto do joystick ou do PARAR, um toque errado custaria a noite. -->
+  <section class="painel painel--desligar">
+    <h2>Desligar</h2>
+    <p class="desligar-aviso">
+      Desliga o Notebook e o Raspberry. Para religar é preciso estar perto das
+      máquinas.
+    </p>
+    <button id="botao-desligar" type="button" class="botao-desligar">
+      DESLIGAR TUDO
+    </button>
+    <p id="desligar-status"></p>
+  </section>
+
 </main>
 
 <script src="camera_cabeca.js?v=20260804a"></script>
-<script src="dashboard.js?v=20260803c"></script>
+<script src="dashboard.js?v=20260804b"></script>
 </body>
 </html>

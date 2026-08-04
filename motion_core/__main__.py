@@ -24,6 +24,7 @@ from pathlib import Path
 
 from motion_core.behavior import contrato
 from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
+from motion_core.desligamento import Desligador
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
     Atender,
@@ -682,6 +683,35 @@ async def principal() -> None:
 
     # 5. Interface web (Cap 13 s.4).
     conf_web = config.secao("display")["web"]
+
+    # O BOTAO DE DESLIGAR AS DUAS MAQUINAS (2026-08-04).
+    #
+    # O `desligamento.py` e os testes dele entraram no repo em 03/08 e ate hoje
+    # NINGUEM os chamava - faltava esta construcao, a rota e o botao. E o
+    # segundo caso de codigo orfao no mesmo mes (o outro foi o GOAP): escrever,
+    # testar e commitar nao liga nada sozinho.
+    #
+    # Sai None se o bloco `communication.notebook` nao existir, e ai o botao
+    # aparece recusando com "desligamento nao configurado" em vez de a pagina
+    # quebrar - ou, pior, de o botao existir e nao fazer nada.
+    conf_notebook = config.secao("communication").get("notebook") or {}
+    desligador = None
+    if conf_notebook.get("host"):
+        desligador = Desligador(
+            host_notebook=conf_notebook["host"],
+            usuario_notebook=conf_notebook.get("usuario", "jproma23"),
+        )
+        logger.info(
+            "Desligamento pela webui ativo - o Notebook sera alcancado em %s@%s",
+            conf_notebook.get("usuario", "jproma23"),
+            conf_notebook["host"],
+        )
+    else:
+        logger.warning(
+            "sem communication.notebook no orion.yaml - o botao de desligar "
+            "ficara recusando: nao ha como alcancar a outra maquina"
+        )
+
     webui = WebUIServer(
         event_bus,
         port=conf_web["port"],
@@ -694,6 +724,8 @@ async def principal() -> None:
         # O chat por texto da aba Conversa e o UNICO consumidor: a IA roda no
         # Notebook, entao a caixa de texto precisa deste link para chegar la.
         comm=comm,
+        # Quem executa o desligamento das duas maquinas (ver acima).
+        desligador=desligador,
     )
     await webui.iniciar()
 

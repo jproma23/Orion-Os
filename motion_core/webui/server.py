@@ -246,6 +246,7 @@ class WebUIServer:
         config: ConfigurationManager | None = None,
         maestro=None,
         comm=None,
+        desligador=None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -273,6 +274,13 @@ class WebUIServer:
         #: mesma razao dos outros: sem ele a caixa de texto responde "sem
         #: link" em vez de a pagina quebrar.
         self._comm = comm
+        #: Quem desliga as duas maquinas (`motion_core.desligamento.Desligador`).
+        #:
+        #: Opcional pela mesma razao dos outros: sem ele o botao aparece
+        #: DESABILITADO, com o motivo escrito. Botao que existe e nao faz nada e
+        #: pior que botao ausente - especialmente este, em que o dono ficaria
+        #: achando que mandou desligar e iria dormir com as duas ligadas.
+        self._desligador = desligador
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
         #: sinaliza os handlers SSE de longa duracao (_handler_sse) para
@@ -318,6 +326,7 @@ class WebUIServer:
         self._app.router.add_post("/comando", self._handler_comando)
         self._app.router.add_post("/controle", self._handler_controle)
         self._app.router.add_post("/cabeca", self._handler_cabeca)
+        self._app.router.add_post("/desligar", self._handler_desligar)
         self._app.router.add_get("/", self._handler_index)
         self._app.router.add_get("/mapa", self._handler_mapa)
         self._app.router.add_get("/diagnostico", self._handler_diagnostico)
@@ -689,6 +698,43 @@ class WebUIServer:
             "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_OPERADOR}
         )
         return web.json_response({"ok": True, "pan": pan, "tilt": tilt})
+
+    async def _handler_desligar(self, request: web.Request) -> web.Response:
+        """O BOTAO DE DESLIGAR AS DUAS MAQUINAS (2026-08-04).
+
+        Pedido do dono: *"quero um botao pra desligar o rasp e o notebook, esse
+        botao na webui"*. O `motion_core/desligamento.py` e os testes dele
+        estavam no repo desde 03/08 e **ninguem os chamava** - faltava
+        exatamente esta rota, o botao na pagina e a construcao no boot. Codigo
+        orfao nao e codigo pronto, e este e o segundo caso no mesmo mes (o
+        primeiro foi o GOAP).
+
+        EXIGE SESSAO, sem excecao. E a acao mais destrutiva que a interface
+        oferece: derruba as duas maquinas, e voltar delas exige alguem
+        fisicamente perto do botao de energia. O `/comando` abre excecao para o
+        PARAR de emergencia porque parar e sempre seguro; aqui nao ha nada
+        equivalente - desligar nunca e a saida segura de um imprevisto.
+
+        Responde ANTES de desligar (`agendar()`): sem isso o poweroff derruba a
+        rede no meio da resposta, o navegador mostra erro, e o dono clica de
+        novo achando que nao funcionou - num robo que ja esta desligando.
+        """
+        if not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para desligar o robo", "precisa_senha": True},
+                status=401,
+            )
+        if self._desligador is None:
+            # Botao que existe e nao faz nada e pior que botao ausente: o dono
+            # iria dormir achando que as duas maquinas estavam desligadas.
+            return web.json_response(
+                {"erro": "desligamento nao configurado neste robo"}, status=503
+            )
+        logger.warning("webui: DESLIGAMENTO das duas maquinas pedido pelo dashboard")
+        self._desligador.agendar()
+        return web.json_response(
+            {"ok": True, "aviso": "desligando o Notebook e o Raspberry - ate logo"}
+        )
 
     async def _handler_controle(self, request: web.Request) -> web.Response:
         """O BOTÃO: entrega o volante ao operador ou ao robô.
