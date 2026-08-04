@@ -59,6 +59,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
+from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
@@ -572,6 +573,25 @@ async def principal() -> None:
         # Fonte obrigatoria: nunca usar o microfone local apos reinicio.
         gravar_audio=gravar_audio,
     )
+
+    # CHAT POR TEXTO (2026-08-03), pedido do dono: "vai q estou em outro lugar
+    # e quero mandar ele ir na cozinha". A caixa de texto da aba Conversa (no
+    # Pi) chega aqui por comm.request e entra no MESMO `processar_comando` que
+    # uma transcricao do microfone usaria.
+    #
+    # Fica DEPOIS do VoiceCore de proposito: precisa de `processar_comando` e
+    # de `voz`, que so existem a esta altura.
+    async def atender_texto(texto: str) -> str:
+        resposta = await processar_comando(texto)
+        # Falar e decisao DAQUI, nao da ponte: a ponte so leva e traz texto.
+        # Em segundo plano para a tela de quem digitou nao ficar esperando o
+        # audio terminar - a resposta escrita ja esta pronta neste ponto.
+        if resposta:
+            asyncio.create_task(voz.falar(resposta))
+        return resposta
+
+    PonteConversa(atender_texto, comm).registrar(bus)
+    logger.info("Chat por texto ativo (webui -> mission.conversa)")
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
 

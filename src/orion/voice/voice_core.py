@@ -126,6 +126,23 @@ class VoiceCore:
             "voice.audio_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
         )
 
+    async def falar(self, texto: str) -> None:
+        """Fala um texto que NAO veio do ciclo de voz - hoje, a resposta do
+        chat da webui (2026-08-03).
+
+        Existe para haver UM caminho de fala, e nao dois. Chamar o
+        sintetizador direto pularia o assentamento pos-fala abaixo, que e o
+        que impede o robo de ouvir a propria voz pelos microfones do ESP32 e
+        trata-la como pedido do dono (achado de 2026-08-02).
+
+        LIMITE CONHECIDO: nao ha trava contra falar por cima de uma resposta
+        do ciclo de voz. Se o dono mandar uma mensagem no exato momento em que
+        o robo responde alguem em casa, os dois audios se sobrepoem. Nao
+        inventei uma fila agora porque a janela e estreita e uma fila mal
+        feita esconderia a resposta em vez de atrasa-la - fica anotado.
+        """
+        await self._falar_com_protecao(texto)
+
     async def _falar_com_protecao(self, texto: str) -> None:
         """Fala `texto`, tolerando falha da saida de audio - mesma classe
         de problema ja corrigida hoje do lado da entrada (microfone) e da
