@@ -5826,3 +5826,156 @@ editado a cada migração não guarda a regra, guarda o dia em que foi escrito.*
 - Multímetro no I2C, consumo, TB6600 a 3,3 V.
 - Bancada com o GOAP: ele move o robô por um caminho que nunca rodou no
   hardware.
+
+## Sessao de 2026-08-04 - varredura completa: nove defeitos que nao quebravam nada
+
+Pedido do dono: *"faz uma varredura no orion via ssh e verifica todo o codigo,
+busca por bugs e possiveis melhorias"*. Depois: *"faca seu melhor para
+resolver"*.
+
+O ponto de partida era bom, e e isso que define a sessao: **652 testes
+passando, 0 falhando, nenhum TODO largado, ruff so com aviso cosmetico**. Nao
+havia nada quebrado para achar. Entao a varredura foi atras do que nao aparece
+em teste nem em log - as duas familias de bug que este projeto ja registrou
+varias vezes: *publicar e ninguem escutar* e *ausencia de erro lida como
+sucesso*.
+
+Nove defeitos, dois commits, nove testes novos. **Nenhum deles quebrava nada** -
+por isso estavam vivos.
+
+### A ferramenta: um analisador de barramento
+
+`grep` nao serve para esta pergunta. Metade dos `subscribe` deste projeto nao
+tem o topico escrito ao lado: a webui e o avatar assinam por
+`for topico in TOPICOS_REPASSADOS`, e o `comm.publish` monta o nome com
+f-string. Um grep ve zero assinantes onde ha vinte, e vinte orfaos onde ha um.
+
+Escrevi um analisador AST que percorre os 195 arquivos resolvendo constantes de
+modulo, variaveis de laco e prefixos dinamicos. Foram tres versoes ate os
+falsos positivos sumirem: 31 "orfaos" na v2 viraram 10 reais na v3, e desses,
+tres eram bug de verdade.
+
+**Vale guardar a ferramenta** (`tools/auditar_barramento.py`): esta
+familia de bug ja mordeu quatro vezes e nao ha teste que a pegue, porque
+publicar nunca falha.
+
+### Os tres que o analisador achou
+
+**1. A saudacao nunca chegou ao avatar.** `saudacao.py` publica
+`voice.saudacao` ANTES de falar, e o comentario ao lado diz, com todas as
+letras, *"o avatar reage ao evento"*. O topico nunca esteve em
+`TOPICOS_REPASSADOS`. A legenda do cumprimento jamais apareceu na tela - desde
+que a saudacao existe. Quarta vez.
+
+**2. O que quebra nao chegava na tela.** `vision.camera_error`,
+`voice.audio_error` e `diagnostic.alerta` nao tinham consumidor nenhum. Camera
+caida, alto-falante falhando e alerta do guardiao de RAM so existiam no log do
+Pi. A pagina DIAGNOSTICO tem uma lista de erros recentes que nunca recebeu
+nenhum dos tres.
+
+**3. `behavior.conselho` era falso positivo** - atravessa o link para o
+Notebook. Registrado aqui porque o analisador vai reapontar isso toda vez.
+
+### Os que vieram da leitura
+
+**4. A consulta a IA podia morrer e nunca mais voltar.**
+`asyncio.create_task(self._consultar_ia())` sem guardar referencia. O loop so
+mantem referencia fraca - a documentacao do asyncio manda guardar o resultado
+"para a tarefa nao desaparecer no meio da execucao". Se ela sumisse, o
+`finally` que devolve `_consultando` para `False` nunca rodaria, e
+`_pode_consultar_ia` passaria a recusar TODA consulta seguinte, para sempre,
+sem uma linha de log. Falha silenciosa e PERMANENTE, no mesmo caminho onde 5444
+decisoes da IA ja evaporaram uma vez (30/07). Mesmo defeito na tarefa da
+saudacao.
+
+**5. `comm.publish` iterava `self._links` vivo** com um `await` dentro do laco.
+`adicionar_link` mexe nesse dicionario de outra tarefa a cada reconexao:
+`dictionary changed size during iteration` no meio de um broadcast, justamente
+quando o link esta instavel - que e quando o evento mais importa.
+
+**6. O teto de sessoes podia deslogar quem acabou de entrar.** `set.pop()`
+remove um elemento ARBITRARIO, e podia levar o token recem-criado. Virou dict
+ordenado: sai o mais antigo.
+
+**7. A varredura saia com o robo andando.** `_executar_segmento` ja esperava o
+corpo ficar ocioso, mas o EXPLORE chama `_escanear_a_frente` direto no inicio
+de cada passo - e o passo anterior termina mandando MOVE_DISTANCE, cujo ACK so
+diz que o comando chegou. As leituras descreviam um lugar por onde o robo ja
+tinha passado. **O log de producao tinha 16 `SCAN_FRONT` sem ACK**, que e o
+sintoma exato de comando sobreposto a movimento. A espera foi para dentro de
+`_escanear_a_frente`: quem varre quer o dado bom, sempre.
+
+### As tres que dependiam de decisao (segundo commit)
+
+**8. Dirigir pela rede nao pedia senha.** `/cabeca` exigia sessao e `/comando`
+nao: virar a cabeca pedia senha, avancar e dar re nao. Nao foi decisao de
+ninguem - foi o que sobrou de a protecao ter nascido junto com a pagina de
+configuracao, e nao com o joystick.
+
+**O STOP fica de fora, de proposito.** Quem ve o robo indo para um lugar ruim
+precisa poder para-lo AGORA; exigir senha para PARAR trocaria um risco por
+outro pior. Mesmo argumento que ja tinha tirado o STOP da disputa do volante.
+
+Do proprio Pi nada muda (o kiosk e 127.0.0.1). De fora, o dashboard abre um
+campo de senha reaproveitando `/api/configuracao/entrar` e o `.form-senha` que
+ja existia. **O joystick nao repete o comando depois do login** - comando de
+movimento guardado enquanto alguem digita a senha chegaria atrasado, que e o
+pior comportamento possivel num controle manual.
+
+**9. `segment_completed` dizia "completado" antes de andar**, e a pose andava
+no reinicio da placa dizendo que nao andava. Neste segundo, `_delta_encoder`
+logava *"resincronizando sem atualizar pose"* e devolvia `(None, None)` -
+indistinguivel de "nao ha encoder", entao o chamador caia nos passos comandados
+e somava a pose assim mesmo. **O teste novo mostra o tamanho: a pose pulava de
+1,0 m para 2,0 m no quadro do reinicio.**
+
+### Os testes foram postos a prova
+
+Nove testes novos, e cada um foi conferido REVERTENDO o codigo e rodando: os
+cinco de acesso, o da pose e o do segmento falham sem a correcao.
+
+Isso pegou um teste ruim meu. A primeira versao do teste do segmento passava
+nos dois casos - a espera do inicio do segmento comia o tempo todo e nada era
+provado. Refeito imitando o firmware no ponto em que ele age (o corpo passa a
+EXECUTING_MISSION ao RECEBER o MOVE_DISTANCE). **Um teste que passa com o bug
+presente e pior que teste nenhum**: ele afirma que a regra esta guardada.
+
+### Um veredito meu que estava errado
+
+Comecei tratando o firmware ESP32-only como bloqueio grave - `ESP32Servo.h` sem
+guarda de plataforma, `[env:megaatmega2560]` removido do `platformio.ini` -
+porque eu carregava a nota de 03/08 de manha, de que o corpo ainda era o Mega.
+O journal da TARDE desmentiu: a fiacao foi refeita e o corpo e o ESP32. Esta
+certo como esta.
+
+Licao repetida: **a nota de meio-dia nao substitui o journal do fim do dia.**
+
+### Estado ao fim da sessao
+
+- **Suite no Pi: 661 passam, 16 pulados, 0 falhando** (9 testes novos).
+- Ruff: 138 avisos antes e depois - nenhum novo.
+- `orion-motion` reiniciado e no ar: ESP32, banco e Notebook conectados, IDLE.
+- Commits: `256ebe8` (sete defeitos silenciosos) e o desta sessao.
+
+### O que a varredura viu e NAO e bug de software
+
+- **824 `COMANDO SEM GIRO`** no log, todos de 03/08 e nenhum depois: motor
+  comandado, encoder sem contar pulso. Bancada com roda no ar, ou rele/fiacao.
+  E pergunta de multimetro, nao de codigo.
+- Os 14 tracebacks sao todos do mesmo boot de 03/08 (`communication.arduino`
+  ausente no yaml), ja resolvido.
+- Fora do ar POR ESCOLHA: ultrassons desplugados, bussola `conectada: false`,
+  IMU e DHT sem dado na telemetria, `encoder_pulses_per_meter` ainda `null` -
+  por isso a pose segue `origem: passos_comandados`, `medida: false`.
+
+### Fica aberto
+
+- `/api/conversa/mensagem` (o chat com a IA) continua sem exigir sessao. Nao
+  move o robo, entao nao entrou no mesmo balaio - mas quem alcanca a porta
+  conversa com o Fofao e alimenta a memoria dele.
+- `voice.transcription_ready` e publicado junto com `voice.command_received`
+  em todos os pontos, e ninguem consome nenhum dos dois lugares. Ou vira
+  legenda do que o robo OUVIU (o avatar tem a nota dizendo que e outra ideia),
+  ou sai.
+- `database.ready` / `database.rebuilt` / `database.backup_failed` seguem sem
+  consumidor. O log cobre, mas backup que falha merece aparecer na tela.
