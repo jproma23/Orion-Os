@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from motion_core.behavior import contrato
-from motion_core.behavior.behavior_core import BehaviorCore
+from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
     Atender,
@@ -482,6 +482,13 @@ async def principal() -> None:
     # de 15 quadros/s que motivou a deduplicacao original.
     ultimo_pan_tilt = {"ts": 0.0, "operador_ts": 0.0}
 
+    #: Preenchido mais abaixo (o BehaviorCore nasce depois deste handler).
+    #: Declarado aqui para o closure ter o nome ligado se um evento de pan/tilt
+    #: chegar entre o subscribe e a construcao do maestro - sem isto seria um
+    #: NameError numa janela de milissegundos, que e o tipo de falha que so
+    #: aparece na madrugada de quinta.
+    maestro = None
+
     #: Quem mexeu no joystick da cabeca fica DONO dela por este tempo, e os
     #: comportamentos esperam a vez (2026-08-03).
     #:
@@ -512,6 +519,25 @@ async def principal() -> None:
 
         if do_operador:
             ultimo_pan_tilt["operador_ts"] = agora
+        elif maestro is not None and maestro.modo_controle == MODO_MANUAL:
+            # EM MANUAL A CABECA E DO OPERADOR, E NAO POR 10 SEGUNDOS
+            # (2026-08-04).
+            #
+            # A janela de 10 s abaixo foi feita para o modo AUTONOMO, onde ela
+            # esta certa: o robo precisa voltar a olhar em volta sozinho, e um
+            # controle manual que nunca expira e um robo que para de vigiar
+            # porque alguem esqueceu de devolver a cabeca.
+            #
+            # Em MANUAL o raciocinio se inverte. O dono declarou que esta
+            # dirigindo; nao ha nada para o robo retomar. O que acontecia sem
+            # esta linha: o dono virava a cabeca, e 10 s depois o `Repouso`
+            # (que publica pan/tilt 0,0 ao assumir, para nivelar depois de um
+            # reset da placa) a puxava de volta ao centro. Da tela isso e
+            # exatamente *"eu aperto e volta"* - indistinguivel de defeito.
+            logger.debug(
+                "pan/tilt do maestro ignorado: modo MANUAL, a cabeca e do operador"
+            )
+            return
         elif agora - ultimo_pan_tilt["operador_ts"] < JANELA_DO_OPERADOR_S:
             # A cabeca esta na mao do dono. Em debug e nao em warning: isto e
             # o funcionamento correto, nao uma falha - e um warning a cada

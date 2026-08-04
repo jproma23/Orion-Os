@@ -103,6 +103,27 @@ function montarJoystickCabeca() {
   let arrastando = false;
   let ultimoEnvio = 0;
 
+  // DE 10 EM 10 GRAUS (2026-08-04), a pedido do dono: *"um toquinho e o servo
+  // faz um movimento muito grande"*, *"tem q ser de 10 em 10 graus"*.
+  //
+  // O punho é pequeno e o curso inteiro vale 160° de pan: encostar o dedo
+  // 8 px fora do centro já mandava ~10°, e o ângulo mudava a cada pixel. O
+  // servo recebia um alvo novo a cada 120 ms e a cabeça tremia em vez de ir
+  // para um lugar.
+  //
+  // Arredondar para o múltiplo de 10 mais próximo dá degraus estáveis: dentro
+  // do mesmo degrau o valor não muda, então NADA é enviado (ver `ultimoPan`)
+  // e a cabeça fica parada onde o dono a deixou. É a mesma ideia do ângulo
+  // absoluto do handler: um alvo claro, não uma correção contínua.
+  const PASSO_GRAUS = 10;
+  const emDegraus = (graus) => Math.round(graus / PASSO_GRAUS) * PASSO_GRAUS;
+
+  //: O último ângulo REALMENTE enviado. Sem ele o arredondamento sozinho não
+  //: resolveria nada: o mesmo 30° sairia dez vezes por segundo enquanto o
+  //: dedo passeasse dentro do degrau.
+  let ultimoPan = null;
+  let ultimoTilt = null;
+
   async function enviarCabeca(pan, tilt) {
     try {
       const r = await fetch('/cabeca', {
@@ -142,13 +163,29 @@ function montarJoystickCabeca() {
     ultimoEnvio = agora;
     // y para CIMA na tela (negativo) = olhar para cima = tilt positivo.
     const tilt = y < 0 ? -y * TILT_MAX : -y * -TILT_MIN;
-    enviarCabeca(x * PAN_MAX, tilt);
+    const panDegrau = emDegraus(x * PAN_MAX);
+    const tiltDegrau = emDegraus(tilt);
+    // Mesmo degrau que o último = nada a dizer ao servo.
+    if (panDegrau === ultimoPan && tiltDegrau === ultimoTilt) return;
+    ultimoPan = panDegrau;
+    ultimoTilt = tiltDegrau;
+    enviarCabeca(panDegrau, tiltDegrau);
   }
 
   // SOLTAR: espelha `soltar()` do joystick das rodas, passo a passo - mesma
   // ordem, mesma classe visual, mesma rede de segurança. A única diferença é o
   // que se manda no fim: lá é STOP (parar as rodas), aqui é voltar ao centro,
   // que é o equivalente de repouso para uma cabeça.
+  //
+  // MANTER O ÂNGULO AO SOLTAR FOI TENTADO E RECUSADO (2026-08-04). A cabeça
+  // voltando ao centro parecia defeito (*"eu aperto e volta"*), e a correção
+  // chegou a ser escrita: soltar deixaria a cabeça onde estava, com o botão
+  // CENTRO como único caminho de volta. O dono usou o joystick nesse meio
+  // tempo, entendeu que **tem que segurar**, e decidiu ficar como está:
+  // *"até que tá bom assim"*, *"eu gostei, aprendi usar"*.
+  //
+  // Fica registrado para ninguém "consertar" isto de novo achando que é
+  // descuido: segurar para olhar é a escolha do dono, não um bug pendente.
   function soltar() {
     if (!arrastando) return;
     arrastando = false;
@@ -157,6 +194,10 @@ function montarJoystickCabeca() {
     status.className = '';
     status.textContent = 'cabeça: centro';
     ultimoEnvio = 0;               // voltar ao centro nunca espera o intervalo
+    // O degrau lembrado volta a zero junto: sem isto, arrastar de novo até 0°
+    // não enviaria nada, porque o último degrau registrado seria o de antes.
+    ultimoPan = 0;
+    ultimoTilt = 0;
     enviarCabeca(0, 0);
   }
 
@@ -177,6 +218,11 @@ function montarJoystickCabeca() {
 
   centro?.addEventListener('click', () => {
     punho.style.transform = 'translate(0, 0)';
+    // Zera o degrau lembrado junto com o comando: sem isto, mandar a cabeça ao
+    // centro e depois arrastar de volta para 0° não enviaria nada, porque o
+    // último degrau REGISTRADO ainda seria o de antes do clique.
+    ultimoPan = 0;
+    ultimoTilt = 0;
     enviarCabeca(0, 0);
   });
 }
