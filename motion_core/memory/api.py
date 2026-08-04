@@ -101,15 +101,43 @@ class MemoryAPI:
         self, categoria: str, filtro: dict[str, Any] | None = None, limite: int = 20
     ) -> list[dict[str, Any]]:
         """Busca registros da categoria, filtrando por igualdade nas colunas
-        de `filtro`, mais recentes primeiro, limitados a `limite`."""
+        de `filtro`, mais recentes primeiro, limitados a `limite`.
+
+        FILTRAR POR `None` SIGNIFICA "COLUNA VAZIA" (corrigido em 2026-08-04).
+
+        Ate hoje esta funcao montava `coluna = ?` para todo filtro, inclusive
+        quando o valor era `None` - e em SQL `coluna = NULL` **nunca casa com
+        linha nenhuma**, nem com as que estao vazias. Comparar com NULL da
+        sempre NULL, que nao e verdadeiro. O jeito certo e `IS NULL`.
+
+        O ESTRAGO REAL: os recados. `RecadosPendentes.pendentes()` busca com
+        `{"entregue_em": None}` - "recados que ainda nao foram entregues" - e
+        recebia lista vazia SEMPRE. O dono pediu ao Fofao para avisar a Marah,
+        o robo guardou o recado, encontrou a pessoa, cumprimentou... e nao
+        tinha o que entregar, porque a consulta nunca achava nada. O recurso
+        inteiro nunca funcionou desde que nasceu.
+
+        E nada denunciava: lista vazia e resposta legitima de `recall`, e
+        indistinguivel de "nao ha recado pendente". Sem erro, sem excecao, sem
+        teste vermelho - o mesmo formato do evento publicado no vazio.
+        """
         tabela = self._tabela(categoria)
         filtro = filtro or {}
 
         def _buscar() -> list[dict[str, Any]]:
             self._validar_colunas(tabela, filtro.keys())
-            condicao = " AND ".join(f"{coluna} = ?" for coluna in filtro) or "1=1"
+            condicoes: list[str] = []
+            valores: list[Any] = []
+            for coluna, valor in filtro.items():
+                if valor is None:
+                    # Sem parametro: `IS NULL` nao aceita placeholder.
+                    condicoes.append(f"{coluna} IS NULL")
+                else:
+                    condicoes.append(f"{coluna} = ?")
+                    valores.append(valor)
+            condicao = " AND ".join(condicoes) or "1=1"
             sql = f"SELECT * FROM {tabela} WHERE {condicao} ORDER BY id DESC LIMIT ?"
-            linhas = self._db.conexao.execute(sql, (*filtro.values(), limite)).fetchall()
+            linhas = self._db.conexao.execute(sql, (*valores, limite)).fetchall()
             return [dict(linha) for linha in linhas]
 
         async with self._db.lock:

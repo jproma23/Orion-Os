@@ -314,3 +314,63 @@ async def test_sem_pessoa_continua_trazendo_o_recente(contexto):
 
     ctx = await api.context(pessoa_id=None, limite_conversas=10)
     assert len(ctx["conversas_recentes"]) == 3
+
+
+# ---------------------------------------------------------------------------
+# FILTRAR POR None = "COLUNA VAZIA" (2026-08-04)
+#
+# `coluna = NULL` nunca casa em SQL, nem com as linhas vazias. O estrago real
+# foram os recados: `pendentes()` busca por `{"entregue_em": None}` e recebia
+# lista vazia SEMPRE - o robo guardava o recado, encontrava a pessoa,
+# cumprimentava e nao entregava nada.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_recall_com_none_acha_as_linhas_vazias(contexto):
+    """O caso do recado nao entregue, reduzido ao minimo."""
+    api, _ = contexto
+    await api.remember(
+        "recados",
+        {"para_nome": "Marah", "texto": "o Joao Paulo precisa falar com voce",
+         "criado_em": "2026-08-04T19:04:36"},
+    )
+
+    pendentes = await api.recall("recados", {"entregue_em": None})
+
+    assert len(pendentes) == 1, "recado pendente virou invisivel - era o bug"
+    assert pendentes[0]["para_nome"] == "Marah"
+
+
+@pytest.mark.asyncio
+async def test_recall_com_none_nao_traz_o_que_ja_foi_entregue(contexto):
+    """A outra metade: entregue sai da fila. Sem isto, o conserto acima
+    poderia ter virado 'traz tudo', e o robo repetiria o mesmo recado a cada
+    encontro - que e pior que nao entregar."""
+    api, _ = contexto
+    await api.remember(
+        "recados",
+        {"para_nome": "Marah", "texto": "ja entreguei este",
+         "criado_em": "2026-08-04T18:00:00", "entregue_em": "2026-08-04T19:00:00"},
+    )
+    await api.remember("recados", {"para_nome": "Marah", "texto": "este ainda nao", "criado_em": "2026-08-04T18:30:00"})
+
+    pendentes = await api.recall("recados", {"entregue_em": None})
+
+    assert [r["texto"] for r in pendentes] == ["este ainda nao"]
+
+
+@pytest.mark.asyncio
+async def test_recall_mistura_none_com_valor_normal(contexto):
+    """Filtro com as duas formas ao mesmo tempo: o parametro do valor normal
+    tem que continuar casando com o placeholder certo. Trocar a ordem dos
+    parametros aqui daria resultado errado sem erro nenhum."""
+    api, _ = contexto
+    await api.remember("recados", {"para_nome": "Marah", "texto": "para a Marah", "criado_em": "2026-08-04T18:00:00"})
+    await api.remember("recados", {"para_nome": "Kamal", "texto": "para o Kamal", "criado_em": "2026-08-04T18:01:00"})
+
+    achados = await api.recall(
+        "recados", {"para_nome": "Kamal", "entregue_em": None}
+    )
+
+    assert [r["texto"] for r in achados] == ["para o Kamal"]
