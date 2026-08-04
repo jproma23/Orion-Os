@@ -47,11 +47,13 @@
       </div>
     </div>
 
+    <!-- Os botões Foto | Ao vivo saíram em 2026-08-04, a pedido do dono: a
+         câmera fica SEMPRE ao vivo. A escolha existia para poupar dados
+         móveis (~16 KB/s contra ~13 KB por quadro), mas na prática o dono
+         trocava para "ao vivo" toda vez que abria a página - um botão que só
+         tem um valor útil não é uma escolha, é um passo a mais. O custo do
+         stream continua o mesmo e está escrito em camera_cabeca.js. -->
     <div class="camera-controles">
-      <button type="button" class="camera-opcao ativo"
-              id="camera-foto" data-modo="foto">Foto</button>
-      <button type="button" class="camera-opcao"
-              id="camera-vivo" data-modo="vivo">Ao vivo</button>
       <span id="camera-status">—</span>
     </div>
   </section>
@@ -77,7 +79,7 @@
 
 </main>
 
-<script src="camera_cabeca.js?v=20260803c"></script>
+<script src="camera_cabeca.js?v=20260804c"></script>
 <script src="conversa.js?v=20260803c"></script>
 </body>
 </html>

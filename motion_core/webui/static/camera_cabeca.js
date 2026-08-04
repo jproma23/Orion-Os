@@ -17,15 +17,18 @@
 // IP da LAN, por pi-os.local e por fofao-pi (Tailscale). A porta vem do
 // /estado, porque porta é config e não número no código.
 //
-// FOTO é o padrão de propósito. O stream contínuo custa ~16 KB/s (~58 MB/h) e a
+// AO VIVO É O PADRÃO desde 2026-08-04, por decisão do dono - antes era FOTO.
+// O stream contínuo custa ~16 KB/s (~58 MB/h) contra ~13 KB por quadro, e a
 // razão de existir esta página é olhar de fora de casa, muitas vezes em dados
-// móveis. Um quadro custa ~13 KB.
+// móveis. O custo continua real: quem abrir a página no celular e esquecer
+// aberta paga por hora. Ficou assim mesmo assim, porque na prática o modo foto
+// era trocado para vivo em toda visita.
 //
 // Cuidado ao depurar aqui: o ustreamer roda com --persistent e, com a câmera
 // DESPLUGADA, ele serve uma imagem "NO SIGNAL" com HTTP 200. Ou seja, o onerror
 // NUNCA dispara nesse caso - a imagem chega, só não é a câmera.
 let cameraBase = null;
-let cameraModo = 'foto';
+let cameraModo = 'vivo';
 
 function cameraElemento(id) {
   return document.getElementById(id);
@@ -63,12 +66,10 @@ function montarCamera(camera) {
   painel.hidden = false;
   if (cameraBase) return;          // já montado, não remonta a cada evento
   cameraBase = `${location.protocol}//${location.hostname}:${camera.porta}`;
-  cameraElemento('camera-foto')?.addEventListener('click', () => {
-    if (cameraModo === 'foto') cameraAtualizarFoto();
-    else cameraDefinirModo('foto');
-  });
-  cameraElemento('camera-vivo')?.addEventListener('click', () => cameraDefinirModo('vivo'));
-  cameraDefinirModo('foto');
+  // SEMPRE AO VIVO (2026-08-04). Os botões Foto | Ao vivo saíram da página a
+  // pedido do dono; `cameraDefinirModo` fica, porque é ela que monta a URL do
+  // stream - e continua servindo se um dia a escolha voltar.
+  cameraDefinirModo('vivo');
 }
 
 // --- Joystick da cabeça ----------------------------------------------------
