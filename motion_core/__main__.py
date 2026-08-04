@@ -51,7 +51,7 @@ from motion_core.memory.replica import replicar_backup
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
-from motion_core.webui.server import WebUIServer
+from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
 from orion.communication.discovery import ErroVersaoIncompativel, descobrir
 from orion.communication.heartbeat import MonitorHeartbeat
 from orion.communication.service import ComunicacaoService, ErroComunicacao
@@ -459,13 +459,49 @@ async def principal() -> None:
     # barramento do Pi so entram comandos de COMPORTAMENTO (Repouso ao
     # assumir, Ronda varrendo), que sao raros - nao existe aqui a enxurrada
     # de 15 quadros/s que motivou a deduplicacao original.
-    ultimo_pan_tilt = {"ts": 0.0}
+    ultimo_pan_tilt = {"ts": 0.0, "operador_ts": 0.0}
+
+    #: Quem mexeu no joystick da cabeca fica DONO dela por este tempo, e os
+    #: comportamentos esperam a vez (2026-08-03).
+    #:
+    #: Sem isto o joystick "nao funcionava": `observar_ambiente` varre a cabeca
+    #: de -60 a +60 e o GOAP escolhe esse objetivo a cada ~30 s, entao o robo
+    #: tomava a cabeca de volta poucos segundos depois de o dono a virar - de
+    #: fora de casa isso e indistinguivel de defeito.
+    #:
+    #: A janela EXPIRA sozinha de proposito. Um "modo manual da cabeca" com
+    #: botao para ligar e desligar teria o defeito oposto: o robo pararia de
+    #: olhar em volta para sempre porque alguem esqueceu de devolver o
+    #: controle - e isso ninguem percebe ate precisar.
+    JANELA_DO_OPERADOR_S = 10.0
+
+    #: Limitador de taxa. Protege a serial de uma enxurrada de comandos (que
+    #: atrasa os heartbeats, que e como o sistema detecta falha). Menor que o
+    #: intervalo do joystick (120 ms) de proposito: em 150 ms ele descartava
+    #: quase um comando em cada dois, e como o comando e ANGULO ABSOLUTO,
+    #: perder o ultimo e parar a cabeca onde o penultimo mandou - com a tela
+    #: mostrando outra coisa.
+    INTERVALO_MINIMO_S = 0.1
 
     async def _mover_servos_do_maestro(evento: Evento) -> None:
         pan = float(evento.dados.get("pan", 0.0))
         tilt = float(evento.dados.get("tilt", 0.0))
         agora = time.monotonic()
-        if agora - ultimo_pan_tilt["ts"] < 0.15:
+        do_operador = evento.dados.get("origem") == ORIGEM_OPERADOR
+
+        if do_operador:
+            ultimo_pan_tilt["operador_ts"] = agora
+        elif agora - ultimo_pan_tilt["operador_ts"] < JANELA_DO_OPERADOR_S:
+            # A cabeca esta na mao do dono. Em debug e nao em warning: isto e
+            # o funcionamento correto, nao uma falha - e um warning a cada
+            # varredura do maestro afogaria o log de verdade.
+            logger.debug(
+                "pan/tilt do maestro ignorado: cabeca com o operador (pan=%.1f tilt=%.1f)",
+                pan, tilt,
+            )
+            return
+
+        if agora - ultimo_pan_tilt["ts"] < INTERVALO_MINIMO_S:
             return
         ultimo_pan_tilt["ts"] = agora
         try:

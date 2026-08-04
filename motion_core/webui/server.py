@@ -143,6 +143,11 @@ RE_MAXIMA_CM = 15.0
 VELOCIDADE_MINIMA_PERCENT = 20.0
 
 #: quantas conversas mostrar na pagina CONVERSA por padrao (Cap 13 s.4)
+#: Assinatura dos comandos de cabeca vindos do joystick da webui. O Motion
+#: Core usa para dar preferencia ao operador sobre os comportamentos - ver
+#: `_mover_servos_do_maestro` em motion_core/__main__.py.
+ORIGEM_OPERADOR = "operador_webui"
+
 CONVERSAS_PADRAO = 30
 
 #: Teto do texto do chat. O campo da pagina ja limita, mas limite de
@@ -637,7 +642,12 @@ class WebUIServer:
 
         pan = self._limitar(pan, self.PAN_MIN, self.PAN_MAX)
         tilt = self._limitar(tilt, self.TILT_MIN, self.TILT_MAX)
-        await self._event_bus.publish("motion.pan_tilt", {"pan": pan, "tilt": tilt})
+        # ASSINA quem mandou. Sem isto o Motion Core nao tem como distinguir
+        # o operador de um comportamento autonomo, e a arbitragem da cabeca
+        # (ver _mover_servos_do_maestro) nao teria em que se apoiar.
+        await self._event_bus.publish(
+            "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_OPERADOR}
+        )
         return web.json_response({"ok": True, "pan": pan, "tilt": tilt})
 
     async def _handler_controle(self, request: web.Request) -> web.Response:
