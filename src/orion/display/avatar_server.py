@@ -30,6 +30,13 @@ TOPICOS_REPASSADOS = (
     # Whisper ouviu do usuario, que e outra ideia.
     "voice.response_started",
     "voice.response_finished",
+    # A SAUDACAO ESPONTANEA nunca chegou aqui (achado da varredura de
+    # 2026-08-04). `saudacao.py` publica `voice.saudacao` ANTES de falar, e o
+    # comentario de la diz, com todas as letras, "o avatar reage ao evento" -
+    # so que o topico nunca esteve nesta lista. A legenda do cumprimento
+    # jamais apareceu na tela, e publicar nao falha: nada denunciava.
+    # Quarta vez que este projeto paga pelo mesmo defeito.
+    "voice.saudacao",
     "motion.pan_tilt",
     "motion.status",
     "motion.obstacle_front",

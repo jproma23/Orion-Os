@@ -79,6 +79,16 @@ TOPICOS_REPASSADOS = (
     "vision.person_lost",
     "voice.status",
     "diagnostic.error",
+    # O QUE QUEBRA TEM QUE APARECER NA TELA (varredura de 2026-08-04).
+    #
+    # Estes tres eram publicados e ninguem consumia - nem aqui, nem no avatar.
+    # Camera que caiu, microfone/alto-falante que falhou e alerta do guardiao
+    # de RAM (ou do instinto da bussola) so existiam no log do Pi. A pagina
+    # DIAGNOSTICO tem uma lista de erros recentes justamente para isto, e ela
+    # nunca recebeu nenhum deles.
+    "vision.camera_error",
+    "voice.audio_error",
+    "diagnostic.alerta",
     "safety.safe_mode_entered",
     "safety.safe_mode_exited",
     "comm.mensagem.telemetry",
@@ -295,7 +305,12 @@ class WebUIServer:
         self._eventos_recentes: list[dict[str, Any]] = []
         #: tokens de sessao da pagina CONFIGURACAO (memoria apenas -
         #: reiniciar o Motion Core desloga todo mundo, o que e desejavel)
-        self._sessoes: set[str] = set()
+        #: token -> instante do login. E um dict, e nao um set, porque o teto
+        #: abaixo precisa descartar o MAIS ANTIGO: `set.pop()` remove um
+        #: elemento arbitrario e podia justamente derrubar o token recem-criado
+        #: - a pessoa acertava a senha e ja entrava deslogada (varredura de
+        #: 2026-08-04). Dict preserva ordem de insercao desde o 3.7.
+        self._sessoes: dict[str, float] = {}
 
         self._app = web.Application(middlewares=[_revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -563,9 +578,10 @@ class WebUIServer:
             return web.json_response({"erro": "senha incorreta"}, status=401)
 
         token = secrets.token_urlsafe(32)
-        self._sessoes.add(token)
-        if len(self._sessoes) > MAXIMO_SESSOES:
-            self._sessoes.pop()  # teto simples: o robo tem um dono, nao mil
+        self._sessoes[token] = time.time()
+        while len(self._sessoes) > MAXIMO_SESSOES:
+            # o mais antigo sai primeiro - nunca o que acabou de entrar
+            self._sessoes.pop(next(iter(self._sessoes)))
         resposta = web.json_response({"ok": True})
         resposta.set_cookie(
             COOKIE_SESSAO, token, httponly=True, samesite="Strict", max_age=8 * 3600
@@ -831,7 +847,16 @@ class WebUIServer:
             self._estado["visao"]["ultima_deteccao"] = dados
         elif topico == "voice.status":
             self._estado["voz"]["estado"] = dados.get("estado")
-        elif topico in ("diagnostic.error", "comm.link_degraded"):
+        elif topico in (
+            "diagnostic.error",
+            "comm.link_degraded",
+            # Entram na MESMA lista de erros recentes que a pagina ja desenha,
+            # em vez de um campo novo: falha de camera e falha de link sao a
+            # mesma pergunta para quem olha ("o que quebrou?").
+            "vision.camera_error",
+            "voice.audio_error",
+            "diagnostic.alerta",
+        ):
             self._registrar_erro(topico, dados)
         elif topico == "comm.module_lost":
             self._atualizar_saude_modulo(dados.get("modulo"), "perdido")

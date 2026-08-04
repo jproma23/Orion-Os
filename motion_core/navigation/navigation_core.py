@@ -287,6 +287,25 @@ class NavigationCore:
         so o ACK, que so confirma que a varredura comecou - ver TIMEOUT_SCAN_S).
         Em timeout, segue com lista vazia (a checagem por telemetria continua
         valendo como rede de seguranca)."""
+        # OLHAR COM O CORPO PARADO (varredura de 2026-08-04).
+        #
+        # `_executar_segmento` ja esperava o corpo ficar ocioso antes de
+        # varrer, mas os outros dois caminhos ate aqui nao: o EXPLORE chama
+        # este metodo direto no inicio de cada passo, e o `SCAN_FRONT` avulso
+        # (voz/Ronda) tambem. O passo anterior do EXPLORE termina mandando
+        # MOVE_DISTANCE e publicando `segment_completed` NA HORA - o ACK so diz
+        # que o comando chegou, nao que o robo parou. Resultado: a varredura
+        # do passo seguinte saia com o robo ainda andando.
+        #
+        # Duas consequencias, as duas ja conhecidas deste projeto: as leituras
+        # descrevem um lugar por onde o robo ja passou, e comando sobreposto a
+        # movimento e exatamente o caso em que o firmware as vezes nao ACKa o
+        # seguinte (ver INTERVALO_CHECAGEM_OCIOSO_S).
+        #
+        # Dentro de `_escanear_a_frente` de proposito, e nao em cada chamador:
+        # quem varre quer o dado bom, sempre. Onde a espera ja acontecia antes,
+        # esta chamada nao custa nada.
+        await self._aguardar_ocioso()
         loop = asyncio.get_running_loop()
         self._scan_pendente = loop.create_future()
         await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})

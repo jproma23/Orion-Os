@@ -164,6 +164,8 @@ class SaudacaoEspontanea:
         #: uma conversa em andamento. Cumprimentar alguém no meio da própria
         #: frase é pior do que não cumprimentar.
         self._conversando = False
+        #: Cumprimento em voo - ver `_ao_reconhecer`.
+        self._tarefa_cumprimento: asyncio.Task | None = None
 
         event_bus.subscribe(TOPICO_RECONHECIDA, self._ao_reconhecer)
         event_bus.subscribe(TOPICO_ACORDOU, self._ao_acordar)
@@ -195,7 +197,12 @@ class SaudacaoEspontanea:
         # segundos e falar leva mais alguns. Fazer isso aqui dentro travaria o
         # rastreamento - e perder a pessoa de vista para cumprimenta-la e um
         # negocio ruim.
-        asyncio.create_task(self._cumprimentar(nome, anterior))
+        # Referencia guardada (varredura de 2026-08-04): sem ela a tarefa
+        # pode ser coletada no meio - o robo reconheceria a pessoa, comecaria
+        # a compor a frase e simplesmente nao falaria, sem erro nenhum. Uma
+        # saudacao por vez ja e a regra de fato (o `_chegou_agora` barra a
+        # repeticao), entao um unico campo basta.
+        self._tarefa_cumprimento = asyncio.create_task(self._cumprimentar(nome, anterior))
 
     async def _cumprimentar(self, nome: str, anterior: float | None = None) -> None:
         frase = await self._escrever_frase(nome, anterior)

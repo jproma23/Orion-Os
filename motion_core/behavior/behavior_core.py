@@ -99,6 +99,18 @@ class BehaviorCore:
         self._montar_contexto = montar_contexto
         self._discricionarios: dict[str, Comportamento] = {}
         self._consultando = False
+        #: Referencia FORTE da consulta em voo (varredura de 2026-08-04).
+        #:
+        #: `asyncio.create_task` sozinho nao segura a tarefa: o loop so guarda
+        #: referencia fraca, e a documentacao do asyncio manda guardar o
+        #: resultado "para a tarefa nao desaparecer no meio da execucao". Se
+        #: ela sumisse aqui, o `finally` que devolve `_consultando` para False
+        #: nunca rodaria - e `_pode_consultar_ia` passaria a recusar TODA
+        #: consulta seguinte, para sempre, sem uma linha de log.
+        #:
+        #: Falha silenciosa e permanente, no mesmo caminho onde 5444 decisoes
+        #: da IA ja evaporaram uma vez (30/07).
+        self._tarefa_consulta: asyncio.Task | None = None
         self._ultima_consulta = 0.0
         self._intervalo_consulta_s = intervalo_consulta_ia_s
 
@@ -308,7 +320,7 @@ class BehaviorCore:
             if self._pode_consultar_ia(escolhido):
                 self._consultando = True
                 self._ultima_consulta = time.monotonic()
-                asyncio.create_task(self._consultar_ia())
+                self._tarefa_consulta = asyncio.create_task(self._consultar_ia())
 
             if escolhido is not self._ativo:
                 # escolhido é sempre o de maior prioridade que quer rodar;

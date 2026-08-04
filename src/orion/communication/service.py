@@ -202,7 +202,13 @@ class ComunicacaoService:
             DESTINO_BROADCAST,
             {"topico": topico, **payload},
         )
-        for nome_peer, transporte in self._links.items():
+        # `list(...)` NAO e decoracao (varredura de 2026-08-04): ha um `await`
+        # dentro do laco, e `adicionar_link` mexe em `self._links` de outra
+        # tarefa a cada reconexao. Iterar o dicionario vivo levanta
+        # "dictionary changed size during iteration" no meio de um broadcast -
+        # justamente quando o link esta instavel, que e quando o evento mais
+        # importa.
+        for nome_peer, transporte in list(self._links.items()):
             try:
                 await transporte.enviar(mensagem.to_bytes())
             except ErroTransporte:
