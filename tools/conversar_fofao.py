@@ -59,11 +59,11 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
+from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
-from orion.voice.captura_audio import SeletorMicrofone  # noqa: E402
 from orion.voice.ouvidos_esp32 import OuvidosESP32  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
@@ -169,41 +169,19 @@ async def principal() -> None:
     await bus.publish("system.ready", {"robot_name": config.secao("system")["robot_name"]})
     logger.info("Avatar no ar em http://127.0.0.1:8090")
 
-    logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")
-    seletor = SeletorMicrofone(secao_voz["microfones_candidatos_indices"])
-    indice_mic = await seletor.escolher_melhor()
-
-    # OS OUVIDOS DE VERDADE: os dois mics I2S no ESP32, por WiFi (2026-07-29).
-    #
-    # Ate hoje o ESP32 transmitia e NINGUEM lia - o robo escutava uma placa
-    # local do Notebook enquanto o dono falava no ESP32. O microfone local fica
-    # como RESERVA, nao como principal: se o ESP32 nao aparecer, e melhor um
-    # ouvido paliativo que nenhum (Cap 6 s.8).
-    ouvidos_esp32 = None
-    gravar_audio = None
+    # O ESP32 e a UNICA fonte de entrada em producao. Nao ha fallback local:
+    # selecionar outro mic apos um reboot torna a falha invisivel e faz o robo
+    # ouvir o lugar errado. O Voice Core so sobe quando os ouvidos I2S chegam.
     conf_ouvidos = secao_voz.get("ouvidos_esp32") or {}
-    if conf_ouvidos.get("habilitado"):
-        ouvidos_esp32 = OuvidosESP32(conf_ouvidos["host"], conf_ouvidos["porta"])
-        await ouvidos_esp32.iniciar()
-        # Espera curta e ATIVA: `iniciar` nao levanta se o ESP32 estiver
-        # ausente (ele pode aparecer depois), entao aqui se decide com quem
-        # subir. A reconexao segue tentando em segundo plano nos dois casos.
-        limite = time.monotonic() + float(conf_ouvidos.get("timeout_boot_s", 6.0))
-        while not ouvidos_esp32.conectado and time.monotonic() < limite:
-            await asyncio.sleep(0.2)
-        if ouvidos_esp32.conectado:
-            gravar_audio = ouvidos_esp32.gravar
-            logger.info(
-                "OUVIDOS: os dois mics I2S do ESP32 (%s:%d)",
-                conf_ouvidos["host"], conf_ouvidos["porta"],
-            )
-        else:
-            logger.warning(
-                "OUVIDOS: ESP32 (%s:%d) nao respondeu - caindo para o microfone "
-                "local %d. Ele assume sozinho quando aparecer? NAO: e preciso "
-                "reiniciar, porque a fonte e escolhida aqui, uma vez.",
-                conf_ouvidos["host"], conf_ouvidos["porta"], indice_mic,
-            )
+    if not conf_ouvidos.get("habilitado"):
+        raise RuntimeError("ouvidos_esp32 precisa ficar habilitado em producao")
+    ouvidos_esp32 = OuvidosESP32(conf_ouvidos["host"], conf_ouvidos["porta"])
+    await ouvidos_esp32.iniciar()
+    while not ouvidos_esp32.conectado:
+        logger.warning("OUVIDOS: aguardando ESP32 (%s:%d)", conf_ouvidos["host"], conf_ouvidos["porta"])
+        await asyncio.sleep(3.0)
+    gravar_audio = ouvidos_esp32.gravar
+    logger.info("OUVIDOS: os dois mics I2S do ESP32 (%s:%d)", conf_ouvidos["host"], conf_ouvidos["porta"])
 
     # Freios contra invencao (ver transcricao.py). `.get` com default para nao
     # quebrar um orion.yaml mais antigo que ainda nao tenha a secao.
@@ -623,7 +601,7 @@ async def principal() -> None:
 
     voz = VoiceCore(
         event_bus=bus,
-        indice_microfone=indice_mic,
+        indice_microfone=-1,  # callback do ESP32 e a unica entrada permitida
         transcritor=transcritor,
         sintetizador=sintetizador,
         processar_comando=processar_comando,
@@ -632,11 +610,28 @@ async def principal() -> None:
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
         detector_atividade=detector_atividade,
-        # None = usa `indice_microfone` (o mic local). Preenchido quando os
-        # ouvidos do ESP32 responderam - a assinatura e a mesma, por isso o
-        # VoiceCore nao precisa saber de onde vem o som.
+        # Fonte obrigatoria: nunca usar o microfone local apos reinicio.
         gravar_audio=gravar_audio,
     )
+
+    # CHAT POR TEXTO (2026-08-03), pedido do dono: "vai q estou em outro lugar
+    # e quero mandar ele ir na cozinha". A caixa de texto da aba Conversa (no
+    # Pi) chega aqui por comm.request e entra no MESMO `processar_comando` que
+    # uma transcricao do microfone usaria.
+    #
+    # Fica DEPOIS do VoiceCore de proposito: precisa de `processar_comando` e
+    # de `voz`, que so existem a esta altura.
+    async def atender_texto(texto: str) -> str:
+        resposta = await processar_comando(texto)
+        # Falar e decisao DAQUI, nao da ponte: a ponte so leva e traz texto.
+        # Em segundo plano para a tela de quem digitou nao ficar esperando o
+        # audio terminar - a resposta escrita ja esta pronta neste ponto.
+        if resposta:
+            asyncio.create_task(voz.falar(resposta))
+        return resposta
+
+    PonteConversa(atender_texto, comm).registrar(bus)
+    logger.info("Chat por texto ativo (webui -> mission.conversa)")
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
 
