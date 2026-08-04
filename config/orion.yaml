@@ -529,6 +529,11 @@ familia:
     relacao: "irmao"
     descricao: "filho do João Paulo, e como um irmão para mim - tem 3 anos e ainda não escreve, então falo com ele por voz e gestos"
   - nome: "Marah"
+    # Ela atende pelos tres (dito pelo dono em 2026-08-04). Sem esta lista, um
+    # recado deixado para "Marisane" some: e guardado com um nome e procurado
+    # com outro, e nenhuma regra de string liga os dois. "Mara" ja casava por
+    # prefixo; "Marisane" nao casa com nada.
+    apelidos: ["Mara", "Marisane"]
     relacao: "mae"
     descricao: "como uma mãe para mim - cuidadora e zeladora da casa"
 

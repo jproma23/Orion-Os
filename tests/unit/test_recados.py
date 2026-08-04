@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from orion.mission import recados
 from orion.mission.recados import Recados, mesmo_nome
 
 
@@ -160,3 +161,55 @@ class TestCasamentoDeNome:
         """Prefixo de duas letras casaria com meio mundo."""
         assert not mesmo_nome("Al", "Alberto")
         assert mesmo_nome("Al", "al")
+
+
+# ---------------------------------------------------------------------------
+# APELIDOS DECLARADOS (2026-08-04)
+#
+# A Marah atende por Marah, Mara OU Marisane. "Mara" ja casava por prefixo;
+# "Marisane" nao casa com nada - um recado deixado para ela sumia, guardado com
+# um nome e procurado com outro. Nenhuma regra de string descobre isso: sao a
+# mesma pessoa porque o dono DIZ que sao.
+# ---------------------------------------------------------------------------
+
+_FAMILIA_DA_CASA = [
+    {"nome": "Marah", "apelidos": ["Mara", "Marisane"]},
+    {"nome": "Kamal"},
+]
+
+
+@pytest.fixture
+def familia_carregada():
+    """Carrega e DESCARREGA - a tabela e global, e um teste nao pode vazar
+    apelidos para o proximo."""
+    recados.definir_apelidos(_FAMILIA_DA_CASA)
+    yield
+    recados.definir_apelidos([])
+
+
+def test_apelido_declarado_casa_mesmo_sem_parecer(familia_carregada):
+    """O caso que motivou tudo: Marisane e Marah nao se parecem em nada."""
+    assert recados.mesmo_nome("Marisane", "Marah")
+    assert recados.mesmo_nome("Marah", "Marisane")
+    # E entre dois apelidos da MESMA pessoa, sem passar pelo nome oficial.
+    assert recados.mesmo_nome("Mara", "Marisane")
+
+
+def test_apelido_nao_junta_quem_nao_e_da_mesma_pessoa(familia_carregada):
+    """A trava contra o efeito colateral. Entregar recado a mais parecia
+    barato ate existir uma tabela que pode ligar duas pessoas por engano - o
+    recado do dono para a Marah nao pode ser lido para o Kamal, que tem 3
+    anos."""
+    assert not recados.mesmo_nome("Kamal", "Marah")
+    assert not recados.mesmo_nome("Marisane", "Kamal")
+    # "Mario" continua sendo outra pessoa, como sempre foi.
+    assert not recados.mesmo_nome("Mario", "Marah")
+
+
+def test_sem_familia_carregada_continua_o_comportamento_antigo():
+    """Ferramentas de bancada e testes antigos constroem os recados sem
+    config nenhuma. Sem apelidos, vale so o prefixo - e "Marisane" volta a
+    ser outra pessoa, que e o certo quando ninguem declarou o contrario."""
+    recados.definir_apelidos([])
+    assert recados.mesmo_nome("Mara", "Marah")
+    assert not recados.mesmo_nome("Marisane", "Marah")

@@ -61,7 +61,7 @@ from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
-from orion.mission.recados import Recados  # noqa: E402
+from orion.mission.recados import Recados, definir_apelidos  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
@@ -526,6 +526,10 @@ async def principal() -> None:
     # A caixa de recados. Uma so no robo, compartilhada por quem GUARDA (o
     # planner, quando alguem pede) e por quem ENTREGA (a saudacao, quando a
     # pessoa chega) - ver orion/mission/recados.py.
+    # Os apelidos vem da MESMA lista de familia lida acima - uma fonte so.
+    # Sem esta chamada, "Marisane" e "Marah" voltam a ser pessoas diferentes
+    # para a caixa de recados.
+    definir_apelidos(familia_conf)
     recados = Recados(MemoryClient(comm))
 
     async def guardar_conhecimento(titulo: str, conteudo: str) -> bool:

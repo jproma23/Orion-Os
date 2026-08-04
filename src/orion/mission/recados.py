@@ -58,6 +58,42 @@ def _sem_acento(texto: str) -> str:
     return "".join(c for c in decomposto if unicodedata.category(c) != "Mn")
 
 
+#: apelido (sem acento, primeiro nome) -> nome oficial da pessoa.
+#:
+#: POR QUE PREFIXO NAO BASTA (2026-08-04). O casamento abaixo cobre o apelido
+#: que e o nome CORTADO - "Marah" -> "Mara". Mas a Marah tambem atende por
+#: **Marisane**, e "marisane" nao comeca com "marah" nem o contrario. Um recado
+#: deixado para a Marisane sumia: guardado com um nome, procurado com outro.
+#:
+#: Nao da para adivinhar isso por regra de string - Marisane e Marah so sao a
+#: mesma pessoa porque alguem DIZ que sao. Entao vem do orion.yaml, via
+#: `definir_apelidos`, e nao de heuristica nova.
+_APELIDOS: dict[str, str] = {}
+
+
+def definir_apelidos(familia) -> None:
+    """Carrega os apelidos da secao `familia` do orion.yaml.
+
+    Chamada uma vez no boot de quem monta os recados. Sem ela o modulo segue
+    funcionando exatamente como antes (so o casamento por prefixo), o que
+    mantem validos os testes e as ferramentas de bancada que nao tem config.
+    """
+    _APELIDOS.clear()
+    for pessoa in familia or []:
+        oficial = str((pessoa or {}).get("nome", "")).strip()
+        if not oficial:
+            continue
+        for apelido in (pessoa or {}).get("apelidos") or []:
+            chave = _sem_acento(str(apelido)).split()[:1]
+            if chave:
+                _APELIDOS[chave[0]] = oficial
+
+
+def _oficial(primeiro: str) -> str:
+    """Nome oficial de quem atende por `primeiro`, ou ele mesmo."""
+    return _sem_acento(_APELIDOS.get(primeiro, primeiro)).split()[:1][0] if primeiro else ""
+
+
 def mesmo_nome(a: str, b: str) -> bool:
     """"Marah", "Mara" e "mara" sao a mesma pessoa; "Mario" nao e.
 
@@ -65,12 +101,19 @@ def mesmo_nome(a: str, b: str) -> bool:
     costuma ser o nome cortado ("Marah" -> "Mara"), quase nunca o contrario de
     outra letra - e errar para o lado de entregar um recado a mais e melhor que
     guardar para sempre um recado que era para aquela pessoa.
+
+    Antes disso, os dois nomes passam pela tabela de apelidos do orion.yaml
+    (ver `_APELIDOS`): e ela que faz "Marisane" e "Marah" serem a mesma pessoa,
+    coisa que nenhuma regra de string descobriria sozinha.
     """
     primeiro_a = _sem_acento(a).split()[:1]
     primeiro_b = _sem_acento(b).split()[:1]
     if not primeiro_a or not primeiro_b:
         return False
     x, y = primeiro_a[0], primeiro_b[0]
+    # Apelido declarado vale mesmo quando as letras nao se parecem.
+    if _oficial(x) == _oficial(y):
+        return True
     if len(x) < 3 or len(y) < 3:
         # Nome de duas letras casaria com meio mundo por prefixo.
         return x == y
