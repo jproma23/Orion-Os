@@ -21,6 +21,14 @@ communication:
     host: "10.20.20.196"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP, atualizado 2026-07-24
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
+  notebook:                   # acesso ADMINISTRATIVO do Pi ao Notebook (SSH)
+    # NAO e o enlace de dados - esse e o TCP acima, e ele nao serve aqui: o
+    # Notebook precisa RECEBER uma ordem de desligar mesmo quando o Mission
+    # Core ja caiu, e e o Pi a unica maquina que o alcanca por SSH.
+    # NOME e nao IP, de proposito: o IP muda por DHCP e ja quebrou os ouvidos
+    # uma vez (ver hearing.host mais abaixo). O mDNS resolve Joao.local.
+    host: "Joao.local"
+    usuario: "jproma23"
   hardware_core:              # enlace Raspberry <-> ESP32 (Hardware Core)
     # Caminho FIXO por by-id, nao "auto" (2026-08-03). O Mega morreu e o corpo
     # virou ESP32, mas o cadaver do Mega continuou plugado no Pi - e "auto"
