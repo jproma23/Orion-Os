@@ -40,7 +40,13 @@ class CommandExecutor {
   // "parecendo" correto (mesmo motivo de motores.iniciar()/radar.iniciar()
   // existirem em vez de fazer isso no construtor deles).
   void iniciar() {
-    pinMode(pinos::LED_LANTERNA, OUTPUT);
+    // Rele da lanterna (pins.h): ATIVO EM LOW, entao o estado seguro e HIGH.
+    // Escreve APAGADO antes do pinMode(OUTPUT) pelo mesmo motivo dos outros
+    // dois reles - sem isso, o instante em que o pino vira saida o latcharia
+    // em LOW, que aqui significa ACENDER.
+    digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_APAGADA);
+    pinMode(pinos::RELE_LANTERNA, OUTPUT);
+    digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_APAGADA);
 
     // Rele do ventilador (pins.h): fail-safe LIGADO (LOW, ativo em baixo) -
     // escreve antes do pinMode(OUTPUT) pelo mesmo motivo do rele dos
@@ -156,13 +162,17 @@ class CommandExecutor {
       return true;
     }
 
+    // Lanterna: o pino inverteu em 2026-08-04 porque virou RELE ativo em LOW
+    // (ver pins.h). O PROTOCOLO nao mudou - LIGHT_ON/LIGHT_OFF continuam
+    // significando acender e apagar, e o Raspberry nao precisa saber de nivel
+    // eletrico nenhum. Qual nivel acende e fato de hardware, e mora aqui.
     if (strcmp(comando, "LIGHT_ON") == 0) {
-      digitalWrite(pinos::LED_LANTERNA, HIGH);
+      digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_ACESA);
       return true;
     }
 
     if (strcmp(comando, "LIGHT_OFF") == 0) {
-      digitalWrite(pinos::LED_LANTERNA, LOW);
+      digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_APAGADA);
       return true;
     }
 

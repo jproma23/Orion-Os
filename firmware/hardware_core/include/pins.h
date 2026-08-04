@@ -202,6 +202,35 @@ constexpr uint8_t BATERIA_SENSE = 36;  // (Mega: A0)
 // ou para tras e quem comandou o movimento.
 constexpr uint8_t ENCODER_ESQUERDO = 15;  // (Mega: 18)
 constexpr uint8_t ENCODER_DIREITO = 16;   // (Mega: 19)
-constexpr uint8_t LED_LANTERNA = 2;       // (Mega: 25) LED da propria placa
+// --- Lanterna: virou RELE em 2026-08-04 ---
+//
+// Era o LED embutido da placa; agora este pino aciona um MODULO DE RELE que
+// liga a lanterna de verdade. O modulo do usuario e ATIVO EM LOW, igual aos
+// outros dois desta montagem (ver os reles acima): LOW fecha o contato e
+// ACENDE, HIGH abre e apaga.
+//
+// Ate hoje o firmware tratava este pino como LED comum (HIGH acende), entao
+// "apagar" escrevia LOW - que no rele significa ACENDER. A lanterna ficava
+// ligada o tempo todo e o comando LIGHT_OFF a mantinha assim.
+//
+// ATENCAO AO ESTADO DE BOOT - e o mesmo problema do GPIO 5 la em cima, so que
+// aqui NAO esta resolvido. O GPIO 2 do ESP32 e strapping pin e nasce em LOW
+// (pull-down interno), ou seja, nasce ACESO para um rele ativo em LOW. Entre o
+// reset da placa e a primeira linha do `iniciar()` a lanterna PISCA. O
+// `digitalWrite(HIGH)` antes do `pinMode(OUTPUT)` encurta essa janela ao
+// minimo, mas nao a elimina: o pino so obedece depois que o firmware roda.
+//
+// Para acabar de vez com o pisca seria preciso mudar o rele para um GPIO que
+// nasca em HIGH - a mesma decisao que tirou o rele dos motores do pino 13 do
+// Mega em 2026-07-24. Fica registrado, e nao feito: mexer no pino exige
+// religar fio na bancada, e um pisca de lanterna nao machuca ninguem (ao
+// contrario de um pisca no rele dos MOTORES, que foi o caso de la).
+constexpr uint8_t RELE_LANTERNA = 2;      // (Mega: 25) era LED_LANTERNA
+
+//: Niveis do modulo de rele da lanterna, nomeados para o codigo dizer o que
+//: FAZ e nao o que escreve. Sinal invertido lido como HIGH/LOW cru e como este
+//: defeito nasceu.
+constexpr uint8_t LANTERNA_ACESA = LOW;
+constexpr uint8_t LANTERNA_APAGADA = HIGH;
 
 }  // namespace pinos
