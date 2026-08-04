@@ -608,6 +608,9 @@ async def principal() -> None:
         # A webui nao guarda copia do modo: le do maestro a cada consulta, para
         # a tela nunca discordar de quem de fato esta no volante.
         maestro=maestro,
+        # O chat por texto da aba Conversa e o UNICO consumidor: a IA roda no
+        # Notebook, entao a caixa de texto precisa deste link para chegar la.
+        comm=comm,
     )
     await webui.iniciar()
 

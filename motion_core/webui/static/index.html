@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Fofão — Dashboard</title>
-<link rel="stylesheet" href="dashboard.css?v=20260803a" />
+<link rel="stylesheet" href="dashboard.css?v=20260803c" />
 </head>
 <body>
 <header>
@@ -21,37 +21,13 @@
 
 <main class="grade">
 
-  <section class="painel painel--camera" id="painel-camera" hidden>
-    <h2>Câmera</h2>
-    <div class="camera-moldura">
-      <img id="camera-img" alt="Imagem da câmera do pan/tilt" />
-    </div>
-    <!-- JOYSTICK DA CABECA (2026-08-03): mora DENTRO do painel da camera de
-         proposito. O objetivo do dono e *"olhar para todos os lados"* vendo a
-         imagem - separar os dois esconderia que um comanda o que o outro
-         mostra, o mesmo motivo pelo qual "quem controla" mora dentro do painel
-         do joystick das rodas. -->
-    <div class="cabeca-caixa">
-      <div id="joystick-cabeca" class="joystick joystick--pequeno" role="application"
-           aria-label="Joystick da cabeça: arraste para olhar em volta">
-        <div class="joystick-eixo joystick-eixo--v"></div>
-        <div class="joystick-eixo joystick-eixo--h"></div>
-        <div id="joystick-cabeca-punho" class="joystick-punho"></div>
-      </div>
-      <div class="cabeca-lado">
-        <p id="cabeca-status">cabeça: centro</p>
-        <button id="cabeca-centro" type="button" class="camera-opcao">centralizar</button>
-      </div>
-    </div>
-
-    <div class="camera-controles">
-      <button type="button" class="camera-opcao ativo"
-              id="camera-foto" data-modo="foto">Foto</button>
-      <button type="button" class="camera-opcao"
-              id="camera-vivo" data-modo="vivo">Ao vivo</button>
-      <span id="camera-status">—</span>
-    </div>
-  </section>
+  <!-- A janela de video e o joystick da cabeca sairam daqui em
+       2026-08-03, a pedido do dono: os dois moram na aba CONVERSA, junto
+       com o chat. Duas janelas de video em duas paginas disputavam a
+       mesma banda de celular, e a de conversa e a que se olha de fora de
+       casa. O <script> de camera_cabeca.js continua carregado: o
+       dashboard.js chama montarCamera() e a funcao se retira sozinha
+       quando nao ha painel. -->
 
   <section class="painel">
     <h2>Sistema</h2>
@@ -165,6 +141,7 @@
 
 </main>
 
-<script src="dashboard.js?v=20260730e"></script>
+<script src="camera_cabeca.js?v=20260803c"></script>
+<script src="dashboard.js?v=20260803c"></script>
 </body>
 </html>

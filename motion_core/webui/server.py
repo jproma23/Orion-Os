@@ -145,6 +145,17 @@ VELOCIDADE_MINIMA_PERCENT = 20.0
 #: quantas conversas mostrar na pagina CONVERSA por padrao (Cap 13 s.4)
 CONVERSAS_PADRAO = 30
 
+#: Teto do texto do chat. O campo da pagina ja limita, mas limite de
+#: formulario e sugestao: quem garante e quem recebe.
+CHAT_MAXIMO_CARACTERES = 500
+
+#: Quanto esperar a resposta do Notebook. Generoso de proposito - o caminho
+#: inteiro e modelo de linguagem + gravacao no banco, e o `behavior.aconselhar`
+#: (25 s) e uma pergunta bem mais curta que uma conversa. Estourar aqui nao
+#: perde a mensagem: ela ja chegou e sera gravada; so a resposta se perde.
+CHAT_TIMEOUT_S = 60.0
+
+
 #: quantos erros manter no painel de diagnostico (Cap 13 s.5)
 MAXIMO_ERROS_RECENTES = 20
 #: quantas linhas do fim do log expor via GET /log (Cap 13 s.4: "acesso ao log,
@@ -219,6 +230,7 @@ class WebUIServer:
         memory_api: MemoryAPI | None = None,
         config: ConfigurationManager | None = None,
         maestro=None,
+        comm=None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -241,6 +253,11 @@ class WebUIServer:
         #: "AUTÔNOMO" numa tela cujo robô está em manual seria pior que não
         #: mostrar nada.
         self._maestro = maestro
+        #: Link com o Mission Core (Notebook). So o CHAT usa - e o unico
+        #: caminho daqui para a IA, que nao roda nesta maquina. Opcional pela
+        #: mesma razao dos outros: sem ele a caixa de texto responde "sem
+        #: link" em vez de a pagina quebrar.
+        self._comm = comm
         self._clientes: set[web.StreamResponse] = set()
         self._runner: web.AppRunner | None = None
         #: sinaliza os handlers SSE de longa duracao (_handler_sse) para
@@ -287,6 +304,9 @@ class WebUIServer:
         self._app.router.add_get("/log", self._handler_log)
         self._app.router.add_get("/conversa", self._handler_conversa)
         self._app.router.add_get("/api/conversas", self._handler_api_conversas)
+        self._app.router.add_post(
+            "/api/conversa/mensagem", self._handler_conversa_mensagem
+        )
         self._app.router.add_get("/configuracao", self._handler_configuracao)
         self._app.router.add_get("/api/configuracao", self._handler_api_configuracao)
         self._app.router.add_post("/api/configuracao/entrar", self._handler_login_configuracao)
@@ -422,6 +442,65 @@ class WebUIServer:
 
     async def _handler_conversa(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "conversa.html")
+
+    async def _handler_conversa_mensagem(self, request: web.Request) -> web.Response:
+        """Chat por texto (2026-08-03): o que o dono digita chega a IA.
+
+        Pedido dele: *"vai q estou em outro lugar e quero mandar ele ir na
+        cozinha"*. Ate hoje a UNICA entrada de linguagem era a voz - e voz
+        exige estar perto do robo, que e exatamente a situacao que este
+        endereco resolve.
+
+        Nao decide nada aqui. O texto atravessa o link ate o Notebook
+        (`mission.conversa` -> `PonteConversa`), que o entrega ao MESMO
+        `processar_comando` de uma transcricao. Por isso o turno digitado e
+        gravado em `conversas` e alimenta a memoria igual ao falado: e a
+        mesma conversa, so mudou a porta de entrada.
+
+        A resposta HTTP traz o texto do robo para a tela mostrar. Se o
+        Notebook nao responder a tempo, a mensagem NAO se perdeu - ela ja
+        chegou e ja foi processada la; o que se perde e so a resposta de
+        volta, e a pagina recarrega o historico do banco para mostrar o que
+        de fato houve.
+        """
+        if self._comm is None:
+            return web.json_response(
+                {"erro": "sem link com o Mission Core - o chat precisa do Notebook"},
+                status=503,
+            )
+        try:
+            corpo = await request.json()
+        except Exception:
+            return web.json_response({"erro": "corpo precisa ser JSON"}, status=400)
+
+        texto = str(corpo.get("texto", "")).strip()
+        if not texto:
+            return web.json_response({"erro": "mensagem vazia"}, status=400)
+        if len(texto) > CHAT_MAXIMO_CARACTERES:
+            return web.json_response(
+                {"erro": f"mensagem acima de {CHAT_MAXIMO_CARACTERES} caracteres"},
+                status=400,
+            )
+
+        try:
+            resposta = await self._comm.request(
+                "mission_core",
+                {"comando": "mission.conversa", "texto": texto},
+                timeout_s=CHAT_TIMEOUT_S,
+            )
+        except Exception:
+            logger.warning("chat: Mission Core nao respondeu", exc_info=True)
+            return web.json_response(
+                {"erro": "o Fofao nao respondeu a tempo"}, status=504
+            )
+
+        payload = resposta.payload or {}
+        if not payload.get("ok"):
+            return web.json_response(
+                {"erro": payload.get("erro", "o Fofao nao conseguiu responder")},
+                status=502,
+            )
+        return web.json_response({"ok": True, "resposta": payload.get("resposta", "")})
 
     async def _handler_api_conversas(self, request: web.Request) -> web.Response:
         # Cap 13 s.4: "consultas de historico... locais ao SSD" - le direto

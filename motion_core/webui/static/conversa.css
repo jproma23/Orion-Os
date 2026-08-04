@@ -1,7 +1,35 @@
+/* Fofão — aba de Conversa.
+
+   Desde 2026-08-03 esta página tem três coisas na mesma tela, por pedido do
+   dono: a CÂMERA, o JOYSTICK DA CABEÇA e o CHAT. O motivo é um caso de uso
+   concreto - "vai q estou em outro lugar e quero mandar ele ir na cozinha":
+   olhar, virar a cabeça para procurar, e falar. Em três abas diferentes isso
+   seria três viagens. */
+
 .pagina-conversa {
+  display: grid;
+  /* Ver à esquerda, falar à direita. O chat é a coluna mais larga porque é o
+     que cresce: a câmera tem tamanho fixo pelo aspect-ratio. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 14px;
   padding: 16px;
-  max-width: 720px;
-  margin: 0 auto;
+}
+
+/* O painel da câmera vem do dashboard.css, onde ele mora numa grade de vários
+   painéis e por isso usa `grid-column: 1 / -1` e `max-width: 50%`. Aqui ele é
+   uma coluna inteira - as duas regras precisam sair, senão ele encolheria para
+   metade de uma coluna que já é metade da tela. */
+.pagina-conversa .painel--camera {
+  grid-column: auto;
+  max-width: 100%;
+  margin-inline: 0;
+}
+
+.painel--chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .aviso {
@@ -17,7 +45,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 70vh;
+  /* Altura fixa em vez de "cresce com o conteúdo": com a caixa de texto
+     embaixo, uma lista que cresce empurraria o campo de digitar para fora da
+     tela justamente quando a conversa fica longa. */
+  height: 58vh;
   overflow-y: auto;
 }
 
@@ -32,6 +63,8 @@
   border-radius: 10px;
   font-size: 13px;
   line-height: 1.4;
+  white-space: pre-wrap;   /* preserva as quebras que o robô escreve */
+  word-break: break-word;
 }
 
 .balao .hora {
@@ -51,4 +84,79 @@
   align-self: flex-start;
   background: color-mix(in srgb, var(--acento) 14%, var(--painel));
   border: 1px solid color-mix(in srgb, var(--acento) 35%, var(--borda));
+}
+
+/* Balão ainda não confirmado pelo banco: apagado de propósito, para não
+   parecer histórico enquanto não for. Some sozinho quando a lista recarrega. */
+.balao--enviando {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+/* --- Caixa de digitar --------------------------------------------------- */
+
+.chat-forma {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chat-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;         /* < 16px faz o iPhone dar zoom ao focar; 14 no
+                              desktop e o media query abaixo cuida do celular */
+  color: var(--texto);
+  background: var(--bg);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.chat-texto:focus {
+  outline: none;
+  border-color: var(--acento);
+}
+
+.chat-texto:disabled {
+  opacity: 0.6;
+}
+
+.chat-enviar {
+  font: inherit;
+  font-size: 13px;
+  color: var(--bg);
+  background: var(--acento);
+  border: 1px solid var(--acento);
+  border-radius: 8px;
+  padding: 10px 18px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.chat-enviar:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chat-status {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--texto-fraco);
+  min-height: 1.2em;       /* reserva a linha: sem isso a caixa pula quando
+                              aparece "o Fofão está pensando..." */
+}
+
+.chat-status.erro { color: var(--alerta); }
+
+@media (max-width: 900px) {
+  /* Celular: uma coluna só, e a CÂMERA vem primeiro - o pedido é "estou em
+     outro lugar", então primeiro se olha, depois se fala. */
+  .pagina-conversa {
+    grid-template-columns: 1fr;
+  }
+  .lista-conversa { height: 45vh; }
+  /* 16px é o mínimo que o iOS aceita sem dar zoom no campo ao focar. */
+  .chat-texto { font-size: 16px; }
 }

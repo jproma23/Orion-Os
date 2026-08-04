@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Fofão — Conversa</title>
-<link rel="stylesheet" href="dashboard.css" />
-<link rel="stylesheet" href="conversa.css" />
+<link rel="stylesheet" href="dashboard.css?v=20260803c" />
+<link rel="stylesheet" href="conversa.css?v=20260803c" />
 </head>
 <body>
 <header>
@@ -20,16 +20,64 @@
   <span id="conexao" class="badge badge--off">conectando...</span>
 </header>
 
+<!-- DUAS COLUNAS, e a ordem importa: no celular a coluna de VER (câmera +
+     joystick da cabeça) vem primeiro, porque o pedido do dono é "estou em
+     outro lugar" - primeiro se olha, depois se fala. No monitor as duas ficam
+     lado a lado e o chat é a coluna larga. -->
 <main class="pagina-conversa">
-  <section class="painel">
-    <h2>Transcrição da interação por voz</h2>
+
+  <section class="painel painel--camera" id="painel-camera" hidden>
+    <h2>Câmera</h2>
+    <div class="camera-moldura">
+      <img id="camera-img" alt="Imagem da câmera do pan/tilt" />
+    </div>
+    <!-- O joystick da cabeça mora DENTRO do painel da câmera, como no
+         dashboard: o objetivo é olhar em volta VENDO a imagem, e separar os
+         dois esconderia que um comanda o que o outro mostra. -->
+    <div class="cabeca-caixa">
+      <div id="joystick-cabeca" class="joystick" role="application"
+           aria-label="Joystick da cabeça: arraste para olhar em volta">
+        <div class="joystick-eixo joystick-eixo--v"></div>
+        <div class="joystick-eixo joystick-eixo--h"></div>
+        <div id="joystick-cabeca-punho" class="joystick-punho"></div>
+      </div>
+      <div class="cabeca-lado">
+        <p id="cabeca-status">cabeça: centro</p>
+        <button id="cabeca-centro" type="button" class="camera-opcao">centralizar</button>
+      </div>
+    </div>
+
+    <div class="camera-controles">
+      <button type="button" class="camera-opcao ativo"
+              id="camera-foto" data-modo="foto">Foto</button>
+      <button type="button" class="camera-opcao"
+              id="camera-vivo" data-modo="vivo">Ao vivo</button>
+      <span id="camera-status">—</span>
+    </div>
+  </section>
+
+  <section class="painel painel--chat">
+    <h2>Conversa</h2>
     <p id="conversa-aviso" class="aviso" hidden></p>
     <ul id="lista-conversa" class="lista-conversa">
       <li class="vazio">nenhuma conversa registrada ainda</li>
     </ul>
+
+    <!-- CAIXA DE TEXTO (2026-08-03), pedido do dono: "vai q estou em outro
+         lugar e quero mandar ele ir na cozinha". O texto entra no MESMO lugar
+         onde entra uma transcrição do microfone - não é um segundo cérebro. -->
+    <form id="chat-forma" class="chat-forma" autocomplete="off">
+      <input id="chat-texto" class="chat-texto" type="text"
+             placeholder="escreva para o Fofão..." maxlength="500"
+             aria-label="mensagem para o Fofão" />
+      <button id="chat-enviar" class="chat-enviar" type="submit">enviar</button>
+    </form>
+    <p id="chat-status" class="chat-status"></p>
   </section>
+
 </main>
 
-<script src="conversa.js"></script>
+<script src="camera_cabeca.js?v=20260803c"></script>
+<script src="conversa.js?v=20260803c"></script>
 </body>
 </html>
