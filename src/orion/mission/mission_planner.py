@@ -90,7 +90,30 @@ def _mesmo_nome(nome: str, descricao: str) -> str:
 #: O `\b` nas duas pontas continua sendo o que impede o bug que o projeto ja
 #: tomou: sem ele, "parar" casa dentro de "preparar" e o robo obedeceria a uma
 #: frase sobre o almoco.
-_PADRAO_PARAR = re.compile(r"\bpar[ae]\b|\bparar\b|\bstop\b")
+#:
+#: "PARA" SOZINHO NAO BASTA (medido em 2026-08-05). O padrao era
+#: `\bpar[ae]\b`, e "para" e a preposicao mais comum do portugues: *"deixa um
+#: recado PARA o Joao Paulo"* virou STOP, os motores pararam e a frase nunca
+#: chegou na IA - o atalho responde "Parado." ANTES de o modelo ver o pedido.
+#: Junto com ela caiam "vai para a cozinha", "olha para mim", "liga para a
+#: escola": ordens legitimas comidas pelo caminho de emergencia.
+#:
+#: Entao "para" so vale como ordem quando esta POSICIONADO como ordem - no fim
+#: da fala ("fofao, para!") ou seguido do que segue um imperativo ("para
+#: tudo", "para de andar", "para com isso"). Como preposicao ele sempre vem
+#: seguido do destino ("para o Joao", "para a cozinha", "para mim"), e ai nao
+#: para mais nada.
+#:
+#: `pare`, `parar`, `para` e `stop` continuam parando SEMPRE, em qualquer
+#: posicao: nenhuma das quatro e ambigua em portugues, e a emergencia nao pode
+#: ficar mais dificil de acionar do que era. So a forma ambigua ganhou regra.
+_PADRAO_PARAR = re.compile(
+    r"\bpare\b"
+    r"|\bparar\b"
+    r"|\bpára\b"
+    r"|\bstop\b"
+    r"|\bpara\b(?=[\s!.,;?]*$|\s+(?:tudo|ja|já|agora|ai|aí|de|com)\b)"
+)
 
 #: O que ele diz ao parar. Texto pronto: este caminho existe justamente para
 #: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.

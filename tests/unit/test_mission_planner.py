@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("ollama")
 
-from orion.mission.mission_planner import MissionPlanner  # noqa: E402
+from orion.mission.mission_planner import _PADRAO_PARAR, MissionPlanner  # noqa: E402
 
 
 def _coletor(destino: list):
@@ -406,3 +406,75 @@ async def test_conhecimento_que_o_vault_recusou_nao_pode_soar_como_guardado():
 
     assert "guardei" not in resposta.lower()
     assert "não consegui" in resposta.lower() or "nao consegui" in resposta.lower()
+
+
+# ---------------------------------------------------------------------------
+# "PARA" E PREPOSICAO ANTES DE SER ORDEM (medido em 2026-08-05)
+#
+# O padrao era `\bpar[ae]\b`. Pedi ao robo, pelo chat: "deixa um recado PARA o
+# Joao Paulo: a Marah pediu PARA ele ligar PARA a escola do Kamal". Ele
+# respondeu "Parado.", mandou STOP ao Hardware Core e a frase NUNCA chegou na
+# IA - o atalho de emergencia responde antes. O recado nao foi criado, e nada
+# no log dizia que uma ordem tinha sido comida.
+#
+# Nao era so o recado: "vai para a cozinha", "olha para mim" e "liga para a
+# escola" caiam no mesmo buraco. Um robo que para de andar toda vez que se diz
+# "para" nao consegue receber quase nenhuma ordem em portugues.
+# ---------------------------------------------------------------------------
+
+ORDENS_DE_PARADA = [
+    "para!",
+    "para",
+    "fofao para",
+    "para tudo",
+    "para agora",
+    "para de andar",
+    "para com isso",
+    "pare",
+    "pare agora",
+    "parar",
+    "stop",
+    "PARA!",
+]
+
+FRASES_QUE_NAO_PARAM = [
+    "deixa um recado para o Joao Paulo",
+    "vai para a cozinha",
+    "olha para mim",
+    "liga para a escola do Kamal",
+    "voce sabe preparar o almoco?",
+    "isso e para voce",
+    "conta uma historia para o Kamal",
+    "a Marah pediu para ele ligar para a escola",
+    "vira para a esquerda",
+    "quero falar para a Mara",
+]
+
+
+@pytest.mark.parametrize("frase", ORDENS_DE_PARADA)
+def test_ordem_de_parada_continua_parando(frase):
+    """A emergencia nao pode ficar mais dificil de acionar do que era: se a
+    rede cair com o robo andando, este e o unico caminho que sobra."""
+    assert _PADRAO_PARAR.search(frase.lower()) is not None, frase
+
+
+@pytest.mark.parametrize("frase", FRASES_QUE_NAO_PARAM)
+def test_preposicao_para_nao_e_ordem_de_parada(frase):
+    assert _PADRAO_PARAR.search(frase.lower()) is None, frase
+
+
+@pytest.mark.asyncio
+async def test_pedir_recado_chega_na_ia_em_vez_de_parar_o_robo():
+    """O caso exato de 05/08, ponta a ponta: a frase tem que atravessar o
+    atalho e chegar no modelo - senao nenhum recado com destinatario e
+    possivel, porque todo destinatario vem depois de um "para"."""
+    ai = AiManagerFalso()
+    comandos_enviados = []
+    planner = MissionPlanner(
+        ai_manager=ai, enviar_comando_hardware=_coletor(comandos_enviados)
+    )
+
+    await planner.processar("deixa um recado para o Joao Paulo: a Marah quer falar com ele")
+
+    assert comandos_enviados == [], "a frase virou parada de emergencia"
+    assert ai.chamadas, "a frase nem chegou na IA"
