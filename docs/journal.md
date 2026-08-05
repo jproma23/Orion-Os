@@ -6327,3 +6327,295 @@ pelo Gmail, ha caminho mais barato. **Nao decidido.**
 - Tudo o que a entrada anterior ja listava: o heartbeat que mente, o pisca da
   lanterna no boot, o `reboot` do Notebook sem regra de sudoers, e os tres de
   03/08.
+
+## Sessao de 2026-08-05 - o recado sai pela primeira vez, e os seis defeitos que estavam no caminho
+
+Comecou com uma frase do dono: *"ele nao entrega o recado, o Fofao vai la e
+fala comigo, depois pergunto se ele viu o Kamal e ele diz que nao viu. Creio
+que o YOLO nao esta fazendo o reconhecimento facial"*.
+
+A visao estava rodando o tempo todo. O diagnostico foi por outro lado, e no
+caminho apareceram mais cinco defeitos - nenhum deles procurado.
+
+### 1. Os rostos da familia sumiam no boot (`ce48843`)
+
+Com a lista de rostos conhecidos VAZIA, o comparador devolve "desconhecido"
+para todo mundo. Sem erro, sem excecao, sem teste vermelho.
+
+Os rostos moram no banco, no SSD do Pi, e o Notebook os pede pelo enlace TCP.
+A carga acontecia UMA VEZ, dentro do `iniciar()` da visao:
+
+    Notebook ligou   06:56:41
+    enlace de pe     06:58:51   <- a carga ja tinha passado
+
+O Notebook boota mais rapido que o Pi. Quem liga as duas maquinas juntas cai
+nisto.
+
+**A prova que fechou o caso foi a foto da Sentinela**
+(`data/sentinela/pessoa_20260805_081256.jpg`): o dono de rosto frontal e
+nitido, com o Kamal ao lado - os dois cadastrados, os dois chamados de
+estranhos. Medido no banco: 04/08 com os rostos carregados, 6 eventos
+`pessoa_vista` com nome; 05/08 depois do boot ruim, ZERO.
+
+E daqui saiam os DOIS sintomas que o dono relatou, que eram um defeito so: a
+saudacao so entrega recado na CHEGADA de alguem CONHECIDO, e "voce viu o
+Kamal?" foi respondido com a verdade, porque o diario nao tinha registrado
+ninguem.
+
+Nao era a primeira vez: em 04/08, as 00:37 e as 21:29, o log ja dizia "Nao
+consegui carregar os rostos conhecidos". O aviso existia e estava correto.
+Faltava alguem lendo - e faltava o robo se recuperar sozinho.
+
+Conserto: o boot deixou de ser a unica chance. Falhou, insiste a cada 10 s por
+5 minutos, e desiste em ERROR dizendo com todas as letras que vai tratar a
+familia inteira como estranha. Insistir em vez de assinar um evento de "enlace
+subiu": nao cria topico novo (este projeto ja publicou no vazio tres vezes) e
+cobre tambem o banco que demora, nao so o enlace que atrasa.
+
+Verificado reproduzindo a falha de proposito - parar o `orion-motion` no Pi,
+reiniciar o `orion-avatar`, religar o Pi: recuperou na tentativa 4.
+
+### 2. "para" e preposicao antes de ser ordem (`a42df14`)
+
+Achado tentando testar os recados. Pedi pelo chat *"deixa um recado PARA o
+Joao Paulo..."* e o robo respondeu **"Parado."**, mandou STOP ao Hardware Core,
+e a frase nunca chegou na IA.
+
+O padrao era `\bpar[ae]\b`. "para" e a preposicao mais comum do portugues, e o
+atalho de emergencia roda ANTES do modelo:
+
+    "vai para a cozinha"               -> Parado.
+    "olha para mim"                    -> Parado.
+    "conta uma historia para o Kamal"  -> Parado.
+
+Quase toda ordem util nomeia um destino, e todo destino vem depois de um
+"para". E provavelmente por isto que "deixar recado nunca pegava" na bancada:
+os 3 recados que existiam no banco sao os que escaparam, com "a Mara" no lugar
+de "para a Mara".
+
+Agora "para" so vale como ordem quando esta POSICIONADO como ordem - no fim da
+fala ou seguido de imperativo ("para tudo", "para de andar"). `pare`, `parar`,
+`para` e `stop` continuam parando SEMPRE: a emergencia nao podia ficar mais
+dificil de acionar do que era.
+
+### 3. "Ele desconectou" era SIGSEGV (`f335891`)
+
+Relato do dono no meio do teste. Eram **10 quedas em 7 dias, 16 reinicios por
+falha**, e o log nunca explicou nenhuma - porque nao havia excecao: o processo
+era morto pelo sistema (`code=killed, status=11/SEGV`) e o systemd o reerguia
+~45 s depois. Nao era falta de memoria (4,6 GB livres na queda medida).
+
+Nas 4 quedas examinadas a ultima linha do log e sempre a mesma coisa:
+
+    05/08 09:06:07 saudacao + recado    -> SEGV 09:06:10
+    04/08 19:48:56 saudacao             -> SEGV 19:49:01
+    03/08 17:45:35 saudacao + resposta  -> SEGV 17:46:06
+    29/07 21:08:17 saudacao + resposta  -> SEGV 21:08:46
+
+**Duas falas ao mesmo tempo.** Ha dois caminhos independentes ate o mesmo
+sintetizador e nenhum sabe do outro: `voice_core.falar` (a conversa, disparada
+em `create_task`) e `sintetizador.falar` direto (a saudacao e a entrega de
+recado). `falar` joga o trabalho num `asyncio.to_thread`, entao viram duas
+THREADS sobre dois recursos nativos sem reentrancia - o `PiperVoice` (objeto
+C++/ONNX unico) e o **stream global** do `sounddevice`, cuja segunda `play()`
+derruba o stream enquanto a primeira ainda esta no `wait()`.
+
+O limite estava ANOTADO no `voice_core.falar` desde 03/08: *"nao ha trava (...)
+a janela e estreita"*. A janela derrubava o robo. A nota foi reescrita no
+lugar, nao empilhada.
+
+Conserto: uma `asyncio.Lock` no `Sintetizador.falar`, o funil por onde TODAS as
+falas passam. Cobre sintese E reproducao. Atrasa a segunda fala, nunca
+descarta.
+
+**O que isto ja tinha custado**: o primeiro recado entregue da historia do
+projeto. As 09:06 o robo cumprimentou o dono, comecou a dar o recado e morreu
+no meio, com a pessoa na frente ouvindo. Como `marcar_entregue` so roda depois
+de a fala terminar, o recado voltou certo para a fila - o unico pedaco da
+corrente que se comportou.
+
+### 4. "que horas" nem sempre pergunta o relogio (`3662239`)
+
+Medido testando se a conversa estava repetitiva. Perguntei *"que horas o Kamal
+chega da escola?"* e o robo respondeu **"Agora sao 10 horas e 2 minutos"**.
+
+Mesmo defeito do "para", no atalho vizinho e no mesmo arquivo: substring cru
+(`"que horas" in texto or "horario" in texto`). Comia "que horas voce faz a
+ronda", "que horas a Marah sai do trabalho" e, pelo segundo termo, qualquer
+frase com "horario".
+
+**E pior que o "para"**, que ao menos respondia "Parado." e denunciava que algo
+aconteceu. Aqui o robo responde uma hora PLAUSIVEL, com cara de resposta certa,
+para uma pergunta que ninguem fez.
+
+### 5. A acao inventada (`c5492ec`)
+
+Pedido do dono: *"analisa a conversa e ve se pode deixar mais natural"*.
+Testando com frases reais:
+
+    "Da uma olhada na cozinha pra mim"
+     -> "[Movendo-me em direcao a cozinha...] Chegando la, tudo parece em
+         ordem. Se precisar de algo mais, me avise!"
+
+Ele NAO foi e NAO olhou. Inventou a acao e inventou o resultado - e o resultado
+era sobre a casa da familia. O `prompt_sistema.txt` ja chama isso de "o erro
+mais grave que voce pode cometer".
+
+Causa: o catalogo de acoes faladas nao tem "ir ate um comodo pelo nome". Sem
+acao valida e sem regra dizendo o que fazer nesse caso, o modelo preencheu o
+vazio com prosa. Nenhuma `#acao:` no log - o robo ficou parado descrevendo uma
+viagem.
+
+O conserto REUSA a regra que ja existia e funcionava. O bloco de acoes ja
+terminava com *"NUNCA prometa avisar alguem sem escrever a linha do recado"* -
+forma certa, cobrindo so recado. Agora cobre o corpo: sem a linha da acao voce
+nao se mexeu; mesmo COM a linha voce nao sabe o que aconteceu depois (diga o
+que VAI fazer, nunca o que encontrou); pedido fora do catalogo se recusa.
+
+Mora no `bloco_para_prompt()`, gerado do catalogo - uma fonte so, nao uma
+camada nova sobre o prompt.
+
+### 6. O Ollama sai (`ba68ef1`)
+
+Decisao do dono: *"nao queremos isso de ollama"*. Ele achava que ja tinha sido
+apagado; estava instalado, ativo e habilitado.
+
+As 10:05 os creditos do OpenRouter acabaram (402). A queda para o Ollama
+disparou exatamente como o EDR-0021 projetou - e o robo NAO RESPONDEU: 60 s de
+espera e `{"erro": "o Fofao nao respondeu a tempo"}`. **Uma reserva que nao
+reservava**, e que segurava ~1 GB de RAM (medido ao desligar: 3,9 -> 4,9 GB
+livres).
+
+No lugar entra `SEM_IA`, texto pronto: *"Agora eu nao consigo pensar - fiquei
+sem acesso a minha IA."* Ele DIZ o que houve em vez de pendurar - 0,49 s contra
+60 s. Nao entra no historico: guardado, viraria "assunto anterior" e a resposta
+seguinte sairia comentando a propria falha.
+
+**O que continua de pe sem IA nenhuma**, e vale saber quando faltar credito:
+parar, a hora, o diario, a saudacao pelo nome e a entrega de recado. Nada disso
+passa por modelo - verificado ao vivo.
+
+`descarregar()` foi REMOVIDO, nao esvaziado. Sem modelo local nao ha o que
+descarregar, e um metodo que devolve silencio repetiria de forma nova o bug de
+30/07 (o `AlivioCarga` engolia o AttributeError e o guardiao de RAM aparecia
+inteiro no log sem liberar um byte).
+
+### 7. A conversa passa para o Gemini (`05b0b14`)
+
+Sem mudanca de codigo: o `AiManager` fala o protocolo da OpenAI e o `base_url`
+e configuravel. Duas linhas de config.
+
+A cota foi testada ANTES de trocar - o journal de 23/07 registra que o Gemini
+ja tinha sido tentado com `limit: 0`. **A cota do Gemini e POR MODELO**:
+
+    gemini-flash-lite-latest   OK
+    gemini-flash-latest        OK
+    gemini-2.0-flash           429  cota
+    gemini-2.5-flash           404  "no longer available to new users"
+
+Nomes fixos estao esgotados ou aposentados para chaves novas; os apelidos
+`-latest` respondem. Se um dia parar, varra os modelos ANTES de culpar a chave.
+
+**Por que o `-lite` e nao o `flash-latest`**: o flash-latest PENSA antes de
+responder, e os tokens de pensamento consomem o `max_tokens` sem aparecer na
+contagem de saida. Com os 100 de `resposta_max_tokens` ele devolvia TRES
+tokens e `finish_reason=length`:
+
+    flash-latest              4,5s  saida=3   'Ola! Tudo'   CORTADA
+    + reasoning_effort=low    1,8s  saida=1   'T'           pior
+    + thinking_budget=0       400 Bad Request (nao aceito neste endpoint)
+    flash-LITE-latest         0,7s  saida=8   completa
+
+E o corte nao ficava so na frase truncada: como a resposta parava no meio, a
+PERGUNTA SEGUINTE era respondida completando a anterior. Medido - "voce sabe
+quem eu sou?" foi respondido com "Tudo otimo".
+
+Subir o teto consertaria o corte e quebraria a premissa que o proprio
+orion.yaml declara. O lite entrega as duas coisas, e a 0,7 s e mais rapido do
+que o gpt-4o-mini era.
+
+### O resultado: os recados sairam
+
+**Os quatro foram entregues.**
+
+    id 1  Mara         entregue 10:02:44
+    id 2  Mara         entregue 10:02:47
+    id 3  Mara         entregue 10:02:49
+    id 4  Joao Paulo   entregue 10:04:26
+
+Os tres da Marah estavam parados desde 04/08. Ela chegou as 10:02, foi
+reconhecida pelo nome, e ele deu os tres. O recurso tinha falhado tres vezes
+antes (03/08, 04/08 e 05/08 de manha) e **nunca tinha entregado nada em toda a
+vida do projeto**.
+
+### Verificado ao vivo depois de tudo
+
+    "que horas sao"                -> "Agora sao 11 horas e 14 minutos."
+    "voce viu a Marah hoje"        -> "Vi sim! Foi as 11:00."
+    "para"                         -> "Parado."
+    "que horas o Kamal chega"      -> "nao tenho registrado, prefiro nao chutar"
+    "da uma olhada na cozinha"     -> "so consigo ver daqui"
+    "vai no quarto ver o Kamal"    -> "ainda nao consigo navegar pelos comodos"
+    "pega minha caneca"            -> "nao tenho bracos nem maos para pegar nada"
+
+### Licoes de metodo
+
+**Dois defeitos foram achados conversando com o robo em linguagem natural, nao
+lendo codigo.** O "para" e o "que horas" passaram por revisao e por suite verde;
+apareceram na primeira frase que uma pessoa da casa diria. Vale como
+procedimento, nao como acaso.
+
+**Uma hipotese minha foi refutada por sonda, e o registro importa mais que o
+acerto.** Diante da conversa repetitiva eu afirmei que o historico nao chegava
+ao modelo. Instrumentei o processo vivo:
+
+    1a chamada  turnos=0  papeis=[system, user]
+    2a chamada  turnos=1  papeis=[system, user, assistant, user]
+    3a chamada  turnos=2  papeis=[system, user, assistant, user, assistant, user]
+
+O historico chegava. O modelo recebia as proprias respostas anteriores E uma
+instrucao explicita de nao repetir, e repetia palavra por palavra. E o meu
+TESTE e que estava viciado: mandar as mesmas duas palavras tres vezes e o pior
+caso possivel para um LLM - ali o historico REFORCA a repeticao, porque
+completar padrao e o que ele faz. Com frases variadas o quadro era outro, e foi
+dele que sairam os defeitos 4 e 5.
+
+**A mudanca de prompt foi revertida por falta de ganho medido.** Editei o
+`prompt_sistema.txt` proibindo repeticao e o resultado piorou (4 de 4 identicas
+contra 2 de 3). Sem numero a favor, nao entra no repo.
+
+**Quase vazei uma chave.** O backup que eu mesmo criei do `secrets.env` nao
+estava no `.gitignore` e entrou no `git status` com a chave antiga dentro.
+Apagado antes do commit. Backup de arquivo de segredo nasce fora do padrao de
+ignore - se criar um, apague no mesmo minuto.
+
+### Estado ao fim
+
+- **Suite do Notebook: 831 passam** (eram 789 no inicio do dia). Cada teste
+  novo conferido REVERTENDO o codigo.
+- Ruff: nenhum aviso novo em nenhum dos sete commits.
+- As duas maquinas em `05b0b14`, servicos no ar, arvores limpas.
+- Ollama desligado e desabilitado; os ~1 GB do gemma3:1b seguem no disco a
+  pedido do dono.
+- `motion_core/behavior/impulsos.py` entrou no git (`4411a5b`) - 538 linhas que
+  viviam soltas no disco do Pi. **Continua orfao**: ninguem o importa e ele nao
+  tem teste. Esta escrito no commit para o git nao mentir depois.
+
+### Fica aberto
+
+- **Perguntar "tem recado pra mim?" nao consulta a caixa.** O dono tentou duas
+  vezes (00:00 e 09:21) e ouviu "nao tenho recados", com o recado id=4 parado
+  para ele. A entrega so existe na CHEGADA; nao ha caminho para PERGUNTAR.
+- **O tique do fecho** - "se precisar, e so me avisar" no fim de tudo. E o que
+  sobrou da queixa de repeticao, e o unico dos tres achados daquela
+  investigacao que nao e o robo dizendo algo falso.
+- **`OPENAI_API_KEY` guarda uma chave do Google.** O nome nao mente sobre o
+  protocolo, mas mente sobre o provedor. Renomear para algo neutro.
+- **O credito do Gemini nao chegou nos modelos maiores** - 429 continua em
+  `gemini-2.0-flash` e `gemini-2.5-pro`. Chave do AI Studio fica presa a um
+  projeto; o faturamento precisa estar habilitado NAQUELE projeto. Nao bloqueia
+  nada: o `-lite` era a escolha certa de qualquer forma.
+- **Ligar o `impulsos.py`** no BehaviorCore, e escrever os testes.
+- Tudo o que as entradas anteriores ja listavam: o heartbeat que mente, o pisca
+  da lanterna no boot, o `reboot` do Notebook sem regra de sudoers, os tres de
+  03/08, e o Gmail (n8n vs Python puro, remetentes, OAuth).
