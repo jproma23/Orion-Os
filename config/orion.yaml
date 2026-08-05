@@ -430,11 +430,32 @@ ai:
   # O SALDO E DA CONTA, NAO DA CHAVE - os dois numeros enganam:
   #   curl https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENAI_API_KEY"
   # `limit_remaining` na chave pode estar cheio com a carteira zerada.
-  openai_model: "openai/gpt-4o-mini"
-  openai_base_url: "https://openrouter.ai/api/v1"
+  openai_model: "gemini-flash-lite-latest"
+  openai_base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
   # OPENAI_API_KEY vem de variavel de ambiente - nunca fixa aqui (regra 6).
-  # Com openai_base_url apontando pro OpenRouter, essa chave e a do
-  # OpenRouter (formato sk-or-v1-...), nao a da OpenAI direto.
+  # O NOME diz OpenAI, o PROVEDOR e o Google: o que a chave precisa e falar
+  # o protocolo da OpenAI, e o Gemini expoe um endpoint que fala. Renomear a
+  # variavel para algo neutro fica pendente.
+  #
+  # POR QUE O `-lite`, E POR QUE NAO O `gemini-flash-latest` (medido 05/08):
+  # o flash-latest PENSA antes de responder, e os tokens de pensamento
+  # consomem o `max_tokens` sem aparecer na contagem de saida. Com os 100
+  # de `resposta_max_tokens` ele devolvia 3 tokens e `finish_reason=length`
+  # - frases cortadas no meio, e a resposta seguinte saia completando a
+  # anterior em vez de responder a pergunta nova.
+  #
+  #   flash-latest       4,5s  saida=4   CORTADA
+  #   + reasoning_effort=low   1,8s  saida=1   pior
+  #   + thinking_budget=0      400 Bad Request (nao aceito aqui)
+  #   flash-LITE-latest  0,7s  saida=8   completa
+  #
+  # Subir o teto resolveria o corte e quebraria a premissa: resposta curta
+  # e o que faz o robo falar logo. O lite entrega as duas coisas.
+  #
+  # NOMES FIXOS NAO SERVEM NESTA CHAVE: `gemini-2.5-flash` responde 404
+  # ("no longer available to new users") e `gemini-2.0-flash` responde 429
+  # (cota). A cota do Gemini e POR MODELO - se um dia parar, varra os
+  # modelos antes de culpar a chave.
   temperature: 0.6
   # resposta curta = falar logo (gerar + sintetizar demoram proporcional ao texto)
   resposta_max_tokens: 100
