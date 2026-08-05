@@ -119,6 +119,29 @@ _PADRAO_PARAR = re.compile(
 #: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.
 RESPOSTA_PARAR = "Parado."
 
+#: "QUE HORAS" NEM SEMPRE PERGUNTA O RELOGIO (medido em 2026-08-05).
+#:
+#: Era `"que horas" in texto or "horario" in texto` - substring cru, sem
+#: fronteira e sem posicao, o mesmo defeito de `\bpar[ae]\b` consertado horas
+#: antes neste arquivo. Medido ao vivo: *"que horas o Kamal chega da escola?"*
+#: foi respondido com **"Agora sao 10 horas e 2 minutos"** e a pergunta nunca
+#: chegou na IA. Junto com ela caiam "que horas voce faz a ronda?" e, por causa
+#: do segundo termo, qualquer frase com "horario" - "qual o horario do almoco",
+#: "me lembra do horario da escola".
+#:
+#: O atalho existe por um bom motivo (a hora nao precisa de modelo, e o modelo
+#: nao sabe que horas sao), mas ele so vale quando a pergunta E o relogio:
+#: "que horas sao/e" ou "que horas?" sozinho no fim. Seguido de qualquer outra
+#: coisa - de um sujeito, de um verbo - a pergunta e sobre o MUNDO, e quem
+#: responde sobre o mundo e a IA com o contexto na mao.
+_PADRAO_HORA = re.compile(
+    r"\bque horas?\s*(?:sao|são|eh|é)\b"
+    r"|\bque horas\s+e\s*[?!.]*$"
+    r"|\bque horas\s*[?!.]*$"
+    r"|\bhoras agora\b"
+    r"|\bhor[áa]rio atual\b"
+)
+
 
 class _SemCaminho(RuntimeError):
     """A acao existe no catalogo, mas nao ha fio ligado ate o hardware.
@@ -461,8 +484,7 @@ class MissionPlanner:
 
     @staticmethod
     def _eh_pergunta_de_hora(texto: str) -> bool:
-        texto_normalizado = texto.lower()
-        return "que horas" in texto_normalizado or "horario" in texto_normalizado
+        return _PADRAO_HORA.search(texto.lower()) is not None
 
     @staticmethod
     def _responder_hora() -> str:

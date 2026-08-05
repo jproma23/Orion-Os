@@ -478,3 +478,60 @@ async def test_pedir_recado_chega_na_ia_em_vez_de_parar_o_robo():
 
     assert comandos_enviados == [], "a frase virou parada de emergencia"
     assert ai.chamadas, "a frase nem chegou na IA"
+
+
+# ---------------------------------------------------------------------------
+# "QUE HORAS" NEM SEMPRE PERGUNTA O RELOGIO (medido em 2026-08-05)
+#
+# Mesmo defeito do `\bpar[ae]\b` acima, no atalho vizinho: era substring cru
+# (`"que horas" in texto or "horario" in texto`). Perguntei ao robo ao vivo
+# "que horas o Kamal chega da escola?" e ele respondeu "Agora sao 10 horas e 2
+# minutos" - a pergunta nunca chegou na IA.
+#
+# O atalho tem razao de existir (o modelo nao sabe que horas sao), mas so vale
+# quando a pergunta E o relogio. Seguida de sujeito ou verbo, a pergunta e
+# sobre o mundo.
+# ---------------------------------------------------------------------------
+
+PERGUNTAS_DE_RELOGIO = [
+    "que horas sao",
+    "que horas são?",
+    "que horas é",
+    "que horas?",
+    "fofao, que horas sao",
+    "que horas e?",
+    "que horas agora",
+    "qual o horario atual",
+]
+
+PERGUNTAS_SOBRE_O_MUNDO = [
+    "que horas o Kamal chega da escola",
+    "que horas voce faz a ronda",
+    "qual o horario do almoco",
+    "me lembra do horario da escola",
+    "que horas a Marah sai do trabalho",
+    "voce sabe que horas o onibus passa",
+]
+
+
+@pytest.mark.parametrize("frase", PERGUNTAS_DE_RELOGIO)
+def test_pergunta_de_relogio_continua_no_atalho(frase):
+    assert MissionPlanner._eh_pergunta_de_hora(frase), frase
+
+
+@pytest.mark.parametrize("frase", PERGUNTAS_SOBRE_O_MUNDO)
+def test_pergunta_sobre_o_mundo_nao_vira_hora_do_relogio(frase):
+    assert not MissionPlanner._eh_pergunta_de_hora(frase), frase
+
+
+@pytest.mark.asyncio
+async def test_quando_o_kamal_chega_da_escola_chega_na_ia():
+    """O caso exato de 05/08: a pergunta e sobre a rotina da casa, e quem
+    responde sobre a casa e a IA com o contexto - nao o relogio do sistema."""
+    ai = AiManagerFalso()
+    planner = MissionPlanner(ai_manager=ai)
+
+    resposta = await planner.processar("que horas o Kamal chega da escola?")
+
+    assert ai.chamadas, "a pergunta nem chegou na IA"
+    assert "horas e" not in resposta, f"respondeu com o relogio: {resposta!r}"
