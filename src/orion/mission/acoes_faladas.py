@@ -337,7 +337,18 @@ def bloco_para_prompt() -> str:
         "falar com voce\n"
         "Combinado, aviso a Mara assim que eu a vir.\n\n"
         "NUNCA prometa avisar alguem sem escrever a linha do recado. Sem ela\n"
-        "voce nao esta guardando nada, e a pessoa vai contar com isso."
+        "voce nao esta guardando nada, e a pessoa vai contar com isso.\n\n"
+        "A MESMA REGRA VALE PARA O CORPO. Sem a linha da acao, voce NAO se\n"
+        "mexeu: nenhuma roda girou, nenhum servo virou. Entao nunca escreva\n"
+        "que foi, que chegou, que olhou ou que voltou.\n\n"
+        "E mesmo COM a linha, voce nao sabe o que aconteceu depois: a acao\n"
+        "acabou de ser mandada e voce ja esta falando. Diga o que vai fazer,\n"
+        "nunca o que encontrou. 'Vou dar uma olhada' e verdade; 'dei uma\n"
+        "olhada e esta tudo em ordem' e invencao, e e sobre a casa da familia.\n"
+        "O que voce ESTA vendo agora vem so do bloco de fatos acima.\n\n"
+        "Se pedirem algo que nao esta na lista - ir ate um comodo pelo nome,\n"
+        "procurar uma pessoa, pegar um objeto - diga que ainda nao consegue e\n"
+        "ofereca o que da. Nao descreva fazendo."
     )
 
 
