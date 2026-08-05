@@ -22,6 +22,14 @@ logger = logging.getLogger("orion.vision.modulo")
 
 CallbackPanTilt = Callable[[float, float], Awaitable[None]]
 
+#: De quanto em quanto tempo tentar de novo buscar os rostos no banco do Pi.
+#: 10s cobre com folga o pior boot medido (enlace de pe 2min depois do
+#: Notebook) sem transformar a espera num pedido a cada segundo.
+INTERVALO_RETENTATIVA_FAMILIA_S = 10.0
+
+#: 30 x 10s = 5 minutos. Passou disso, o problema nao e o Pi demorando.
+MAX_TENTATIVAS_FAMILIA = 30
+
 
 class ModuloVisao:
     """Ciclo de vida do Vision Core para o Boot Manager."""
@@ -52,6 +60,7 @@ class ModuloVisao:
         self._ultimo_tilt = 0.0
         self._sentinela: Any | None = None
         self._tarefa: asyncio.Task | None = None
+        self._tarefa_familia: asyncio.Task | None = None
 
     async def iniciar(self) -> None:
         if self._nucleo is None:
@@ -63,32 +72,69 @@ class ModuloVisao:
         # vision.camera_error e segue tentando reabrir, mantendo o resto do
         # ORION OS de pe em modo SEM_VISAO. Por isso o modulo sobe mesmo sem
         # camera - "sem imagem" nao e o mesmo que "modulo quebrado".
-        await self._carregar_familia()
+        if not await self._carregar_familia():
+            self._tarefa_familia = asyncio.create_task(self._insistir_familia())
         self._ligar_sentinela()
         await self._ligar_gestos()
         self._tarefa = asyncio.create_task(self._nucleo.executar())
         logger.info("Vision Core ativo (dono da camera %s)", self._conf["camera_indice_principal"])
 
-    async def _carregar_familia(self) -> None:
-        """Ensina ao Vision Core quem e da casa.
+    async def _carregar_familia(self) -> bool:
+        """Ensina ao Vision Core quem e da casa. Devolve se conseguiu.
 
         Sem isso TODO mundo vira estranho e a Sentinela alerta sem parar -
         por isso a falha aqui e tolerada mas nunca silenciosa (Cap 6 s.8): o
         link com o Pi, que guarda os rostos, pode ainda estar subindo.
         """
         if self._carregar_conhecidos is None:
-            return
+            # Unico caminho legitimamente mudo: nao ha de onde carregar
+            # (testes e maquina de desenvolvimento). Nao ha o que reter.
+            return True
         try:
             pessoas = await self._carregar_conhecidos()
         except Exception:  # noqa: BLE001
             logger.warning("Nao consegui carregar os rostos conhecidos - seguindo sem", exc_info=True)
-            return
+            return False
         conhecidos = [p for p in (pessoas or []) if p.get("embedding_face")]
         if not conhecidos:
             logger.warning("Nenhum rosto conhecido no banco - Sentinela ficaria alertando de tudo")
-            return
+            return False
         self._nucleo.carregar_pessoas_conhecidas(conhecidos)
         logger.info("Vision Core: %d rosto(s) conhecido(s) carregado(s)", len(conhecidos))
+        return True
+
+    async def _insistir_familia(self) -> None:
+        """Tenta de novo ate os rostos entrarem - o boot nao e a unica chance.
+
+        FALHA REAL DE 2026-08-05, de manha: o Notebook subiu antes do Pi. Os
+        rostos moram no banco do Pi e sao pedidos pelo enlace TCP, que so
+        ficou de pe 2 minutos depois. A carga acontecia UMA VEZ, no boot, e
+        ja tinha passado - entao a lista ficou vazia pelo resto do dia.
+        O robo olhou o dono de frente e a Sentinela registrou "1 rosto
+        desconhecido"; depois, perguntado se tinha visto o Kamal, respondeu a
+        verdade: nao tinha visto ninguem. Nada estava quebrado, nada deu erro
+        e nenhum teste reprovou - o robo so nao conhecia mais a familia.
+        O mesmo ja havia acontecido em 04/08 (00:37 e 21:29), com o aviso no
+        log e ninguem para le-lo.
+
+        Insistir e melhor que assinar um evento de "link subiu": nao cria
+        topico novo (e este projeto ja publicou no vazio tres vezes) e cobre
+        tambem o banco que demora, nao so o enlace que atrasa.
+
+        Desiste alto depois de MAX_TENTATIVAS_FAMILIA: um robo que trata a
+        casa inteira como estranha precisa dizer isso em voz alta no log, e
+        nao seguir tentando calado para sempre.
+        """
+        for tentativa in range(1, MAX_TENTATIVAS_FAMILIA + 1):
+            await asyncio.sleep(INTERVALO_RETENTATIVA_FAMILIA_S)
+            if await self._carregar_familia():
+                logger.info("Rostos da familia carregados na tentativa %d", tentativa)
+                return
+        logger.error(
+            "Desisti de carregar os rostos apos %d tentativas - o robo vai tratar "
+            "TODA a familia como estranha ate ser reiniciado",
+            MAX_TENTATIVAS_FAMILIA,
+        )
 
     async def _ligar_gestos(self) -> None:
         """Gestos de mao alimentados pelos frames de quem ja le a camera.
@@ -129,6 +175,11 @@ class ModuloVisao:
         self._sentinela.registrar()
 
     async def encerrar(self) -> None:
+        # A retentativa dos rostos morre junto: deixa-la viva depois do
+        # encerramento e a tarefa orfa que o EDR-0023 ja pagou uma vez.
+        if self._tarefa_familia is not None:
+            self._tarefa_familia.cancel()
+            self._tarefa_familia = None
         if self._nucleo is not None:
             self._nucleo.parar()
         if self._tarefa is not None:

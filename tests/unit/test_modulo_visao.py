@@ -43,6 +43,9 @@ class NucleoFalso:
     def parar(self) -> None:
         self.parou = True
 
+    def carregar_pessoas_conhecidas(self, pessoas) -> None:
+        self.familia = list(pessoas)
+
 
 def test_modelo_ganha_sufixo_pt():
     # sem o .pt o Ultralytics trata como nome de catalogo e tenta baixar -
@@ -205,3 +208,80 @@ def test_pausar_nunca_levanta_mesmo_com_peca_quebrada():
 
     modulo.pausar()   # nao levanta
     modulo.retomar()  # nao levanta
+
+
+# --- Os rostos da familia depois de um boot em que o Pi ainda nao subiu ---
+#
+# Falha real de 2026-08-05: o Notebook ligou antes do Pi, a busca dos rostos
+# aconteceu UMA vez e falhou, e o robo passou o dia inteiro sem reconhecer
+# ninguem - sem erro, sem teste reprovando e sem nada denunciando.
+
+ROSTO = {"id": 1, "nome": "João Paulo", "embedding_face": b"x" * 1024}
+
+
+class _BancoQueDemora:
+    """Recusa as `falhas_antes` primeiras chamadas, como o enlace ainda subindo."""
+
+    def __init__(self, falhas_antes: int) -> None:
+        self.falhas_antes = falhas_antes
+        self.chamadas = 0
+
+    async def __call__(self):
+        self.chamadas += 1
+        if self.chamadas <= self.falhas_antes:
+            raise ConnectionError("link com o Pi ainda nao esta de pe")
+        return [ROSTO]
+
+
+@pytest.mark.asyncio
+async def test_rostos_entram_quando_o_pi_sobe_depois(monkeypatch):
+    monkeypatch.setattr("orion.vision.modulo.INTERVALO_RETENTATIVA_FAMILIA_S", 0.01)
+    nucleo = NucleoFalso()
+    banco = _BancoQueDemora(falhas_antes=2)
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=nucleo, carregar_conhecidos=banco)
+
+    await modulo.iniciar()
+    await asyncio.sleep(0.1)
+
+    # o boot falhou de carregar (as 2 primeiras chamadas recusaram) - e era
+    # nesse estado que o robo ficava preso o dia inteiro, tratando o dono
+    # como estranho. O que importa e que ele NAO desiste no boot.
+    assert banco.chamadas > 1, "so tentou uma vez - voltou a ser a carga de tiro unico"
+    assert nucleo.familia == [ROSTO], "os rostos tinham que entrar assim que o Pi respondesse"
+    await modulo.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_banco_vazio_tambem_faz_insistir(monkeypatch):
+    # lista vazia nao levanta excecao, mas deixa o robo igualmente cego para
+    # quem e da casa - tem que insistir do mesmo jeito
+    monkeypatch.setattr("orion.vision.modulo.INTERVALO_RETENTATIVA_FAMILIA_S", 0.01)
+    nucleo = NucleoFalso()
+    respostas = [[], [], [ROSTO]]
+
+    async def _banco():
+        return respostas.pop(0)
+
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=nucleo, carregar_conhecidos=_banco)
+    await modulo.iniciar()
+    await asyncio.sleep(0.1)
+
+    assert nucleo.familia == [ROSTO]
+    await modulo.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_encerrar_mata_a_retentativa_dos_rostos(monkeypatch):
+    # tarefa orfa tentando para sempre depois do desligamento ja custou caro
+    # neste projeto - ver EDR-0023
+    monkeypatch.setattr("orion.vision.modulo.INTERVALO_RETENTATIVA_FAMILIA_S", 0.01)
+    banco = _BancoQueDemora(falhas_antes=10_000)
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoFalso(), carregar_conhecidos=banco)
+
+    await modulo.iniciar()
+    await asyncio.sleep(0.05)
+    await modulo.encerrar()
+
+    parou_em = banco.chamadas
+    await asyncio.sleep(0.05)
+    assert banco.chamadas == parou_em, "a retentativa continuou viva depois de encerrar()"
