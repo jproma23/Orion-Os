@@ -1,11 +1,20 @@
-"""AI Manager (Cap 7 secao 2-3) - IA remota (OpenAI) com fallback local (Ollama).
+"""AI Manager (Cap 7 secao 2-3) - a IA da conversa, remota (OpenAI/OpenRouter).
 
 Prompt de sistema fixo (config/prompt_sistema.txt, Cap 17) + contexto vindo
-da memoria (Cap 11, via MemoryClient/comm.request). Dois backends atras da
-mesma interface (EDR-0021): OpenAI remoto (provider="openai", padrao) cai
-automaticamente para o Ollama local se a chamada remota falhar - sem
-internet, erro de API, timeout - nunca deixa a conversa muda (Cap 6 s.8,
-mesma tolerancia ja usada para Hardware Core/SSD/Notebook ausentes).
+da memoria (Cap 11, via MemoryClient/comm.request).
+
+O OLLAMA LOCAL SAIU EM 2026-08-05, por decisao do dono. Ele era a reserva do
+EDR-0021 - a ideia era nunca deixar a conversa muda. **Medido no dia em que
+foi preciso**: os creditos do OpenRouter acabaram as 10:05, a queda para o
+gemma3:1b disparou como projetado, e o robo simplesmente NAO respondeu -
+60 s de espera e `{"erro": "o Fofao nao respondeu a tempo"}` na ponte do
+chat. Era uma reserva que nao reservava, e ainda segurava ~1 GB de RAM no
+Notebook (medido ao desligar) numa maquina que ja carrega YOLO,
+reconhecimento facial e Whisper.
+
+Sem IA remota o robo agora DIZ que esta sem pensar, em vez de pendurar quem
+esta falando com ele. Tudo que nao depende de modelo continua de pe: parar,
+a hora, o diario, a saudacao pelo nome e a entrega de recado.
 
 Chave da API (OPENAI_API_KEY) nunca fixa no codigo/config (regra 6 do
 CLAUDE.md) - vem de variavel de ambiente (EDR-0021).
@@ -26,42 +35,45 @@ from orion.mission.historico_conversa import HistoricoConversa
 
 logger = logging.getLogger("orion.mission.ai_manager")
 
+#: O que ele diz quando a IA remota nao responde - sem internet, sem credito,
+#: erro de API.
+#:
+#: Texto pronto e curto de proposito: e justamente a hora em que nao ha modelo
+#: para escrever uma frase melhor. Diz o que houve e delimita o estrago - o
+#: corpo, a saudacao pelo nome, a hora e os recados continuam funcionando, e
+#: quem esta ouvindo precisa saber que nao ficou sem robo, ficou sem conversa.
+#:
+#: NAO entra no historico. E um aviso do sistema, nao um turno: guardado, ele
+#: viraria "assunto anterior" e a proxima resposta sairia comentando a propria
+#: falha.
+SEM_IA = "Agora eu nao consigo pensar - fiquei sem acesso a minha IA."
+
 
 class AiManager:
     def __init__(
         self,
-        modelo: str = "gemma3:1b",
         temperatura: float = 0.6,
         caminho_prompt_sistema: str | Path = "config/prompt_sistema.txt",
         max_tokens_resposta: int | None = None,
-        keep_alive_minutes: int | None = None,
-        provider: str = "ollama",
         openai_model: str = "gpt-4o-mini",
         openai_api_key: str | None = None,
         openai_base_url: str | None = None,
         max_turnos_memoria: int = 6,
         validade_memoria_s: float = 600.0,
     ) -> None:
-        self._modelo = modelo
         self._temperatura = temperatura
         self._prompt_sistema = Path(caminho_prompt_sistema).read_text(encoding="utf-8")
         # Numa conversa falada, resposta longa = espera longa duas vezes
         # (gerar + sintetizar/falar). Limitar os tokens mantem o dialogo agil.
         self._max_tokens_resposta = max_tokens_resposta
-        # Sem keep_alive o Ollama descarrega o modelo apos ~5min ocioso e a
-        # proxima resposta paga o recarregamento inteiro (dezenas de segundos).
-        self._keep_alive = f"{keep_alive_minutes}m" if keep_alive_minutes else None
-        self._provider = provider
         self._openai_model = openai_model
         self._openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
         # base_url alternativo (ex.: OpenRouter, "https://openrouter.ai/api/v1")
         # - a API e compativel com a da OpenAI, so muda o servidor (EDR-0021).
         self._openai_base_url = openai_base_url
-        # Clientes nascem sob demanda (ver _responder_ollama/_responder_openai),
-        # com os imports DENTRO dos metodos: a lib `ollama` so existe no
-        # Notebook, e sem isso o mission_planner - que importa esta classe -
-        # nao era importavel no Raspberry nem nos testes.
-        self._cliente_ollama = None
+        # Cliente nasce sob demanda, com o import DENTRO do metodo: assim o
+        # mission_planner - que importa esta classe - continua importavel no
+        # Raspberry e nos testes, sem a lib instalada.
         self._cliente_openai = None
         #: A memoria de curto prazo da CONVERSA (2026-08-02).
         #:
@@ -117,41 +129,18 @@ class AiManager:
         prompt_sistema = prompt_sistema or self._montar_prompt_sistema(contexto)
         mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico)
 
-        resposta = None
-        if self._provider == "openai" and self._openai_api_key:
-            try:
-                resposta = await asyncio.to_thread(self._chamar_openai, mensagens)
-            except Exception:
-                logger.warning(
-                    "OpenAI indisponivel (sem internet ou erro de API) - "
-                    "caindo para o Ollama local",
-                    exc_info=True,
-                )
-
-        if resposta is None:
-            resposta = await asyncio.to_thread(self._chamar_ollama, mensagens)
+        if not self._openai_api_key:
+            logger.warning("sem chave de IA configurada - a conversa fica sem resposta")
+            return SEM_IA
+        try:
+            resposta = await asyncio.to_thread(self._chamar_openai, mensagens)
+        except Exception:
+            logger.exception("IA remota indisponivel - respondendo que estou sem pensar")
+            return SEM_IA
 
         if usar_historico:
             self.historico.registrar(texto_usuario, resposta)
         return resposta
-
-    def _chamar_ollama(self, mensagens: list[dict[str, str]]) -> str:
-        import ollama
-
-        if self._cliente_ollama is None:
-            self._cliente_ollama = ollama.Client()
-
-        opcoes: dict = {"temperature": self._temperatura}
-        if self._max_tokens_resposta:
-            opcoes["num_predict"] = self._max_tokens_resposta
-
-        resposta = self._cliente_ollama.chat(
-            model=self._modelo,
-            messages=mensagens,
-            options=opcoes,
-            keep_alive=self._keep_alive,
-        )
-        return resposta["message"]["content"]
 
     #: Onde uma frase termina. O Piper tira a prosodia inteira da pontuacao,
     #: entao cortar aqui e cortar onde ele mesmo faria a pausa - nunca no meio.
@@ -187,13 +176,13 @@ class AiManager:
         caminho.
 
         Cai para o caminho nao-streaming (uma frase so, o texto inteiro) quando
-        nao ha OpenAI configurada - o Ollama local segue como reserva, e nunca
-        ficar sem resposta vale mais que responder em pedacos (Cap 6 s.8).
+        nao ha chave de IA configurada - la a resposta e o aviso de que ficou
+        sem pensar, e nao ha o que picotar.
         """
         prompt_sistema = self._montar_prompt_sistema(contexto)
         mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico=True)
 
-        if not (self._provider == "openai" and self._openai_api_key):
+        if not self._openai_api_key:
             # `responder` ja registra o turno sozinho - nao registrar de novo
             # aqui, senao a mesma pergunta entraria duas vezes no historico.
             yield await self.responder(texto_usuario, contexto)
@@ -245,9 +234,9 @@ class AiManager:
                     # da para cair na reserva local em vez de emudecer.
                     logger.warning("streaming da IA falhou", exc_info=item)
                     if not houve_frase:
-                        reserva = await asyncio.to_thread(self._chamar_ollama, mensagens)
-                        self.historico.registrar(texto_usuario, reserva)
-                        yield reserva
+                        # Nada foi dito ainda: da para avisar que ficou sem
+                        # pensar. Nao entra no historico - ver SEM_IA.
+                        yield SEM_IA
                     else:
                         # Falou pela metade: o que saiu pela caixa foi ouvido e
                         # E o turno, por mais truncado que esteja. Guardar o
@@ -365,38 +354,19 @@ class AiManager:
         logger.warning("IA sugeriu acao fora do vocabulario: %r", resposta)
         return None
 
-    async def descarregar(self) -> None:
-        """Tira o modelo da RAM do Ollama (keep_alive=0).
-
-        E o alivio de memoria mais direto que o Notebook tem: o gemma3:1b
-        ocupa ~880MB parado por causa do keep_alive de 30min. Nao quebra
-        nada - a proxima pergunta recarrega o modelo sozinha, pagando so o
-        tempo de carga uma vez.
-
-        BUG REAL, corrigido em 2026-07-30: este metodo usava `self._cliente`,
-        um atributo que NUNCA existiu nesta classe (os que existem sao
-        `_cliente_ollama` e `_cliente_openai`, criados sob demanda). Toda
-        chamada levantava AttributeError, e como o `AlivioCarga` captura e
-        loga a excecao, o guardiao de RAM parecia funcionar de ponta a ponta:
-        detectava o aperto, pedia alivio, alguem atendia - e nao se liberava
-        um unico byte. Falha silenciosa da pior especie, porque o caminho
-        feliz aparecia inteiro no log.
-
-        O cliente e criado aqui se ainda nao existir, em vez de sair cedo: se
-        o modelo estiver carregado por outro processo, este pedido o
-        descarrega do mesmo jeito, que e exatamente o que se quer sob pressao
-        de memoria. Import local pelo mesmo motivo do resto da classe - a lib
-        `ollama` so existe no Notebook.
-        """
-
-        def _chamar() -> None:
-            import ollama
-
-            if self._cliente_ollama is None:
-                self._cliente_ollama = ollama.Client()
-            self._cliente_ollama.generate(model=self._modelo, prompt="", keep_alive=0)
-
-        await asyncio.to_thread(_chamar)
+    # `descarregar()` SAIU JUNTO COM O OLLAMA (2026-08-05).
+    #
+    # Ele tirava o gemma3:1b da RAM (keep_alive=0) e era o segundo maior
+    # alivio de memoria do Notebook. Sem modelo local nao ha nada para
+    # descarregar, e manter o metodo devolvendo silencio seria repetir de
+    # forma nova o bug de 30/07: ali ele levantava AttributeError, o
+    # `AlivioCarga` engolia a excecao, e o guardiao de RAM aparecia inteiro
+    # no log sem liberar um byte.
+    #
+    # Por isso o metodo foi REMOVIDO e nao esvaziado: quem monta o alivio
+    # (conversar_fofao) parou de passar `descarregar_modelo`, e o alivio
+    # agora conta so com o que de fato libera memoria - pausar a visao, que
+    # e o maior consumidor da maquina (YOLO + reconhecimento facial).
 
     def _montar_prompt_sistema(self, contexto: dict | None) -> str:
         """Prompt fixo + bloco de fatos do grounding.

@@ -31,14 +31,14 @@ def ia(monkeypatch):
     `capturado` guarda o `messages` da ULTIMA chamada - e o que os testes
     precisam ver, porque o bug morava exatamente ali.
     """
-    gerente = AiManager(provider="ollama")
+    gerente = AiManager(openai_api_key="falsa")
     capturado: dict = {}
 
     def _falso(mensagens):
         capturado["mensagens"] = mensagens
         return f"resposta {len(mensagens)}"
 
-    monkeypatch.setattr(gerente, "_chamar_ollama", _falso)
+    monkeypatch.setattr(gerente, "_chamar_openai", _falso)
     gerente.capturado = capturado
     return gerente
 
@@ -56,14 +56,14 @@ async def test_segunda_pergunta_carrega_a_primeira():
     mensagens - system + user - exatamente como a primeira. O robo nao mudava
     de assunto: ele nunca soube que havia um assunto.
     """
-    gerente = AiManager(provider="ollama")
+    gerente = AiManager(openai_api_key="falsa")
     vistas: list[list[dict]] = []
 
     def _falso(mensagens):
         vistas.append(list(mensagens))
         return "entendi"
 
-    gerente._chamar_ollama = _falso
+    gerente._chamar_openai = _falso
 
     await gerente.responder("meu cachorro chama Rex")
     await gerente.responder("qual a idade dele?")
@@ -176,7 +176,7 @@ async def test_streaming_guarda_a_resposta_INTEIRA():
     Guardar so a primeira frase faria o modelo, no turno seguinte, achar que
     disse "Oi." e mais nada - e ele se corrigiria sozinho, do nada.
     """
-    gerente = AiManager(provider="openai", openai_api_key="falsa")
+    gerente = AiManager(openai_api_key="falsa")
     gerente._openai_em_frases = lambda mensagens: iter(
         ["Oi, tudo bem.", "Seu cachorro se chama Rex."]
     )
@@ -190,11 +190,11 @@ async def test_streaming_guarda_a_resposta_INTEIRA():
 
 @pytest.mark.asyncio
 async def test_streaming_nao_registra_a_pergunta_duas_vezes():
-    """Sem provedor remoto, `responder_em_frases` delega para `responder` - e
-    `responder` ja registra sozinho. Registrar de novo na volta duplicaria a
-    pergunta no historico."""
-    gerente = AiManager(provider="ollama")
-    gerente._chamar_ollama = lambda mensagens: "resposta unica"
+    """O turno entra UMA vez. Ha dois lugares que registram - `responder` e o
+    fim do streaming - e um turno duplicado faria o modelo ver a mesma
+    pergunta duas vezes seguidas e se corrigir sozinho, do nada."""
+    gerente = AiManager(openai_api_key="falsa")
+    gerente._openai_em_frases = lambda mensagens: iter(["resposta unica."])
 
     _ = [f async for f in gerente.responder_em_frases("oi")]
 

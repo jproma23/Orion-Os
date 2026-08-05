@@ -1,7 +1,7 @@
 """Modulo de missao/IA do Mission Core (EDR-0023).
 
 Reune o que estava espalhado dentro de tools/conversar_fofao.py: o AiManager
-(IA remota com fallback pro Ollama, EDR-0021), o MissionPlanner (Cap 7) e as
+(IA remota - a reserva local saiu em 2026-08-05), o MissionPlanner (Cap 7) e as
 duas pontes que atendem pedidos vindos do Pi - PonteDecisao (EDR-0022, a IA
 estrategica) e PonteConselho (o Mentor).
 
@@ -32,7 +32,7 @@ class ModuloMissao:
         ia: Any | None = None,
     ) -> None:
         # `ia` injetavel: os testes trocam por um dublê e nao precisam de
-        # chave de API nem do Ollama instalado.
+        # chave de API configurada.
         self._event_bus = event_bus
         self._comm = comm
         self._conf = conf_ia
@@ -61,27 +61,25 @@ class ModuloMissao:
 
         self._registrar_mentor()
         self._pronto = True
-        logger.info("Mission Core ativo (provider=%s)", self._conf.get("provider", "ollama"))
+        logger.info("Mission Core ativo (IA remota: %s)", self._conf.get("openai_model"))
 
     def _construir_ia(self) -> Any:
         from orion.mission.ai_manager import AiManager
 
-        provider = self._conf.get("provider", "ollama")
-        if provider == "openai" and not os.environ.get("OPENAI_API_KEY"):
-            # Nao e erro fatal: o AiManager cai sozinho pro Ollama local
-            # (EDR-0021). Mas avisar importa - senao a conta de "por que a
-            # resposta ficou ruim" so aparece muito depois.
+        if not os.environ.get("OPENAI_API_KEY"):
+            # Nao e erro fatal - o robo sobe e tudo que nao depende de modelo
+            # continua de pe. Mas desde que o Ollama saiu (2026-08-05) NAO ha
+            # mais reserva local: sem chave, toda conversa vira o aviso de que
+            # ele esta sem pensar. Avisar alto aqui e o que evita descobrir
+            # isso pela boca do robo.
             logger.warning(
-                "provider=openai sem OPENAI_API_KEY no ambiente - toda resposta "
-                "vai cair no Ollama local (EDR-0021)"
+                "sem OPENAI_API_KEY no ambiente - o robo vai dizer que esta sem IA "
+                "em toda conversa (nao ha mais reserva local)"
             )
         return AiManager(
-            modelo=self._conf["ollama_model"],
             temperatura=self._conf["temperature"],
             caminho_prompt_sistema=self._conf["system_prompt_file"],
             max_tokens_resposta=self._conf["resposta_max_tokens"],
-            keep_alive_minutes=self._conf["keep_alive_minutes"],
-            provider=provider,
             openai_model=self._conf.get("openai_model", "gpt-4o-mini"),
             openai_base_url=self._conf.get("openai_base_url"),
         )

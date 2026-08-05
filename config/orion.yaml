@@ -413,39 +413,29 @@ voice:
     janelas_de_historico: 30
 
 ai:
-  # IA remota como principal (EDR-0021, 2026-07-23): Ollama local travava
-  # muito e exige maquina cara pra rodar bem. Via OpenRouter (API
-  # compativel com a da OpenAI, so troca o servidor) - cai pro Ollama
-  # sozinho sem internet/erro de API (nunca fica sem IA nenhuma).
-  provider: "openai"              # "openai" | "ollama" (usa API compativel c/ OpenAI)
+  # IA REMOTA, E SO ELA (OpenRouter, API compativel com a da OpenAI).
+  #
+  # A reserva local (Ollama/gemma3:1b) SAIU EM 2026-08-05, por decisao do
+  # dono. Ela existia para o robo nunca ficar mudo - e no dia em que foi
+  # precisa nao funcionou: os creditos acabaram as 10:05, a queda para o
+  # modelo local disparou como projetado, e a resposta nunca veio (60 s de
+  # espera e "o Fofao nao respondeu a tempo"). Ainda segurava ~1 GB de RAM
+  # numa maquina que ja carrega YOLO, reconhecimento facial e Whisper.
+  #
+  # CONSEQUENCIA A ENCARAR: sem internet ou sem credito, o robo DIZ que
+  # esta sem pensar. Nao trava e nao emudece, mas tambem nao conversa. O
+  # resto continua de pe: parar, a hora, o diario, a saudacao pelo nome e a
+  # entrega de recado nao passam por modelo nenhum.
+  #
+  # O SALDO E DA CONTA, NAO DA CHAVE - os dois numeros enganam:
+  #   curl https://openrouter.ai/api/v1/credits -H "Authorization: Bearer $OPENAI_API_KEY"
+  # `limit_remaining` na chave pode estar cheio com a carteira zerada.
   openai_model: "openai/gpt-4o-mini"
   openai_base_url: "https://openrouter.ai/api/v1"
   # OPENAI_API_KEY vem de variavel de ambiente - nunca fixa aqui (regra 6).
   # Com openai_base_url apontando pro OpenRouter, essa chave e a do
   # OpenRouter (formato sk-or-v1-...), nao a da OpenAI direto.
-  #
-  # RESERVA LOCAL - gemma3:1b desde 2026-07-19. Historico: llama3.2:3b ->
-  # gemma3:4b -> 1b.
-  #
-  # A troca para o modelo PEQUENO so foi possivel depois do grounding
-  # (src/orion/mission/grounding.py). Medido no mesmo prompt real:
-  #
-  #   SEM contexto: gemma3:1b INVENTOU ("Sim, vi a Ana passar!") e o
-  #                 llama3.2:3b inventou ate horario ("as 14h30").
-  #   COM contexto: os quatro modelos testados (1b, 3b, qwen2.5:3b, 4b)
-  #                 responderam "nao vi" corretamente.
-  #
-  # Com os fatos entregues prontos, a IA nao precisa deduzir - so ler e
-  # formular - e o modelo pequeno da conta. Ganho: 880MB em vez de 2,9GB
-  # (folga real na RAM apertada do notebook) e o mais rapido dos quatro
-  # (16,5s contra 48,8s do 4b no mesmo prompt com contexto).
-  #
-  # SE VOLTAR A INVENTAR: o suspeito e o grounding ter parado de entregar
-  # os fatos, NAO o modelo. Cheque o bloco de contexto antes de trocar.
-  ollama_model: "gemma3:1b"
   temperature: 0.6
-  context_window: 4096
-  keep_alive_minutes: 30         # numa conversa ao vivo, manter o modelo na RAM
   # resposta curta = falar logo (gerar + sintetizar demoram proporcional ao texto)
   resposta_max_tokens: 100
   system_prompt_file: "config/prompt_sistema.txt"

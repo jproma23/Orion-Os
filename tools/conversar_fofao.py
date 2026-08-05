@@ -5,7 +5,7 @@ Junta num processo só, no mesmo Event Bus:
     o avatar reagindo aos estados de voz de verdade;
   - VoiceCore (Cap 9) - escuta o microfone, espera a palavra "Fofão",
     transcreve o comando com o Whisper;
-  - AiManager (Cap 7) - responde com o Ollama local;
+  - AiManager (Cap 7) - responde com a IA remota (OpenRouter);
   - Sintetizador (Cap 9) - fala a resposta pela TV (HDMI).
 
 E o substituto ao vivo do tools/preview_avatar.py (que so simula eventos):
@@ -200,19 +200,16 @@ async def principal() -> None:
     )
 
     ia = AiManager(
-        modelo=secao_ia["ollama_model"],
         temperatura=secao_ia["temperature"],
         caminho_prompt_sistema=secao_ia["system_prompt_file"],
         max_tokens_resposta=secao_ia["resposta_max_tokens"],
-        keep_alive_minutes=secao_ia["keep_alive_minutes"],
-        provider=secao_ia.get("provider", "ollama"),
         openai_model=secao_ia.get("openai_model", "gpt-4o-mini"),
         openai_base_url=secao_ia.get("openai_base_url"),
     )
-    if secao_ia.get("provider") == "openai" and not os.environ.get("OPENAI_API_KEY"):
+    if not os.environ.get("OPENAI_API_KEY"):
         logger.warning(
-            "provider=openai configurado mas OPENAI_API_KEY nao esta no ambiente - "
-            "toda resposta vai cair direto pro Ollama local (EDR-0021)"
+            "OPENAI_API_KEY nao esta no ambiente - o robo vai dizer que esta sem IA "
+            "em toda conversa (a reserva local saiu em 2026-08-05)"
         )
 
     # Conselheiro do maestro: o Pi pergunta "o que faco agora?" pelo Event
@@ -712,9 +709,13 @@ async def principal() -> None:
     #     `AlivioCarga` captura e loga cada acao isoladamente, entao o log
     #     mostrava o caminho feliz inteiro - detecta, pede, atende - com nada
     #     acontecendo no fim.
+    #
+    # `descarregar_modelo` NAO E MAIS PASSADO (2026-08-05): com o Ollama fora,
+    # nao ha modelo local na RAM para tirar. Passar algo que nao libera nada
+    # seria refazer o bug acima com outra fachada. O alivio ficou com a visao,
+    # que sempre foi o maior consumidor da maquina.
     AlivioCarga(
         bus,
-        descarregar_modelo=ia.descarregar,
         pausar_visao=modulo_visao.pausar,
         retomar_visao=modulo_visao.retomar,
     )

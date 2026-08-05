@@ -1,9 +1,8 @@
-"""Testes do AI Manager (Cap 7 s.2-3) - montagem do prompt de sistema e a
-escolha/fallback de backend (EDR-0021), sem chamar Ollama/Gemini de
-verdade (isso fica para um teste manual/real)."""
+"""Testes do AI Manager (Cap 7 s.2-3) - montagem do prompt de sistema e o que
+acontece quando a IA remota nao responde, sem chamar a API de verdade."""
 import pytest
 
-from orion.mission.ai_manager import AiManager
+from orion.mission.ai_manager import SEM_IA, AiManager
 
 
 @pytest.fixture
@@ -62,32 +61,27 @@ def test_contexto_com_notas_do_vault_adiciona_ao_prompt(ai_manager):
 
 
 @pytest.mark.asyncio
-async def test_provider_ollama_nunca_chama_openai(ai_manager, monkeypatch):
-    ai_manager._provider = "ollama"
-    monkeypatch.setattr(ai_manager, "_chamar_ollama", lambda *_: "resposta ollama")
-    monkeypatch.setattr(
-        ai_manager, "_chamar_openai", lambda *_: (_ for _ in ()).throw(AssertionError("nao deveria chamar"))
-    )
+async def test_sem_chave_ele_avisa_em_vez_de_ficar_pendurado(ai_manager):
+    """Desde 2026-08-05 nao ha reserva local. Sem chave a resposta e o aviso -
+    e nunca uma espera: era isso que o Ollama fazia quando foi preciso."""
+    ai_manager._openai_api_key = None
 
-    resposta = await ai_manager.responder("oi")
-
-    assert resposta == "resposta ollama"
+    assert await ai_manager.responder("oi") == SEM_IA
 
 
 @pytest.mark.asyncio
-async def test_provider_openai_sem_chave_usa_ollama_direto(ai_manager, monkeypatch):
-    ai_manager._provider = "openai"
+async def test_aviso_de_sem_ia_nao_entra_no_historico(ai_manager):
+    """Guardado, ele viraria "assunto anterior" e a resposta seguinte sairia
+    comentando a propria falha."""
     ai_manager._openai_api_key = None
-    monkeypatch.setattr(ai_manager, "_chamar_ollama", lambda *_: "resposta ollama")
 
-    resposta = await ai_manager.responder("oi")
+    await ai_manager.responder("oi")
 
-    assert resposta == "resposta ollama"
+    assert len(ai_manager.historico) == 0
 
 
 @pytest.mark.asyncio
 async def test_provider_openai_com_chave_usa_openai(ai_manager, monkeypatch):
-    ai_manager._provider = "openai"
     ai_manager._openai_api_key = "chave-de-teste"
     monkeypatch.setattr(ai_manager, "_chamar_openai", lambda *_: "resposta openai")
 
@@ -147,64 +141,38 @@ async def test_decidir_com_falha_retorna_none(ai_manager, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_openai_falha_cai_para_ollama(ai_manager, monkeypatch):
-    ai_manager._provider = "openai"
+async def test_ia_remota_que_falha_devolve_o_aviso_e_nao_levanta(ai_manager, monkeypatch):
+    """O caso REAL de 2026-08-05: os creditos do OpenRouter acabaram e a API
+    passou a devolver 402. O robo tem que dizer que ficou sem pensar - nao
+    explodir, e nao pendurar quem esta falando com ele."""
     ai_manager._openai_api_key = "chave-de-teste"
 
     def _openai_com_falha(*_):
-        raise RuntimeError("sem internet (simulado)")
+        raise RuntimeError("Error code: 402 - Insufficient credits (simulado)")
 
     monkeypatch.setattr(ai_manager, "_chamar_openai", _openai_com_falha)
-    monkeypatch.setattr(ai_manager, "_chamar_ollama", lambda *_: "resposta ollama de reserva")
 
-    resposta = await ai_manager.responder("oi")
-
-    assert resposta == "resposta ollama de reserva"
+    assert await ai_manager.responder("oi") == SEM_IA
 
 
 # ---------------------------------------------------------------------------
-# O ALIVIO DE MEMORIA NUNCA LIBEROU UM BYTE (corrigido em 2026-07-30)
+# `descarregar()` SAIU COM O OLLAMA (2026-08-05)
 #
-# `descarregar()` usava `self._cliente`, atributo que NUNCA existiu nesta
-# classe (os reais sao `_cliente_ollama` e `_cliente_openai`). Levantava
-# AttributeError em toda chamada - e como o `AlivioCarga` captura e loga cada
-# acao isoladamente, o log exibia o caminho feliz inteiro (detecta o aperto,
-# pede alivio, alguem atende) sem nada acontecer no fim.
+# Os dois testes que viviam aqui cobriam o bug de 30/07 (o metodo usava
+# `self._cliente`, atributo que nunca existiu, e o AlivioCarga engolia o
+# AttributeError - o guardiao de RAM aparecia inteiro no log sem liberar um
+# byte). Sem modelo local nao ha o que descarregar, e o metodo foi removido em
+# vez de esvaziado, justamente para nao repetir aquilo com outra fachada.
+#
+# A regressao que sobra vale para o ALIVIO, nao para esta classe, e mora em
+# tests/unit/test_alivio_carga.py: cada acao e isolada e `descarregar_modelo`
+# ausente nao pode impedir a visao de ser pausada.
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_descarregar_nao_levanta_e_pede_keep_alive_zero(ai_manager):
-    # `descarregar()` faz `import ollama` dentro da funcao, entao o cliente
-    # falso nao evita o import - o Pi nao tem o extra `mission`. O teste irmao
-    # (`..._usa_o_atributo_que_existe`) prova o mesmo bug sem precisar do
-    # pacote, entao a regressao continua coberta la mesmo quando este pula.
-    pytest.importorskip("ollama")
+def test_descarregar_nao_existe_mais(ai_manager):
+    """Contraprova: se alguem reintroduzir o metodo sem reintroduzir um modelo
+    local, o alivio volta a "atender" sem liberar nada."""
+    assert not hasattr(ai_manager, "descarregar")
+    assert not hasattr(ai_manager, "_cliente_ollama")
 
-    class _ClienteFalso:
-        def __init__(self) -> None:
-            self.chamadas: list[dict] = []
-
-        def generate(self, **kwargs):
-            self.chamadas.append(kwargs)
-            return {}
-
-    falso = _ClienteFalso()
-    ai_manager._cliente_ollama = falso
-
-    await ai_manager.descarregar()  # antes: AttributeError
-
-    assert falso.chamadas, "o pedido de descarregar nunca chegou ao Ollama"
-    assert falso.chamadas[-1]["keep_alive"] == 0
-
-
-@pytest.mark.asyncio
-async def test_descarregar_usa_o_atributo_que_existe(ai_manager):
-    """CONTRAPROVA do bug exato: `self._cliente` nao pode voltar.
-
-    Se alguem reintroduzir o nome errado, o teste acima ainda poderia passar
-    por acidente (se um `_cliente` fosse criado em outro lugar); este fixa que
-    o atributo real da classe e o consultado.
-    """
-    assert not hasattr(ai_manager, "_cliente"), "`_cliente` nao existe nesta classe"
-    assert hasattr(ai_manager, "_cliente_ollama")

@@ -117,12 +117,9 @@ async def principal() -> None:
     voice_conf = conf["voice"]
 
     ia = AiManager(
-        modelo=ia_conf["ollama_model"],
         temperatura=ia_conf["temperature"],
         caminho_prompt_sistema=ia_conf["system_prompt_file"],
         max_tokens_resposta=ia_conf["resposta_max_tokens"],
-        keep_alive_minutes=ia_conf["keep_alive_minutes"],
-        provider=ia_conf.get("provider", "ollama"),
         openai_model=ia_conf.get("openai_model", "gpt-4o-mini"),
         openai_base_url=ia_conf.get("openai_base_url"),
     )
@@ -157,7 +154,7 @@ async def principal() -> None:
     falas = (FALAS * ((args.turnos // len(FALAS)) + 1))[: args.turnos]
     turnos = []
 
-    print(f"rodando {args.turnos} turnos (provider={ia_conf.get('provider')})...\n")
+    print(f"rodando {args.turnos} turnos (modelo={ia_conf.get('openai_model')})...\n")
     for i, fala in enumerate(falas, 1):
         inicio = time.monotonic()
         try:
@@ -218,7 +215,6 @@ async def principal() -> None:
             ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True
         ).stdout.strip(),
         "turnos": len(turnos),
-        "provider": ia_conf.get("provider"),
         "modelo": ia_conf.get("openai_model"),
         "aberturas_distintas": len(set(aberturas)),
         "aberturas_total": len(aberturas),

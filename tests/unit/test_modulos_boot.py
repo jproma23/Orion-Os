@@ -14,12 +14,9 @@ from orion.mission.modulo import ModuloMissao
 
 CONFIG_VISAO = {"pan_limits_degrees": [-80, 80], "tilt_limits_degrees": [-30, 45]}
 CONFIG_IA = {
-    "ollama_model": "gemma3:4b",
     "temperature": 0.7,
     "system_prompt_file": "config/prompt_sistema.txt",
     "resposta_max_tokens": 200,
-    "keep_alive_minutes": 5,
-    "provider": "ollama",
 }
 
 

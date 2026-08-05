@@ -12,10 +12,9 @@ por mudez.
 """
 from __future__ import annotations
 
-
 import pytest
 
-from orion.mission.ai_manager import AiManager
+from orion.mission.ai_manager import SEM_IA, AiManager
 
 
 class _Delta:
@@ -37,9 +36,7 @@ def _ia(tmp_path, pedacos=None, erro_apos=None):
     prompt = tmp_path / "p.txt"
     prompt.write_text("voce e o Fofao", encoding="utf-8")
     ia = AiManager(
-        modelo="fake",
         caminho_prompt_sistema=str(prompt),
-        provider="openai",
         openai_model="fake",
     )
     ia._openai_api_key = "chave-de-teste"
@@ -89,10 +86,12 @@ async def test_sem_openai_devolve_o_texto_inteiro_de_uma_vez(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_falha_antes_da_primeira_frase_cai_para_a_reserva(tmp_path):
+async def test_falha_antes_da_primeira_frase_avisa_em_vez_de_emudecer(tmp_path):
     """REGRESSAO: trocar lentidao por MUDEZ seria pior que o problema original.
-    Se o streaming morre antes de qualquer frase, ainda da tempo de usar o
-    caminho local."""
+
+    Ate 2026-08-05 aqui entrava o Ollama local. Ele saiu porque, no dia em que
+    foi preciso, nao respondeu - 60 s de espera e nada. Sem reserva, o robo
+    diz que ficou sem pensar; o que nao pode e ficar calado."""
     ia = _ia(tmp_path)
 
     def _explode(mensagens):
@@ -100,11 +99,11 @@ async def test_falha_antes_da_primeira_frase_cai_para_a_reserva(tmp_path):
         yield  # noqa: unreachable - marca a funcao como geradora
 
     ia._openai_em_frases = _explode
-    ia._chamar_ollama = lambda mensagens: "reserva local respondeu"
 
     frases = await _coletar(ia.responder_em_frases("oi"))
 
-    assert frases == ["reserva local respondeu"]
+    assert frases == [SEM_IA]
+    assert len(ia.historico) == 0, "o aviso de falha nao pode virar assunto"
 
 
 @pytest.mark.asyncio
@@ -118,7 +117,7 @@ async def test_falha_no_meio_nao_repete_o_que_ja_foi_dito(tmp_path):
         raise RuntimeError("caiu depois da primeira")
 
     ia._openai_em_frases = _meio
-    ia._chamar_ollama = lambda mensagens: "NAO DEVE APARECER"
+    ia._chamar_openai = lambda mensagens: "NAO DEVE APARECER"
 
     frases = await _coletar(ia.responder_em_frases("oi"))
 
