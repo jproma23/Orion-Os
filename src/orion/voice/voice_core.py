@@ -136,11 +136,14 @@ class VoiceCore:
         que impede o robo de ouvir a propria voz pelos microfones do ESP32 e
         trata-la como pedido do dono (achado de 2026-08-02).
 
-        LIMITE CONHECIDO: nao ha trava contra falar por cima de uma resposta
-        do ciclo de voz. Se o dono mandar uma mensagem no exato momento em que
-        o robo responde alguem em casa, os dois audios se sobrepoem. Nao
-        inventei uma fila agora porque a janela e estreita e uma fila mal
-        feita esconderia a resposta em vez de atrasa-la - fica anotado.
+        RESOLVIDO EM 2026-08-05 - a nota antiga aqui dizia que nao havia
+        trava contra falar por cima de outra resposta, e que a janela era
+        estreita. A janela nao era estreita: ela derrubava o processo inteiro
+        com SIGSEGV, 10 vezes em 7 dias, porque duas falas simultaneas usam o
+        PiperVoice e o stream global do sounddevice ao mesmo tempo. A trava
+        mora em `Sintetizador.falar` (uma so, no ponto por onde TODAS as falas
+        passam - inclusive as que nao vem por aqui, como a saudacao e a
+        entrega de recado). Ela atrasa a segunda fala, nunca a descarta.
         """
         await self._falar_com_protecao(texto)
 

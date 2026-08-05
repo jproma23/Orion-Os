@@ -53,6 +53,39 @@ class Sintetizador:
         noise_w_scale: float = VOZ_NOISE_W_SCALE,
         aplicar_timbre: bool = True,
     ) -> None:
+        #: UMA FALA DE CADA VEZ - e isto e o que impede o robo de MORRER.
+        #:
+        #: Diagnosticado em 2026-08-05, depois de 10 quedas em 7 dias que
+        #: ninguem tinha explicado. O servico nao levantava excecao: era morto
+        #: pelo sistema com SIGSEGV (`code=killed, status=11/SEGV`), e o
+        #: systemd o reerguia ~45 s depois. Do lado de fora parecia
+        #: "o Fofao desconectou sozinho".
+        #:
+        #: Nas 4 quedas examinadas a ultima linha do log e sempre a mesma
+        #: coisa: DUAS falas encostadas, uma saudacao espontanea junto de uma
+        #: resposta da conversa. E ha dois caminhos independentes ate aqui -
+        #: `voice_core.falar` (a conversa, disparada em `create_task`, sem
+        #: ninguem esperando) e `sintetizador.falar` direto (a saudacao e a
+        #: entrega de recado). Quando os dois se cruzam, `falar` roda duas
+        #: vezes ao mesmo tempo, e o `asyncio.to_thread` poe as duas em
+        #: THREADS de verdade em cima de dois recursos nativos que nao
+        #: aguentam isso:
+        #:
+        #:   - `PiperVoice.synthesize_wav` - objeto C++/ONNX unico e
+        #:     compartilhado, sem reentrancia;
+        #:   - `sd.play()`/`sd.wait()` - o sounddevice guarda UM stream
+        #:     global. A segunda `play` derruba o stream enquanto a primeira
+        #:     thread ainda esta dentro do `wait`, e a leitura do que ja foi
+        #:     liberado e o segfault.
+        #:
+        #: A trava serializa: a segunda fala espera a primeira terminar.
+        #: Ela ATRASA, nunca descarta - era exatamente a ressalva escrita em
+        #: `voice_core.falar` ("uma fila mal feita esconderia a resposta em
+        #: vez de atrasa-la"). As duas continuam sendo ditas, e um robo que
+        #: fala 2 s depois e melhor que um robo que morre no meio da frase -
+        #: foi assim que o primeiro recado entregue da historia do projeto se
+        #: perdeu, com a pessoa na frente ouvindo.
+        self._trava_fala = asyncio.Lock()
         self._voz = PiperVoice.load(caminho_modelo)
         self._indice_dispositivo_saida = indice_dispositivo_saida
         self._aplicar_timbre = aplicar_timbre
@@ -104,4 +137,8 @@ class Sintetizador:
             sd.play(audio, samplerate=taxa, device=self._indice_dispositivo_saida)
             sd.wait()
 
-        await asyncio.to_thread(_sintetizar_e_reproduzir)
+        # A trava cobre a sintese E a reproducao: soltar depois do
+        # `synthesize_wav` deixaria dois `sd.play()` se cruzarem, que e a
+        # metade do problema que mata o processo. Ver `_trava_fala`.
+        async with self._trava_fala:
+            await asyncio.to_thread(_sintetizar_e_reproduzir)
