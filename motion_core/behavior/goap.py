@@ -152,6 +152,22 @@ def _satisfaz(estado: Estado, alvo: Mapping[str, bool]) -> bool:
     return all(estado.get(chave) == valor for chave, valor in alvo.items())
 
 
+def satisfeito(estado: Estado, objetivo: Objetivo) -> bool:
+    """Este objetivo JA esta alcancado no estado atual?
+
+    Existe para quem precisa da pergunta ANTES de planejar - hoje o
+    `impulsos.py`, que descarta uma vontade cujo objetivo ja esta feito. Sem
+    isto ele teria que reimplementar a comparacao, e duas versoes da mesma
+    regra e como nasce a divergencia silenciosa (o mesmo motivo pelo qual o
+    limiar de inclinacao aqui e igual ao do firmware, algumas linhas acima).
+
+    `planejar()` responde a mesma coisa devolvendo `[]`, mas custa a busca
+    inteira para dizer "nao ha o que fazer" - e quem so quer escolher entre
+    vontades precisa perguntar isso varias vezes por ciclo.
+    """
+    return _satisfaz(estado, objetivo.alvo)
+
+
 def _aplicar(estado: Estado, efeitos: Mapping[str, bool]) -> dict[str, bool]:
     novo = dict(estado)
     novo.update(efeitos)
