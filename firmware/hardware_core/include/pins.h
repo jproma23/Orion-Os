@@ -51,10 +51,20 @@ namespace pinos {
 // corrente no LED do opto de ~14mA para ~8mA. Pode ser suficiente ou pode
 // nao disparar - so a bancada responde. Se nao disparar, a correcao e um
 // level shifter na linha de PUL/DIR, nao mexer no firmware.
-constexpr uint8_t STEP_ESQUERDO = 25;  // (Mega: 2)
-constexpr uint8_t DIR_ESQUERDO = 26;   // (Mega: 3)
-constexpr uint8_t STEP_DIREITO = 27;   // (Mega: 4)
-constexpr uint8_t DIR_DIREITO = 14;    // (Mega: 5)
+// LADOS TROCADOS EM 2026-08-05, a pedido do dono: o driver ligado nos pinos
+// 25/26 aciona a roda DIREITA na montagem fisica, e o de 27/14 aciona a
+// ESQUERDA. O nome da constante segue a RODA, nao o fio - quem le
+// STEP_ESQUERDO tem que estar falando da roda esquerda de verdade, senao
+// todo comando de girar sai espelhado e a odometria mente junto.
+//
+// Valores antes desta troca (se algum dia o chicote for refeito, e este
+// bloco que volta atras):
+//     STEP_ESQUERDO = 25   DIR_ESQUERDO = 26
+//     STEP_DIREITO  = 27   DIR_DIREITO  = 14
+constexpr uint8_t STEP_ESQUERDO = 27;  // era 25 (Mega: 4)
+constexpr uint8_t DIR_ESQUERDO = 14;   // era 26 (Mega: 5)
+constexpr uint8_t STEP_DIREITO = 25;   // era 27 (Mega: 2)
+constexpr uint8_t DIR_DIREITO = 26;    // era 14 (Mega: 3)
 // ENA dos TB6600 esta SOLTO por decisao do usuario (2026-07-19) = drivers
 // sempre habilitados, como na CNC dele. O firmware ainda aciona este pino,
 // mas sem efeito fisico nesta montagem.
