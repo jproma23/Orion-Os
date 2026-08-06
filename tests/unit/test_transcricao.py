@@ -21,7 +21,7 @@ pytest.importorskip('faster_whisper')
 
 import numpy as np  # noqa: E402
 
-from orion.voice.transcricao import Transcritor  # noqa: E402
+from orion.voice.transcricao import Transcritor, razao_de_compressao  # noqa: E402
 
 MUDO = np.zeros(1600, dtype="float32")
 
@@ -119,3 +119,56 @@ async def test_vazio_quando_nao_ha_segmento():
     entendi". É exatamente o que o dono pediu no lugar da invenção."""
     t, _ = _montar([])
     assert await t.transcrever(MUDO) == ""
+
+
+# ---------------------------------------------------------------------------
+# Portao de REPETICAO (2026-08-05).
+#
+# O `compression_ratio_threshold` ja era passado para a lib desde 29/07, e nao
+# rejeitava nada: la dentro ele so decide "tenta de novo com temperatura
+# maior", e com `temperature=0` nao ha segunda tentativa - o texto repetitivo
+# fica. Estes testes travam a rejeicao do lado de ca, onde ela e de verdade.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_laco_confiante_e_descartado():
+    """O caso que passava: laco com no_speech BAIXA e logprob ALTA - o modelo
+    convicto do lixo. Nenhum dos dois portoes antigos o via."""
+    t, _ = _montar([_Segmento("O que é " * 60, no_speech_prob=0.02, avg_logprob=-0.2)])
+    assert await t.transcrever(MUDO) == ""
+
+
+@pytest.mark.asyncio
+async def test_token_travado_e_descartado():
+    """220 letras F, real no log de 05/08."""
+    t, _ = _montar([_Segmento("F" * 220, no_speech_prob=0.05, avg_logprob=-0.3)])
+    assert await t.transcrever(MUDO) == ""
+
+
+@pytest.mark.asyncio
+async def test_frase_normal_nao_e_confundida_com_repeticao():
+    """O risco do portao novo e calar quem falou. Frase curta comprime mal
+    (o cabecalho do zlib pesa), entao fica bem abaixo do limiar."""
+    t, _ = _montar([
+        _Segmento("Fofão, vai lá no quarto ver se o Kamal está", no_speech_prob=0.03,
+                  avg_logprob=-0.4),
+    ])
+    assert await t.transcrever(MUDO) == "Fofão, vai lá no quarto ver se o Kamal está"
+
+
+@pytest.mark.asyncio
+async def test_laco_no_meio_da_janela_nao_leva_a_fala_boa_junto():
+    """Segmento a segmento: o que repetiu sai, o que a pessoa falou fica."""
+    t, _ = _montar([
+        _Segmento("acende a luz", no_speech_prob=0.03, avg_logprob=-0.4),
+        _Segmento("o que é " * 40, no_speech_prob=0.04, avg_logprob=-0.25),
+    ])
+    assert await t.transcrever(MUDO) == "acende a luz"
+
+
+def test_razao_de_compressao_separa_os_dois_casos():
+    """A medida em si, sem o transcritor no meio - para o limiar 2.4 poder ser
+    revisto depois com base em numero, nao em impressao."""
+    assert razao_de_compressao("O que é " * 60) > 2.4
+    assert razao_de_compressao("Fofão, acende a luz da sala") < 2.4

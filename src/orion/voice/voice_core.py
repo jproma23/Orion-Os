@@ -329,6 +329,9 @@ class VoiceCore:
 
     #: Quantas repeticoes da MESMA frase curta denunciam laco do Whisper.
     _REPETICOES_PARA_ALUCINACAO = 5
+    #: Uma so "palavra" com a mesma letra repetida tantas vezes nao e
+    #: portugues - e o modelo travado num token ("FFFFFF...", 220 vezes).
+    _LETRAS_REPETIDAS_PARA_ALUCINACAO = 8
 
     @classmethod
     def _parece_alucinacao(cls, texto: str) -> bool:
@@ -343,6 +346,17 @@ class VoiceCore:
         A assinatura e um trecho curto repetido muitas vezes seguidas. Fala
         humana nao faz isso; quando faz (alguem repetindo por enfase), sao
         duas ou tres vezes, nao cinco.
+
+        POR QUE ELE DEIXAVA PASSAR (medido em 2026-08-05: 27 lacos no log do
+        dia, 6 barrados). A versao anterior ancorava no COMECO da frase
+        (`palavras[:tamanho]`), entao so via o laco que comecasse na primeira
+        palavra. Escapavam tres formas, todas reais no log:
+
+          'Voce nao sabe o que e o que e...'  laco comeca na 4a palavra
+          'O que e o que e QUE E que e...'    o trecho encolhe no meio
+          'FFFFFF...' (220 letras)            uma palavra so, nem era testado
+
+        Agora a ancora desliza: qualquer posicao de partida serve.
         """
         # MINUSCULAS e sem pontuacao: o Whisper alterna a caixa entre as
         # repeticoes ("O que e o que e...") e um unico "O" contra "o" quebrava
@@ -350,18 +364,33 @@ class VoiceCore:
         # motivou este codigo.
         palavras = [p.strip(".,!?;:").lower() for p in texto.split()]
         palavras = [p for p in palavras if p]
+        # ANTES do piso de tamanho: o token travado e UMA palavra, e morria no
+        # `len(palavras) < 5` sem nunca ser examinado.
+        if any(cls._letra_travada(p) for p in palavras):
+            return True
         # O piso e o proprio numero de repeticoes, nao o dobro: "sim sim sim
         # sim sim sim" tem 6 palavras e ja e claramente um laco.
         if len(palavras) < cls._REPETICOES_PARA_ALUCINACAO:
             return False
         for tamanho in range(1, 6):  # trechos de 1 a 5 palavras
-            trecho = palavras[:tamanho]
-            repeticoes = 0
-            for inicio in range(0, len(palavras) - tamanho + 1, tamanho):
-                if palavras[inicio : inicio + tamanho] != trecho:
-                    break
-                repeticoes += 1
-            if repeticoes >= cls._REPETICOES_PARA_ALUCINACAO:
+            for partida in range(len(palavras) - tamanho + 1):
+                trecho = palavras[partida : partida + tamanho]
+                repeticoes = 0
+                for inicio in range(partida, len(palavras) - tamanho + 1, tamanho):
+                    if palavras[inicio : inicio + tamanho] != trecho:
+                        break
+                    repeticoes += 1
+                if repeticoes >= cls._REPETICOES_PARA_ALUCINACAO:
+                    return True
+        return False
+
+    @classmethod
+    def _letra_travada(cls, palavra: str) -> bool:
+        """Mesma letra repetida seguidas vezes dentro de uma palavra so."""
+        seguidas = 1
+        for anterior, atual in zip(palavra, palavra[1:], strict=False):
+            seguidas = seguidas + 1 if atual == anterior else 1
+            if seguidas >= cls._LETRAS_REPETIDAS_PARA_ALUCINACAO:
                 return True
         return False
 

@@ -31,6 +31,9 @@ todos os freios que a lib oferece estavam desligados. Agora:
   string vazia, que o VoiceCore ja trata como "nao entendi".
 - `hotwords`: diz ao modelo que a palavra "Fofao" e esperada. Nao inventa
   nada: so desempata a favor dela quando o som esta no limite.
+- `compression_ratio_threshold`: texto que comprime demais e repetitivo
+  demais para ser fala. **Desde 2026-08-05 quem aplica este e o `_aceitos`,
+  nao a lib** - ver o comentario na chamada do `transcribe()`.
 
 O QUE ISTO NAO CONSERTA, dito para ninguem se enganar: se o audio chegar com
 a voz afogada em chiado (medido em 2026-07-29 nos mics do ESP32: o pico dobra
@@ -43,6 +46,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import zlib
 
 import numpy as np
 from faster_whisper import WhisperModel
@@ -57,6 +61,17 @@ LOG_PROB_THRESHOLD_PADRAO = -1.0
 #: Texto muito repetitivo (razao de compressao alta) e a assinatura classica
 #: da alucinacao em laco ("E ai? E ai? E ai?...").
 COMPRESSION_RATIO_THRESHOLD_PADRAO = 2.4
+
+
+def razao_de_compressao(texto: str) -> float:
+    """Quanto o texto encolhe ao ser comprimido - alto = repetitivo.
+
+    Mesma formula que a lib usa (`get_compression_ratio`), reescrita aqui em
+    tres linhas porque ela e um utilitario interno do faster-whisper: importar
+    deixaria o portao dependendo de um nome que a lib pode mover sem aviso.
+    """
+    bytes_do_texto = texto.encode("utf-8")
+    return len(bytes_do_texto) / len(zlib.compress(bytes_do_texto))
 
 
 class Transcritor:
@@ -90,6 +105,13 @@ class Transcritor:
                 temperature=0,
                 no_speech_threshold=self._no_speech_threshold,
                 log_prob_threshold=self._log_prob_threshold,
+                # ATENCAO (2026-08-05): passar isto aqui NAO rejeita nada.
+                # Dentro da lib o limiar so marca "tenta de novo com
+                # temperatura maior"; como `temperature=0` e um numero unico,
+                # a lista de tentativas tem um item so, o `for` acaba e o
+                # `else` FICA COM O TEXTO REPETITIVO MESMO ASSIM
+                # (faster_whisper/transcribe.py, o bloco do `needs_fallback`).
+                # Quem de fato rejeita por repeticao e o `_aceitos` abaixo.
                 compression_ratio_threshold=self._compression_ratio_threshold,
                 hotwords=self._hotwords,
             )
@@ -104,6 +126,12 @@ class Transcritor:
         ainda entrega segmentos individuais que ela mesma marcou como pouco
         confiaveis. Aqui eles sao descartados um por um, e o descarte vai para
         o log - saber que o robo preferiu calar vale tanto quanto o texto.
+
+        A REPETICAO SO E BARRADA AQUI (2026-08-05). Os dois limiares antigos
+        nao pegam laco: um laco bem articulado tem `no_speech_prob` baixa e
+        `avg_logprob` ALTA - o modelo esta muito confiante do lixo que
+        produziu. Medido no dia: em 905 janelas, 27 sairam em laco
+        ("o que e o que e..." 70 vezes numa linha so) e passaram inteiras.
         """
         texto: list[str] = []
         for s in segmentos:
@@ -118,6 +146,13 @@ class Transcritor:
                 logger.debug(
                     "descartado (confianca %.2f abaixo de %.2f): %r",
                     confianca, self._log_prob_threshold, s.text.strip(),
+                )
+                continue
+            razao = razao_de_compressao(s.text.strip())
+            if razao > self._compression_ratio_threshold:
+                logger.info(
+                    "descartado (repetitivo, razao %.2f acima de %.2f): %.60s...",
+                    razao, self._compression_ratio_threshold, s.text.strip(),
                 )
                 continue
             texto.append(s.text.strip())

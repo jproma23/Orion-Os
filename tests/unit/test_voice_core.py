@@ -282,3 +282,62 @@ async def test_janela_silenciosa_pula_a_transcricao_de_vigilancia():
 
     bus.parar()
     await tarefa
+
+
+# ---------------------------------------------------------------------------
+# Detector de laco do Whisper (2026-08-05).
+#
+# As frases abaixo NAO foram inventadas para o teste: sao transcricoes reais
+# do log do `orion-avatar.service` de 05/08, quando ninguem estava falando.
+# Naquele dia, de 905 janelas de audio, 175 sairam com texto e 27 estavam em
+# laco - e o detector barrou 6. As tres primeiras aqui sao as que escapavam.
+# ---------------------------------------------------------------------------
+
+
+def test_laco_que_nao_comeca_na_primeira_palavra():
+    """Escapava porque o detector ancorava em `palavras[:tamanho]`: so via o
+    laco que comecasse na palavra 1. Aqui ele comeca na 4a."""
+    texto = "Você não sabe " + "o que é " * 30
+    assert VoiceCore._parece_alucinacao(texto)
+
+
+def test_laco_que_muda_de_trecho_no_meio():
+    """Real no log: comeca em 'o que é' e depois vira 'que é'. A ancora fixa
+    parava de casar na terceira volta e o resto passava batido."""
+    texto = "O que é o que é " + "que é " * 30
+    assert VoiceCore._parece_alucinacao(texto)
+
+
+def test_token_travado_numa_letra_so():
+    """220 letras F numa 'palavra' so. Morria no piso `len(palavras) < 5` -
+    uma palavra nunca chegava a ser examinada."""
+    assert VoiceCore._parece_alucinacao("F" * 220)
+
+
+def test_o_caso_original_continua_barrado():
+    """O laco de 2026-08-02 que motivou o detector - a mudanca nao pode
+    perde-lo de vista."""
+    assert VoiceCore._parece_alucinacao("O que é " * 60)
+
+
+def test_repeticao_de_uma_palavra_so():
+    assert VoiceCore._parece_alucinacao("Não me dá, não me dá, não me dá, não me dá, não me dá.")
+
+
+def test_fala_humana_nao_e_confundida_com_laco():
+    """O risco da mudanca e o oposto: emudecer quem falou. A ancora agora
+    desliza, entao frases normais passam a ser testadas em toda posicao."""
+    for frase in [
+        "Fofão, acende a luz da sala",
+        "que horas o Kamal chega em casa",
+        "você pode centralizar a sua cabeça para me ver",
+        "sim, por favor",
+        "Fofão! Fofão!",  # enfase humana: duas vezes, nao cinco
+        "vai lá no quarto e vê se o Kamal está lá",
+    ]:
+        assert not VoiceCore._parece_alucinacao(frase), frase
+
+
+def test_palavra_longa_legitima_nao_e_laco():
+    """Nenhuma letra repetida 8 vezes seguidas - so palavra comprida."""
+    assert not VoiceCore._parece_alucinacao("anticonstitucionalissimamente")
