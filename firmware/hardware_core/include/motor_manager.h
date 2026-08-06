@@ -109,6 +109,8 @@ enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
 struct EstadoRoda {
   uint8_t pinoStep;
   uint8_t pinoDir;
+  //: este lado esta montado espelhado (pins.h) - inverte o nivel do DIR.
+  bool dirInvertido = false;
   bool sentidoFrente = true;
   long intervaloUs = 0;      // 0 = parada
   unsigned long ultimoPassoUs = 0;
@@ -138,8 +140,10 @@ class MotorManager {
 
     _esquerda.pinoStep = pinos::STEP_ESQUERDO;
     _esquerda.pinoDir = pinos::DIR_ESQUERDO;
+    _esquerda.dirInvertido = pinos::DIR_INVERTIDO_ESQUERDO;
     _direita.pinoStep = pinos::STEP_DIREITO;
     _direita.pinoDir = pinos::DIR_DIREITO;
+    _direita.dirInvertido = pinos::DIR_INVERTIDO_DIREITO;
 
     habilitar();
   }
@@ -247,7 +251,9 @@ class MotorManager {
   void _configurarRoda(EstadoRoda& roda, bool sentidoFrente, float velocidadePercent,
                         long passos) {
     roda.sentidoFrente = sentidoFrente;
-    digitalWrite(roda.pinoDir, sentidoFrente ? HIGH : LOW);
+    // `!=` e XOR logico: o lado espelhado recebe o nivel oposto, e a
+    // odometria segue usando `sentidoFrente` (a INTENCAO), nao o nivel.
+    digitalWrite(roda.pinoDir, (sentidoFrente != roda.dirInvertido) ? HIGH : LOW);
     roda.intervaloUs = _intervaloParaVelocidade(velocidadePercent);
     roda.passosRestantes = passos;
     roda.ultimoPassoUs = micros();

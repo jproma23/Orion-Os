@@ -65,6 +65,21 @@ constexpr uint8_t STEP_ESQUERDO = 27;  // era 25 (Mega: 4)
 constexpr uint8_t DIR_ESQUERDO = 14;   // era 26 (Mega: 5)
 constexpr uint8_t STEP_DIREITO = 25;   // era 27 (Mega: 2)
 constexpr uint8_t DIR_DIREITO = 26;    // era 14 (Mega: 3)
+// MOTORES ESPELHADOS NA MONTAGEM (medido na bancada em 2026-08-05): os dois
+// motores se olham, entao o MESMO nivel de DIR gira um para frente e o outro
+// para tras. Mandar "andar reto" fazia o robo girar no proprio eixo (dono:
+// "uma gira pro lado a outra gira pro outro lado", "girando no proprio eixo").
+//
+// O espelhamento e fato de HARDWARE, entao mora aqui e nao na logica de
+// movimento - o `girarContinuo` ja inverte os lados por conta propria, e
+// somar as duas inversoes no mesmo lugar embaralharia as duas ideias.
+//
+// QUAL lado inverter e arbitrario: o efeito e o mesmo. O que a bancada ainda
+// tem que dizer e a POLARIDADE GERAL - se depois disto "frente" andar de RE,
+// inverter os DOIS (ou so trocar qual esta em `true`).
+constexpr bool DIR_INVERTIDO_ESQUERDO = false;
+constexpr bool DIR_INVERTIDO_DIREITO = true;
+
 // ENA dos TB6600 esta SOLTO por decisao do usuario (2026-07-19) = drivers
 // sempre habilitados, como na CNC dele. O firmware ainda aciona este pino,
 // mas sem efeito fisico nesta montagem.
