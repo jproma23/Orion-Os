@@ -304,10 +304,27 @@ vision:
 
 voice:
   wake_word: "fofão"
-  whisper_model: "base"     # dimensionado para 8 GB (EDR-0019)
+  # MEDIDO EM 2026-08-05, nesta maquina, com audio de gabarito gerado pelo
+  # proprio Piper (4 frases, resposta conhecida, servico rodando junto):
+  #
+  #     base    acertou 1 de 4    3,2 s por frase
+  #     small   acertou 3 de 4    9,2 s por frase
+  #
+  #     base   ERRO  'Fofao, baila no quarto versao e comal esta'
+  #     small  OK    'fofao, vai la no quarto ver se o Kamal esta'
+  #
+  # O `base` nao estava inventando ai - estava ERRANDO a fala de verdade, que
+  # e o que sobrou depois que os portoes anti-invencao foram consertados
+  # (96e96d9). O preco sao ~6 s a mais antes de o robo comecar a pensar.
+  # DESFAZER E UMA LINHA: voltar para "base" aqui e reiniciar o servico.
+  whisper_model: "small"    # 8 GB comportam; ver EDR-0019 para o base
   # modelo das janelas de vigilancia da wake word. Testado "tiny" ao vivo
   # (2026-07-18): rapido, mas errava demais ("Fofão" virava "Loco"/"Fofa no")
   # e o robo nao acordava - com este mic, "base" e o minimo confiavel.
+  # CONTINUA "base" DE PROPOSITO: esta janela roda o tempo todo, so para ver
+  # se alguem disse "Fofao". Com o `small` (9 s por janela) o vigia nao
+  # acompanharia a fala e ainda prenderia os 4 nucleos. O modelo grande so
+  # entra depois que o robo ja acordou, para entender o PEDIDO.
   whisper_model_ativacao: "base"
   piper_voice: "pt_BR-faber-medium"
   piper_voice_path: "data/piper_voices/pt_BR-faber-medium.onnx"
