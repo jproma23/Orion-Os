@@ -632,10 +632,16 @@ function escreverNoQuadro(dados) {
   const bloco = novoBloco(dados.id, null);
   desenhar(dados, bloco);
   quadro.appendChild(bloco);
-  bloco.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  // O dedo segue o que acabou de ser escrito. `requestAnimationFrame` para
-  // medir DEPOIS do layout - antes disso o bloco novo ainda nao tem posicao.
+  // Rolagem INSTANTANEA, e nao suave. Com `smooth`, a medida do dedo saia
+  // da posicao de ANTES da rolagem: na primeira aula de verdade ele ficou
+  // apontando para o canto de baixo, longe do bloco. Rolagem suave e enfeite;
+  // o dedo no lugar certo e a funcao.
+  bloco.scrollIntoView({ behavior: 'auto', block: 'end' });
+  // `requestAnimationFrame` para medir DEPOIS do layout - antes disso o
+  // bloco novo ainda nao tem posicao. O segundo tiro, meio segundo depois,
+  // cobre o caso de a fonte ou a imagem mudarem a altura do bloco.
   requestAnimationFrame(() => apontarPara(bloco));
+  setTimeout(() => apontarPara(bloco), 500);
 }
 
 
