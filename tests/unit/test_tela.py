@@ -96,10 +96,41 @@ async def test_adiar_segura_a_tela_acesa_por_mais_um_prazo():
     controle, _, relogio = _controle(minutos=3.0)
     await controle.acordar("display.quadro")
     relogio.avancar(170.0)
-    await controle.adiar("voice.status")
+    await controle.adiar("display.aula")
     relogio.avancar(170.0)
     await controle.conferir_prazo()
     assert controle.acesa, "a tela apagou no meio da aula"
+
+
+@pytest.mark.asyncio
+async def test_o_ciclo_de_escuta_nao_segura_a_tela_acesa():
+    """Regressao do que foi MEDIDO em producao em 2026-08-07.
+
+    Com `voice.status` na lista de adiamento, a tela nao apagou em 200 s de
+    observacao: o ciclo de escuta publica esse evento o dia inteiro, com ou
+    sem ninguem na sala, e empurrava o prazo para sempre. O descanso de tela
+    existia no codigo e nao existia na pratica.
+    """
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+    controle, _, relogio = _controle(minutos=3.0)
+    controle.ligar_no_bus(bus)
+    await controle.acordar("display.quadro")
+
+    for estado in ("LISTENING", "TRANSCRIBING", "IDLE") * 40:
+        await bus.publish("voice.status", {"estado": estado})
+    await bus.aguardar_fila_vazia()
+
+    relogio.avancar(181.0)
+    await controle.conferir_prazo()
+    assert not controle.acesa, "o ciclo de escuta segurou a tela acesa"
+
+    bus.parar()
+    tarefa.cancel()
+    try:
+        await tarefa
+    except asyncio.CancelledError:
+        pass
 
 
 @pytest.mark.asyncio

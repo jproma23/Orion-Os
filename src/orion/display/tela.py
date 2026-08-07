@@ -70,13 +70,21 @@ TOPICOS_QUE_ACORDAM = (
 )
 
 #: Eventos que apenas EMPURRAM o prazo de uma tela que ja esta acesa. Nao
-#: acendem nada. A fala entra aqui porque uma explicacao longa e silencio no
-#: quadro: sem isto, a tela apagaria no meio da aula.
-TOPICOS_QUE_ADIAM = (
-    "voice.status",
-    "voice.response_started",
-    "voice.saudacao",
-)
+#: acendem nada.
+#:
+#: MEDIDO EM PRODUCAO, 2026-08-07: a primeira versao desta lista tinha
+#: `voice.status`, `voice.response_started` e `voice.saudacao` - e a tela
+#: NAO APAGOU em 200 s de observacao. O `voice_core` publica `voice.status` a
+#: cada transicao do ciclo de escuta (IDLE -> LISTENING -> TRANSCRIBING ->
+#: IDLE), o dia inteiro, com ou sem ninguem na sala: o prazo era empurrado
+#: para sempre e o descanso de tela nao existia na pratica.
+#:
+#: A licao e a mesma do resto do arquivo: "esta acontecendo alguma coisa" nao
+#: e a pergunta certa - a pergunta e "esta acontecendo alguma coisa QUE
+#: PRECISA DA TELA". So a aula precisa. Por isso sobrou um topico: o pulso
+#: que o professor publica entre os passos de uma aula, para a tela nao
+#: apagar num trecho em que ele explica sem escrever.
+TOPICOS_QUE_ADIAM = ("display.aula",)
 
 #: De quanto em quanto tempo o laco confere se o prazo venceu. Um segundo e
 #: folgado para um prazo medido em minutos e nao custa nada; a alternativa
@@ -120,6 +128,7 @@ class ControleTela:
         #: apagou?" pelo log, sem precisar estar na frente do robo.
         self.acendeu_vezes = 0
         self.apagou_vezes = 0
+        self.adiamentos = 0
 
         if habilitado and shutil.which("xset") is None:
             # Caminho normal no Pi e na suite: nao ha X aqui. Nao e erro.
@@ -181,6 +190,11 @@ class ControleTela:
         if not self._acesa:
             return
         self._vence_em = self._agora() + self._prazo_s
+        #: Contado para que "por que a tela nao apagou?" seja uma pergunta
+        #: respondivel pelo log. Sem este numero, a primeira versao deste
+        #: modulo parecia ter um temporizador quebrado - e o temporizador
+        #: estava certo: era a lista de eventos que empurrava o prazo.
+        self.adiamentos += 1
 
     async def apagar(self, motivo: str = "") -> None:
         if not self._acesa or not self._habilitado:
@@ -188,7 +202,8 @@ class ControleTela:
         if await self._executar(("dpms", "force", "off")):
             self._acesa = False
             self.apagou_vezes += 1
-            logger.info("tela APAGADA (%s)", motivo)
+            logger.info("tela APAGADA (%s) - %d adiamentos nesta acesa", motivo, self.adiamentos)
+            self.adiamentos = 0
 
     async def conferir_prazo(self) -> None:
         """Apaga se o prazo venceu. Chamada pelo laco - e pelo teste."""
