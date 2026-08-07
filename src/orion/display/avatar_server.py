@@ -92,7 +92,20 @@ class AvatarServer:
             event_bus.subscribe(topico, self._fazer_repassador(topico))
 
     async def _handler_index(self, request: web.Request) -> web.FileResponse:
-        return web.FileResponse(DIRETORIO_ESTATICO / "index.html")
+        # SEM CACHE, e nao e otimizacao: o kiosk ficava preso na pagina de
+        # quando abriu. O `?v=` nos links so resolve JS e CSS - se o proprio
+        # index.html vem do cache, o navegador nunca LE o `?v=` novo, e
+        # nenhuma mudanca de tela aparece por mais que se suba a versao.
+        # Mordeu em 07/08 com o ORION e a marca d'agua: servidor entregando
+        # a pagina nova, tela mostrando a velha.
+        return web.FileResponse(
+            DIRETORIO_ESTATICO / "index.html",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
     async def _handler_config(self, request: web.Request) -> web.Response:
         # Repassa parametros de config/orion.yaml (Cap 17) que o avatar no
