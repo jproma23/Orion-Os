@@ -33,8 +33,15 @@ from orion.ensino.banco_aulas import (  # noqa: E402
     carregar_pasta,
     normalizar_nivel,
 )
+from orion.ensino.ementa import (  # noqa: E402
+    BancoEmentas,
+    EmentaInvalida,
+    contar_cobertura,
+)
+from orion.ensino.ementa import carregar_pasta as carregar_ementas  # noqa: E402
 
 PASTA_CONTEUDO = RAIZ / "content" / "aulas"
+PASTA_EMENTAS = RAIZ / "content" / "ementas"
 ARQUIVO_SOBRE_MIM = RAIZ / "content" / "sobre_mim.yaml"
 
 
@@ -60,6 +67,28 @@ def comando_construir(argumentos) -> int:
     print(f"{quantas} aulas, {passos} passos indexados")
     for aula in aulas:
         print(f"  {aula.nivel:14} {aula.materia:12} {aula.titulo}")
+
+    # AS EMENTAS - o mapa. A cobertura e contada contra as aulas que existem
+    # DE VERDADE, e nao contra o campo `aula` do arquivo: um id escrito
+    # errado contaria como aula pronta e o numero mentiria.
+    if PASTA_EMENTAS.is_dir():
+        try:
+            ementas = carregar_ementas(PASTA_EMENTAS)
+        except EmentaInvalida as erro:
+            print(f"EMENTA INVALIDA: {erro}", file=sys.stderr)
+            return 1
+        if ementas:
+            banco_ementas = BancoEmentas(banco._caminho)
+            banco_ementas.construir(ementas)
+            prontos, total = contar_cobertura(ementas, {a.id for a in aulas})
+            print(f"{len(ementas)} ementas, {total} topicos - {prontos} com aula escrita")
+            for ementa in ementas:
+                faltam = ementa.quantos_topicos - sum(
+                    1 for lista in ementa.topicos.values()
+                    for t in lista if t.aula in {a.id for a in aulas}
+                )
+                print(f"  {ementa.nome:16} {ementa.quantos_topicos:3} topicos, faltam {faltam}")
+            banco_ementas.fechar()
 
     # O que ele sabe SOBRE SI MESMO vai para o mesmo arquivo: e a mesma
     # ideia (conteudo em texto, indice reconstruivel) e um comando so para

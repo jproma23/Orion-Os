@@ -1,0 +1,93 @@
+materia: programacao
+nome: Programação
+descricao: >
+  Da variavel ao sistema que roda sozinho. O robo tem material proprio aqui
+  que nenhum curso tem: ele mesmo, com o codigo comentado e o commit ao lado.
+
+niveis:
+  basico:
+    descricao: Escrever um programa que faz o que voce quis.
+    topicos:
+      - id: prog.variaveis
+        titulo: Variáveis e tipos
+        conteudo: Nome, valor, int, float, str e bool; por que o nome escolhido importa.
+        aula: programacao.variaveis-python.basico
+      - id: prog.entrada-saida
+        titulo: Entrada e saída
+        conteudo: Print, input, formatacao de texto e conversao de tipo.
+      - id: prog.operadores
+        titulo: Operadores e expressões
+        conteudo: Aritmeticos, comparacao e logicos; precedencia e o erro de dividir inteiro.
+      - id: prog.condicionais
+        titulo: Condicionais
+        conteudo: If, elif, else; a diferenca entre um if depois do outro e um elif.
+      - id: prog.lacos
+        titulo: Laços de repetição
+        conteudo: For e while; range; break e continue; o laco infinito e como sair dele.
+      - id: prog.listas
+        titulo: Listas
+        conteudo: Criar, percorrer, indexar, fatiar; o indice que comeca em zero.
+      - id: prog.funcoes
+        titulo: Funções
+        conteudo: Definir, parametro, retorno, escopo; por que dividir o programa em pedacos.
+      - id: prog.erros
+        titulo: Erros e como ler um erro
+        conteudo: Ler o traceback de baixo para cima; erro de sintaxe contra erro de execucao.
+
+  intermediario:
+    descricao: Organizar codigo que outra pessoa vai ler.
+    topicos:
+      - id: prog.dicionarios
+        titulo: Dicionários e conjuntos
+        conteudo: Chave e valor, quando usar dicionario em vez de lista, conjuntos sem repeticao.
+      - id: prog.arquivos
+        titulo: Arquivos
+        conteudo: Ler e escrever texto, o with que fecha sozinho, CSV e JSON.
+      - id: prog.modulos
+        titulo: Módulos e bibliotecas
+        conteudo: Import, a biblioteca padrao, pip e ambiente virtual.
+      - id: prog.classes
+        titulo: Classes e objetos
+        conteudo: Atributo, metodo, self, construtor; quando classe ajuda e quando atrapalha.
+      - id: prog.testes
+        titulo: Testes automatizados
+        conteudo: Por que testar, o que e um bom teste, e o teste que so passa por sorte.
+      - id: prog.git
+        titulo: Controle de versão com Git
+        conteudo: Commit, branch, merge, e a mensagem de commit que explica o porque.
+      - id: prog.depuracao
+        titulo: Depuração
+        conteudo: Log contra print, isolar o problema, e a falha silenciosa que nao levanta erro.
+      - id: prog.estruturas-dados
+        titulo: Estruturas de dados
+        conteudo: Pilha, fila, arvore e grafo; custo de cada operacao.
+
+  avancado:
+    descricao: Sistemas que rodam sozinhos, como o proprio robo.
+    topicos:
+      - id: prog.assincrono
+        titulo: Programação assíncrona
+        conteudo: Async e await, laco de eventos, e por que esperar rede nao pode travar tudo.
+      - id: prog.arquitetura
+        titulo: Arquitetura e eventos
+        conteudo: Modulos que nao se chamam direto; barramento de eventos; o acoplamento que se paga depois.
+      - id: prog.banco-dados
+        titulo: Banco de dados
+        conteudo: SQL, tabela, indice, e busca por texto completo sem servidor nenhum.
+      - id: prog.redes
+        titulo: Redes e protocolos
+        conteudo: TCP, HTTP, socket; o socket zumbi que parece vivo e nao entrega nada.
+      - id: prog.concorrencia
+        titulo: Concorrência
+        conteudo: Thread, processo e fila; o que quebra quando duas coisas escrevem ao mesmo tempo.
+      - id: prog.hardware
+        titulo: Programar hardware
+        conteudo: Serial, baud rate, microcontrolador, e o firmware que trava sem avisar.
+      - id: prog.ia-aplicada
+        titulo: IA aplicada
+        conteudo: Chamar um modelo, prompt, cota, e por que o local sempre vem antes do remoto.
+      - id: prog.orion
+        titulo: Estudo de caso - o próprio ORION
+        conteudo: >
+          Como este robo foi feito: os erros reais, o commit que resolveu cada
+          um, e o porque escrito no codigo. Material que so ele tem.

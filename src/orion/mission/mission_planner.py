@@ -201,7 +201,10 @@ class MissionPlanner:
         consultar_internet=None,
         professor=None,
         autoconhecimento=None,
+        ementas=None,
     ) -> None:
+        #: Responde "o que voce ensina?" a partir do mapa das ementas.
+        self._ementas = ementas
         #: O que ele sabe sobre o proprio corpo (2026-08-07). None = ele nao
         #: responde sobre si e a pergunta vai para a IA - que vai inventar.
         self._autoconhecimento = autoconhecimento
@@ -259,6 +262,8 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
+        elif (programa := self._responder_ementa(texto_usuario)) is not None:
+            resposta = programa
         elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
             resposta = sobre_mim
         elif self._eh_pergunta_de_hora(texto_usuario):
@@ -304,6 +309,8 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
+        elif (programa := self._responder_ementa(texto_usuario)) is not None:
+            resposta = programa
         elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
             resposta = sobre_mim
         elif self._eh_pergunta_de_hora(texto_usuario):
@@ -408,6 +415,22 @@ class MissionPlanner:
                 logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
 
         return contexto or None
+
+    def _responder_ementa(self, texto: str) -> str | None:
+        """"O que voce ensina?" - respondido do mapa, sem modelo.
+
+        Diz o que ele sabe E o que ainda nao sabe, com numero. Um robo que
+        listasse as 312 entradas do programa como se soubesse todas estaria
+        mentindo; a lista honesta e mais util, porque diz o que dá para pedir
+        hoje.
+        """
+        if self._ementas is None:
+            return None
+        try:
+            return self._ementas(texto)
+        except Exception:
+            logger.exception("falha ao consultar as ementas")
+            return None
 
     def _responder_sobre_mim(self, texto: str) -> str | None:
         """O que ele sabe do proprio corpo - antes da IA, e nao depois.

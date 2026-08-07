@@ -49,6 +49,8 @@ from orion.display.avatar_server import AvatarServer  # noqa: E402
 from orion.display.quadro import Quadro  # noqa: E402
 from orion.ensino.autoconhecimento import Autoconhecimento  # noqa: E402
 from orion.ensino.banco_aulas import BancoAulas, caminho_padrao  # noqa: E402
+from orion.ensino.ementa import BancoEmentas  # noqa: E402
+from orion.ensino.ementa import responder_pergunta as responder_pergunta_ementa  # noqa: E402
 from orion.ensino.professor import Professor  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
@@ -574,12 +576,24 @@ async def principal() -> None:
     banco_aulas = BancoAulas(caminho_padrao(_RAIZ_PROJETO))
     professor = Professor(banco_aulas, Quadro(bus), sintetizador.falar, bus)
 
+    # O MAPA do que ele ensina. Os ids das aulas escritas sao lidos a cada
+    # pergunta, e nao guardados aqui: `tools/aulas.py construir` pode rodar
+    # com o robo no ar, e uma lista congelada na subida faria ele negar uma
+    # aula que ja existe no banco.
+    banco_ementas = BancoEmentas(caminho_padrao(_RAIZ_PROJETO))
+
+    def responder_ementa(texto: str):
+        return responder_pergunta_ementa(
+            banco_ementas, texto, {a.id for a in banco_aulas.listar()}
+        )
+
     planner = MissionPlanner(
         ia,
         professor=professor,
         # O que ele sabe do proprio corpo, do mesmo saber.db. Vem ANTES da
         # IA na cascata: sobre o proprio hardware o modelo inventa.
         autoconhecimento=Autoconhecimento(caminho_padrao(_RAIZ_PROJETO)),
+        ementas=responder_ementa,
         consultar_internet=consulta_internet.consultar,
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),

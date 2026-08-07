@@ -1,0 +1,90 @@
+materia: geografia
+nome: Geografia
+descricao: >
+  O espaco e o que as pessoas fazem com ele. Metade natureza, metade
+  economia e politica - separar as duas e o erro mais comum.
+
+niveis:
+  basico:
+    descricao: Ler o mapa e entender o planeta.
+    topicos:
+      - id: geo.cartografia
+        titulo: Cartografia
+        conteudo: Escala, projecao, coordenadas, fuso horario e a distorcao que todo mapa tem.
+      - id: geo.estrutura-terra
+        titulo: Estrutura da Terra e relevo
+        conteudo: Placas tectonicas, terremoto, vulcao, e como o relevo se forma e se desgasta.
+      - id: geo.clima
+        titulo: Clima e tempo
+        conteudo: Fatores climaticos, tipos de clima, massas de ar e a diferenca entre tempo e clima.
+      - id: geo.hidrografia
+        titulo: Hidrografia
+        conteudo: Bacias, rios, aquiferos, e a agua como recurso disputado.
+      - id: geo.vegetacao-solos
+        titulo: Vegetação e solos
+        conteudo: Dominios morfoclimaticos brasileiros, tipos de solo e erosao.
+      - id: geo.populacao
+        titulo: População
+        conteudo: Crescimento, piramide etaria, migracao e densidade demografica.
+      - id: geo.urbanizacao
+        titulo: Urbanização
+        conteudo: Cidade, metropole, periferia, mobilidade e os problemas urbanos.
+      - id: geo.brasil-regioes
+        titulo: Regiões do Brasil
+        conteudo: As cinco regioes, suas paisagens, economias e desigualdades.
+
+  intermediario:
+    descricao: Economia, producao e meio ambiente.
+    topicos:
+      - id: geo.globalizacao
+        titulo: Globalização
+        conteudo: Fluxos de capital, mercadoria e informacao; quem ganha e quem paga.
+      - id: geo.industria
+        titulo: Indústria e tecnologia
+        conteudo: Tipos de industria, fatores de localizacao e as revolucoes industriais.
+      - id: geo.agricultura
+        titulo: Agropecuária
+        conteudo: Agronegocio e agricultura familiar, estrutura fundiaria e conflito no campo.
+      - id: geo.energia
+        titulo: Fontes de energia
+        conteudo: Matriz energetica, renovaveis e nao renovaveis, e o custo real de cada uma.
+      - id: geo.comercio-blocos
+        titulo: Comércio e blocos econômicos
+        conteudo: Mercosul, Uniao Europeia, acordos, e a disputa comercial entre potencias.
+      - id: geo.questao-ambiental
+        titulo: Questão ambiental
+        conteudo: Aquecimento global, desmatamento, poluicao e os acordos internacionais.
+      - id: geo.transporte-logistica
+        titulo: Transporte e logística
+        conteudo: Modais, matriz de transporte brasileira e o custo de escoar producao.
+      - id: geo.geografia-brasil-economia
+        titulo: Economia brasileira no espaço
+        conteudo: Concentracao industrial, novas fronteiras agricolas e desigualdade regional.
+
+  avancado:
+    descricao: Geopolitica e leitura critica do espaco.
+    topicos:
+      - id: geo.geopolitica
+        titulo: Geopolítica mundial
+        conteudo: Ordem multipolar, potencias, organismos internacionais e areas de tensao.
+      - id: geo.conflitos
+        titulo: Conflitos e fronteiras
+        conteudo: Conflitos etnicos e territoriais, refugiados e o direito de fronteira.
+      - id: geo.demografia-avancada
+        titulo: Transição demográfica
+        conteudo: Envelhecimento, bonus demografico e o que isso exige de politica publica.
+      - id: geo.redes-fluxos
+        titulo: Redes, fluxos e território
+        conteudo: Como internet, cabos e satelites redesenham a nocao de distancia.
+      - id: geo.sensoriamento
+        titulo: Geotecnologias
+        conteudo: GPS, sensoriamento remoto, SIG - e como um robo se localiza no espaco.
+      - id: geo.desenvolvimento
+        titulo: Desenvolvimento e desigualdade
+        conteudo: IDH, PIB, indicadores sociais e por que crescimento nao e desenvolvimento.
+      - id: geo.brasil-mundo
+        titulo: O Brasil no mundo
+        conteudo: Insercao economica, diplomacia, Amazonia como questao internacional.
+      - id: geo.cidades-futuro
+        titulo: Cidades e futuro
+        conteudo: Planejamento urbano, cidade inteligente, e o que a tecnologia resolve e nao resolve.

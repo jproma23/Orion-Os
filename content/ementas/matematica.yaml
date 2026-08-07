@@ -1,0 +1,169 @@
+# EMENTA - o mapa do que o robo ensina de matematica.
+#
+# Isto e o MAPA, nao a aula. Cada topico aponta para o id de uma aula em
+# content/aulas/. Topico SEM aula nao e erro: e o estado normal de uma ementa
+# em construcao, e e o que diz o que ainda falta escrever. O comando
+# `tools/aulas.py construir` imprime quantos topicos ja tem aula de verdade.
+#
+# A ordem dos topicos dentro de cada nivel E a ordem de aprendizado: cada um
+# supoe o anterior.
+materia: matematica
+nome: Matemática
+descricao: >
+  Do numero ao raciocinio: as operacoes e as formas do basico, as funcoes e
+  a geometria do intermediario, e a analise e a probabilidade do avancado.
+
+niveis:
+  basico:
+    descricao: A base que o resto todo usa. Corresponde ao 1o ano do ensino medio.
+    topicos:
+      - id: mat.conjuntos
+        titulo: Conjuntos numéricos
+        conteudo: >
+          Naturais, inteiros, racionais, irracionais e reais. Por que os
+          numeros foram sendo inventados, e o que cada grupo resolve.
+
+      - id: mat.operacoes-fracoes
+        titulo: Frações e operações
+        conteudo: >
+          Somar, subtrair, multiplicar e dividir fracoes; simplificacao,
+          fracao como divisao e como parte do todo.
+
+      - id: mat.potencias-raizes
+        titulo: Potências e raízes
+        conteudo: >
+          Propriedades das potencias, expoente negativo e fracionario, raiz
+          como potencia, notacao cientifica.
+
+      - id: mat.razao-proporcao
+        titulo: Razão, proporção e porcentagem
+        conteudo: >
+          Regra de tres direta e inversa, porcentagem no dia a dia, aumento
+          e desconto sucessivos.
+
+      - id: mat.equacao-primeiro-grau
+        titulo: Equação do primeiro grau
+        conteudo: >
+          A ideia de incognita, isolar o x, verificar a resposta, e montar a
+          equacao a partir de um problema escrito.
+
+      - id: mat.equacao-segundo-grau
+        titulo: Equação do segundo grau
+        conteudo: >
+          Coeficientes a, b e c; discriminante; formula de Bhaskara; o que o
+          sinal do delta diz sobre as raizes; conferencia da resposta.
+        aula: matematica.equacao-segundo-grau.basico
+
+      - id: mat.geometria-plana
+        titulo: Geometria plana
+        conteudo: >
+          Area e perimetro das figuras basicas, teorema de Pitagoras,
+          angulos e semelhanca de triangulos.
+
+      - id: mat.unidades-medida
+        titulo: Unidades de medida
+        conteudo: >
+          Comprimento, area, volume, massa e tempo; conversao entre
+          unidades e por que ela erra tanto na pratica.
+
+  intermediario:
+    descricao: A ideia de funcao, que organiza quase toda a matematica seguinte.
+    topicos:
+      - id: mat.funcao-conceito
+        titulo: O que é uma função
+        conteudo: >
+          Dominio, imagem, lei de formacao e grafico; funcao como maquina
+          que transforma entrada em saida.
+
+      - id: mat.funcao-afim
+        titulo: Função afim (do primeiro grau)
+        conteudo: >
+          Reta, coeficiente angular e linear, crescimento e decrescimento,
+          raiz da funcao, leitura de grafico.
+
+      - id: mat.funcao-quadratica
+        titulo: Função quadrática
+        conteudo: >
+          Parabola, concavidade, vertice, maximo e minimo, e a ligacao com a
+          equacao do segundo grau ja estudada.
+
+      - id: mat.funcao-exponencial
+        titulo: Função exponencial e logaritmo
+        conteudo: >
+          Crescimento exponencial, o logaritmo como operacao inversa, e onde
+          isso aparece (juros, populacao, decaimento).
+
+      - id: mat.progressoes
+        titulo: Progressões aritmética e geométrica
+        conteudo: >
+          Termo geral e soma dos termos; como reconhecer qual das duas esta
+          na sua frente.
+
+      - id: mat.trigonometria-triangulo
+        titulo: Trigonometria no triângulo retângulo
+        conteudo: >
+          Seno, cosseno e tangente; resolucao de triangulos; aplicacoes de
+          medida indireta de altura e distancia.
+
+      - id: mat.geometria-espacial
+        titulo: Geometria espacial
+        conteudo: >
+          Prismas, piramides, cilindro, cone e esfera: area da superficie e
+          volume, e a relacao entre eles.
+
+      - id: mat.estatistica-basica
+        titulo: Estatística descritiva
+        conteudo: >
+          Media, mediana e moda; tabelas e graficos; como um grafico mente
+          sem mentir nos numeros.
+
+  avancado:
+    descricao: Ferramentas de analise - o que o ensino medio aponta e a faculdade usa.
+    topicos:
+      - id: mat.trigonometria-circulo
+        titulo: Trigonometria no círculo e funções trigonométricas
+        conteudo: >
+          Radiano, circulo trigonometrico, seno e cosseno como funcoes
+          periodicas, identidades e equacoes trigonometricas.
+
+      - id: mat.analise-combinatoria
+        titulo: Análise combinatória
+        conteudo: >
+          Principio fundamental da contagem, arranjo, combinacao e
+          permutacao; a pergunta que decide qual usar - a ordem importa?
+
+      - id: mat.probabilidade
+        titulo: Probabilidade
+        conteudo: >
+          Espaco amostral, eventos, probabilidade condicional e
+          independencia; onde a intuicao erra sistematicamente.
+
+      - id: mat.matrizes-sistemas
+        titulo: Matrizes, determinantes e sistemas lineares
+        conteudo: >
+          Operacoes com matrizes, determinante, escalonamento e resolucao de
+          sistemas com varias incognitas.
+
+      - id: mat.numeros-complexos
+        titulo: Números complexos
+        conteudo: >
+          A unidade imaginaria, forma algebrica e trigonometrica, plano de
+          Argand-Gauss e por que eles foram inventados.
+
+      - id: mat.polinomios
+        titulo: Polinômios e equações polinomiais
+        conteudo: >
+          Grau, raizes, divisao de polinomios, teorema do resto e relacoes
+          entre coeficientes e raizes.
+
+      - id: mat.geometria-analitica
+        titulo: Geometria analítica
+        conteudo: >
+          Ponto, reta e circunferencia no plano cartesiano; distancia,
+          ponto medio e equacoes da reta.
+
+      - id: mat.limites-derivada
+        titulo: Noção de limite e derivada
+        conteudo: >
+          A ideia de aproximacao, taxa de variacao instantanea e o
+          significado geometrico da derivada como inclinacao da tangente.

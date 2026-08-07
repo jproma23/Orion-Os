@@ -1,0 +1,92 @@
+materia: tecnologia
+nome: Tecnologia
+descricao: >
+  Como as maquinas do dia a dia funcionam por dentro - do computador a
+  robotica. E a materia em que o proprio robo e o laboratorio.
+
+niveis:
+  basico:
+    descricao: Entender a maquina que voce ja usa.
+    topicos:
+      - id: tec.computador
+        titulo: Como um computador funciona
+        conteudo: Processador, memoria, disco, entrada e saida; o que acontece ao ligar.
+      - id: tec.sistema-operacional
+        titulo: Sistema operacional
+        conteudo: Arquivo, processo, permissao, e o que o sistema faz por baixo do que se ve.
+      - id: tec.internet
+        titulo: Como a internet funciona
+        conteudo: Endereco IP, DNS, servidor e cliente; o caminho de um site ate a tela.
+      - id: tec.seguranca-digital
+        titulo: Segurança digital
+        conteudo: Senha, dois fatores, golpe, phishing e o que nunca se manda por mensagem.
+      - id: tec.dados-privacidade
+        titulo: Dados e privacidade
+        conteudo: O que se deixa para tras ao usar um aplicativo, e quem lucra com isso.
+      - id: tec.eletronica-basica
+        titulo: Eletrônica básica
+        conteudo: Tensao, corrente, resistor, LED e protoboard; ler um esquema simples.
+      - id: tec.sensores-atuadores
+        titulo: Sensores e atuadores
+        conteudo: A diferenca entre medir e agir; sensor de distancia, motor, servo e rele.
+      - id: tec.robotica-intro
+        titulo: O que é um robô
+        conteudo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+
+  intermediario:
+    descricao: Montar e programar coisas que funcionam.
+    topicos:
+      - id: tec.microcontrolador
+        titulo: Microcontroladores
+        conteudo: Arduino e ESP32, pinos, firmware; a diferenca para um computador comum.
+      - id: tec.comunicacao-serial
+        titulo: Comunicação entre máquinas
+        conteudo: Serial, baud rate, I2C, wifi; o que quebra quando os dois lados nao combinam.
+      - id: tec.motores-controle
+        titulo: Motores e controle
+        conteudo: Motor DC, servo, PWM, ponte H, encoder; por que o motor sozinho nao obedece.
+      - id: tec.visao-computacional
+        titulo: Visão computacional
+        conteudo: Imagem como matriz, deteccao de objeto, reconhecimento facial e seus limites.
+      - id: tec.audio-digital
+        titulo: Áudio digital
+        conteudo: Amostragem, taxa, microfone digital, sintese de voz e transcricao.
+      - id: tec.bancos-dados
+        titulo: Guardar dados
+        conteudo: Arquivo contra banco, tabela, consulta, e o backup que so existe se foi testado.
+      - id: tec.automacao
+        titulo: Automação e casa conectada
+        conteudo: Rele, agendamento, gatilho por evento, e os riscos de automatizar demais.
+      - id: tec.projeto-eletronico
+        titulo: Projeto do começo ao fim
+        conteudo: Da ideia ao circuito montado; alimentacao, aterramento e o que costuma queimar.
+
+  avancado:
+    descricao: Sistemas autonomos e as escolhas por tras deles.
+    topicos:
+      - id: tec.ia-como-funciona
+        titulo: Como a IA funciona
+        conteudo: Modelo, treino, inferencia, prompt e alucinacao; o que ela nao sabe que nao sabe.
+      - id: tec.redes-neurais
+        titulo: Redes neurais
+        conteudo: Neuronio artificial, camadas, peso, treino - e por que rede pequena chuta com confianca.
+      - id: tec.navegacao-autonoma
+        titulo: Navegação autônoma
+        conteudo: Odometria, mapa, planejamento de rota, e por que a pose estimada mente com o tempo.
+      - id: tec.arquitetura-sistemas
+        titulo: Arquitetura de sistemas
+        conteudo: Modulos, eventos, tolerancia a falha, e a falha silenciosa que ninguem ve.
+      - id: tec.energia-autonomia
+        titulo: Energia e autonomia
+        conteudo: Bateria, consumo, gerenciamento de energia e o custo de cada recurso ligado.
+      - id: tec.etica-robotica
+        titulo: Ética em robótica
+        conteudo: Autonomia, responsabilidade, vigilancia domestica e o limite do que se automatiza.
+      - id: tec.manutencao-diagnostico
+        titulo: Diagnóstico e manutenção
+        conteudo: Log, telemetria, medir antes de trocar peca, e a hipotese que se elimina com numero.
+      - id: tec.orion-estudo
+        titulo: Estudo de caso - construir um robô
+        conteudo: >
+          As decisoes reais deste projeto - o que foi tentado, o que falhou,
+          e o motivo escrito ao lado de cada correcao.

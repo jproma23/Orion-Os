@@ -1,0 +1,90 @@
+materia: biologia
+nome: Biologia
+descricao: >
+  Como a vida funciona, da celula ao planeta. O fio que costura tudo e a
+  evolucao - sem ela, biologia vira uma lista de nomes para decorar.
+
+niveis:
+  basico:
+    descricao: A celula e os seres vivos.
+    topicos:
+      - id: bio.caracteristicas-vida
+        titulo: O que é estar vivo
+        conteudo: Organizacao, metabolismo, reproducao e resposta ao ambiente; virus e o limite.
+      - id: bio.celula
+        titulo: A célula
+        conteudo: Procarionte e eucarionte, membrana, citoplasma, nucleo e organelas.
+      - id: bio.metabolismo-celular
+        titulo: Respiração e fotossíntese
+        conteudo: Como a celula tira energia do alimento e como a planta fabrica o dela.
+      - id: bio.divisao-celular
+        titulo: Divisão celular
+        conteudo: Mitose e meiose, para que serve cada uma, e o que da errado no cancer.
+      - id: bio.tecidos
+        titulo: Tecidos e órgãos
+        conteudo: Epitelial, conjuntivo, muscular e nervoso; do tecido ao sistema.
+      - id: bio.reinos
+        titulo: Classificação dos seres vivos
+        conteudo: Os grandes grupos, nomenclatura cientifica e criterios de classificacao.
+      - id: bio.corpo-humano
+        titulo: Corpo humano - sistemas
+        conteudo: Digestorio, respiratorio, circulatorio, excretor, nervoso e endocrino.
+      - id: bio.saude
+        titulo: Saúde e doenças
+        conteudo: Infeccao, imunidade, vacina, antibiotico e por que a resistencia aparece.
+
+  intermediario:
+    descricao: Hereditariedade e ecologia.
+    topicos:
+      - id: bio.genetica-mendel
+        titulo: Genética - as leis de Mendel
+        conteudo: Gene, alelo, dominante e recessivo, quadro de Punnett e probabilidade.
+      - id: bio.dna
+        titulo: DNA, RNA e síntese de proteínas
+        conteudo: Codigo genetico, transcricao, traducao, e o que uma mutacao muda de fato.
+      - id: bio.heranca
+        titulo: Herança e variações
+        conteudo: Grupos sanguineos, heranca ligada ao sexo, e as doencas geneticas comuns.
+      - id: bio.biotecnologia
+        titulo: Biotecnologia
+        conteudo: Transgenicos, clonagem, PCR, edicao genica - e as perguntas eticas que vem junto.
+      - id: bio.ecologia-conceitos
+        titulo: Ecologia - conceitos
+        conteudo: Populacao, comunidade, ecossistema, habitat e nicho.
+      - id: bio.cadeias-alimentares
+        titulo: Cadeias e teias alimentares
+        conteudo: Produtor, consumidor, decompositor, fluxo de energia e piramides.
+      - id: bio.ciclos-biogeoquimicos
+        titulo: Ciclos biogeoquímicos
+        conteudo: Agua, carbono, nitrogenio e a interferencia humana em cada um.
+      - id: bio.relacoes-ecologicas
+        titulo: Relações ecológicas
+        conteudo: Competicao, predacao, parasitismo, mutualismo e comensalismo.
+
+  avancado:
+    descricao: Evolucao, fisiologia fina e ambiente.
+    topicos:
+      - id: bio.evolucao
+        titulo: Evolução
+        conteudo: Selecao natural, deriva, especiacao, e as evidencias que sustentam a teoria.
+      - id: bio.origem-vida
+        titulo: Origem da vida e história da Terra
+        conteudo: As hipoteses, os fosseis, as grandes extincoes e o tempo geologico.
+      - id: bio.fisiologia-nervosa
+        titulo: Sistema nervoso e sentidos
+        conteudo: Neuronio, sinapse, potencial de acao, e como o cerebro processa o que os sentidos mandam.
+      - id: bio.imunologia
+        titulo: Imunologia
+        conteudo: Imunidade inata e adquirida, anticorpo, memoria imunologica e autoimunidade.
+      - id: bio.reproducao-desenvolvimento
+        titulo: Reprodução e desenvolvimento
+        conteudo: Gametogenese, fecundacao, desenvolvimento embrionario e metodos contraceptivos.
+      - id: bio.botanica
+        titulo: Fisiologia vegetal
+        conteudo: Transporte de seiva, hormonios vegetais, tropismos e reproducao das plantas.
+      - id: bio.biomas
+        titulo: Biomas e biodiversidade
+        conteudo: Os biomas brasileiros, endemismo, e o que se perde quando um deles some.
+      - id: bio.ambiente-crise
+        titulo: Impacto ambiental
+        conteudo: Desmatamento, poluicao, mudanca climatica e o que a ciencia ja mediu sobre isso.
