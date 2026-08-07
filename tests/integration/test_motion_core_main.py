@@ -11,11 +11,9 @@ import logging
 import os
 
 import pytest
-
+from conftest import arduino_simulado
 
 from motion_core.__main__ import _abrir_memoria, _conectar_hardware_core
-from orion.communication.framing import DecodificadorSerial, codificar_serial
-from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService
 from orion.kernel.config import ConfigurationManager
 from orion.kernel.event_bus import EventBus
@@ -25,51 +23,11 @@ pytestmark = pytest.mark.sim
 _LOGGER_TESTE = logging.getLogger("test_motion_core_main")
 
 
-async def _arduino_simulado(master_fd: int) -> None:
-    loop = asyncio.get_running_loop()
-    decodificador = DecodificadorSerial()
-    fila: asyncio.Queue[bytes] = asyncio.Queue()
-
-    def _ao_ter_dados() -> None:
-        try:
-            fila.put_nowait(os.read(master_fd, 4096))
-        except OSError:
-            pass
-
-    loop.add_reader(master_fd, _ao_ter_dados)
-    try:
-        while True:
-            dados = await fila.get()
-            for byte in dados:
-                quadro = decodificador.alimentar(byte)
-                if quadro is None:
-                    continue
-                pedido = Mensagem.from_bytes(quadro)
-                if pedido.tipo is TipoMensagem.COMMAND:
-                    ack = Mensagem.ack(pedido, "hardware_core")
-                    os.write(master_fd, codificar_serial(ack.to_bytes()))
-                    if pedido.payload.get("comando") == "WHO_ARE_YOU":
-                        resposta = Mensagem.nova(
-                            TipoMensagem.RESPONSE,
-                            "hardware_core",
-                            pedido.origem,
-                            {
-                                "nome": "hardware_core",
-                                "versao_modulo": "test-sim",
-                                "versao_protocolo": "1.0",
-                            },
-                            id_referencia=pedido.id,
-                        )
-                        os.write(master_fd, codificar_serial(resposta.to_bytes()))
-    finally:
-        loop.remove_reader(master_fd)
-
-
 @pytest.mark.asyncio
 async def test_conectar_hardware_core_com_sucesso_via_pty():
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
-    tarefa_arduino = asyncio.create_task(_arduino_simulado(master_fd))
+    tarefa_arduino = asyncio.create_task(arduino_simulado(master_fd))
 
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())

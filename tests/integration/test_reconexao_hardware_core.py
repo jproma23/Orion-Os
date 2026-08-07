@@ -20,13 +20,13 @@ import logging
 import os
 
 import pytest
+from conftest import arduino_simulado
 
 from motion_core import __main__ as motion_main
 from motion_core.__main__ import _criar_reconexao_hardware_core
 from orion.communication.heartbeat import MonitorHeartbeat
 from orion.communication.service import ComunicacaoService
 from orion.kernel.event_bus import EventBus
-from tests.integration.test_motion_core_main import _arduino_simulado
 
 pytestmark = pytest.mark.sim
 
@@ -76,7 +76,7 @@ async def test_reconexao_insiste_ate_a_porta_voltar(monkeypatch):
         # O cabo volta: a porta passa a existir. `_conectar_hardware_core` le
         # o dicionario a cada tentativa, entao mexer nele E replugar.
         master_fd, escravo_fd = os.openpty()
-        tarefa_arduino = asyncio.create_task(_arduino_simulado(master_fd))
+        tarefa_arduino = asyncio.create_task(arduino_simulado(master_fd))
         await asyncio.sleep(0.05)
         config["port"] = os.ttyname(escravo_fd)
 
