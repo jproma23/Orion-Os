@@ -173,6 +173,69 @@ def _parecidos(termo: str, titulo: str) -> bool:
     return bool(procuradas & palavras(titulo)) if procuradas else False
 
 
+#: Palavras do `conteudo` da ementa que nao sao termo a ensinar.
+_LIGACAO = frozenset({
+    "e", "ou", "de", "do", "da", "dos", "das", "com", "sem", "para", "por",
+    "que", "como", "quando", "onde", "no", "na", "nos", "nas", "um", "uma",
+    "o", "a", "os", "as", "seus", "suas", "cada", "todo", "toda", "mais",
+    "ja", "ao", "aos", "se", "sao", "ser", "tem", "entre", "sobre", "isso",
+})
+
+
+def _termos_do_conteudo(topico) -> list[str]:
+    """Os TERMOS que a aula promete ensinar, tirados da ementa.
+
+    ACHADO em 07/08, comparando o rascunho com o proprio objetivo: a aula de
+    Cinematica prometia "velocidade, aceleracao, movimento uniforme e
+    graficos" e o texto gerado falava de analise cinematica na engenharia e
+    dos graus de liberdade de uma mosca - nunca chegava em velocidade.
+
+    A causa e estrutural: artigo de enciclopedia e organizado por assunto, e
+    aula e organizada por OBJETIVO. Buscar um artigo por termo do objetivo
+    inverte isso - e os termos ja estao escritos no `conteudo` da ementa.
+    """
+    bruto = re.split(r"[;,.]", topico.conteudo or "")
+    termos = []
+    for pedaco in bruto:
+        palavras = [p for p in pedaco.split() if p.lower() not in _LIGACAO]
+        if not palavras:
+            continue
+        termo = " ".join(palavras[:4]).strip()
+        if len(termo) > 4 and termo.lower() not in {t.lower() for t in termos}:
+            termos.append(termo)
+    return termos[:5]
+
+
+async def _introducao(consulta: ConsultaInternet, termo: str, contexto: str = ""):
+    """O artigo do termo, so a INTRODUCAO.
+
+    A introducao e a parte didatica de um artigo da Wikipedia: ela define a
+    coisa em duas ou tres frases. O corpo desce para historia, aplicacoes e
+    casos particulares, que e onde a aula se perdia.
+    """
+    # O TERMO COM O CONTEXTO DA AULA PRIMEIRO. Termo generico sozinho pesca
+    # o artigo errado: "graficos" trouxe GRAFICOS ISOMETRICOS EM VIDEOJOGOS
+    # para uma aula de cinematica. Quem procura sabe do que esta falando, e
+    # o titulo da aula e essa informacao.
+    achado = None
+    for tentativa in ([f"{termo} {contexto}"] if contexto else []) + [termo]:
+        candidato = await consulta.consultar(tentativa)
+        if candidato is not None and _parecidos(termo, candidato.titulo):
+            achado = candidato
+            break
+    if achado is None:
+        # Melhor a aula sem esta parte do que com a parte errada: uma secao
+        # a menos e um buraco visivel; a secao errada passa por conteudo.
+        return None, ""
+    try:
+        texto = await _artigo_completo(achado.titulo)
+    except Exception:
+        texto = achado.trecho
+    # Antes do primeiro "== titulo ==" esta a introducao.
+    introducao = re.split(r"\n=+ .+ =+", texto)[0].strip() or achado.trecho
+    return achado, introducao
+
+
 async def _buscar(consulta: ConsultaInternet, topico):
     """Acha o artigo e devolve (achado, texto completo)."""
     for termo in _termos_alternativos(topico):
@@ -195,47 +258,41 @@ async def _buscar(consulta: ConsultaInternet, topico):
     return None, ""
 
 
-def _montar_rascunho(topico, materia: str, nivel: str, achado, texto: str) -> dict:
-    """Monta o YAML do rascunho - com PLANO, e nao so com passos.
+def _montar_rascunho(topico, materia: str, nivel: str, achado, secoes) -> dict:
+    """Monta o rascunho: abertura + uma parte por TERMO do objetivo.
 
-    O plano nasce aqui mesmo, do que a ementa ja diz sobre o topico: o
-    `conteudo` da ementa vira o objetivo, e o topico anterior vira
-    pre-requisito. Assim o rascunho ja sai no formato certo, em vez de virar
-    uma segunda rodada de trabalho depois.
+    `secoes` e uma lista de (termo, texto, achado) - um artigo por termo que
+    a ementa promete ensinar. E a diferenca entre uma aula e um artigo lido
+    em voz alta: a ordem vem do objetivo, nao do indice da enciclopedia.
     """
     hoje = datetime.date.today().isoformat()
-    # As secoes do artigo viram os passos, na ordem: e a estrutura que o
-    # proprio artigo ja tem, e ela e melhor que picotar o texto corrido.
-    partes: list[str] = []
-    secao_atual = ""
-    for pedaco in re.split(r"\n(?==+ .+ =+)", texto):
-        cabecalho = re.match(r"=+\s*(.+?)\s*=+", pedaco)
-        corpo = pedaco
-        if cabecalho:
-            secao_atual = cabecalho.group(1)
-            corpo = pedaco[cabecalho.end():]
-        for bloco in _blocos(corpo.strip()):
-            partes.append((secao_atual, bloco))
-            if len(partes) >= MAXIMO_PASSOS:
-                break
-        if len(partes) >= MAXIMO_PASSOS:
-            break
-
     passos = [
         {
             "fala": f"Hoje o assunto e {topico.titulo}.",
             "quadro": {"tipo": "titulo", "texto": topico.titulo},
         }
     ]
-    ultima_secao = ""
-    for secao, parte in partes:
-        if secao and secao != ultima_secao:
-            passos.append(
-                {"fala": f"Agora, {secao.lower()}.",
-                 "quadro": {"tipo": "titulo", "texto": secao}}
-            )
-            ultima_secao = secao
-        passos.append({"fala": parte, "quadro": {"tipo": "texto", "texto": parte}})
+    fontes = []
+    if achado is not None:
+        abertura = _blocos(achado.trecho)[:1]
+        for parte in abertura:
+            passos.append({"fala": parte, "quadro": {"tipo": "texto", "texto": parte}})
+        fontes.append(achado.titulo)
+
+    for termo, texto, achado_termo in secoes:
+        passos.append(
+            {
+                "fala": f"Vamos ao proximo ponto - {termo}.",
+                "quadro": {"tipo": "titulo", "texto": termo},
+            }
+        )
+        for parte in _blocos(texto)[:2]:
+            passos.append({"fala": parte, "quadro": {"tipo": "texto", "texto": parte}})
+        if achado_termo is not None and achado_termo.titulo not in fontes:
+            fontes.append(achado_termo.titulo)
+
+    perguntas = [f"Com as suas palavras, o que e {s[0]}?" for s in secoes[:2]]
+    perguntas.append("O que ficou confuso e voce quer que eu repita?")
 
     return {
         "id": f"{materia}.{topico.id.split('.', 1)[-1]}.{nivel}",
@@ -243,15 +300,16 @@ def _montar_rascunho(topico, materia: str, nivel: str, achado, texto: str) -> di
         "titulo": topico.titulo,
         "nivel": nivel,
         "resumo": topico.conteudo or f"Aula sobre {topico.titulo}.",
-        "fonte": f"Wikipedia, artigo {achado.titulo}, consultado em {hoje} - {achado.url}",
+        "fonte": (
+            "Wikipedia, artigos "
+            + ", ".join(fontes)
+            + f", consultados em {hoje}"
+        ),
         "plano": {
             "objetivo": topico.conteudo or f"Entender o que e {topico.titulo}.",
             "pre_requisitos": [],
-            "duracao_min": max(5, len(partes) * 2),
-            "fixacao": [
-                f"Com as suas palavras, o que e {topico.titulo}?",
-                "O que ficou confuso e voce quer que eu repita?",
-            ],
+            "duracao_min": max(5, len(passos) * 2),
+            "fixacao": perguntas,
             "fechamento": (
                 f"Isso e o basico de {topico.titulo}. "
                 "Se quiser, eu repito a parte que ficou confusa."
@@ -289,12 +347,18 @@ async def principal_async(argumentos) -> int:
     feitos = falhas = 0
 
     for materia, nivel, topico in alvos:
-        achado, texto = await _buscar(consulta, topico)
-        if achado is None:
+        achado, _ = await _buscar(consulta, topico)
+        # Uma busca por TERMO do objetivo, e nao um dump do artigo guarda-chuva.
+        secoes = []
+        for termo in _termos_do_conteudo(topico):
+            achado_termo, introducao = await _introducao(consulta, termo, topico.titulo)
+            if introducao:
+                secoes.append((termo, introducao, achado_termo))
+        if achado is None and not secoes:
             print(f"  SEM FONTE  {topico.id:28} {topico.titulo}")
             falhas += 1
             continue
-        rascunho = _montar_rascunho(topico, materia, nivel, achado, texto)
+        rascunho = _montar_rascunho(topico, materia, nivel, achado, secoes)
         destino = PASTA_RASCUNHOS / f"{rascunho['id']}.yaml"
         destino.write_text(
             yaml.safe_dump(rascunho, allow_unicode=True, sort_keys=False, width=88),
