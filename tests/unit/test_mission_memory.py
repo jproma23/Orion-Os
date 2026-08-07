@@ -152,3 +152,120 @@ def test_construir_e_idempotente(tmp_path):
 def test_buscar_sem_indice_diz_o_que_fazer(tmp_path):
     with pytest.raises(FileNotFoundError, match="construir"):
         mission_memory.buscar(tmp_path / "nao_existe.db", "qualquer coisa")
+
+
+# --------------------------------------------------------------- codigo
+
+
+def _repo_com_codigo(raiz):
+    """Repo minimo com codigo em Python, firmware e um teste (que fica fora)."""
+    (raiz / "motion_core/behavior").mkdir(parents=True)
+    (raiz / "tests/unit").mkdir(parents=True)
+    (raiz / "firmware/hardware_core/include").mkdir(parents=True)
+
+    (raiz / "motion_core/behavior/comportamentos.py").write_text(
+        "import os\n"
+        "\n"
+        "\n"
+        "# A cabeca volta ao centro por OCIOSIDADE, nao por relogio -\n"
+        "# relogio cru arrancaria a cabeca do dedo de quem esta mexendo.\n"
+        "def recentrar_cabeca(pan, tilt):\n"
+        "    \"\"\"Devolve a cabeca ao centro depois de ociosa.\"\"\"\n"
+        "    return 0, 0\n"
+        "\n"
+        "\n"
+        "class Repouso:\n"
+        "    \"\"\"Comportamento base do maestro, prioridade minima.\"\"\"\n"
+        "\n"
+        "    prioridade = 10\n"
+        "\n"
+        "    def quer_rodar(self):\n"
+        "        return True\n",
+        encoding="utf-8",
+    )
+    (raiz / "tests/unit/test_nao_indexar.py").write_text(
+        "def test_isto_nao_pode_entrar_no_indice():\n"
+        "    assert True  # palavrachavesoDoTeste\n",
+        encoding="utf-8",
+    )
+    (raiz / "firmware/hardware_core/include/pins.h").write_text(
+        "// Espelhamento e fato de HARDWARE, por isso mora aqui.\n"
+        "constexpr bool DIR_INVERTIDO_DIREITO = true;\n",
+        encoding="utf-8",
+    )
+    return raiz
+
+
+def test_codigo_e_fatiado_por_funcao_e_classe(tmp_path):
+    raiz = _repo_com_codigo(tmp_path / "repo")
+
+    docs = mission_memory.ler_codigo(raiz)
+
+    nomes = {d.titulo.split(" :: ")[-1] for d in docs if "::" in d.titulo}
+    assert "recentrar_cabeca" in nomes
+    assert "Repouso" in nomes
+
+
+def test_o_comentario_de_cima_vem_junto(tmp_path):
+    """Neste projeto o PORQUE mora no comentario que antecede a funcao."""
+    raiz = _repo_com_codigo(tmp_path / "repo")
+
+    docs = mission_memory.ler_codigo(raiz)
+    trecho = next(d for d in docs if d.titulo.endswith("recentrar_cabeca"))
+
+    assert "OCIOSIDADE" in trecho.texto, "o comentario acima da funcao ficou de fora"
+
+
+def test_referencia_do_codigo_tem_arquivo_e_linha(tmp_path):
+    raiz = _repo_com_codigo(tmp_path / "repo")
+
+    docs = mission_memory.ler_codigo(raiz)
+    trecho = next(d for d in docs if d.titulo.endswith("recentrar_cabeca"))
+
+    assert trecho.ref.startswith("motion_core/behavior/comportamentos.py:")
+    assert trecho.ref.split(":")[-1].isdigit()
+
+
+def test_os_testes_nao_entram_no_indice(tmp_path):
+    """Quem pergunta "onde isso e tratado" quer a implementacao."""
+    raiz = _repo_com_codigo(tmp_path / "repo")
+
+    docs = mission_memory.ler_codigo(raiz)
+
+    assert not any("tests/" in d.ref for d in docs)
+
+
+def test_firmware_entra_por_arquivo_inteiro(tmp_path):
+    """O `ast` e de Python; .h e .cpp sao pequenos e entram inteiros."""
+    raiz = _repo_com_codigo(tmp_path / "repo")
+
+    docs = mission_memory.ler_codigo(raiz)
+    pins = [d for d in docs if d.ref.endswith("pins.h")]
+
+    assert len(pins) == 1
+    assert "DIR_INVERTIDO_DIREITO" in pins[0].texto
+
+
+def test_arquivo_com_sintaxe_quebrada_nao_derruba_a_carga(tmp_path):
+    """Um .py invalido no repo nao pode impedir o indice inteiro."""
+    raiz = _repo_com_codigo(tmp_path / "repo")
+    (raiz / "motion_core/quebrado.py").write_text("def (((", encoding="utf-8")
+
+    docs = mission_memory.ler_codigo(raiz)
+
+    assert docs, "a carga parou por causa de um arquivo invalido"
+
+
+def test_construir_inclui_o_codigo(tmp_path):
+    raiz = _repo_com_codigo(tmp_path / "repo")
+    (raiz / "docs").mkdir()
+    (raiz / "docs/journal.md").write_text(
+        "## Sessao de 2026-08-07 - nada\n\ncorpo\n", encoding="utf-8"
+    )
+    db = tmp_path / "mm.db"
+
+    contagem = mission_memory.construir(db, raiz)
+
+    assert contagem.get("codigo", 0) >= 3
+    achados = mission_memory.buscar(db, "recentrar cabeca ociosidade", tipo="codigo")
+    assert achados

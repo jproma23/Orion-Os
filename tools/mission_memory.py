@@ -223,9 +223,91 @@ def ler_edrs(raiz: Path) -> list[Documento]:
     return docs
 
 
+#: Pastas de codigo que entram no indice. `tests/` fica de fora de
+#: proposito: teste descreve o que o codigo faz, e quem pergunta "onde isso
+#: e tratado" quer a implementacao, nao o dobro de resultados repetidos.
+PASTAS_DE_CODIGO = ("motion_core", "src/orion", "tools")
+
+#: Firmware entra por ARQUIVO inteiro (sao pequenos e o `ast` e de Python).
+EXTENSOES_FIRMWARE = (".h", ".cpp", ".ino")
+
+
+def _trechos_python(caminho: Path, raiz: Path) -> list[Documento]:
+    """Uma funcao/classe de topo por documento, com o comentario que a
+    antecede - e ali que este projeto escreve o porque."""
+    import ast
+
+    try:
+        fonte = caminho.read_text(encoding="utf-8")
+        arvore = ast.parse(fonte)
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+
+    linhas = fonte.splitlines()
+    relativo = str(caminho.relative_to(raiz))
+    docs: list[Documento] = []
+
+    for no in arvore.body:
+        if not isinstance(no, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            continue
+        # `decorator_list` desloca lineno para baixo; pegar o topo real
+        inicio = min([no.lineno] + [d.lineno for d in no.decorator_list]) - 1
+        # sobe enquanto for comentario colado - o "porque" mora ali
+        while inicio > 0 and linhas[inicio - 1].lstrip().startswith("#"):
+            inicio -= 1
+        fim = no.end_lineno or no.lineno
+        corpo = "\n".join(linhas[inicio:fim])
+        if len(corpo) < 40:
+            continue
+        docs.append(
+            Documento(
+                tipo="codigo",
+                ref=f"{relativo}:{no.lineno}",
+                data="",
+                titulo=f"{relativo} :: {no.name}",
+                texto=corpo,
+            )
+        )
+    return docs
+
+
+def ler_codigo(raiz: Path) -> list[Documento]:
+    docs: list[Documento] = []
+    for pasta in PASTAS_DE_CODIGO:
+        base = raiz / pasta
+        if not base.is_dir():
+            continue
+        for caminho in sorted(base.rglob("*.py")):
+            if "__pycache__" in caminho.parts or ".venv" in caminho.parts:
+                continue
+            docs.extend(_trechos_python(caminho, raiz))
+
+    firmware = raiz / "firmware"
+    if firmware.is_dir():
+        for caminho in sorted(firmware.rglob("*")):
+            if caminho.suffix not in EXTENSOES_FIRMWARE or not caminho.is_file():
+                continue
+            if ".pio" in caminho.parts:
+                continue
+            try:
+                texto = caminho.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            docs.append(
+                Documento(
+                    tipo="codigo",
+                    ref=str(caminho.relative_to(raiz)),
+                    data="",
+                    titulo=str(caminho.relative_to(raiz)),
+                    texto=texto,
+                )
+            )
+    return docs
+
+
 def construir(caminho_db: Path, raiz: Path) -> dict[str, int]:
     """Reconstroi o indice do zero. Idempotente por definicao."""
-    docs = ler_journal(raiz) + ler_commits(raiz) + ler_edrs(raiz)
+    docs = ler_journal(raiz) + ler_commits(raiz) + ler_edrs(raiz) + ler_codigo(raiz)
     con = _abrir(caminho_db)
     try:
         _criar_esquema(con)
@@ -323,7 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     p_buscar = sub.add_parser("buscar", help="procura e mostra os trechos")
     p_buscar.add_argument("termos", nargs="+")
     p_buscar.add_argument("-n", "--limite", type=int, default=5)
-    p_buscar.add_argument("--tipo", choices=("journal", "commit", "edr"))
+    p_buscar.add_argument("--tipo", choices=("journal", "commit", "edr", "codigo"))
 
     args = parser.parse_args(argv)
 
