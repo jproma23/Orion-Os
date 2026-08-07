@@ -76,6 +76,17 @@ NOME_MODULO = "motion_core"
 #: 2026-07-19) - varrer a lista evita "Arduino sumiu" por causa disso.
 PORTAS_SERIAIS_CANDIDATAS = ("/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0")
 
+#: Espera entre tentativas de reconexao da serial, em segundos.
+#:
+#: POR QUE ELA CRESCE: abrir a porta serial ATIVA O DTR E RESETA O ESP32
+#: (ver SerialTransport.__init__). Insistir de fracao em fracao de segundo
+#: deixaria a placa em reset perpetuo no instante em que o cabo voltasse -
+#: o robo pareceria continuar morto justamente porque estamos tentando
+#: demais. O teto e baixo o bastante para ele voltar sozinho enquanto
+#: alguem ainda esta na bancada.
+RECONEXAO_ESPERA_INICIAL_S = 2.0
+RECONEXAO_ESPERA_MAXIMA_S = 30.0
+
 
 async def _tentar_porta(
     comm: ComunicacaoService,
@@ -126,6 +137,74 @@ async def _conectar_hardware_core(
         prioridade=Prioridade.ALTA,
     )
     return False
+
+
+def _criar_reconexao_hardware_core(
+    comm: ComunicacaoService,
+    config_hardware_core: dict,
+    event_bus: EventBus,
+    logger: logging.Logger,
+    heartbeat: MonitorHeartbeat,
+    limite_perdidos: int | None,
+):
+    """Devolve o callback que o MonitorHeartbeat chama quando o corpo some.
+
+    BUG REAL (2026-08-06, relato do dono: *"quando tira o esp do usb trava
+    tudo"*): `_conectar_hardware_core` so era chamada UMA vez, no boot.
+    Tirado o cabo, `SerialTransport.receber()` levantava SerialException,
+    o `_loop_recepcao` a tratava como link caido (certo, nao derruba o
+    processo) e ninguem reconectava - a cabeca parava, a telemetria parava
+    e o corpo so voltava reiniciando o servico.
+
+    A maquina de reconexao ja existia e ja era chamada: `_marcar_perdido`
+    -> `_tentar_reconectar` -> callback registrado em `monitorar()`.
+    Faltava o callback. E o quinto caso de codigo orfao do projeto.
+
+    POR QUE ELE INSISTE SOZINHO em vez de esperar ser chamado de novo:
+    `_marcar_perdido` e IDEMPOTENTE - dispara uma vez por perda e so
+    rearma quando um heartbeat volta a chegar do ESP32. Como o caso normal
+    e o cabo continuar fora no instante da primeira tentativa, um callback
+    que tentasse uma vez e desistisse deixaria o robo sem corpo para
+    sempre - trocando um jeito de nao reconectar por outro.
+    """
+    #: Uma tentativa por vez. Sem esta guarda, uma segunda perda declarada
+    #: enquanto a primeira ainda insiste abriria um segundo laco, e os dois
+    #: passariam a resetar o ESP32 em duplicata.
+    em_curso: dict[str, asyncio.Task | None] = {"tarefa": None}
+
+    async def _insistir() -> None:
+        espera = RECONEXAO_ESPERA_INICIAL_S
+        tentativa = 0
+        while True:
+            tentativa += 1
+            if await _conectar_hardware_core(comm, config_hardware_core, event_bus, logger):
+                logger.info("Hardware Core de volta na tentativa %d", tentativa)
+                # Re-registrar zera o relogio do HealthMonitor (ver
+                # MonitorHeartbeat.monitorar, que e idempotente de proposito)
+                # e mantem ESTE callback armado para a proxima queda.
+                heartbeat.monitorar(
+                    "hardware_core",
+                    reconectar=_ao_perder,
+                    heartbeats_perdidos_limite=limite_perdidos,
+                )
+                return
+            logger.warning(
+                "Hardware Core ainda fora (tentativa %d) - tento de novo em %.0fs",
+                tentativa,
+                espera,
+            )
+            await asyncio.sleep(espera)
+            espera = min(espera * 2, RECONEXAO_ESPERA_MAXIMA_S)
+
+    async def _ao_perder() -> None:
+        anterior = em_curso["tarefa"]
+        if anterior is not None and not anterior.done():
+            logger.debug("reconexao do Hardware Core ja esta em curso")
+            return
+        logger.warning("Hardware Core sumiu - comecando a insistir na reconexao")
+        em_curso["tarefa"] = asyncio.create_task(_insistir())
+
+    return _ao_perder
 
 
 def _abrir_memoria(config: ConfigurationManager, event_bus: EventBus, logger: logging.Logger):
@@ -252,14 +331,28 @@ async def principal() -> None:
 
     # 2. Ponte serial com o Arduino (Cap 14 s.2) - tolera ausencia.
     hardware_core_conectado = await _conectar_hardware_core(comm, conf_comm["hardware_core"], event_bus, logger)
-    if hardware_core_conectado:
-        # Sem tolerancia extra DE PROPOSITO: este e o caminho da seguranca
-        # reativa - descobrir tarde que o Mega sumiu e pior que um falso
-        # alarme (Cap 18).
-        heartbeat.monitorar(
-            "hardware_core",
-            heartbeats_perdidos_limite=limites_por_link.get("hardware_core"),
-        )
+    # Monitorado SEMPRE, conectado ou nao (mudou em 2026-08-06). Antes so
+    # entrava aqui se o boot achasse a porta, e quem ligasse o robo com o
+    # ESP32 fora da tomada ficava sem corpo ate reiniciar o servico - o
+    # mesmo sintoma de puxar o cabo depois. A carencia do `_marcar_perdido`
+    # cobre quem nunca conectou: N falhas de envio seguidas e ai sim vira
+    # perda, que e o que dispara a reconexao.
+    #
+    # Sem tolerancia extra DE PROPOSITO: este e o caminho da seguranca
+    # reativa - descobrir tarde que o corpo sumiu e pior que um falso
+    # alarme (Cap 18).
+    heartbeat.monitorar(
+        "hardware_core",
+        reconectar=_criar_reconexao_hardware_core(
+            comm,
+            conf_comm["hardware_core"],
+            event_bus,
+            logger,
+            heartbeat,
+            limites_por_link.get("hardware_core"),
+        ),
+        heartbeats_perdidos_limite=limites_por_link.get("hardware_core"),
+    )
 
     tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
 
