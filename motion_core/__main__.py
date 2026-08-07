@@ -24,7 +24,6 @@ from pathlib import Path
 
 from motion_core.behavior import contrato
 from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
-from motion_core.desligamento import Desligador
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
     Atender,
@@ -33,17 +32,15 @@ from motion_core.behavior.comportamentos import (
     IaEstrategica,
     Repouso,
     Ronda,
-    Vigilia,
     VigilanciaObstaculo,
+    Vigilia,
 )
 from motion_core.behavior.estado_do_mundo import EstadoDoMundo
-from motion_core.behavior.instintos import InstintoBussola
 from motion_core.behavior.guardiao_ram import GuardiaoRamNotebook
+from motion_core.behavior.instintos import InstintoBussola
+from motion_core.behavior.memoria_decisoes import MemoriaDeDecisoes
 from motion_core.behavior.ponte_conselho import PonteConselhoIA
-from orion.mission.alivio_carga import TOPICO_PEDIDO_ALIVIO, TOPICO_RECUPERADO
-from orion.mission.conselho_protocolo import TOPICO_PEDIDO
-from orion.mission.diario import DiarioObservacoes
-from orion.mission.grounding import montar_contexto
+from motion_core.desligamento import Desligador
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
@@ -66,6 +63,10 @@ from orion.kernel.config import ConfigurationManager
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 from orion.kernel.logger import configurar_logger
 from orion.kernel.registry import EstadoModulo, ServiceRegistry
+from orion.mission.alivio_carga import TOPICO_PEDIDO_ALIVIO, TOPICO_RECUPERADO
+from orion.mission.conselho_protocolo import TOPICO_PEDIDO
+from orion.mission.diario import DiarioObservacoes
+from orion.mission.grounding import montar_contexto
 
 VERSAO_MOTION_CORE = "0.1.0"
 NOME_MODULO = "motion_core"
@@ -127,7 +128,9 @@ async def _conectar_hardware_core(
     candidatas = PORTAS_SERIAIS_CANDIDATAS if porta == "auto" else (porta,)
 
     for candidata in candidatas:
-        if await _tentar_porta(comm, candidata, config_hardware_core["baud_rate"], event_bus, logger):
+        if await _tentar_porta(
+            comm, candidata, config_hardware_core["baud_rate"], event_bus, logger
+        ):
             return True
 
     logger.warning("Hardware Core nao encontrado em nenhuma porta: %s", ", ".join(candidatas))
@@ -330,7 +333,10 @@ async def principal() -> None:
     )
 
     # 2. Ponte serial com o Arduino (Cap 14 s.2) - tolera ausencia.
-    hardware_core_conectado = await _conectar_hardware_core(comm, conf_comm["hardware_core"], event_bus, logger)
+    # O retorno nao e mais guardado: desde 06/08 o heartbeat monitora o
+    # hardware_core conectado ou nao, entao nao ha decisao a tomar aqui. O
+    # proprio _conectar_hardware_core ja loga e publica diagnostic.error.
+    await _conectar_hardware_core(comm, conf_comm["hardware_core"], event_bus, logger)
     # Monitorado SEMPRE, conectado ou nao (mudou em 2026-08-06). Antes so
     # entrava aqui se o boot achasse a porta, e quem ligasse o robo com o
     # ESP32 fora da tomada ficava sem corpo ate reiniciar o servico - o
@@ -383,6 +389,10 @@ async def principal() -> None:
     except Exception:
         familia_conf = []
         logger.warning("secao `familia` ausente no orion.yaml")
+
+    # O aprendizado de decisoes so existe em PRODUCAO: o BehaviorCore nao
+    # cria um sozinho para nao gravar em /mnt/ssd durante os testes.
+    memoria_decisoes = MemoriaDeDecisoes()
 
     mundo = EstadoDoMundo(event_bus)
 
@@ -745,6 +755,7 @@ async def principal() -> None:
         ponte_conselho=ponte_conselho,
         montar_contexto=_contexto_para_ia,
         intervalo_consulta_ia_s=conf_conselho.get("intervalo_consulta_s", 120),
+        memoria_decisoes=memoria_decisoes,
     )
     maestro.registrar(Repouso(event_bus))
     # Discricionario: e entre este e o repouso que a IA opina (EDR-0020).

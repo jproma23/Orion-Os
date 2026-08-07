@@ -19,6 +19,7 @@ from motion_core.behavior.comportamento import (
     Comportamento,
     resolver_contexto,
 )
+from motion_core.behavior.memoria_decisoes import MemoriaDeDecisoes, assinatura
 from orion.kernel.event_bus import EventBus
 
 logger = logging.getLogger("motion_core.behavior.behavior_core")
@@ -70,6 +71,7 @@ class BehaviorCore:
         ponte_conselho=None,
         montar_contexto=None,
         intervalo_consulta_ia_s: float = INTERVALO_CONSULTA_IA_S,
+        memoria_decisoes: MemoriaDeDecisoes | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._comportamentos: list[Comportamento] = []
@@ -113,6 +115,17 @@ class BehaviorCore:
         self._tarefa_consulta: asyncio.Task | None = None
         self._ultima_consulta = 0.0
         self._intervalo_consulta_s = intervalo_consulta_ia_s
+        #: O robo pergunta UMA VEZ por situacao e guarda a resposta. Em
+        #: 07/08 ele fez 505 chamadas ao modelo para tomar 4 decisoes
+        #: identicas - com os sensores mudos a situacao nao mudava, e ele
+        #: reperguntava do mesmo jeito. Ver memoria_decisoes.py.
+        #:
+        #: NAO se cria uma sozinho aqui: `MemoriaDeDecisoes()` aponta para
+        #: /mnt/ssd/orion/ e, como default, fez um teste UNITARIO gravar no
+        #: arquivo de PRODUCAO e contaminar o teste seguinte (07/08).
+        #: Componente que grava em disco recebe o disco. Sem ela, o maestro
+        #: se comporta exatamente como antes - pergunta sempre.
+        self._decisoes_aprendidas = memoria_decisoes
 
     def registrar(self, comportamento: Comportamento, discricionario: bool = False) -> None:
         """Adiciona um comportamento e reordena do mais forte ao mais fraco.
@@ -254,9 +267,35 @@ class BehaviorCore:
         try:
             opcoes = sorted(self._discricionarios) + ["repouso"]
             contexto = await resolver_contexto(self._montar_contexto)
-            resposta = await self._ponte_conselho.pedir(contexto, opcoes)
-            if not resposta:
-                return
+
+            # JA PERGUNTEI ISTO? A assinatura sai do proprio texto que iria
+            # ao modelo: mesma entrada, mesma resposta. Se a situacao nao
+            # mudou, a chamada nao acontece - e foi exatamente isto que
+            # esgotou a cota do dia em 07/08.
+            chave = assinatura(contexto, opcoes) if self._decisoes_aprendidas else ""
+            resposta = (
+                self._decisoes_aprendidas.lembrar(chave)
+                if self._decisoes_aprendidas
+                else None
+            )
+            if resposta is not None:
+                logger.debug(
+                    "maestro: situacao ja conhecida - reaproveitando '%s' sem perguntar",
+                    resposta.get("comportamento"),
+                )
+            else:
+                resposta = await self._ponte_conselho.pedir(contexto, opcoes)
+                if not resposta:
+                    return
+                nome_aprendido = resposta.get("comportamento")
+                if nome_aprendido and self._decisoes_aprendidas:
+                    self._decisoes_aprendidas.aprender(
+                        chave, nome_aprendido, resposta.get("motivo", "")
+                    )
+                    logger.info(
+                        "maestro: aprendi esta situacao (%s)",
+                        self._decisoes_aprendidas.resumo(),
+                    )
 
             nome = resposta.get("comportamento")
             alvo = self._discricionarios.get(nome)
