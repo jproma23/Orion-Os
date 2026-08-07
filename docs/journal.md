@@ -6619,3 +6619,304 @@ ignore - se criar um, apague no mesmo minuto.
 - Tudo o que as entradas anteriores ja listavam: o heartbeat que mente, o pisca
   da lanterna no boot, o `reboot` do Notebook sem regra de sudoers, os tres de
   03/08, e o Gmail (n8n vs Python puro, remetentes, OAuth).
+
+## Sessão de 2026-08-05 (noite) — o robô parou de responder a fantasma, e as rodas pararam de brigar
+
+Quatro commits, dois de voz e dois de motor. A entrada da manhã foi escrita
+às 11:56 e esta noite não estava nela.
+
+### 1. O Whisper inventava, e os três freios não pegavam nada (`96e96d9`)
+
+Queixa do dono: o robô responde a coisa que ninguém falou. Medido no log do
+`orion-avatar` do próprio dia — e ele estava certo:
+
+    905 janelas de áudio transcritas
+    730 devolveram vazio   (o portão de 29/07 funcionando)
+    175 devolveram texto
+     27 estavam em LAÇO    ("o que é o que é..." 70 vezes numa linha só)
+      6 foram barradas
+
+Os três freios existiam. **Nenhum dos três pegava estes casos** — e o motivo
+de cada um é diferente:
+
+1. O `compression_ratio_threshold` **nunca rejeitou nada**. Era passado ao
+   `transcribe()` desde 29/07, mas dentro da lib aquele limiar só marca
+   "tenta de novo com temperatura maior". Como a config usa `temperature=0`,
+   a lista de tentativas tem um item: o `for` acaba, cai no `else` e **fica
+   com o texto repetitivo**. Um freio instalado sem estar ligado em nada.
+2. O filtro de aceitação olhava `no_speech_prob` e `avg_logprob`, e laço não
+   cai em nenhum dos dois — o modelo está *muito confiante* do lixo que
+   produziu.
+3. O detector de alucinação ancorava na primeira palavra, então só via o laço
+   que começasse ali. Escapavam três formas, todas reais no log: a que começa
+   na 4ª palavra, a que encolhe no meio, e `FFFF...` (220 letras) — uma
+   palavra só, que morria no piso de tamanho antes de ser testada.
+
+Depois: das 175 frases reais do dia, **43 barradas por repetição e 7 por
+laço**; 125 seguem para a IA.
+
+**O que isto não conserta, para ninguém se enganar:** o que sobra nas 125 não
+é invenção, é **fala de verdade mal transcrita** — *"a interdência
+artificial"*, *"Eu quero que você barra casa"*. Isso é tamanho de modelo e
+qualidade de microfone; portão nenhum conserta.
+
+### 2. E o que sobrou era o modelo pequeno demais (`b455cf7`)
+
+Fechados os portões, dava para medir o que restava. Com áudio de gabarito
+gerado pelo próprio Piper, 4 frases de resposta conhecida:
+
+    base    acertou 1 de 4    3,2 s por frase
+    small   acertou 3 de 4    9,2 s por frase
+
+    base   ERRO  Fofao, baila no quarto versao e comal esta
+    small  OK    fofao, vai la no quarto ver se o Kamal esta
+
+Preço honesto: **~6 s a mais** antes de o robô começar a pensar. O vigia da
+wake word **continua no `base` de propósito** — aquela janela roda o tempo
+todo, e a 9 s por janela não acompanharia a fala e ainda prenderia os quatro
+núcleos. O modelo grande só entra depois que o robô acordou.
+
+### 3. Os lados trocados de pino (`e3089b0`)
+
+O chicote liga o driver dos pinos 25/26 na roda **direita** e o de 27/14 na
+**esquerda** — o inverso do que as constantes diziam. O nome tem que seguir a
+RODA, não o fio: quem lê `STEP_ESQUERDO` precisa estar falando da roda
+esquerda de verdade, senão todo comando de girar sai espelhado e a odometria
+mente junto.
+
+Os valores antigos ficaram escritos no comentário do próprio bloco: se o
+chicote for refeito, é uma linha para voltar atrás.
+
+### 4. E os dois motores estavam espelhados (`1535e5e`)
+
+Relato do dono na bancada, com as rodas no ar: *"uma gira pro lado a outra
+gira pro outro lado"*, *"girando no próprio eixo"* — **ao mandar andar para
+frente**, não ao mandar girar.
+
+O `_configurarRoda` escrevia o mesmo nível de DIR nas duas rodas. Isso assume
+motores montados no mesmo sentido; na montagem real eles se olham. O
+espelhamento só existia no CHAMADOR, para girar — andar reto nunca teve esse
+tratamento.
+
+**Não era regressão do commit anterior**, e vale registrar por quê: como
+frente manda o mesmo nível para os dois lados, trocar *qual* driver se chama
+esquerdo não muda nada em andar reto. O DIR espelhado já estava ali, **sem
+nunca ter sido exercitado** — os motores só foram religados em 30/07.
+
+Conserto: duas constantes em `pins.h` e um XOR na escrita do DIR. Mora em
+`pins.h` porque espelhamento é fato de HARDWARE. A odometria continua
+contando pela INTENÇÃO (`sentidoFrente`) e não pelo nível elétrico — senão
+ela passaria a mentir do lado invertido.
+
+> **Fechado em 06/08.** O commit foi gravado marcado como *NÃO VERIFICADO NA
+> BANCADA*, com duas perguntas em aberto: parou de girar no eixo, e "frente"
+> anda para frente? O dono respondeu as duas de uma vez — **"os motores estão
+> ok"**. O lado escolhido serviu e a polaridade geral estava certa.
+
+### A armadilha da placa, três vezes no mesmo dia
+
+Depois de gravar, **esta placa só volta a rodar a aplicação com corte de
+energia**. O "Hard resetting via RTS pin" do esptool deixa a ROM respondendo
+e o firmware parado — parece placa morta e não é. Aconteceu três vezes.
+
+---
+
+## Sessão de 2026-08-06 — a IA estava calada havia 33 horas, e ninguém tinha como saber
+
+Sessão que começou como "vamos ver o Orion" e virou três coisas: um defeito
+mudo achado no log, uma varredura de pendências e um conserto pedido pelo
+dono na hora.
+
+### 1. O Mentor de comportamento ficou 33 h em 404 (`9f4400b`)
+
+Olhando o log do Notebook por outro motivo, isto aparecia **a cada 30
+segundos**:
+
+    404 - models/openai/gpt-4o-mini is not found for API version v1main
+
+Em 05/08 às 11:43 a conversa passou para o Gemini (`05b0b14`): mudaram
+`openai_model` e `openai_base_url`. O **`mentor_model` ficou três linhas
+abaixo, no mesmo bloco**, com o nome da OpenRouter — agora apontado para o
+servidor do Google. **1737 erros**, um a cada 30 s, até 06/08 às 21:04.
+
+**Por que ninguém viu**, e esta é a parte que interessa: `aconselhar()`
+engole a exceção de propósito e o robô segue pela regra. O desenho está
+certo. Só que a queda foi silenciosa no lugar que importa — o robô não
+quebrou, **ficou sem opinião**. E o erro caía no log do Notebook enquanto o
+sintoma aparecia no log do Pi. Ninguém olha os dois ao mesmo tempo.
+
+**O número que mede o estrago** são as decisões autônomas no Motion Core:
+
+    03/08   130
+    04/08    33
+    05/08     2   (a última às 08:42, antes da troca das 11:43)
+    06/08     0   até 21:05:24 — 28 s depois do conserto
+
+Trinta e três horas de autonomia zero. O robô continuou vivo, seguindo,
+falando e vendo — só não escolheu mais nada sozinho.
+
+Os candidatos foram medidos com a classe de verdade, porque o Mentor exige
+saída JSON estruturada (`json_schema` com `enum`):
+
+    gemini-flash-lite-latest   3,9 s   JSON válido, conselho aceito
+    gemini-flash-latest        1,8 s   devolveu 'Here' — DESCARTADO
+    openai/gpt-4o-mini         0,4 s   404
+
+O `flash-latest` reprova aqui pelo **mesmo motivo da conversa em 05/08**:
+pensa antes de responder e os tokens de pensamento comem os 150 de
+`max_tokens`. Dois consumidores diferentes, a mesma armadilha — agora está
+escrita na config, ao lado da chave, com a regra de que `mentor_model` tem de
+andar junto com `openai_base_url`.
+
+Os defaults do código foram junto (`ai_manager`, `mission/modulo`, os dois
+tools): nenhum é usado hoje, mas um default que 404 é a mesma armadilha
+esperando a próxima vez que a chave sumir.
+
+### 2. Varredura das pendências, uma a uma no código real
+
+Metade das pendências anotadas já tinha caído sem ninguém registrar: o Ollama
+saiu de verdade (`disabled`, `inactive`, sem diretório), o `nota_escrever` do
+vault **agora é chamado**, os rostos carregam no boot, o ESP32 mora no Pi
+(`/dev/ttyUSB0`) e o `pessoa_id` parou de gravar NULL em 04/08 — hoje 22 de
+58, e NULL agora significa "não reconheci ninguém", que é o certo.
+
+Segue aberto: **sem rotação de log** (`motion_core.log` em 14,8 MB, e o único
+`RotatingFileHandler` do disco está dentro do `pip`), **3 tools ainda em
+115200** (eram 8), **10 arquivos citando o `CLAUDE.md`** extinto, e o journal
+— que esta entrada resolve.
+
+Um item saiu da lista por medição: o `boot.py` publica `diagnostic.error`
+falso, mas só em `python -m orion`, **que não roda em nenhuma das duas
+máquinas**.
+
+### 3. Um recado que nunca teria como ser entregue
+
+No banco, o recado `#6` de hoje 20:11 está guardado para **`Marisani`**. Os
+apelidos da Marah são `Mara` e `Marisane` — **com e**. Rodando a própria
+`mesmo_nome()` contra os três cadastrados:
+
+    Marisani  -> NINGUÉM   preso para sempre
+    Marisane  -> Marah     OK
+    Mara      -> Marah     OK
+
+Uma letra. O Whisper ouviu com **i**, e `Recados.deixar()` só recusa se o nome
+vier vazio — **não confere se a pessoa existe**. O robô respondeu *"Combinado,
+eu aviso"* e guardou uma promessa que a entrega nunca vai encontrar.
+
+Não consertado nesta sessão. O caminho não é remendar a tabela de apelidos a
+cada variante que o Whisper inventar, e sim **validar na criação**: guardar
+sempre (recado não se perde), mas dizer a verdade — *"não conheço ninguém com
+esse nome, é para quem?"*. Só a criação tem alguém na frente para corrigir.
+
+### 4. Tirar o ESP32 do USB travava tudo (`63f14ec`)
+
+Relato do dono no meio da sessão: *"quando tira o esp do usb trava tudo"*.
+
+A cadeia, com linha: sem cabo, `serial.read()` levanta `SerialException`
+(`transport.py:282`); como ela é subclasse de `OSError`, o `_loop_recepcao`
+captura, loga "Link caiu" e encerra a recepção (`service.py:274`) — **e até
+aqui está certo**, não derruba o processo. Mas `_conectar_hardware_core` era
+chamada uma vez só, no boot (`__main__.py:254`). Não havia supervisor.
+
+Resultado: link registrado e morto. Cabeça parada, telemetria parada, e o
+corpo só voltava reiniciando o serviço.
+
+**O que já existia, e este é o ponto:** a máquina de reconexão estava pronta
+e **já era chamada**. `MonitorHeartbeat.monitorar()` sempre aceitou
+`reconectar=`, e `_marcar_perdido` sempre chamou `_tentar_reconectar`.
+Faltava alguém passar o callback. É o **quinto caso de código órfão do
+projeto**, depois do GOAP, do `desligamento.py`, do `nota_escrever` e do
+`impulsos.py`. Não se escreveu máquina nova: ligou-se a que estava lá.
+
+Três decisões que ficaram no código:
+
+- **o callback insiste sozinho** (2 s dobrando até 30 s), porque
+  `_marcar_perdido` é idempotente: dispara uma vez por perda e só rearma
+  quando o heartbeat volta. Tentativa única trocaria um jeito de não
+  reconectar por outro;
+- **a espera cresce** porque abrir a porta ativa o DTR e **reseta o ESP32** —
+  insistir rápido demais deixaria a placa em reset perpétuo justamente quando
+  o cabo voltasse;
+- **`hardware_core` passa a ser monitorado sempre**, conectado ou não: antes,
+  ligar o robô com o ESP32 fora dava o mesmo sintoma por outra porta.
+
+Sobre os quatro testes novos, uma coisa que quase passou batido: os dois
+primeiros **nem coletam** sem o conserto (`ImportError`), o que não prova
+nada sobre a fiação — que era onde estava o bug. Por isso o terceiro lê
+`inspect.getsource(principal)`. Removendo só o `reconectar=` e deixando a
+função no lugar, **ele falha sozinho e os outros três passam** — verificado
+assim, com o arquivo restaurado byte a byte depois. Quando `principal()` for
+quebrada em pedaços testáveis, esse teste é o primeiro a ser jogado fora: ele
+guarda uma linha, não um comportamento.
+
+Medido: 692 passam e 15 pulam no Pi; 843 no Notebook.
+
+**O que isto não resolve:** depois de reconectar, o ESP32 voltou RESETADO. A
+posição de pan/tilt que o Pi julga ter é a de antes da queda, e ninguém
+ressincroniza. O corpo volta; a crença sobre ele, não.
+
+### 5. Decidido: a Mission Memory, e o que ela não vai ser
+
+O dono propôs uma memória do projeto sobre si mesmo — *"já vimos esse erro
+antes?"*, *"qual commit resolveu isso?"*, *"qual módulo costuma causar esse
+tipo de problema?"*. Um engenheiro virtual do próprio projeto.
+
+Medido antes de decidir:
+
+    journal   6.621 linhas, 92 sessões, 372 KB
+    commits   309, com 5.527 linhas de corpo explicativo
+    EDRs      11
+    Notebook  3 GB disponíveis, 4 núcleos
+
+**Todo o corpus curado dá menos de 1 MB** — da ordem de 200 mil tokens. O
+projeto inteiro cabe numa janela de contexto do modelo que já se paga.
+
+Chegou junto uma proposta de três camadas (banco vetorial + rede neural +
+treino contínuo) — a **terceira** arquitetura desse tipo trazida de outra IA.
+Duas camadas foram recusadas com motivo:
+
+- **banco vetorial** (Qdrant/Milvus/FAISS) existe para milhões de documentos;
+  aqui são 92. Somaria servidor e modelo de embedding na RAM para indexar o
+  que o FTS5 varre de graça;
+- **rede neural** treinada em ~400 exemplos aprende o *estilo* do journal,
+  não os fatos dele — e fatos é o que se quer. Pior: responderia com
+  confiança sobre bug que nunca viu, que é a família de defeito que este
+  projeto mais persegue. Recuperação erra dizendo "não achei"; rede pequena
+  erra inventando.
+
+O **modelo local** (Qwen/Gemma/Llama) foi cancelado pelo dono na hora — *"o
+pc não aguenta"* —, o que evita a terceira repetição da mesma lição: o Ollama
+saiu em 05/08 porque, acionado de verdade, o robô **não respondeu**.
+
+Fica decidido: **FTS5 sobre journal + corpos de commit + EDRs** no `orion.db`
+que já existe, mais uma tabela de ligações `bug ↔ commit ↔ arquivo ↔ EDR`
+extraída dos hashes que **o journal já cita**. Quem raciocina em cima é o
+Gemini que já responde a conversa — nas palavras do dono, *"usar a própria IA
+Gemini para completar o círculo"*.
+
+A camada 3 da proposta (todo bug resolvido alimenta a memória) é a melhor das
+três **e já acontece**: journal e commit são escritos a cada correção. Falta
+ligar, que é indexar, não treinar.
+
+### Um erro meu nesta sessão
+
+Consultando o banco, rodei um `sqlite3.connect` apontando para
+`data/orion.db` — caminho errado, o banco de produção está em
+`/mnt/ssd/orion/orion.db`. O `connect` **cria o arquivo**, então apareceu um
+`orion.db` vazio dentro do repositório. Removido, com verificação de que
+tinha 0 byte antes de apagar, e `git status` limpo depois. Vale o registro
+porque é o mesmo tipo de coisa que o projeto persegue: uma operação que não
+falha e deixa rastro.
+
+### Pendências, na ordem em que mordem
+
+1. **Ressincronizar o pan/tilt depois da reconexão** — o corpo volta
+   resetado e o Pi continua achando que a cabeça está onde estava.
+2. **Validar o destinatário do recado na criação** — o `#6` para "Marisani"
+   segue preso, e vai seguir.
+3. **Rotação de log** — 14,8 MB e crescendo; o dono quer 30 dias contínuos.
+4. **A Mission Memory**, agora que o journal está em dia.
+5. Os três tools em 115200, os 10 arquivos citando `CLAUDE.md`, e tudo o que
+   as entradas anteriores já listavam: o heartbeat que mente, o pisca da
+   lanterna no boot, o `reboot` do Notebook sem sudoers, o encoder de roda e
+   o Gmail.
