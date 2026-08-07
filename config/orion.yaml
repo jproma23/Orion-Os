@@ -654,7 +654,38 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
   # no tick de 200ms do maestro) e escolhe entre um vocabulario FECHADO -
   # a IA nunca aciona hardware direto (Cap 18).
   ia_estrategica:
-    habilitado: true
+    # DESLIGADA MOMENTANEAMENTE em 2026-08-07, por decisao do dono.
+    #
+    # POR QUE, com numero: naquele dia ela fez 505 chamadas ao modelo, tomou
+    # 4 decisoes - todas `observar_ambiente` - e o robo nao saiu do lugar
+    # nenhuma vez. Ela nao estava decidindo mal: nao havia o que decidir. Os
+    # dois ultrassons devolvem -1 (sem eco), nao ha bussola e nao ha
+    # encoder, entao o contexto que chega nela diz "NAO SEI a distancia" e a
+    # unica saida sensata e "olhar" - que nao resolve, porque o sensor esta
+    # mudo. Ela pergunta, ouve "olhe", olha, continua sem saber, e pergunta
+    # de novo.
+    #
+    # O QUE ISSO CUSTAVA: a cota do tier gratuito do Gemini e de 500
+    # requisicoes por DIA, e ela sozinha consumia 120 por HORA. A conta do
+    # dia inteiro acabava as 10h da manha - e quem ficava sem era a
+    # CONVERSA. O dono ouvia "nao consigo pensar" ao falar com o robo,
+    # porque a funcao menos importante tinha gastado a cota da mais
+    # importante.
+    #
+    # O QUE A TRAZ DE VOLTA (nao ligar antes, senao repete tudo):
+    #   1. medida de distancia confiavel - o LiDAR STL-50B2 esperando o
+    #      conversor, ou os ultrassons voltando a ecoar;
+    #   2. e, de preferencia, billing no projeto do Google Cloud, que tira o
+    #      teto de 500/dia.
+    #
+    # Ao religar, conferir tambem o `intervalo_s` abaixo: ele so faz sentido
+    # em relacao ao orcamento do provedor da epoca.
+    #
+    # O QUE NAO SE PERDE COM ELA DESLIGADA: o maestro continua inteiro - o
+    # Repouso, a Vigilancia de obstaculo, o Atender, a Ronda e o
+    # AcompanharPessoa nao passam por modelo nenhum. O que para e so a
+    # escolha discricionaria "o que eu faco agora, por conta propria".
+    habilitado: false
     prioridade: 40
     # A CADENCIA TEM DE CABER NO ORCAMENTO DO PROVEDOR, e este numero mudou
     # de significado quando o provedor mudou.
