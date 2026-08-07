@@ -17,6 +17,7 @@ import base64
 import logging
 from typing import Any
 
+from motion_core.memory import projeto
 from motion_core.memory.api import ErroCategoriaInvalida, ErroColunaInvalida, MemoryAPI
 from motion_core.memory.vault import VaultConhecimento
 from orion.communication.protocol import Mensagem
@@ -126,6 +127,22 @@ class PonteMemoria:
             return self._vault.escrever_nota(
                 payload["titulo"], payload["conteudo"], payload.get("links")
             )
+        if operacao == "projeto_buscar":
+            # A memoria do PROJETO sobre si mesmo (journal, commits, EDRs,
+            # codigo) - diferente do vault, que e o que o robo aprendeu
+            # sobre a CASA. Tolera indice ausente do mesmo jeito que o
+            # vault tolera SSD ausente (Cap 6 s.8): some a capacidade, nao
+            # o robo.
+            try:
+                achados = projeto.buscar(
+                    projeto.CAMINHO_PADRAO,
+                    payload["consulta"],
+                    limite=payload.get("limite", 5),
+                    tipo=payload.get("tipo"),
+                )
+            except FileNotFoundError as erro:
+                raise KeyError(str(erro)) from erro
+            return [a.como_dict() for a in achados]
         if operacao == "nota_buscar":
             if self._vault is None:
                 raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")

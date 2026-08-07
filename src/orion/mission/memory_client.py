@@ -80,5 +80,18 @@ class MemoryClient:
     async def nota_escrever(self, titulo: str, conteudo: str, links: list[str] | None = None) -> str:
         return await self._chamar("nota_escrever", titulo=titulo, conteudo=conteudo, links=links)
 
+    async def projeto_buscar(
+        self, consulta: str, limite: int = 5, tipo: str | None = None
+    ) -> list[dict]:
+        """A memoria do PROJETO sobre si mesmo - journal, commits, EDRs e o
+        proprio codigo, com a referencia (hash ou arquivo:linha) junto.
+
+        A referencia e o que faz isto valer: sem ela o modelo repete o
+        trecho com a mesma cara de certeza que teria inventando.
+        """
+        return await self._chamar(
+            "projeto_buscar", consulta=consulta, limite=limite, tipo=tipo
+        )
+
     async def nota_buscar(self, consulta: str, limite: int = 5) -> list[dict]:
         return await self._chamar("nota_buscar", consulta=consulta, limite=limite)

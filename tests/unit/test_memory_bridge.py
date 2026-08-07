@@ -2,8 +2,8 @@
 import asyncio
 
 import pytest
-
 from conftest import FakeTransporte
+
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
@@ -281,6 +281,7 @@ def test_recall_embrulha_e_cliente_desembrulha_o_embedding():
     base64 (não cabe no JSON como bytes) e o MemoryClient desembrulha -
     round-trip para o reconhecimento facial ler bytes de volta."""
     import base64
+
     from motion_core.memory.bridge import _codificar_binarios
     from orion.mission.memory_client import _decodificar_binarios
 
@@ -293,3 +294,119 @@ def test_recall_embrulha_e_cliente_desembrulha_o_embedding():
     recebido = _decodificar_binarios(transportado)  # lado do Notebook (client)
     assert recebido[0]["embedding_face"] == emb
     assert recebido[0]["nome"] == "Ana"
+
+
+# ------------------------------------------- memoria do PROJETO sobre si
+
+
+def _indice_de_mentira(tmp_path):
+    """Um indice minusculo, montado pelo construtor de verdade."""
+    from tools.mission_memory import construir
+
+    raiz = tmp_path / "repo"
+    (raiz / "docs").mkdir(parents=True)
+    (raiz / "docs/journal.md").write_text(
+        "## Sessao de 2026-08-06 - a reconexao da serial\n"
+        "\n"
+        "Tirar o ESP32 do USB travava tudo ate reiniciar o servico.\n",
+        encoding="utf-8",
+    )
+    db = tmp_path / "mm.db"
+    construir(db, raiz)
+    return db
+
+
+@pytest.mark.asyncio
+async def test_memory_projeto_buscar_via_comm_request(tmp_path, par_conectado, monkeypatch):
+    """O robo consulta a propria historia e recebe a REFERENCIA junto.
+
+    Sem a referencia o modelo repete o trecho com a mesma cara de certeza
+    que teria inventando - e o que separa consulta de alucinacao.
+    """
+    from motion_core.memory import projeto
+
+    monkeypatch.setattr(projeto, "CAMINHO_PADRAO", _indice_de_mentira(tmp_path))
+
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    api = MemoryAPI(db, bus_motion)
+    ponte = PonteMemoria(api, servico_motion)
+    ponte.registrar(bus_motion)
+
+    resposta = await servico_mission.request(
+        "motion_core",
+        {"comando": "memory.projeto_buscar", "consulta": "reconexao serial ESP32"},
+        timeout_s=5,
+    )
+
+    assert resposta.payload["ok"] is True
+    achados = resposta.payload["resultado"]
+    assert achados, "a busca no proprio projeto voltou vazia"
+    assert achados[0]["ref"], "achado sem referencia - nao da para conferir"
+    assert "trecho" in achados[0]
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion
+
+
+@pytest.mark.asyncio
+async def test_memory_projeto_buscar_sem_indice_responde_ok_falso(
+    tmp_path, par_conectado, monkeypatch
+):
+    """Indice ausente some com a CAPACIDADE, nao com o robo (Cap 6 s.8).
+
+    Mesmo contrato do vault sem SSD: responde ok=False em vez de derrubar
+    a ponte inteira.
+    """
+    from motion_core.memory import projeto
+
+    monkeypatch.setattr(projeto, "CAMINHO_PADRAO", tmp_path / "nao_existe.db")
+
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    api = MemoryAPI(db, bus_motion)
+    ponte = PonteMemoria(api, servico_motion)
+    ponte.registrar(bus_motion)
+
+    resposta = await servico_mission.request(
+        "motion_core",
+        {"comando": "memory.projeto_buscar", "consulta": "qualquer coisa"},
+        timeout_s=5,
+    )
+
+    assert resposta.payload["ok"] is False
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion

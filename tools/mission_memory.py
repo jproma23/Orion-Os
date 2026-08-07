@@ -39,18 +39,23 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Expoe motion_core/ quando este arquivo roda como SCRIPT: ai o sys.path
+# tem tools/, nao a raiz. Mesmo padrao de tools/conversar_fofao.py. Sob
+# pytest isso ja vem do `pythonpath` do pyproject, e a linha e inofensiva.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from motion_core.memory import projeto  # noqa: E402
+from motion_core.memory.projeto import buscar, estado  # noqa: E402
+
 #: Fica no SSD junto do resto, mas em arquivo proprio - ver o cabecalho.
-CAMINHO_PADRAO = Path("/mnt/ssd/orion/mission_memory.db")
+#: A LEITURA mora em motion_core/memory/projeto.py - o robo consulta
+#: este indice em operacao, e runtime nao pode depender de tools/.
+#: Aqui fica so a CONSTRUCAO, que e de bancada.
+CAMINHO_PADRAO = projeto.CAMINHO_PADRAO
 
-#: `remove_diacritics 2` e o que faz "reconexao" achar "reconexão" e
-#: vice-versa. Sem isso, metade das buscas falharia por causa de um til -
-#: e quem pergunta esta com pressa, nao vai tentar duas grafias.
-TOKENIZADOR = "unicode61 remove_diacritics 2"
+TOKENIZADOR = projeto.TOKENIZADOR
 
-#: Peso por coluna no bm25. O titulo vale mais que o corpo: quem procura
-#: "recado" quer a sessao QUE TRATA de recado, nao as dez que citam a
-#: palavra de passagem. As tres primeiras sao UNINDEXED e entram com 0.
-PESOS_BM25 = (0.0, 0.0, 0.0, 10.0, 1.0)
+PESOS_BM25 = projeto.PESOS_BM25
 
 _CABECALHO_SESSAO = re.compile(r"^## +(.*)$")
 _DATA_NO_TEXTO = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -323,72 +328,6 @@ def construir(caminho_db: Path, raiz: Path) -> dict[str, int]:
     for d in docs:
         contagem[d.tipo] = contagem.get(d.tipo, 0) + 1
     return contagem
-
-
-@dataclass
-class Achado:
-    tipo: str
-    ref: str
-    data: str
-    titulo: str
-    trecho: str
-
-
-def _consulta_fts(pergunta: str) -> str:
-    """Transforma a pergunta em consulta FTS5 sem explodir na sintaxe.
-
-    O usuario digita "reconexao serial", nao `"reconexao" AND "serial"`.
-    Pior: aspas, hifen e parenteses soltos sao OPERADORES no FTS5 e
-    derrubam a consulta com erro cru. Cada palavra vira um termo entre
-    aspas (literal) e o conjunto e AND implicito.
-    """
-    palavras = re.findall(r"\w+", pergunta, flags=re.UNICODE)
-    if not palavras:
-        raise ValueError("pergunta sem nenhuma palavra buscavel")
-    return " ".join(f'"{p}"' for p in palavras)
-
-
-def buscar(
-    caminho_db: Path, pergunta: str, limite: int = 5, tipo: str | None = None
-) -> list[Achado]:
-    if not caminho_db.exists():
-        raise FileNotFoundError(
-            f"indice nao existe em {caminho_db} - rode `mission_memory.py construir`"
-        )
-    con = _abrir(caminho_db)
-    try:
-        pesos = ", ".join(str(p) for p in PESOS_BM25)
-        filtro_tipo = " AND tipo = ?" if tipo else ""
-        parametros: list = [_consulta_fts(pergunta)]
-        if tipo:
-            parametros.append(tipo)
-        parametros.append(limite)
-        linhas = con.execute(
-            f"""
-            SELECT tipo, ref, data, titulo,
-                   snippet(documentos, 4, '>>', '<<', ' ... ', 24)
-            FROM documentos
-            WHERE documentos MATCH ?{filtro_tipo}
-            ORDER BY bm25(documentos, {pesos})
-            LIMIT ?
-            """,
-            parametros,
-        ).fetchall()
-    finally:
-        con.close()
-    return [Achado(*linha) for linha in linhas]
-
-
-def estado(caminho_db: Path) -> list[tuple[str, int]]:
-    if not caminho_db.exists():
-        return []
-    con = _abrir(caminho_db)
-    try:
-        return con.execute(
-            "SELECT tipo, count(*) FROM documentos GROUP BY tipo ORDER BY tipo"
-        ).fetchall()
-    finally:
-        con.close()
 
 
 def _raiz_do_repo() -> Path:
