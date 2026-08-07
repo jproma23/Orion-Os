@@ -104,6 +104,27 @@ class Professor:
             return None
         return self._banco.carregar(achados[0].id)
 
+    def oferecer_o_que_tem(self) -> str:
+        """O que dizer quando pedem uma aula que ele nao tem.
+
+        Ele sabe QUE nao tem e sabe o que tem - as duas coisas saem do banco,
+        sem modelo. Dizer so "nao tenho" seria jogar fora metade do que ele
+        sabe da propria estante.
+        """
+        try:
+            aulas = self._banco.listar()
+        except Exception:
+            logger.exception("falha ao listar as aulas do banco")
+            aulas = []
+        if not aulas:
+            return "Ainda nao tenho nenhuma aula guardada."
+        materias = sorted({aula.materia for aula in aulas})
+        if len(materias) == 1:
+            lista = materias[0]
+        else:
+            lista = ", ".join(materias[:-1]) + f" e {materias[-1]}"
+        return f"Dessa eu ainda nao tenho aula. Por enquanto eu sei dar de {lista}."
+
     async def dar_aula(self, aula: Aula) -> None:
         """Comeca a aula em segundo plano e volta na hora.
 

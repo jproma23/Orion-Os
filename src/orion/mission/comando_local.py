@@ -118,6 +118,16 @@ GATILHOS_COM_ASSUNTO: dict[str, tuple[str, ...]] = {
         "procura sobre", "procurar sobre", "busca na internet sobre",
         "pesquisa na internet sobre", "me fala sobre", "o que e",
         "o que sao", "quem e", "quem foi",
+        # As formas de PERGUNTA que sobraram sem resposta em uso real
+        # (07/08): "voce me explica porque o ceu e azul" caiu em "nao
+        # consigo pensar" com a Wikipedia alcancavel ali do lado. Pode nao
+        # achar - e ai ele diz que procurou e nao achou, que ja e uma
+        # resposta melhor que a anterior.
+        # "por que" ja cobre "por quê": o texto e normalizado sem acento
+        # antes de casar, e escrever as duas formas aqui derrubaria a
+        # conferencia de gatilho repetido, no import.
+        "por que", "porque", "me explica", "me explique",
+        "como funciona", "o que significa", "que que e",
     ),
 }
 

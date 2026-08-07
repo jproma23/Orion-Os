@@ -21,6 +21,11 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
+from orion.ensino.autoconhecimento import (  # noqa: E402
+    Autoconhecimento,
+    FatoInvalido,
+)
+from orion.ensino.autoconhecimento import carregar_arquivo as carregar_fatos  # noqa: E402
 from orion.ensino.banco_aulas import (  # noqa: E402
     AulaInvalida,
     BancoAulas,
@@ -30,6 +35,7 @@ from orion.ensino.banco_aulas import (  # noqa: E402
 )
 
 PASTA_CONTEUDO = RAIZ / "content" / "aulas"
+ARQUIVO_SOBRE_MIM = RAIZ / "content" / "sobre_mim.yaml"
 
 
 def _banco(argumentos) -> BancoAulas:
@@ -54,6 +60,19 @@ def comando_construir(argumentos) -> int:
     print(f"{quantas} aulas, {passos} passos indexados")
     for aula in aulas:
         print(f"  {aula.nivel:14} {aula.materia:12} {aula.titulo}")
+
+    # O que ele sabe SOBRE SI MESMO vai para o mesmo arquivo: e a mesma
+    # ideia (conteudo em texto, indice reconstruivel) e um comando so para
+    # nao existir um banco atualizado e outro esquecido.
+    if ARQUIVO_SOBRE_MIM.exists():
+        try:
+            fatos = carregar_fatos(ARQUIVO_SOBRE_MIM)
+        except FatoInvalido as erro:
+            print(f"SOBRE MIM INVALIDO: {erro}", file=sys.stderr)
+            return 1
+        auto = Autoconhecimento(banco._caminho)
+        print(f"{auto.construir(fatos)} fatos sobre ele mesmo")
+        auto.fechar()
     return 0
 
 

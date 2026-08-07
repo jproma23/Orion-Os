@@ -47,6 +47,7 @@ from orion.communication.service import ComunicacaoService  # noqa: E402
 from orion.communication.transport import TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
 from orion.display.quadro import Quadro  # noqa: E402
+from orion.ensino.autoconhecimento import Autoconhecimento  # noqa: E402
 from orion.ensino.banco_aulas import BancoAulas, caminho_padrao  # noqa: E402
 from orion.ensino.professor import Professor  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
@@ -576,6 +577,9 @@ async def principal() -> None:
     planner = MissionPlanner(
         ia,
         professor=professor,
+        # O que ele sabe do proprio corpo, do mesmo saber.db. Vem ANTES da
+        # IA na cascata: sobre o proprio hardware o modelo inventa.
+        autoconhecimento=Autoconhecimento(caminho_padrao(_RAIZ_PROJETO)),
         consultar_internet=consulta_internet.consultar,
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),

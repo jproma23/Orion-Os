@@ -200,7 +200,11 @@ class MissionPlanner:
         guardar_conhecimento: CallbackConhecimento | None = None,
         consultar_internet=None,
         professor=None,
+        autoconhecimento=None,
     ) -> None:
+        #: O que ele sabe sobre o proprio corpo (2026-08-07). None = ele nao
+        #: responde sobre si e a pergunta vai para a IA - que vai inventar.
+        self._autoconhecimento = autoconhecimento
         #: Quem da aula a partir do banco local (2026-08-07). None = o robo
         #: nao da aula e o pedido segue para a conversa normal. Mesmo
         #: contrato dos outros callbacks: sem caminho, ele nao finge.
@@ -255,6 +259,8 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
+        elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
+            resposta = sobre_mim
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -298,6 +304,8 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
+        elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
+            resposta = sobre_mim
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -401,6 +409,25 @@ class MissionPlanner:
 
         return contexto or None
 
+    def _responder_sobre_mim(self, texto: str) -> str | None:
+        """O que ele sabe do proprio corpo - antes da IA, e nao depois.
+
+        Diferente do comando local, este caminho NAO e um substituto para
+        quando falta cota: e a resposta certa mesmo com a IA no ar. O modelo
+        nao conhece este hardware e, perguntado sobre o proprio corpo, ele
+        inventa - ja chegou a este projeto um catalogo que dava ao robo uma
+        acao de "pegar" e "trazer", e o robo NAO TEM BRACOS.
+        """
+        if self._autoconhecimento is None:
+            return None
+        try:
+            return self._autoconhecimento.responder(texto)
+        except Exception:
+            # Banco ausente ou corrompido nao pode emudecer a conversa: ele
+            # so perde essa resposta e segue para a IA.
+            logger.exception("falha ao consultar o autoconhecimento")
+            return None
+
     async def _obedecer_sem_ia(self, texto: str) -> str | None:
         """Executa a acao pedida quando a IA NAO RESPONDEU. None = nao deu.
 
@@ -448,8 +475,15 @@ class MissionPlanner:
         nivel = _normalizar_nivel(texto)
         aula = self._professor.procurar(texto, nivel=nivel)
         if aula is None:
+            # NAO devolve None aqui: era pedido de aula, e mandar para a IA
+            # faria o robo dizer "nao consigo pensar" a um pedido que ele
+            # sabe responder - ele sabe QUE NAO TEM, e sabe o que tem.
+            #
+            # Nasceu de um caso real (07/08): "me da uma aula de ciencia"
+            # devolvia a aula de equacao do segundo grau. Dizer que nao tem,
+            # e oferecer o que tem, e melhor que as duas coisas.
             logger.info("pedido de aula sem aula no banco: %r", texto)
-            return None
+            return self._professor.oferecer_o_que_tem()
         await self._professor.dar_aula(aula)
         # A frase de abertura vem daqui e nao do banco: ela precisa dizer o
         # nivel que ele escolheu, porque pode nao ser o que a pessoa pediu -

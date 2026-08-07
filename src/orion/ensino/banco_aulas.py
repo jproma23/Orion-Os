@@ -50,6 +50,7 @@ logger = logging.getLogger("orion.ensino.banco_aulas")
 #: dai o robo teria niveis que a busca nao conhece.
 NIVEIS = ("basico", "intermediario", "avancado")
 
+
 #: Nomes que a pessoa fala, mapeados para o nivel. A fala e "aula avancada",
 #: nao "nivel avancado".
 _APELIDOS_NIVEL = {
@@ -357,4 +358,20 @@ def _termos_fts(pedido: str) -> str:
         p for p in "".join(c if c.isalnum() else " " for c in limpo).split()
         if len(p) > 2 and p not in _VAZIAS and p not in _APELIDOS_NIVEL
     ]
-    return " OR ".join(f"{p}*" for p in palavras)
+    if not palavras:
+        return ""
+    alternativas = " OR ".join(f"{p}*" for p in palavras)
+    # SO nas colunas curadas - titulo, materia e resumo. O `corpo` (todas as
+    # falas da aula) fica indexado, mas fora da busca.
+    #
+    # Por que: em uso real, "podia me dar uma aula de ciencia, por exemplo"
+    # devolveu a aula de EQUACAO DO SEGUNDO GRAU. O que casou foi a palavra
+    # "exemplo", que aparece no meio da explicacao de Bhaskara. Buscar no
+    # corpo faz qualquer palavra solta de uma frase encostar em qualquer
+    # aula - e num acervo pequeno, o menos ruim vira resposta.
+    #
+    # Teto de bm25 NAO resolveria: medido, "aula de ingles" pontua -0.0
+    # porque "ingles" esta em metade do acervo, enquanto o encontrao com
+    # "exemplo" pontuava melhor. Nota nao separa o certo do errado aqui;
+    # ONDE casou, sim.
+    return f"{{titulo materia resumo}} : ({alternativas})"

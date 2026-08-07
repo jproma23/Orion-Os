@@ -1,0 +1,171 @@
+# O QUE O ROBO SABE SOBRE SI MESMO.
+#
+# Isto e respondido SEM IA. E de proposito, e nao economia: o modelo nao
+# conhece este hardware e, perguntado, INVENTA - ja disse ter bracos que nao
+# tem. Sobre o proprio corpo, a fonte tem que ser esta, e nao um palpite.
+#
+# `perguntas` sao as formas de perguntar que voce espera ouvir; elas entram
+# no indice junto com a resposta, entao nao precisam ser exatas.
+#
+# REGRA AO EDITAR: escreva so o que e verdade HOJE, no hardware de hoje. Um
+# arquivo destes que envelhece vira um robo que mente sobre si com confianca,
+# que e pior que um robo que diz nao saber.
+fatos:
+  - id: rodas
+    titulo: Como eu ando
+    perguntas:
+      - como voce anda
+      - como voce se move
+      - quantas rodas voce tem
+      - como voce move as rodas
+      - seus motores
+    resposta: >
+      Eu tenho duas rodas motorizadas, uma de cada lado, tocadas por dois
+      motores de corrente continua, e uma roda boba na frente que so
+      acompanha. Quem manda nos motores e o ESP32, que e o meu
+      corpo: ele recebe os comandos de andar para frente, virar a esquerda
+      e virar a direita. A energia dos motores passa por um rele, entao ela
+      pode ser cortada sem me desligar. Para virar, um lado gira mais que o
+      outro - eu giro no proprio eixo.
+
+  - id: cabeca
+    titulo: Como eu mexo a cabeca
+    perguntas:
+      - como voce mexe a cabeca
+      - como voce vira a cabeca
+      - seu pescoco
+      - como voce olha para os lados
+      - quantos servos
+    resposta: >
+      Minha cabeca tem dois servos: um gira para os lados, que se chama pan,
+      e outro sobe e desce, que se chama tilt. Para os lados eu vou de menos
+      oitenta a mais oitenta graus, e para cima e para baixo de menos trinta
+      a mais quarenta e cinco. Quando ninguem manda, eu paro em sessenta
+      graus e nao nos oitenta: encostar no fim do curso faz o servo forcar e
+      puxar corrente demais.
+
+  - id: corpo
+    titulo: Meu corpo, o ESP32
+    perguntas:
+      - qual seu corpo
+      - o que controla seu hardware
+      - voce tem arduino
+      - qual sua placa
+    resposta: >
+      Meu corpo e um ESP32, ligado por cabo ao Raspberry Pi. Ele e quem
+      liga os motores, os servos, a luz e o ventilador, e quem le os
+      sensores. Antes disso o meu corpo era um Arduino Mega, mas ele
+      queimou em agosto de dois mil e vinte e seis e foi trocado.
+
+  - id: cerebro
+    titulo: Minhas tres cabecas
+    perguntas:
+      - quantos computadores voce tem
+      - onde fica seu cerebro
+      - como voce e feito por dentro
+      - quais maquinas voce usa
+    resposta: >
+      Eu sou tres maquinas trabalhando juntas. O notebook e onde eu penso,
+      vejo e converso: e ele que roda a inteligencia, o reconhecimento de
+      objetos e o de rostos. O Raspberry Pi cuida do movimento e da minha
+      memoria em disco. E o ESP32 e o corpo, que mexe de fato nas coisas.
+      Eles conversam entre si pela rede e por cabo.
+
+  - id: olhos
+    titulo: Meus olhos
+    perguntas:
+      - como voce enxerga
+      - voce tem camera
+      - como voce me reconhece
+      - como voce sabe quem eu sou
+    resposta: >
+      Eu enxergo por uma camera na cabeca. O que ela ve passa por um
+      detector que reconhece objetos e pessoas, e por um reconhecedor de
+      rostos que sabe de quem e o rosto que esta na minha frente. A camera
+      acompanha a pessoa: se voce anda, minha cabeca vira junto.
+
+  - id: ouvidos
+    titulo: Meus ouvidos
+    perguntas:
+      - como voce me escuta
+      - voce tem microfone
+      - quantos microfones
+    resposta: >
+      Eu escuto por dois microfones digitais ligados a um ESP32 que fica
+      separado do meu corpo, e que manda o som pela rede. Sao dois porque
+      com dois da para ter ideia de que lado veio o som. Eu so respondo
+      depois de ouvir o meu nome.
+
+  - id: voz
+    titulo: Minha voz
+    perguntas:
+      - como voce fala
+      - de onde vem sua voz
+      - qual sua voz
+    resposta: >
+      Minha voz e gerada aqui mesmo no notebook, por um sintetizador que
+      roda sem internet. Eu comeco a falar a primeira frase enquanto ainda
+      estou montando a proxima, para nao deixar quem perguntou esperando.
+
+  - id: luz_ventilador
+    titulo: A luz e o ventilador
+    perguntas:
+      - voce tem lanterna
+      - voce tem luz
+      - voce tem ventilador
+      - o que voce consegue ligar
+    resposta: >
+      Eu tenho uma luz, que da para acender e apagar, e um ventilador, que
+      tambem liga e desliga. Os dois sao acionados pelo meu corpo, o ESP32.
+      E so pedir.
+
+  - id: sensores
+    titulo: O que eu sinto
+    perguntas:
+      - quais sensores voce tem
+      - como voce sabe que tem algo na frente
+      - voce sente obstaculo
+    resposta: >
+      Eu tenho sensores de distancia por ultrassom, que medem o que esta na
+      minha frente e me avisam quando chego perto demais de alguma coisa.
+      Eu tambem consigo varrer a frente, que e girar a cabeca medindo, para
+      saber onde tem espaco livre.
+
+  - id: bracos
+    titulo: O que eu NAO tenho
+    perguntas:
+      - voce tem bracos
+      - voce pega as coisas
+      - voce consegue pegar
+      - voce tem mao
+    resposta: >
+      Eu nao tenho bracos nem maos, entao eu nao consigo pegar, levar nem
+      segurar nada. Eu ando, olho, escuto, falo, acendo a luz, ligo o
+      ventilador e escrevo no meu quadro.
+
+  - id: memoria
+    titulo: Minha memoria
+    perguntas:
+      - como voce lembra das coisas
+      - voce tem memoria
+      - onde voce guarda o que eu falo
+      - voce esquece
+    resposta: >
+      Eu guardo as nossas conversas, quem eu vi durante o dia e os recados
+      que me pedem, num banco de dados no disco do Raspberry. Alem disso eu
+      tenho um banco com as aulas que eu sei dar. O que eu aprendo sobre
+      voces fica guardado e volta nas conversas seguintes.
+
+  - id: tela
+    titulo: Minha tela
+    perguntas:
+      - para que serve sua tela
+      - o que aparece na sua tela
+      - voce tem quadro
+      - por que sua tela apaga
+    resposta: >
+      Minha tela mostra o meu rosto, e ela tambem e o meu quadro: quando eu
+      dou aula, eu escrevo nela e aponto com o dedo o que estou explicando.
+      Ela fica apagada a maior parte do tempo para economizar energia, e
+      acende sozinha quando eu tenho algo para mostrar. Depois de tres
+      minutos sem nada, ela descansa de novo.
