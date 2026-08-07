@@ -656,7 +656,32 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
   ia_estrategica:
     habilitado: true
     prioridade: 40
-    intervalo_s: 30
+    # A CADENCIA TEM DE CABER NO ORCAMENTO DO PROVEDOR, e este numero mudou
+    # de significado quando o provedor mudou.
+    #
+    # Era 30 s quando a IA vinha da OpenRouter, que cobra por TOKEN e nao
+    # tem teto diario de requisicoes. Em 05/08 a conversa passou para o
+    # Gemini e o `intervalo_s` ficou para tras - mesmo defeito do
+    # `mentor_model`, que tambem nao acompanhou o `openai_base_url`.
+    #
+    # MEDIDO EM 07/08, com o robo mudo e o dono relatando "nao consigo
+    # pensar": 30 s = 120 chamadas por HORA, e o tier gratuito do Gemini da
+    # 500 por DIA (`generate_content_free_tier_requests`). A cota do dia
+    # inteiro durava 3h30 - comecou 06:30 e acabou as 10:00, com 505
+    # respostas 200 e 151 recusas 429 depois disso.
+    #
+    # Pior: quem paga a conta e a CONVERSA. O estrategico gastava tudo e o
+    # robo respondia "nao consigo pensar" para quem falava com ele - a
+    # funcao mais importante morrendo pela menos importante.
+    #
+    # 600 s = 144 chamadas por dia, deixando ~350 do teto para conversa,
+    # saudacao e extracao de fatos. O robo pensa sozinho mais devagar, e
+    # continua conversando - que e a troca certa.
+    #
+    # SE A CONTA FOR PAGA (billing no projeto do Google Cloud), este numero
+    # pode voltar a cair: o limite deixa de ser 500/dia. Ate la, nao baixar
+    # sem refazer a conta.
+    intervalo_s: 600
     # O VOCABULARIO NAO MORA AQUI (2026-07-28, EDR-0026). O que a IA pode
     # fazer esta em motion_core/behavior/contrato.py, em codigo: e o limite
     # da autoridade dela sobre o robo, e limite de autoridade nao e
