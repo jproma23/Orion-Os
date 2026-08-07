@@ -496,7 +496,20 @@ display:
   avatar:                        # tela do notebook (Cap 13)
     initial_mode: "AVATAR"
     brightness_percent: 80
-    sleep_timeout_min: 15
+    # DESCANSO DE TELA (2026-08-07). Ate esta data este numero era 15 e
+    # NINGUEM o lia: o autostart do kiosk fazia `xset -dpms` e a tela nunca
+    # dormia. Agora quem o le e `orion/display/tela.py`, pelo AvatarServer.
+    #
+    # Sao 3 minutos por pedido do dono, e a regra dele e mais forte que o
+    # tempo: a tela fica APAGADA por padrao e so acende quando ha o que
+    # mostrar (o quadro de aula, ou um pedido explicito). Estes 3 minutos
+    # nao sao o gatilho principal - sao o FECHAMENTO: terminou de mostrar,
+    # some sozinha.
+    sleep_timeout_min: 3
+    descanso_habilitado: true
+    # Onde mora o X do kiosk. So a maquina da tela (o Notebook) tem um; onde
+    # nao houver `xset`, o controle se declara inativo e nao faz nada.
+    display_x: ":0.0"
   web:                           # servida pelo Raspberry (Cap 13)
     port: 8080
     # Porta do stream MJPEG (orion-camera-stream.service, ustreamer).

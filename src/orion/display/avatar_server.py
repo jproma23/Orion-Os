@@ -16,6 +16,7 @@ from pathlib import Path
 from aiohttp import web
 
 from orion.display import versao as _versao
+from orion.display.tela import ControleTela
 from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("orion.display.avatar_server")
@@ -44,6 +45,11 @@ TOPICOS_REPASSADOS = (
     "motion.obstacle_front",
     "diagnostic.error",
     "system.ready",
+    # O QUADRO (2026-08-07). E por aqui que o robo escreve na tela para
+    # ensinar - ver `orion/display/quadro.py`, que define o que pode ser
+    # escrito. Nao ha transporte novo: e o mesmo SSE que ja levava a
+    # legenda da fala.
+    "display.quadro",
 )
 
 _INTERVALO_PING_S = 15.0
@@ -56,6 +62,7 @@ class AvatarServer:
         config_frontend: dict[str, object],
         host: str = "127.0.0.1",
         port: int = 8090,
+        config_tela: dict | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._config_frontend = config_frontend
@@ -81,6 +88,22 @@ class AvatarServer:
             _versao.VERSAO_PRODUTO,
             _versao.AUTOR,
         )
+
+        #: Descanso de tela (2026-08-07). Mora AQUI pelo mesmo motivo da marca
+        #: d'agua: ha dois caminhos que sobem o avatar, e o servidor e o unico
+        #: ponto por onde os dois passam. Alem disso e ele quem ja recebe
+        #: todos os eventos - e evento e o unico jeito de saber que algo esta
+        #: acontecendo numa tela sem teclado nem mouse.
+        #:
+        #: Onde nao ha X (o Pi, a suite), o controle se declara inativo e nao
+        #: faz nada. Ver `tela.py`.
+        conf_tela = config_tela or {}
+        self.tela = ControleTela(
+            minutos_ate_dormir=float(conf_tela.get("sleep_timeout_min", 3)),
+            habilitado=bool(conf_tela.get("descanso_habilitado", True)),
+            display=str(conf_tela.get("display_x", ":0.0")),
+        )
+        self.tela.ligar_no_bus(event_bus)
 
         self._app = web.Application()
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -203,7 +226,9 @@ class AvatarServer:
         site = web.TCPSite(self._runner, self._host, self._port)
         await site.start()
         logger.info("Avatar servido em http://%s:%d", self._host, self._port)
+        await self.tela.iniciar()
 
     async def encerrar(self) -> None:
+        await self.tela.encerrar()
         if self._runner is not None:
             await self._runner.cleanup()

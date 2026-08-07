@@ -166,6 +166,11 @@ async def principal() -> None:
             "pan_limits_degrees": secao_visao["pan_limits_degrees"],
             "tilt_limits_degrees": secao_visao["tilt_limits_degrees"],
         },
+        # Descanso de tela: vai a secao inteira, e nao um campo escolhido
+        # aqui - quem sabe quais chaves usa e o `tela.py`. `.get("avatar")`
+        # devolve None se a subsecao faltar, e None ali significa "valores
+        # padrao", nao "sem descanso".
+        config_tela=config.secao("display").get("avatar"),
     )
     await servidor.iniciar()
     await bus.publish("system.ready", {"robot_name": config.secao("system")["robot_name"]})
