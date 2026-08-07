@@ -62,6 +62,18 @@ def test_pergunta_sobre_ele_sem_fato_bom_nao_inventa(saber):
     assert saber.responder("qual e a sua comida preferida") is None
 
 
+def test_pergunta_do_mundo_com_voce_dentro_nao_e_sequestrada(saber):
+    """Achado em uso real, 2026-08-07.
+
+    "Voce me explica porque o ceu e azul?" era respondida com o fato da
+    TELA, porque a palavra "explicando" aparece no meio da resposta dele. A
+    pergunta tem "voce", entao o portao deixa passar - e o portao esta
+    certo. O errado era casar no corpo da resposta em vez de nas perguntas.
+    """
+    assert saber.responder("voce me explica porque o ceu e azul?") is None
+    assert saber.responder("voce sabe quem descobriu o Brasil?") is None
+
+
 def test_banco_vazio_nao_responde(tmp_path):
     vazio = Autoconhecimento(tmp_path / "vazio.db")
     assert vazio.responder("como voce anda") is None

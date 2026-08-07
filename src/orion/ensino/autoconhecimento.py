@@ -62,6 +62,11 @@ _PALAVRAS_DE_PERGUNTA = frozenset({
     "que", "porque", "voce", "vcs", "seu", "sua", "seus", "suas", "teu", "tua",
     "para", "pra", "com", "tem", "esta", "sao", "faz", "fazer", "pode", "poderia",
     "mim", "meu", "minha", "isso", "aqui", "por", "dos", "das", "num", "numa",
+    # "quem" e "sabe" entraram depois de "voce sabe quem descobriu o Brasil?"
+    # ser respondida com o fato dos OLHOS - casou com a pergunta indexada
+    # "como voce sabe quem eu sou". As duas armam a pergunta; o assunto dela
+    # estava em "descobriu" e "Brasil".
+    "quem", "sabe", "saber", "conhece", "explica", "explicar", "diz", "dizer",
 })
 
 _ESQUEMA = """
@@ -169,7 +174,16 @@ class Autoconhecimento:
         ]
         if not palavras:
             return None
-        termos = " OR ".join(f"{p}*" for p in palavras)
+        # SO nas colunas curadas: o titulo e as PERGUNTAS esperadas, nunca a
+        # resposta. Achado em uso real (07/08): "voce me explica porque o ceu
+        # e azul?" foi sequestrado pelo fato da TELA, porque a palavra
+        # "explicando" aparece no meio da resposta dele. A pergunta tem
+        # "voce", entao o portao deixou passar - e o portao esta certo; o
+        # errado era casar no corpo.
+        #
+        # Mesma licao do banco de aulas, no mesmo dia: buscar no texto
+        # explicativo faz qualquer palavra encostar em qualquer coisa.
+        termos = "{titulo perguntas} : (" + " OR ".join(f"{p}*" for p in palavras) + ")"
         try:
             linha = self._conectar().execute(
                 "SELECT s.resposta, bm25(sobre_mim_fts, 0.0, 3.0, 10.0, 1.0) AS nota"
