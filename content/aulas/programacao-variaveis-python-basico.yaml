@@ -5,6 +5,21 @@ nivel: basico
 resumo: >
   O que e uma variavel, os tipos basicos, e por que o nome que voce escolhe
   importa mais do que parece.
+plano:
+  objetivo: >
+    Ao fim desta aula voce vai conseguir criar variaveis, escolher o tipo
+    certo e - o que mais importa - dar nomes que fazem o codigo se explicar
+    sozinho.
+  pre_requisitos: []
+  duracao_min: 12
+  fixacao:
+    - Qual a diferenca entre o igual da matematica e o igual da programacao?
+    - Que tipo voce usaria para guardar uma altura, como 1 ponto 62?
+    - Por que idade_do_aluno e melhor nome que x?
+  fechamento: >
+    Variavel e um nome apontando para um valor. Python descobre o tipo
+    sozinho, mas o NOME quem escolhe e voce - e e ele que faz o codigo ser
+    lido daqui a seis meses.
 passos:
   - fala: Vamos comecar programacao pelo comeco, que e a variavel.
     quadro:

@@ -16,3 +16,7 @@ page-*.jpg
 __pycache__/
 *.pyc
 yolov8n.pt
+
+# Rascunhos gerados da Wikipedia: material intermediario, nao conteudo.
+# So entra no repositorio depois de revisado e publicado em content/aulas.
+content/rascunhos/

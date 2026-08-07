@@ -11,6 +11,21 @@ nivel: basico
 resumo: >
   O verbo mais usado do ingles: am, is, are. Como dizer quem voce e, como
   esta e de onde vem.
+plano:
+  objetivo: >
+    Ao fim desta aula voce vai conseguir dizer quem voce e, como esta e de
+    onde vem, em ingles - nas tres formas do verbo, na negativa e na
+    pergunta.
+  pre_requisitos:
+    - Saber os pronomes I, you, he, she, it, we, they
+  duracao_min: 12
+  fixacao:
+    - Como se diz, em ingles, eu sou brasileiro?
+    - E como se pergunta, voce esta pronto?
+    - Por que a gente usa IS com ela e ARE com eles?
+  fechamento: >
+    Guardou o mais importante? Am fica com I, is fica com he, she e it, e
+    are com o resto. O verbo to be e ser e estar ao mesmo tempo.
 passos:
   - fala: Vamos comecar pelo verbo mais importante do ingles, o verbo to be.
     quadro:

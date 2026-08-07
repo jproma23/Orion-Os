@@ -43,7 +43,13 @@ class Professor:
         falar: Callable[[str], Awaitable[None]],
         event_bus,
         pausa_entre_passos_s: float = 0.6,
+        pausa_pergunta_s: float = 6.0,
     ) -> None:
+        #: Quanto ele espera depois de uma pergunta de fixacao. Bem maior que
+        #: a pausa entre passos, e por isso e um numero separado: a pausa
+        #: entre passos e respiro, esta e tempo de PENSAR. Um robo que
+        #: pergunta e segue adiante no mesmo segundo nao esta ensinando.
+        self._pausa_pergunta_s = pausa_pergunta_s
         self._banco = banco
         self._quadro = quadro
         self._falar = falar
@@ -142,6 +148,24 @@ class Professor:
             # A frase de abertura ainda esta saindo pelo alto-falante.
             await self._esperar_silencio()
             await self._quadro.limpar()
+
+            # ABERTURA. Dizer para onde se vai antes de sair andando: quem
+            # sabe o que vai aprender presta atencao no que importa. Foi a
+            # falta disto que fez a primeira aula soar "rapida e mal
+            # explicada" - ela comecava no meio.
+            if aula.plano.objetivo:
+                itens = [f"Objetivo - {aula.plano.objetivo}"]
+                if aula.plano.pre_requisitos:
+                    itens.append("Voce precisa saber - " + ", ".join(aula.plano.pre_requisitos))
+                if aula.plano.duracao_min:
+                    itens.append(f"Duracao - cerca de {aula.plano.duracao_min} minutos")
+                await self._quadro.escrever("topicos", texto=f"Plano da aula - {aula.titulo}",
+                                            itens=itens)
+                await self._falar(
+                    f"Antes de comecar, o plano de hoje. {aula.plano.objetivo}."
+                )
+                await asyncio.sleep(self._pausa)
+
             for numero, passo in enumerate(aula.passos, start=1):
                 # O pulso segura a tela acesa mesmo num passo so de fala.
                 await self._bus.publish(
@@ -152,6 +176,25 @@ class Professor:
                     await self._quadro.escrever(passo.bloco["tipo"], **campos)
                 await self._falar(passo.fala)
                 await asyncio.sleep(self._pausa)
+
+            # FIXACAO e FECHAMENTO. A pergunta vem com uma pausa DE VERDADE
+            # depois: ela existe para a pessoa pensar, e um robo que pergunta
+            # e responde sozinho no segundo seguinte nao esta ensinando.
+            if aula.plano.fixacao:
+                await self._bus.publish(TOPICO_AULA, {"aula": aula.id, "passo": "fixacao"})
+                await self._quadro.escrever(
+                    "topicos", texto="Para voce responder", itens=list(aula.plano.fixacao)
+                )
+                await self._falar("Agora responda para mim, com as suas palavras.")
+                for pergunta in aula.plano.fixacao:
+                    await self._falar(pergunta)
+                    await asyncio.sleep(self._pausa_pergunta_s)
+
+            if aula.plano.fechamento:
+                await self._quadro.escrever("texto", texto=aula.plano.fechamento)
+                await self._falar(aula.plano.fechamento)
+            if aula.fonte:
+                await self._falar(f"O conteudo desta aula veio de {aula.fonte}.")
         except asyncio.CancelledError:
             logger.info("aula %s interrompida", aula.id)
             raise

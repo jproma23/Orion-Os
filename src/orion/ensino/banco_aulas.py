@@ -95,6 +95,33 @@ class Passo:
 
 
 @dataclass(frozen=True)
+class Plano:
+    """O plano de aula - pedido do dono em 2026-08-07 ao ver a primeira rodar.
+
+    A queixa dele foi *"a aula esta rapida e muito mal explicado precisa de
+    mais contexto"*, e o diagnostico e este: uma aula sem plano e uma lista
+    de fatos. O plano e o que a transforma em aula - ele diz para onde se
+    vai antes de sair andando, e confere no fim se chegou.
+
+    O `objetivo` e falado na ABERTURA e a `fixacao` no FIM, porque e assim
+    que uma aula funciona: quem sabe o que vai aprender presta atencao no
+    que importa, e quem responde uma pergunta no fim descobre se entendeu.
+    """
+
+    objetivo: str = ""
+    pre_requisitos: tuple[str, ...] = ()
+    duracao_min: int = 0
+    #: Perguntas de fixacao, faladas no fim. O robo pergunta e ESPERA - a
+    #: resposta vem pela voz, que e o canal que ele ja tem nos dois sentidos.
+    fixacao: tuple[str, ...] = ()
+    fechamento: str = ""
+
+    @property
+    def vazio(self) -> bool:
+        return not (self.objetivo or self.fixacao or self.fechamento)
+
+
+@dataclass(frozen=True)
 class Aula:
     id: str
     materia: str
@@ -102,6 +129,11 @@ class Aula:
     nivel: str
     resumo: str
     passos: tuple[Passo, ...] = field(default_factory=tuple)
+    plano: Plano = field(default_factory=Plano)
+    #: De onde veio o conteudo, quando veio de fora. Fica com a aula e e
+    #: FALADO no fechamento: conteudo sem procedencia e a coisa que este
+    #: projeto decidiu nao produzir.
+    fonte: str = ""
 
     @property
     def quantos_passos(self) -> int:
@@ -165,6 +197,15 @@ def carregar_arquivo(caminho: Path) -> Aula:
                 raise AulaInvalida(f"{caminho.name}: passo {numero} - {erro}") from erro
         passos.append(Passo(fala=fala, bloco=bloco))
 
+    bruto_plano = dados.get("plano") or {}
+    plano = Plano(
+        objetivo=" ".join(str(bruto_plano.get("objetivo") or "").split()),
+        pre_requisitos=tuple(str(p) for p in (bruto_plano.get("pre_requisitos") or [])),
+        duracao_min=int(bruto_plano.get("duracao_min") or 0),
+        fixacao=tuple(str(p) for p in (bruto_plano.get("fixacao") or [])),
+        fechamento=" ".join(str(bruto_plano.get("fechamento") or "").split()),
+    )
+
     return Aula(
         id=str(dados["id"]).strip(),
         materia=_sem_acento(str(dados["materia"]).lower().strip()),
@@ -172,6 +213,8 @@ def carregar_arquivo(caminho: Path) -> Aula:
         nivel=nivel,
         resumo=(dados.get("resumo") or "").strip(),
         passos=tuple(passos),
+        plano=plano,
+        fonte=str(dados.get("fonte") or "").strip(),
     )
 
 
@@ -243,7 +286,17 @@ class BancoAulas:
             conexao.execute("DELETE FROM aulas_fts")
             for aula in aulas:
                 passos = json.dumps(
-                    [{"fala": p.fala, "bloco": p.bloco} for p in aula.passos],
+                    {
+                        "passos": [{"fala": p.fala, "bloco": p.bloco} for p in aula.passos],
+                        "plano": {
+                            "objetivo": aula.plano.objetivo,
+                            "pre_requisitos": list(aula.plano.pre_requisitos),
+                            "duracao_min": aula.plano.duracao_min,
+                            "fixacao": list(aula.plano.fixacao),
+                            "fechamento": aula.plano.fechamento,
+                        },
+                        "fonte": aula.fonte,
+                    },
                     ensure_ascii=False,
                 )
                 conexao.execute(
@@ -317,11 +370,28 @@ class BancoAulas:
     @staticmethod
     def _montar(linha: sqlite3.Row, *, com_passos: bool) -> Aula:
         passos: tuple[Passo, ...] = ()
+        plano = Plano()
+        fonte = ""
         if com_passos:
+            guardado = json.loads(linha["passos"])
+            # Compatibilidade com o banco anterior ao plano de aula, que
+            # guardava uma LISTA solta. Reconstruir o indice resolve, mas o
+            # robo nao pode quebrar entre o deploy e o `construir`.
+            if isinstance(guardado, list):
+                guardado = {"passos": guardado}
             passos = tuple(
                 Passo(fala=p["fala"], bloco=p.get("bloco"))
-                for p in json.loads(linha["passos"])
+                for p in guardado.get("passos", [])
             )
+            bruto = guardado.get("plano") or {}
+            plano = Plano(
+                objetivo=bruto.get("objetivo", ""),
+                pre_requisitos=tuple(bruto.get("pre_requisitos") or []),
+                duracao_min=int(bruto.get("duracao_min") or 0),
+                fixacao=tuple(bruto.get("fixacao") or []),
+                fechamento=bruto.get("fechamento", ""),
+            )
+            fonte = guardado.get("fonte", "")
         return Aula(
             id=linha["id"],
             materia=linha["materia"],
@@ -329,6 +399,8 @@ class BancoAulas:
             nivel=linha["nivel"],
             resumo=linha["resumo"],
             passos=passos,
+            plano=plano,
+            fonte=fonte,
         )
 
 

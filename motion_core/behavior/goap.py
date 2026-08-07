@@ -47,8 +47,8 @@ ciclo, em vez de guardar um plano longo e confiar nele.
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 
 #: Limiar de "frente livre", em centimetros.
 #:

@@ -5,6 +5,23 @@ nivel: basico
 resumo: >
   O que e uma equacao do segundo grau, o que sao a, b e c, e como resolver
   pela formula de Bhaskara passo a passo.
+plano:
+  objetivo: >
+    Ao fim desta aula voce vai conseguir resolver qualquer equacao do
+    segundo grau pela formula de Bhaskara, e saber ANTES quantas raizes ela
+    tem, so olhando o delta.
+  pre_requisitos:
+    - Equacao do primeiro grau
+    - Potencias e raiz quadrada
+  duracao_min: 18
+  fixacao:
+    - Numa equacao com delta igual a zero, quantas raizes existem?
+    - Na equacao x ao quadrado menos quatro x mais tres, quanto valem a, b e c?
+    - Depois de achar as raizes, como voce confere se acertou?
+  fechamento: >
+    O caminho e sempre o mesmo - identificar a, b e c, calcular o delta,
+    aplicar Bhaskara e conferir substituindo. O delta conta o final antes da
+    conta terminar.
 passos:
   - fala: Hoje a gente resolve equacao do segundo grau.
     quadro:

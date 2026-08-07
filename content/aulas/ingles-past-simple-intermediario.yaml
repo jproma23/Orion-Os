@@ -5,6 +5,21 @@ nivel: intermediario
 resumo: >
   Como falar do que ja aconteceu em ingles: o ED dos verbos regulares, os
   irregulares que voce precisa decorar, e o did das perguntas e negacoes.
+plano:
+  objetivo: >
+    Ao fim desta aula voce vai conseguir contar o que ja aconteceu - com
+    verbo regular, com irregular, e sem cair na armadilha do did.
+  pre_requisitos:
+    - O verbo to be no presente
+    - O presente simples
+  duracao_min: 14
+  fixacao:
+    - Como se diz, eu trabalhei ontem?
+    - E a pergunta, voce foi a escola?
+    - Por que nao se diz did you went?
+  fechamento: >
+    O ED serve para os regulares, os irregulares se aprendem um a um, e
+    quando entra o DID o verbo principal volta a forma normal.
 passos:
   - fala: Agora vamos falar do passado em ingles.
     quadro:
