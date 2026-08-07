@@ -303,3 +303,97 @@ async def test_encerrar_cancela_a_espera_pendente():
 
     await e.encerrar()
     assert espera.cancelled() or espera.done()
+
+
+# ------------------- o fato nao morre porque o link caiu (2026-08-07)
+
+
+class _MemoriaQueCai:
+    """Recusa gravar ate `liberar()`. Imita o link TCP fora do ar.
+
+    Foi assim de verdade em 05/08 22:28: `ErroTransporte: Transporte TCP
+    nao conectado` no meio do `remember`, com o fato ja extraido - e ele
+    se perdeu, junto com a chamada paga ao modelo que o produziu.
+    """
+
+    def __init__(self):
+        self.no_ar = False
+        self.gravados: list[dict] = []
+
+    def liberar(self):
+        self.no_ar = True
+
+    async def remember(self, categoria, dados):
+        if not self.no_ar:
+            raise RuntimeError("Transporte TCP nao conectado")
+        self.gravados.append(dados)
+        return len(self.gravados)
+
+    async def recall(self, categoria, limite=200):
+        return list(self.gravados)
+
+
+class _IaFixa:
+    """Devolve sempre os mesmos fatos, sem chamar modelo nenhum."""
+
+    def __init__(self, resposta):
+        self.resposta = resposta
+        self.chamadas = 0
+
+    async def responder(self, *args, **kwargs):
+        self.chamadas += 1
+        return self.resposta
+
+
+@pytest.mark.asyncio
+async def test_fato_extraido_sobrevive_ao_link_caido():
+    """O que a IA ja produziu nao pode ser jogado fora por falha de rede."""
+    memoria = _MemoriaQueCai()
+    ia = _IaFixa("cor_favorita: azul")
+    extrator = ExtratorFatos(ia, memoria)
+
+    lote = [("qual a minha cor favorita? eu ja te disse antes", "azul")]
+    await extrator._extrair(lote)
+
+    assert memoria.gravados == [], "gravou com o link fora?"
+    assert extrator._pendentes, "o fato foi jogado fora em vez de ficar pendente"
+
+    # o link volta e a proxima destilacao entrega o que ficou
+    memoria.liberar()
+    await extrator._extrair([])
+
+    chaves = [g["chave"] for g in memoria.gravados]
+    assert "cor_favorita" in chaves, "o fato pendente nunca chegou ao banco"
+    assert not extrator._pendentes, "a fila devia ter esvaziado"
+
+
+@pytest.mark.asyncio
+async def test_nao_gasta_chamada_de_modelo_para_entregar_pendente():
+    """Reentregar o pendente nao pode custar outra extracao paga."""
+    memoria = _MemoriaQueCai()
+    ia = _IaFixa("cor_favorita: azul")
+    extrator = ExtratorFatos(ia, memoria)
+
+    await extrator._extrair([("uma fala longa o bastante para valer", "ok")])
+    chamadas_apos_primeira = ia.chamadas
+
+    memoria.liberar()
+    await extrator._extrair([])
+
+    assert memoria.gravados, "o pendente nao foi entregue"
+    # a segunda chamada ao modelo aconteceu por causa do lote vazio, nao do
+    # pendente - o que importa e o pendente ter saido sem exigir extracao nova
+    assert ia.chamadas >= chamadas_apos_primeira
+
+
+@pytest.mark.asyncio
+async def test_fila_de_pendentes_tem_teto():
+    """Link fora por dias nao pode fazer a fila crescer sem fim."""
+    memoria = _MemoriaQueCai()
+    extrator = ExtratorFatos(_IaFixa("x: y"), memoria)
+
+    extrator._guardar_pendentes([(f"chave{i}", "v") for i in range(50)])
+
+    assert len(extrator._pendentes) == ExtratorFatos._MAX_PENDENTES
+    # os MAIS NOVOS vencem
+    assert extrator._pendentes[-1] == ("chave49", "v")

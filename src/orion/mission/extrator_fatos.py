@@ -98,6 +98,9 @@ CONVERSA:
 class ExtratorFatos:
     """Acumula turnos e, de tempos em tempos, destila fatos em segundo plano."""
 
+    #: Teto da fila de fatos que esperam o link voltar.
+    _MAX_PENDENTES = 20
+
     def __init__(
         self,
         ai_manager,
@@ -118,6 +121,13 @@ class ExtratorFatos:
         self._max_fatos = max_fatos_por_lote
         self._segundos_ate_destilar = segundos_ate_destilar
         self._acumulado: list[tuple[str, str]] = []
+        #: Fatos JA EXTRAIDOS que nao chegaram a ser gravados porque o link
+        #: com o Pi caiu na hora (visto em 05/08 22:28: `ErroTransporte:
+        #: Transporte TCP nao conectado`, e o fato se perdeu para sempre).
+        #: A extracao ja tinha custado uma chamada paga ao modelo - jogar o
+        #: resultado fora e o pior desfecho possivel. Ficam aqui e vao junto
+        #: na proxima destilacao ou no desligamento.
+        self._pendentes: list[tuple[str, str]] = []
         #: Guardada para o desligamento poder esperar a ultima extracao, e
         #: para os testes nao precisarem dormir torcendo pelo agendador.
         self._tarefa: asyncio.Task | None = None
@@ -241,18 +251,61 @@ class ExtratorFatos:
             return
 
         conhecidos = await self._chaves_conhecidas()
-        for chave, valor in fatos:
+        # Os que sobraram de uma tentativa anterior entram na frente: sao os
+        # mais antigos e ja custaram a chamada ao modelo.
+        pendentes, self._pendentes = self._pendentes, []
+        for chave, valor in pendentes + fatos:
             if chave in conhecidos:
                 # Sobrescrever exigiria decidir qual versao vale, e nada aqui
                 # sabe disso. Guardar os dois encheria o prompt de repeticao.
                 # Ignorar e a escolha conservadora ate existir um caso real que
                 # peca outra coisa.
                 continue
+            if not await self._gravar(chave, valor):
+                # Link caido: nao adianta tentar os proximos agora. Guarda o
+                # que falta - inclusive este - e sai; a proxima destilacao
+                # (90 s) ou o `encerrar()` tentam de novo.
+                restantes = self._restantes(pendentes + fatos, chave, valor)
+                self._guardar_pendentes([(chave, valor), *restantes])
+                return
+            conhecidos.add(chave)
+
+    @staticmethod
+    def _restantes(
+        todos: list[tuple[str, str]], chave: str, valor: str
+    ) -> list[tuple[str, str]]:
+        """O que vem DEPOIS do par que falhou, na mesma ordem."""
+        try:
+            corte = todos.index((chave, valor))
+        except ValueError:
+            return []
+        return todos[corte + 1 :]
+
+    def _guardar_pendentes(self, fatos: list[tuple[str, str]]) -> None:
+        """Guarda para a proxima tentativa, com teto.
+
+        O teto existe para o caso do link ficar dias fora: sem ele a lista
+        cresceria sozinha e o robo carregaria memoria a toa. Os MAIS NOVOS
+        vencem - fato velho tem mais chance de ja ter sido dito de novo.
+        """
+        self._pendentes = (self._pendentes + fatos)[-self._MAX_PENDENTES :]
+        logger.warning(
+            "%d fato(s) extraido(s) aguardando o link para serem gravados",
+            len(self._pendentes),
+        )
+
+    async def _gravar(self, chave: str, valor: str) -> bool:
+        """Grava um fato. Devolve se conseguiu - quem chama tem que SABER."""
+        try:
             await self._memoria.remember(
                 "conhecimento",
                 {"chave": chave, "valor": valor, "fonte": "conversa", "confianca": 0.7},
             )
-            logger.info("fato aprendido: %s = %s", chave, valor)
+        except Exception:
+            logger.warning("nao consegui gravar o fato %r agora", chave, exc_info=True)
+            return False
+        logger.info("fato aprendido: %s = %s", chave, valor)
+        return True
 
     async def _chaves_conhecidas(self) -> set[str]:
         try:
