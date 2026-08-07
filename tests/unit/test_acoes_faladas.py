@@ -143,5 +143,12 @@ def test_toda_acao_que_exige_argumento_explica_o_formato_no_prompt():
     `precisa_argumento` e descricao que nao menciona a barra vertical vira
     argumento malformado - e argumento malformado NAO guarda nada."""
     for acao in ACOES.values():
-        if acao.precisa_argumento:
-            assert "|" in acao.descricao, f"{acao.nome} nao explica o formato"
+        if not acao.precisa_argumento:
+            continue
+        if acao.argumento_em_duas_partes:
+            assert "|" in acao.descricao, f"{acao.nome} nao explica a barra"
+        else:
+            # Uma parte so: tem de dizer o que escrever depois do nome.
+            assert "depois do nome" in acao.descricao, (
+                f"{acao.nome} nao explica o que escrever no argumento"
+            )

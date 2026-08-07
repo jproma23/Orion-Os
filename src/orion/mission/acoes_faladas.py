@@ -79,7 +79,7 @@ SEPARADOR_ARGUMENTO = "|"
 #: Quem pode executar uma acao. Conjunto fechado, conferido no import: uma
 #: entrega escrita errada ("cabeça", com cedilha) cairia em nenhum despachante
 #: e a acao nao faria nada, sem erro nenhum - a falha silenciosa de sempre.
-ENTREGAS = frozenset({"hardware", "cabeca", "recado", "conhecimento"})
+ENTREGAS = frozenset({"hardware", "cabeca", "recado", "conhecimento", "internet"})
 
 #: Limites dos servos da cabeca. Os MESMOS numeros do webui/server.py e do
 #: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por
@@ -123,6 +123,12 @@ class AcaoFalada:
     tilt: float | None = None
     #: Se a acao precisa do texto que vem depois do nome, na mesma linha.
     precisa_argumento: bool = False
+    #: O argumento tem DUAS partes separadas por barra (`Mara | recado`)?
+    #: Campo explicito e nao deduzido: ate 2026-08-07 as duas acoes com
+    #: argumento tinham a mesma forma, e a regra virou 'toda acao com
+    #: argumento usa barra'. A busca tem uma parte so - o assunto - e
+    #: deduzir a forma pelo nome e onde catalogos comecam a mentir.
+    argumento_em_duas_partes: bool = True
     #: O que o robo diz ao fazer. So e usado quando ele nao tem nada melhor a
     #: dizer - a resposta do proprio modelo tem preferencia, porque ela sabe
     #: do contexto e esta nao sabe.
@@ -130,6 +136,29 @@ class AcaoFalada:
 
 
 _CATALOGO: tuple[AcaoFalada, ...] = (
+    # ---- O MUNDO LA FORA (2026-08-07) -----------------------------------
+    # Pedido do dono: "o robo vai usar a internet para aprender sobre o
+    # mundo" - e a delimitacao dele na mesma conversa: "e nao eventos de
+    # seus sensores". Isto serve para o que e conhecimento geral; o que
+    # acontece NESTA CASA continua vindo dos sensores e do banco, e nunca
+    # daqui.
+    AcaoFalada(
+        nome="buscar",
+        descricao=(
+            "consultar a Wikipedia sobre um assunto do mundo que voce nao "
+            "sabe (uma tecnologia, um lugar, um conceito, uma pessoa "
+            "publica). Use quando lhe perguntarem algo de conhecimento "
+            "geral que voce nao tem certeza. NAO use para o que acontece "
+            "nesta casa - quem viu quem, que horas, onde estao as coisas: "
+            "isso voce so sabe pelos seus registros. Escreva o assunto logo "
+            "depois do nome da acao, sem mais nada"
+        ),
+        entrega="internet",
+        precisa_argumento=True,
+        # Uma parte so: o assunto. Nao ha rotulo a separar.
+        argumento_em_duas_partes=False,
+        resposta="Nao encontrei nada sobre isso.",
+    ),
     # ---- A CABECA (2026-08-03) ------------------------------------------
     # Nenhuma destas existia. Era o buraco que o dono apontou: "ele tem que
     # saber mexer a cabeca quando eu pedir".

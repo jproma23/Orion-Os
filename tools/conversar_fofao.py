@@ -41,11 +41,11 @@ _RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_RAIZ_PROJETO / "src"))
 sys.path.insert(0, str(_RAIZ_PROJETO))  # expoe motion_core/ (replica do backup)
 
+from motion_core.memory.replica import ReceptorReplica  # noqa: E402
 from orion.communication.heartbeat import MonitorHeartbeat  # noqa: E402
 from orion.communication.service import ComunicacaoService  # noqa: E402
 from orion.communication.transport import TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
-from motion_core.memory.replica import ReceptorReplica  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
@@ -57,13 +57,14 @@ from orion.mission.conselho_protocolo import (  # noqa: E402
 )
 from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
+from orion.mission.internet import ConsultaInternet  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
+from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
 from orion.mission.recados import Recados, definir_apelidos  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
-from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
 from orion.voice.ouvidos_esp32 import OuvidosESP32  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
@@ -550,8 +551,14 @@ async def principal() -> None:
         logger.info("conhecimento guardado no vault: %r", titulo)
         return True
 
+    # A internet como fonte sobre o MUNDO (2026-08-07). A acao `buscar` do
+    # catalogo cai aqui; o achado ja vem com a fonte colada e vira a fala
+    # direto, sem uma segunda chamada ao modelo para reescreve-lo.
+    consulta_internet = ConsultaInternet()
+
     planner = MissionPlanner(
         ia,
+        consultar_internet=consulta_internet.consultar,
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),
         diario=diario,

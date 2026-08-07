@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 
 from orion.mission.acoes_faladas import AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
@@ -174,6 +174,7 @@ class MissionPlanner:
         mover_cabeca: CallbackCabeca | None = None,
         deixar_recado: CallbackRecado | None = None,
         guardar_conhecimento: CallbackConhecimento | None = None,
+        consultar_internet=None,
     ) -> None:
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
@@ -189,6 +190,10 @@ class MissionPlanner:
         #: Quem guarda os recados. Ver `orion/mission/recados.py` - e o modulo
         #: que existe porque o robo prometeu avisar a Mara e nao avisou.
         self._deixar_recado = deixar_recado
+        #: Consulta a internet (2026-08-07). None = o robo nao busca nada e
+        #: a acao responde que nao consegue - mesmo contrato dos outros
+        #: callbacks: sem caminho, ele DIZ que nao consegue.
+        self._consultar_internet = consultar_internet
         #: Quem escreve no vault de longo prazo. Ate 2026-08-04 o vault tinha
         #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
         #: codigo do robo o chamava. Este e o fio que faltava.
@@ -379,6 +384,14 @@ class MissionPlanner:
                 await self._despachar_cabeca(acao)
             elif acao.entrega == "recado":
                 await self._despachar_recado(argumento)
+            elif acao.entrega == "internet":
+                # SAI AQUI, e a saida antecipada e o ponto: nas outras acoes
+                # a fala do modelo vence (`falado or acao.resposta`), porque
+                # ele sabe do contexto e a acao nao. Na busca e o INVERSO -
+                # o achado E a resposta, e o modelo nao o conhecia quando
+                # escreveu a frase. Deixar `falado` vencer aqui faria o robo
+                # dizer o que ele imaginou em vez do que leu.
+                return await self._despachar_busca(argumento)
             else:
                 await self._despachar_conhecimento(argumento)
         except _SemCaminho as erro:
@@ -394,6 +407,23 @@ class MissionPlanner:
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
         return falado or acao.resposta
+
+    async def _despachar_busca(self, termo: str) -> str:
+        """Consulta a internet e devolve o que sera FALADO, com a fonte.
+
+        Uma chamada ao modelo, nao duas: o achado ja vem redigido e vira a
+        resposta direto. O caminho de pedir ao modelo que reescreva o
+        resultado custaria o dobro da cota, e a cota deste projeto acabou
+        as 10h da manha de 07/08.
+        """
+        if self._consultar_internet is None:
+            raise _SemCaminho("sem callback de consulta a internet")
+        achado = await self._consultar_internet(termo)
+        if achado is None:
+            # NAO devolve a frase do modelo: ela foi escrita supondo que a
+            # busca daria certo. Dizer que nao achou e a verdade.
+            return "Procurei e nao encontrei nada sobre isso."
+        return achado.para_falar()
 
     async def _despachar_comando(self, acao: AcaoFalada) -> None:
         if self._enviar_comando_hardware is None:
