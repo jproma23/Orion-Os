@@ -83,6 +83,55 @@ def _sem_acento(texto: str) -> str:
     )
 
 
+#: Tamanho minimo de palavra que conta como "de peso" na comparacao.
+#:
+#: TRES, e nao quatro: com quatro, "cor do ceu" nao tinha NENHUMA palavra
+#: comparavel (cor e ceu tem tres letras), caia na regra do "nao da para
+#: comparar, passa" e aceitava o artigo "Cor dos cabelos". Palavra de tres
+#: letras em portugues ja carrega assunto - ceu, mol, luz, gas, som.
+_MINIMO_PALAVRA = 3
+
+#: Palavras curtas que NAO carregam assunto. Sem esta lista, baixar o limiar
+#: para tres faria "que" e "seu" casarem com meio artigo da Wikipedia.
+_VAZIAS = frozenset({
+    "que", "com", "por", "para", "seu", "sua", "meu", "voce", "isso", "uma",
+    "dos", "das", "nos", "nas", "aos", "ele", "ela", "sao", "tem", "foi",
+})
+
+
+def parece_relacionado(termo: str, titulo: str) -> bool:
+    """O artigo achado tem A VER com o que se procurou?
+
+    A busca por titulo da Wikipedia sempre devolve o *menos ruim*, e num
+    termo que ela nao conhece isso e qualquer coisa. Esta funcao e o portao:
+    o titulo precisa dividir ao menos uma palavra de peso com o termo.
+
+    Nao resolve tudo, e vale saber o que ela NAO pega: "ceu azul" contra o
+    municipio "Ceu Azul" divide as duas palavras e passa. O que ela mata sao
+    os casos em que nao ha relacao nenhuma - que eram a maioria dos erros
+    medidos.
+
+    Compara SEM ACENTO nos dois lados: a primeira versao disto, no gerador de
+    aulas, descartou "Celula" por ter procurado "celula".
+    """
+    def palavras(texto: str) -> set[str]:
+        # `.lower()` DEPOIS do _sem_acento, e o detalhe custou a primeira
+        # rodada de testes: `_sem_acento` deste modulo tira o acento e
+        # PRESERVA a caixa, entao "celula" nao casava com "Celula".
+        limpo = _sem_acento(texto).lower()
+        return {
+            p for p in re.findall(r"\w+", limpo)
+            if len(p) >= _MINIMO_PALAVRA and p not in _VAZIAS
+        }
+
+    procuradas = palavras(termo)
+    if not procuradas:
+        # Termo so de palavras curtas ("o que e um mol"): nao ha como
+        # comparar, e recusar tudo deixaria o robo mudo. Passa.
+        return True
+    return bool(procuradas & palavras(titulo))
+
+
 def _encurtar(texto: str, maximo: int = MAXIMO_CARACTERES) -> str:
     """Corta no fim de frase, nao no meio da palavra."""
     limpo = re.sub(r"\s+", " ", texto).strip()
@@ -231,6 +280,23 @@ class ConsultaInternet:
 
         extrato = (resumo or {}).get("extract") or ""
         if not extrato.strip():
+            return None
+
+        titulo_final = (resumo.get("title") or titulo).strip()
+        if not parece_relacionado(termo, titulo_final):
+            # A BUSCA POR TITULO ACHA QUALQUER COISA. Medido em 07/08, com o
+            # robo respondendo em producao:
+            #
+            #     odiando                 -> "Odido"
+            #     graficos (em cinematica) -> "Graficos isometricos em videojogos"
+            #     cor do ceu              -> "Cor dos cabelos"
+            #
+            # Nao achar e uma resposta honesta; responder com confianca sobre
+            # o assunto errado nao e - e e pior num robo que ENSINA, porque
+            # quem esta aprendendo nao tem como desconfiar.
+            logger.info(
+                "internet: descartado - procurei %r e veio %r", termo, titulo_final
+            )
             return None
 
         return Achado(

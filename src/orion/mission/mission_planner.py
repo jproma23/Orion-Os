@@ -592,7 +592,13 @@ class MissionPlanner:
         if achado is None:
             # NAO devolve a frase do modelo: ela foi escrita supondo que a
             # busca daria certo. Dizer que nao achou e a verdade.
-            return "Procurei e nao encontrei nada sobre isso."
+            #
+            # E DIZ O QUE PROCUROU. Sem isso, "procurei e nao encontrei" e
+            # indistinguivel de "entendi errado o que voce falou" - e as duas
+            # coisas aconteceram em uso real no mesmo dia, uma delas com o
+            # Whisper transcrevendo a frase errada. Falando o termo, quem
+            # perguntou conserta na hora, repetindo de outro jeito.
+            return f"Procurei sobre {termo} e nao encontrei nada na Wikipedia."
         return achado.para_falar()
 
     async def _despachar_comando(self, acao: AcaoFalada) -> None:

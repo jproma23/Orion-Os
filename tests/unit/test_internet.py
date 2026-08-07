@@ -136,7 +136,10 @@ async def test_trecho_longo_e_cortado_no_fim_de_frase():
     """Resposta falada longa cansa - e cortar no meio da palavra e pior."""
     longo = ("Uma frase completa que se repete. " * 40).strip()
     consulta = ConsultaInternet(
-        cliente=_ClienteFalso([_RespostaFalsa({"title": "X", "extract": longo})])
+        # O titulo bate com o termo procurado de proposito: desde 07/08 a
+        # consulta recusa artigo sem relacao nenhuma com o que se pediu, e
+        # este teste e sobre CORTAR o trecho, nao sobre pertinencia.
+        cliente=_ClienteFalso([_RespostaFalsa({"title": "Assunto", "extract": longo})])
     )
 
     achado = await consulta.consultar("assunto")
