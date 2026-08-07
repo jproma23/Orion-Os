@@ -80,8 +80,13 @@ async def test_reconexao_insiste_ate_a_porta_voltar(monkeypatch):
         await asyncio.sleep(0.05)
         config["port"] = os.ttyname(escravo_fd)
 
+        # Espera o REARME, nao o link: `_insistir` conecta primeiro (o que ja
+        # poe a chave em `comm._links`) e so depois rearma o callback. Esperar
+        # o link e afirmar sobre o rearme e uma corrida - passava no Pi e
+        # falhava no Notebook (07/08). O rearme e a ultima coisa a acontecer,
+        # entao quando ele chega o link ja esta la.
         async with asyncio.timeout(20):
-            while "hardware_core" not in comm._links:
+            while heartbeat._reconectar.get("hardware_core") is not ao_perder:
                 await asyncio.sleep(0.02)
 
         assert "hardware_core" in comm._links

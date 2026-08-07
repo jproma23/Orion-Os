@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import pathlib
 import time
 from pathlib import Path
 
 from aiohttp import web
 
-from orion.kernel.event_bus import Evento, EventBus
+from orion.display import versao as _versao
+from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("orion.display.avatar_server")
 
@@ -66,6 +68,19 @@ class AvatarServer:
         #: reproduzir na frente da camera.
         self._conectados_total = 0
         self._eventos_enviados = 0
+        #: Identificacao da build para a marca d'agua da tela. Lida do git
+        #: UMA VEZ aqui, e nao a cada pedido: e informacao de subida, e
+        #: chamar o git por requisicao seria trabalho por nada.
+        #:
+        #: Fica no AvatarServer, e nao no ModuloDisplay, porque ha DOIS
+        #: caminhos que sobem o avatar - `python -m orion` (kernel/boot) e
+        #: `tools/conversar_fofao.py`, que e o que roda em producao. Aqui os
+        #: dois ganham sem fiacao nova.
+        self._build = _versao.descobrir(
+            pathlib.Path(__file__).resolve().parents[3],
+            _versao.VERSAO_PRODUTO,
+            _versao.AUTOR,
+        )
 
         self._app = web.Application()
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -83,7 +98,7 @@ class AvatarServer:
         # Repassa parametros de config/orion.yaml (Cap 17) que o avatar no
         # navegador precisa (limites de pan/tilt) - nenhum valor fisico
         # fica fixo no JS (regra arquitetural #6).
-        return web.json_response(self._config_frontend)
+        return web.json_response({**self._config_frontend, "build": self._build.como_dict()})
 
     async def _handler_sse(self, request: web.Request) -> web.StreamResponse:
         resposta = web.StreamResponse(

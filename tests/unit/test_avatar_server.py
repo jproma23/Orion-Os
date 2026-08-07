@@ -46,7 +46,30 @@ async def test_config_expoe_os_limites_de_pan_tilt(cliente):
     http, _ = cliente
     resposta = await http.get("/config")
     assert resposta.status == 200
-    assert await resposta.json() == CONFIG_FRONTEND
+    corpo = await resposta.json()
+    # Comparar o dicionario INTEIRO por igualdade quebrava a cada campo novo
+    # (aconteceu em 07/08, com a marca d'agua). O que este teste garante e
+    # que os limites chegam ao navegador - nao a ausencia de vizinhos.
+    for chave, valor in CONFIG_FRONTEND.items():
+        assert corpo[chave] == valor
+
+
+@pytest.mark.asyncio
+async def test_config_leva_a_identificacao_da_build(cliente):
+    """A marca d'agua da tela le daqui - sem estes campos ela some."""
+    http, _ = cliente
+    corpo = await (await http.get("/config")).json()
+
+    build = corpo["build"]
+    assert set(build) == {
+        "software",
+        "versao",
+        "autor",
+        "criado_em",
+        "atualizado_em",
+        "commit",
+    }
+    assert build["software"] == "ORION OS"
 
 
 @pytest.mark.asyncio

@@ -353,3 +353,33 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+
+// -------------------------------------------------- marca d'agua da build
+//
+// Os dados vem de /config, que os le do git na subida do servidor. Nada
+// aqui e escrito a mao: data fixa no JS mente no dia seguinte, e a marca
+// existe justamente para dizer QUANDO esta versao foi feita.
+(async function marcaDagua() {
+  const alvo = document.getElementById("marca");
+  if (!alvo) return;
+  let build;
+  try {
+    const resposta = await fetch("/config", { cache: "no-store" });
+    build = (await resposta.json()).build;
+  } catch (e) {
+    return; // sem rede para o proprio servidor: a marca simplesmente nao aparece
+  }
+  if (!build) return;
+
+  const linha = (rotulo, valor) =>
+    valor ? `<div class="linha"><span class="rotulo">${rotulo}</span> ${valor}</div>` : "";
+
+  alvo.innerHTML = [
+    `<div class="produto">${build.software} v${build.versao}</div>`,
+    linha("dev", build.autor),
+    linha("criado", build.criado_em),
+    linha("atualizado", build.atualizado_em),
+    linha("build", build.commit),
+  ].join("");
+})();

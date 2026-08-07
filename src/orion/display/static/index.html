@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Fofão — Fofão</title>
+<title>ORION OS</title>
 <!-- ?v= e cache-bust: o Firefox do kiosk guardava o JS/CSS antigo e as
      mudancas nao apareciam mesmo com o servidor entregando o arquivo novo
      (achado real de 2026-07-20 na webui do Pi). Subir a data a cada
      mudanca de avatar.js/avatar.css. -->
-<link rel="stylesheet" href="avatar.css?v=20260727" />
+<link rel="stylesheet" href="avatar.css?v=20260807" />
 <body>
 
 <div id="cena"></div>
 
 <header>
   <div>
-    <div class="logo">FOF<span>ÃO</span></div>
-    <div class="tag">mascote oficial do Fofão</div>
+    <div class="logo">OR<span>ION</span></div>
+    <div class="tag">sistema de assistência e ensino</div>
   </div>
 </header>
 
@@ -24,9 +24,13 @@
 
 <div id="fala"></div>
 
-<footer>Fofão — Motion Core conectado ao Event Bus</footer>
+<!-- Marca d'agua: preenchida por avatar.js a partir de /config. Fica
+     VAZIA no HTML de proposito - data escrita a mao mente no dia seguinte. -->
+<aside id="marca" aria-label="identificação da build"></aside>
+
+<footer>ORION OS — Motion Core conectado ao Event Bus</footer>
 
 <script src="vendor/three.min.js"></script>
-<script src="avatar.js?v=20260727"></script>
+<script src="avatar.js?v=20260807"></script>
 </body>
 </html>
