@@ -1,0 +1,73 @@
+id: programacao.variaveis-python.basico
+materia: programacao
+titulo: Variaveis em Python
+nivel: basico
+resumo: >
+  O que e uma variavel, os tipos basicos, e por que o nome que voce escolhe
+  importa mais do que parece.
+passos:
+  - fala: Vamos comecar programacao pelo comeco, que e a variavel.
+    quadro:
+      tipo: titulo
+      texto: Variaveis em Python
+
+  - fala: >
+      Uma variavel e um nome que aponta para um valor guardado na memoria.
+      Pense numa etiqueta colada numa caixa: a etiqueta e o nome, e o que
+      esta dentro e o valor.
+    quadro:
+      tipo: codigo
+      linguagem: python
+      texto: |
+        idade = 15
+        nome = "Kamal"
+        altura = 1.62
+
+  - fala: >
+      Em Python nao se declara o tipo. Ele descobre sozinho pelo valor que
+      voce escreveu, e isso se chama tipagem dinamica.
+    quadro:
+      tipo: tabela
+      texto: Os quatro tipos que resolvem quase tudo
+      cabecalho: [Tipo, Para que serve, Exemplo]
+      linhas:
+        - [int, numero inteiro, "42"]
+        - [float, numero com virgula, "1.62"]
+        - [str, texto, '"Kamal"']
+        - [bool, verdadeiro ou falso, "True"]
+
+  - fala: >
+      O sinal de igual aqui nao e igualdade da matematica. Ele e atribuicao:
+      leia da direita para a esquerda, calcula o lado direito e guarda no
+      nome da esquerda.
+    quadro:
+      tipo: codigo
+      linguagem: python
+      texto: |
+        contador = 0
+        contador = contador + 1   # le-se: pega o que tinha, soma 1, guarda de volta
+        print(contador)           # mostra 1
+
+  - fala: >
+      O nome que voce escolhe e a parte que separa codigo bom de codigo
+      ruim. Codigo e lido muitas mais vezes do que escrito.
+    quadro:
+      tipo: topicos
+      texto: Nomes - a regra que vale a carreira inteira
+      itens:
+        - "Ruim: x = 15"
+        - "Bom: idade_do_aluno = 15"
+        - "Sem espaco e sem acento, e comecando por letra"
+        - "Em Python se usa minusculo com underline: minha_variavel"
+
+  - fala: >
+      Sua vez. Escreva duas variaveis, uma com o seu nome e outra com a sua
+      idade, e depois pense em como mostrar as duas juntas numa frase.
+    quadro:
+      tipo: codigo
+      linguagem: python
+      texto: |
+        # Sua vez:
+        meu_nome = ...
+        minha_idade = ...
+        print(f"Eu sou {meu_nome} e tenho {minha_idade} anos")

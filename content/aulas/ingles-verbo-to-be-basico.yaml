@@ -1,0 +1,79 @@
+# AULA. Este arquivo E o conteudo - nao ha IA envolvida em dar esta aula.
+#
+# O robo le daqui, escreve no quadro e fala. Cada passo tem uma `fala` (o que
+# ele diz) e um `quadro` (o que ele escreve enquanto diz). O tipo do bloco vem
+# do vocabulario fechado de `orion/display/quadro.py`: tipo que nao existe la
+# faz a construcao do banco FALHAR, e nao a aula falhar na frente do aluno.
+id: ingles.verbo-to-be.basico
+materia: ingles
+titulo: O verbo TO BE
+nivel: basico
+resumo: >
+  O verbo mais usado do ingles: am, is, are. Como dizer quem voce e, como
+  esta e de onde vem.
+passos:
+  - fala: Vamos comecar pelo verbo mais importante do ingles, o verbo to be.
+    quadro:
+      tipo: titulo
+      texto: O verbo TO BE
+
+  - fala: >
+      Em portugues nos temos dois verbos, ser e estar. O ingles usa um so
+      para os dois, e ele muda de forma conforme a pessoa.
+    quadro:
+      tipo: texto
+      texto: "TO BE = ser e estar. Um verbo so para as duas ideias."
+
+  - fala: >
+      Sao tres formas apenas. Am fica com I. Is fica com he, she e it. Are
+      fica com you, we e they.
+    quadro:
+      tipo: tabela
+      texto: As tres formas no presente
+      cabecalho: [Pessoa, Forma, Exemplo]
+      linhas:
+        - [I, am, "I am happy"]
+        - [You, are, "You are my friend"]
+        - [He / She / It, is, "She is a teacher"]
+        - [We, are, "We are here"]
+        - [They, are, "They are Brazilian"]
+
+  - fala: >
+      Na conversa do dia a dia ninguem fala tudo separado. Junta-se o
+      pronome com o verbo, e isso se chama contracao.
+    quadro:
+      tipo: tabela
+      texto: Contracoes - como se fala de verdade
+      cabecalho: [Completo, Contraido]
+      linhas:
+        - ["I am", "I'm"]
+        - ["You are", "You're"]
+        - ["He is", "He's"]
+        - ["We are", "We're"]
+        - ["They are", "They're"]
+
+  - fala: >
+      Para negar, e so acrescentar not depois do verbo. E para perguntar,
+      inverte-se a ordem: o verbo vem antes do pronome.
+    quadro:
+      tipo: topicos
+      texto: Negar e perguntar
+      itens:
+        - "Afirma: I am ready."
+        - "Nega: I am not ready. (I'm not ready)"
+        - "Pergunta: Are you ready?"
+        - "Responde curto: Yes, I am. / No, I'm not."
+
+  - fala: >
+      Agora tente voce. Como se diz, em ingles, ela e minha irma? Pense um
+      pouco antes de responder.
+    quadro:
+      tipo: texto
+      texto: "Sua vez: ela e minha irma."
+
+  - fala: >
+      A resposta e she is my sister, ou na forma curta, she's my sister.
+      Repare que ela pede is, porque a pessoa e she.
+    quadro:
+      tipo: formula
+      texto: "She is my sister = She's my sister"

@@ -26,6 +26,7 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 
+from orion.ensino.banco_aulas import normalizar_nivel as _normalizar_nivel
 from orion.mission.acoes_faladas import AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
@@ -119,6 +120,28 @@ _PADRAO_PARAR = re.compile(
 #: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.
 RESPOSTA_PARAR = "Parado."
 
+#: Quando a frase e um pedido de AULA (2026-08-07). Palavra inteira, sempre:
+#: sem `\b`, "aula" casaria dentro de "Paula" e "curso" dentro de "percurso" -
+#: e a deteccao por substring e o defeito que este projeto ja tomou.
+#:
+#: Exige uma palavra que so aparece em pedido de ensino. "me explica" ficou de
+#: FORA de proposito: e frase de conversa normal, e sequestra-la faria o robo
+#: responder com uma aula de sete minutos a quem so fez uma pergunta.
+_PADRAO_AULA = re.compile(
+    r"\baulas?\b"
+    r"|\bcursos?\b"
+    r"|\bme ensin[ae]\b"
+    r"|\bquero aprender\b"
+    r"|\bpode me ensinar\b"
+)
+
+#: Como ele anuncia o nivel na frase de abertura.
+_ARTIGO_NIVEL = {
+    "basico": "basica",
+    "intermediario": "intermediaria",
+    "avancado": "avancada",
+}
+
 #: "QUE HORAS" NEM SEMPRE PERGUNTA O RELOGIO (medido em 2026-08-05).
 #:
 #: Era `"que horas" in texto or "horario" in texto` - substring cru, sem
@@ -175,7 +198,12 @@ class MissionPlanner:
         deixar_recado: CallbackRecado | None = None,
         guardar_conhecimento: CallbackConhecimento | None = None,
         consultar_internet=None,
+        professor=None,
     ) -> None:
+        #: Quem da aula a partir do banco local (2026-08-07). None = o robo
+        #: nao da aula e o pedido segue para a conversa normal. Mesmo
+        #: contrato dos outros callbacks: sem caminho, ele nao finge.
+        self._professor = professor
         self._ai_manager = ai_manager
         self._enviar_comando_hardware = enviar_comando_hardware
         #: Quem move os servos da cabeca. Callback e nao `comm.send` direto de
@@ -218,7 +246,14 @@ class MissionPlanner:
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
 
         if self._pediu_para_parar(texto_usuario):
+            # "para" tambem encerra a aula. Sem isto, o robo pararia as rodas
+            # e continuaria dando aula - obedecendo pela metade, que e pior
+            # que nao obedecer, porque parece que ele ignorou.
+            if self._professor is not None:
+                await self._professor.parar()
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
+        elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
+            resposta = aula
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -249,7 +284,14 @@ class MissionPlanner:
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
 
         if self._pediu_para_parar(texto_usuario):
+            # "para" tambem encerra a aula. Sem isto, o robo pararia as rodas
+            # e continuaria dando aula - obedecendo pela metade, que e pior
+            # que nao obedecer, porque parece que ele ignorou.
+            if self._professor is not None:
+                await self._professor.parar()
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
+        elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
+            resposta = aula
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -342,6 +384,40 @@ class MissionPlanner:
                 logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
 
         return contexto or None
+
+    async def _tentar_dar_aula(self, texto: str) -> str | None:
+        """Da aula a partir do BANCO LOCAL, sem chamar modelo nenhum.
+
+        Este e o primeiro degrau da cascata que o dono desenhou em
+        2026-08-07: o conteudo esta em arquivo, o robo le. Nao gasta cota,
+        nao muda a cada vez, e funciona sem internet - e dar aula seria
+        justamente o uso que mais gastaria cota.
+
+        `None` significa "nao e pedido de aula" OU "nao tenho essa aula", e
+        nos dois casos a frase segue o caminho normal, que termina na IA. E
+        de proposito que os dois casos se parecem aqui: quem decide o que
+        fazer quando o banco nao sabe e a cascata inteira, nao este metodo.
+
+        O gatilho e por PALAVRA INTEIRA (`\\b`), e nao por substring. Este
+        projeto ja tomou esse defeito: "parar" casa dentro de "preparar", e
+        e o motivo registrado para o classificador de intencao ter sido
+        recusado. Aqui, sem o limite de palavra, "aula" casaria dentro de
+        "Paula".
+        """
+        if self._professor is None:
+            return None
+        if not _PADRAO_AULA.search(texto):
+            return None
+        nivel = _normalizar_nivel(texto)
+        aula = self._professor.procurar(texto, nivel=nivel)
+        if aula is None:
+            logger.info("pedido de aula sem aula no banco: %r", texto)
+            return None
+        await self._professor.dar_aula(aula)
+        # A frase de abertura vem daqui e nao do banco: ela precisa dizer o
+        # nivel que ele escolheu, porque pode nao ser o que a pessoa pediu -
+        # quem pede "avancado" e recebe "basico" tem que saber disso.
+        return f"Vou dar uma aula {_ARTIGO_NIVEL[aula.nivel]} sobre {aula.titulo}. Olha o quadro."
 
     @staticmethod
     def _pediu_para_parar(texto: str) -> bool:

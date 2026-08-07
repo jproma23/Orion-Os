@@ -1,0 +1,80 @@
+id: ingles.past-simple.intermediario
+materia: ingles
+titulo: Passado simples - regulares e irregulares
+nivel: intermediario
+resumo: >
+  Como falar do que ja aconteceu em ingles: o ED dos verbos regulares, os
+  irregulares que voce precisa decorar, e o did das perguntas e negacoes.
+passos:
+  - fala: Agora vamos falar do passado em ingles.
+    quadro:
+      tipo: titulo
+      texto: Past Simple - o passado simples
+
+  - fala: >
+      A regra geral e simples: acrescenta-se e d no fim do verbo, e ela vale
+      para todas as pessoas, sem excecao.
+    quadro:
+      tipo: tabela
+      texto: Verbos regulares - so acrescentar ED
+      cabecalho: [Presente, Passado, Exemplo]
+      linhas:
+        - [work, worked, "I worked yesterday"]
+        - [play, played, "She played football"]
+        - [study, studied, "He studied English"]
+        - [stop, stopped, "They stopped here"]
+
+  - fala: >
+      Repare em study e stop. Quando o verbo termina em consoante mais y, o
+      y vira i. E quando termina em consoante, vogal, consoante, dobra-se a
+      ultima letra.
+    quadro:
+      tipo: topicos
+      texto: As duas regras de escrita
+      itens:
+        - "study -> studied: o Y depois de consoante vira I"
+        - "stop -> stopped: dobra a ultima consoante"
+        - "live -> lived: se ja termina em E, so acrescenta o D"
+
+  - fala: >
+      O problema sao os irregulares. Eles nao seguem regra nenhuma e nao ha
+      como deduzir: sao os mais usados da lingua, e se aprendem um por um.
+    quadro:
+      tipo: tabela
+      texto: Os irregulares mais comuns
+      cabecalho: [Presente, Passado, Significado]
+      linhas:
+        - [go, went, ir]
+        - [have, had, ter]
+        - [do, did, fazer]
+        - [say, said, dizer]
+        - [see, saw, ver]
+        - [make, made, fazer/criar]
+        - [take, took, pegar]
+        - [come, came, vir]
+
+  - fala: >
+      Para perguntar e para negar, entra o did. E aqui esta a pegadinha que
+      todo brasileiro erra: quando o did aparece, o verbo principal VOLTA
+      para a forma normal.
+    quadro:
+      tipo: topicos
+      texto: Did - e a armadilha
+      itens:
+        - "Afirma: I went to school."
+        - "Nega: I did NOT go to school. (nao 'did not went')"
+        - "Pergunta: Did you go to school? (nao 'Did you went')"
+        - "O DID ja carrega o passado - o verbo nao precisa carregar de novo"
+
+  - fala: >
+      Sua vez. Como se pergunta, em ingles, voce viu o filme? Pense antes.
+    quadro:
+      tipo: texto
+      texto: "Sua vez: voce viu o filme?"
+
+  - fala: >
+      A resposta e did you see the movie. See fica na forma normal, porque o
+      did ja disse que e passado. Dizer did you saw seria o erro classico.
+    quadro:
+      tipo: formula
+      texto: "Did you see the movie?  ✓     Did you saw...  ✗"

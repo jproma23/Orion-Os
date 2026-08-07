@@ -46,6 +46,9 @@ from orion.communication.heartbeat import MonitorHeartbeat  # noqa: E402
 from orion.communication.service import ComunicacaoService  # noqa: E402
 from orion.communication.transport import TcpTransport  # noqa: E402
 from orion.display.avatar_server import AvatarServer  # noqa: E402
+from orion.display.quadro import Quadro  # noqa: E402
+from orion.ensino.banco_aulas import BancoAulas, caminho_padrao  # noqa: E402
+from orion.ensino.professor import Professor  # noqa: E402
 from orion.kernel.config import ConfigurationManager  # noqa: E402
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.mission.ai_manager import AiManager  # noqa: E402
@@ -561,8 +564,18 @@ async def principal() -> None:
     # direto, sem uma segunda chamada ao modelo para reescreve-lo.
     consulta_internet = ConsultaInternet()
 
+    # O PROFESSOR (2026-08-07). Da aula a partir do banco local, SEM chamar
+    # modelo: pedido do dono depois de a cota diaria da IA acabar e o robo
+    # ficar sem fazer nada. O banco e um indice construido de
+    # `content/aulas/*.yaml` por `tools/aulas.py construir` - se o arquivo
+    # nao existir, `procurar` nao acha nada e o pedido segue para a conversa
+    # normal, que e o degrau seguinte da cascata.
+    banco_aulas = BancoAulas(caminho_padrao(_RAIZ_PROJETO))
+    professor = Professor(banco_aulas, Quadro(bus), sintetizador.falar, bus)
+
     planner = MissionPlanner(
         ia,
+        professor=professor,
         consultar_internet=consulta_internet.consultar,
         enviar_comando_hardware=enviar_comando_hardware,
         memory_client=MemoryClient(comm),

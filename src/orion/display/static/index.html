@@ -8,7 +8,7 @@
      mudancas nao apareciam mesmo com o servidor entregando o arquivo novo
      (achado real de 2026-07-20 na webui do Pi). Subir a data a cada
      mudanca de avatar.js/avatar.css. -->
-<link rel="stylesheet" href="avatar.css?v=20260807" />
+<link rel="stylesheet" href="avatar.css?v=20260807b" />
 <body>
 
 <div id="cena"></div>
@@ -22,6 +22,15 @@
 
 <div id="status"><div class="dot"></div><span id="hud-conn">conectando</span></div>
 
+<!-- O QUADRO (2026-08-07): fica VAZIO e escondido ate o robo escrever
+     nele. `aria-live` porque quem entra na sala no meio da aula precisa
+     que um leitor de tela anuncie o que apareceu. -->
+<main id="quadro" aria-live="polite" aria-label="quadro da aula"></main>
+
+<!-- O dedo do robo. Nao ha mouse nesta maquina: quem move isto e ele,
+     por evento, para apontar do que esta falando agora. -->
+<div id="dedo" aria-hidden="true">☝️</div>
+
 <div id="fala"></div>
 
 <!-- Marca d'agua: preenchida por avatar.js a partir de /config. Fica
@@ -31,6 +40,6 @@
 <footer>ORION OS — Motion Core conectado ao Event Bus</footer>
 
 <script src="vendor/three.min.js"></script>
-<script src="avatar.js?v=20260807"></script>
+<script src="avatar.js?v=20260807b"></script>
 </body>
 </html>

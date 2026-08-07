@@ -1,0 +1,95 @@
+id: matematica.equacao-segundo-grau.basico
+materia: matematica
+titulo: Equacao do segundo grau
+nivel: basico
+resumo: >
+  O que e uma equacao do segundo grau, o que sao a, b e c, e como resolver
+  pela formula de Bhaskara passo a passo.
+passos:
+  - fala: Hoje a gente resolve equacao do segundo grau.
+    quadro:
+      tipo: titulo
+      texto: Equacao do segundo grau
+
+  - fala: >
+      Ela tem sempre esta cara. O que a torna de segundo grau e o x elevado
+      ao quadrado. Se esse termo sumir, ela deixa de ser do segundo grau.
+    quadro:
+      tipo: formula
+      texto: "a x^2 + b x + c = 0"
+
+  - fala: >
+      Os numeros a, b e c sao os coeficientes. O a nunca pode ser zero, pelo
+      motivo que acabei de dizer.
+    quadro:
+      tipo: topicos
+      texto: Os tres coeficientes
+      itens:
+        - "a = o numero que acompanha o x ao quadrado (nunca zero)"
+        - "b = o numero que acompanha o x"
+        - "c = o numero sozinho, o termo independente"
+
+  - fala: >
+      Antes de resolver, calcula-se o discriminante, que se escreve com a
+      letra grega delta. E ele que diz quantas respostas a equacao tem.
+    quadro:
+      tipo: formula
+      texto: "Δ = b^2 - 4 a c"
+
+  - fala: >
+      O sinal do delta ja entrega o final da historia, antes de qualquer
+      conta.
+    quadro:
+      tipo: topicos
+      texto: O que o delta diz
+      itens:
+        - "Delta maior que zero: duas raizes diferentes"
+        - "Delta igual a zero: uma raiz so"
+        - "Delta menor que zero: nenhuma raiz real"
+
+  - fala: >
+      Com o delta na mao, entra a formula de Bhaskara. O sinal de mais ou
+      menos e o que produz as duas raizes.
+    quadro:
+      tipo: mathml
+      texto: >
+        <math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mi>x</mi><mo>=</mo><mfrac><mrow><mo>-</mo><mi>b</mi><mo>&#177;</mo><msqrt><mi>&#916;</mi></msqrt></mrow><mrow><mn>2</mn><mi>a</mi></mrow></mfrac></math>
+
+  - fala: >
+      Vamos a um exemplo de verdade. x ao quadrado, menos cinco x, mais seis,
+      igual a zero. Aqui a vale um, b vale menos cinco e c vale seis.
+    quadro:
+      tipo: formula
+      texto: "x^2 - 5x + 6 = 0"
+
+  - fala: >
+      Primeiro o delta. Menos cinco ao quadrado da vinte e cinco. Quatro
+      vezes um vezes seis da vinte e quatro. Vinte e cinco menos vinte e
+      quatro da um.
+    quadro:
+      tipo: formula
+      texto: "Δ = (-5)^2 - 4·1·6 = 25 - 24 = 1"
+
+  - fala: >
+      Delta deu um, que e maior que zero: entao sao duas raizes. A raiz
+      quadrada de um e um.
+    quadro:
+      tipo: formula
+      texto: "x = (5 ± 1) / 2"
+
+  - fala: >
+      Fazendo as duas contas, cinco mais um dividido por dois da tres, e
+      cinco menos um dividido por dois da dois. As raizes sao tres e dois.
+    quadro:
+      tipo: topicos
+      texto: As duas raizes
+      itens:
+        - "x1 = (5 + 1) / 2 = 3"
+        - "x2 = (5 - 1) / 2 = 2"
+
+  - fala: >
+      Conferir e a parte que quase todo mundo pula. Substitua o tres no lugar
+      do x: nove menos quinze mais seis da zero. Bateu, entao esta certo.
+    quadro:
+      tipo: formula
+      texto: "3^2 - 5·3 + 6 = 9 - 15 + 6 = 0 ✓"

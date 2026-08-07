@@ -144,3 +144,180 @@ footer {
 @media (max-width: 640px) {
   #marca { font-size: 10px; top: 8px; right: 10px; }
 }
+
+
+/* ============================================================
+   O QUADRO (2026-08-07) - a tela como lousa do professor.
+
+   Duas telas em uma: sem aula, o avatar ocupa tudo, como sempre.
+   Com aula (`body.aula`), o quadro vira o assunto e o avatar
+   encolhe para o canto - decisao de produto do dono: "a tela deixa
+   de ser a cara dele e vira ferramenta quando ele precisa ensinar".
+
+   TAMANHO DE LETRA: esta tela e lida de longe, em pe, do outro lado
+   da sala. Todo `font-size` daqui usa clamp() com um minimo alto de
+   proposito - o que serve para um monitor a 50 cm nao serve aqui, e
+   a legenda da fala ja tinha aprendido essa licao.
+   ============================================================ */
+
+#quadro {
+  position: fixed;
+  inset: 62px 3vw 120px 3vw;
+  z-index: 8;
+  display: none;
+  overflow-y: auto;
+  scrollbar-width: none;             /* barra de rolagem em kiosk e sujeira */
+  padding: 26px 30px 40px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgb(9 14 36 / .92), rgb(12 19 48 / .88));
+  border: 1px solid rgb(79 216 235 / .22);
+  box-shadow: 0 20px 60px rgb(0 0 0 / .45), inset 0 1px 0 rgb(255 255 255 / .06);
+}
+#quadro::-webkit-scrollbar { display: none; }
+
+body.aula #quadro { display: block; }
+
+/* O avatar sai do centro e vai para o canto, encolhido. O renderer do
+   three.js e redimensionado pelo JS junto com isto - so mudar o CSS
+   deixaria o canvas grande dentro de uma caixa pequena, cortado. */
+body.aula #cena {
+  inset: auto 22px 22px auto;
+  width: min(22vw, 300px);
+  height: min(26vh, 260px);
+  z-index: 9;
+  filter: drop-shadow(0 12px 24px rgb(0 0 0 / .5));
+}
+
+body.aula #fala.legenda {
+  max-width: min(62vw, 900px);
+  left: 40%;
+  bottom: 26px;
+  font-size: clamp(16px, 1.9vw, 24px);
+}
+
+/* ---- os blocos ---- */
+.bloco {
+  margin: 0 0 22px;
+  animation: entrar .35s ease both;
+  scroll-margin-block: 24px;
+}
+
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.bloco.destaque {
+  outline: 2px solid rgb(255 179 64 / .55);
+  outline-offset: 10px;
+  border-radius: 10px;
+}
+
+.bloco h2 {
+  font-size: clamp(26px, 3.4vw, 46px);
+  font-weight: 750;
+  letter-spacing: .01em;
+  color: var(--lanterna);
+  margin-bottom: 4px;
+}
+
+.bloco p {
+  font-size: clamp(19px, 2.2vw, 30px);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.bloco ul { list-style: none; }
+.bloco li {
+  font-size: clamp(18px, 2.1vw, 29px);
+  line-height: 1.5;
+  padding-left: 30px;
+  position: relative;
+}
+.bloco li::before {
+  content: "▸";
+  position: absolute;
+  left: 4px;
+  color: var(--ciano);
+}
+.bloco .rotulo-lista {
+  font-size: clamp(17px, 1.9vw, 25px);
+  font-weight: 700;
+  color: var(--ciano);
+  margin-bottom: 6px;
+}
+
+/* Formula: serifada e centralizada, como no quadro de verdade. O
+   `sup`/`sub` sao montados pelo JS a partir de ^ e _ . */
+.bloco.formula, .bloco.mathml {
+  text-align: center;
+  font-family: "Cambria Math", "Latin Modern Math", Georgia, serif;
+  font-size: clamp(28px, 3.6vw, 52px);
+  padding: 14px 0;
+  color: #fff;
+}
+.bloco.formula sup, .bloco.formula sub { font-size: .58em; }
+.bloco.mathml math { font-size: inherit; }
+
+.bloco pre {
+  background: rgb(3 7 22 / .85);
+  border: 1px solid rgb(255 255 255 / .10);
+  border-left: 4px solid var(--ciano);
+  border-radius: 12px;
+  padding: 16px 20px;
+  overflow-x: auto;
+  font: 500 clamp(16px, 1.7vw, 24px)/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;                  /* indentacao E o conteudo, aqui */
+  tab-size: 4;
+}
+.bloco .linguagem {
+  display: inline-block;
+  font: 700 12px/1 ui-monospace, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ciano);
+  opacity: .75;
+  margin-bottom: 6px;
+}
+
+.bloco table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: clamp(17px, 1.9vw, 27px);
+}
+.bloco th, .bloco td {
+  text-align: left;
+  padding: 9px 16px;
+  border-bottom: 1px solid rgb(255 255 255 / .10);
+}
+.bloco th {
+  color: var(--lanterna);
+  font-weight: 700;
+  border-bottom-color: rgb(255 179 64 / .40);
+}
+.bloco tr:last-child td { border-bottom: none; }
+
+.bloco svg { width: 100%; height: auto; max-height: 42vh; }
+
+/* ---- o dedo ----
+   E a presenca do robo no quadro: sem ele, a tela seria um slide. O
+   dono foi explicito - "quem vai usar a tela e o robo, o cursor e
+   dedo". Nao ha mouse nesta maquina e a tela nao e touch: quem move
+   isto e o robo, por evento. */
+#dedo {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 30;
+  font-size: 42px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / .6));
+  transition: transform .55s cubic-bezier(.22, .8, .3, 1), opacity .3s;
+}
+#dedo.mostrar { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  #dedo { transition: opacity .3s; }
+  .bloco { animation: none; }
+}

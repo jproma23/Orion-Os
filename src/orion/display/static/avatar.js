@@ -259,6 +259,19 @@ function conectar() {
     definirAlerta(false);
     dizer('Sistemas prontos! Oi, eu sou o Fofão 🤖');
   });
+
+  // O QUADRO (2026-08-07). Vocabulario FECHADO: o que nao esta em
+  // `renderizadores` nao desenha nada. Mesma trava do catalogo de acoes
+  // faladas - tipo desconhecido nao vira chute, vira nada.
+  fonte.addEventListener('display.quadro', (evento) => {
+    let dados;
+    try {
+      dados = JSON.parse(evento.data);
+    } catch (e) {
+      return;                         // evento malformado nao pode sujar a aula
+    }
+    escreverNoQuadro(dados);
+  });
 }
 
 function aplicarEstadoVoz(estado) {
@@ -348,11 +361,282 @@ function animate() {
 animate();
 
 // ---------- Responsivo ----------
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+// Le o TAMANHO DA CAIXA e nao a janela: em modo aula o avatar encolhe para
+// o canto (body.aula #cena, no CSS) e usar innerWidth deixaria um canvas de
+// tela cheia dentro de uma caixa pequena - o robo apareceria cortado.
+function ajustarCena() {
+  const largura = container.clientWidth || innerWidth;
+  const altura = container.clientHeight || innerHeight;
+  camera.aspect = largura / altura;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+  renderer.setSize(largura, altura);
+}
+addEventListener('resize', ajustarCena);
+
+
+/* ============================================================
+   O QUADRO — a tela como lousa do professor (2026-08-07)
+
+   Regras que este trecho aplica, e todas vieram de decisao anterior:
+
+   1. VOCABULARIO FECHADO. `renderizadores` e a lista inteira do que a
+      tela sabe desenhar. Tipo que nao esta ali nao desenha nada - e
+      proposital, e a mesma trava que impede a IA de inventar uma acao.
+   2. NADA DE innerHTML COM TEXTO DE FORA. Todo conteudo entra por
+      `textContent` ou por `createElement`. A unica excecao e o MathML,
+      que passa por um parser e so e aceito se a raiz for <math> - e
+      MathML nativo do Firefox, sem biblioteca nenhuma.
+   3. O DEDO. A tela nao e touch e nao ha mouse: quem aponta e o robo.
+      Cada bloco novo puxa o dedo, como um professor que aponta o que
+      acabou de escrever.
+   ============================================================ */
+
+const quadro = document.getElementById('quadro');
+const dedo = document.getElementById('dedo');
+
+function novoBloco(id, classe) {
+  const div = document.createElement('div');
+  div.className = 'bloco' + (classe ? ' ' + classe : '');
+  if (id) div.id = id;
+  return div;
+}
+
+// Formula em texto comum: ^ eleva, _ abaixa. Feito com createElement e
+// textContent - o conteudo nunca vira HTML, entao nao ha o que injetar.
+function montarFormula(texto) {
+  const raiz = document.createDocumentFragment();
+  let atual = '';
+  let modo = null;                    // null | 'sup' | 'sub'
+  const despejar = () => {
+    if (!atual) return;
+    if (modo) {
+      const marca = document.createElement(modo);
+      marca.textContent = atual;
+      raiz.appendChild(marca);
+    } else {
+      raiz.appendChild(document.createTextNode(atual));
+    }
+    atual = '';
+  };
+  for (const caractere of texto) {
+    if (caractere === '^' || caractere === '_') {
+      despejar();
+      modo = caractere === '^' ? 'sup' : 'sub';
+    } else if (modo && !/[0-9a-zA-Z+\-]/.test(caractere)) {
+      // o expoente acaba no primeiro caractere que nao pode fazer parte
+      // dele: "x^2 + 1" eleva o 2 e devolve o resto para a linha de base
+      despejar();
+      modo = null;
+      atual = caractere;
+    } else {
+      atual += caractere;
+    }
+  }
+  despejar();
+  return raiz;
+}
+
+const renderizadores = {
+  titulo(dados, bloco) {
+    const h = document.createElement('h2');
+    h.textContent = dados.texto;
+    bloco.appendChild(h);
+  },
+
+  texto(dados, bloco) {
+    const p = document.createElement('p');
+    p.textContent = dados.texto;
+    bloco.appendChild(p);
+  },
+
+  topicos(dados, bloco) {
+    if (dados.texto) {
+      const rotulo = document.createElement('div');
+      rotulo.className = 'rotulo-lista';
+      rotulo.textContent = dados.texto;
+      bloco.appendChild(rotulo);
+    }
+    const ul = document.createElement('ul');
+    (dados.itens || []).forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      ul.appendChild(li);
+    });
+    bloco.appendChild(ul);
+  },
+
+  formula(dados, bloco) {
+    bloco.classList.add('formula');
+    bloco.appendChild(montarFormula(dados.texto));
+  },
+
+  mathml(dados, bloco) {
+    bloco.classList.add('mathml');
+    // Parser de verdade em vez de innerHTML: so entra na pagina se a raiz
+    // for <math>. Se o modelo escrever algo torto, cai para a formula em
+    // texto - a aula continua, que e o que importa.
+    try {
+      const doc = new DOMParser().parseFromString(dados.texto, 'application/xml');
+      const raiz = doc.documentElement;
+      if (raiz && raiz.localName === 'math' && !doc.querySelector('parsererror')) {
+        bloco.appendChild(document.importNode(raiz, true));
+        return;
+      }
+    } catch (e) { /* cai no plano B logo abaixo */ }
+    bloco.classList.remove('mathml');
+    bloco.classList.add('formula');
+    bloco.appendChild(montarFormula(dados.texto));
+  },
+
+  codigo(dados, bloco) {
+    if (dados.linguagem) {
+      const etiqueta = document.createElement('span');
+      etiqueta.className = 'linguagem';
+      etiqueta.textContent = dados.linguagem;
+      bloco.appendChild(etiqueta);
+    }
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = dados.texto;   // a indentacao E o conteudo, aqui
+    pre.appendChild(code);
+    bloco.appendChild(pre);
+  },
+
+  tabela(dados, bloco) {
+    if (dados.texto) {
+      const rotulo = document.createElement('div');
+      rotulo.className = 'rotulo-lista';
+      rotulo.textContent = dados.texto;
+      bloco.appendChild(rotulo);
+    }
+    const tabela = document.createElement('table');
+    if (dados.cabecalho) {
+      const tr = document.createElement('tr');
+      dados.cabecalho.forEach(titulo => {
+        const th = document.createElement('th');
+        th.textContent = titulo;
+        tr.appendChild(th);
+      });
+      tabela.appendChild(tr);
+    }
+    (dados.linhas || []).forEach(linha => {
+      const tr = document.createElement('tr');
+      (Array.isArray(linha) ? linha : [linha]).forEach(celula => {
+        const td = document.createElement('td');
+        td.textContent = celula;
+        tr.appendChild(td);
+      });
+      tabela.appendChild(tr);
+    });
+    bloco.appendChild(tabela);
+  },
+
+  // SVG gerado aqui mesmo, sem biblioteca de grafico: sao barras, e barras
+  // sao quatro numeros por retangulo. Uma dependencia nova precisaria de um
+  // motivo maior que este.
+  grafico(dados, bloco) {
+    const valores = (dados.valores || []).map(Number).filter(v => !isNaN(v));
+    if (!valores.length) return;
+    if (dados.texto) {
+      const rotulo = document.createElement('div');
+      rotulo.className = 'rotulo-lista';
+      rotulo.textContent = dados.texto;
+      bloco.appendChild(rotulo);
+    }
+    const NS = 'http://www.w3.org/2000/svg';
+    const largura = 1000, altura = 420, base = 360, folga = 60;
+    const maximo = Math.max(...valores) || 1;
+    const passo = (largura - folga * 2) / valores.length;
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${largura} ${altura}`);
+
+    const eixo = document.createElementNS(NS, 'line');
+    eixo.setAttribute('x1', folga - 10); eixo.setAttribute('y1', base);
+    eixo.setAttribute('x2', largura - folga + 10); eixo.setAttribute('y2', base);
+    eixo.setAttribute('stroke', 'rgba(255,255,255,.35)');
+    svg.appendChild(eixo);
+
+    valores.forEach((valor, i) => {
+      const alturaBarra = (valor / maximo) * (base - 40);
+      const x = folga + i * passo + passo * 0.18;
+      const larguraBarra = passo * 0.64;
+      const barra = document.createElementNS(NS, 'rect');
+      barra.setAttribute('x', x);
+      barra.setAttribute('y', base - alturaBarra);
+      barra.setAttribute('width', larguraBarra);
+      barra.setAttribute('height', alturaBarra);
+      barra.setAttribute('rx', 6);
+      barra.setAttribute('fill', '#4fd8eb');
+      barra.setAttribute('opacity', '.85');
+      svg.appendChild(barra);
+
+      const numero = document.createElementNS(NS, 'text');
+      numero.setAttribute('x', x + larguraBarra / 2);
+      numero.setAttribute('y', base - alturaBarra - 12);
+      numero.setAttribute('text-anchor', 'middle');
+      numero.setAttribute('fill', '#eef2ff');
+      numero.setAttribute('font-size', '26');
+      numero.textContent = valor;
+      svg.appendChild(numero);
+
+      const nome = (dados.rotulos || [])[i];
+      if (nome) {
+        const legenda = document.createElementNS(NS, 'text');
+        legenda.setAttribute('x', x + larguraBarra / 2);
+        legenda.setAttribute('y', base + 34);
+        legenda.setAttribute('text-anchor', 'middle');
+        legenda.setAttribute('fill', 'rgba(238,242,255,.75)');
+        legenda.setAttribute('font-size', '24');
+        legenda.textContent = nome;
+        svg.appendChild(legenda);
+      }
+    });
+    bloco.appendChild(svg);
+  },
+};
+
+// Move o dedo para a esquerda de um bloco. Coordenadas de tela (o dedo e
+// `position: fixed`), entao a rolagem do quadro nao o deixa para tras.
+function apontarPara(elemento) {
+  if (!elemento) return;
+  const caixa = elemento.getBoundingClientRect();
+  const x = Math.max(6, caixa.left - 54);
+  const y = caixa.top + Math.min(caixa.height / 2, 40) - 22;
+  dedo.style.transform = `translate(${x}px, ${y}px)`;
+  dedo.classList.add('mostrar');
+  document.querySelectorAll('.bloco.destaque').forEach(b => b.classList.remove('destaque'));
+  elemento.classList.add('destaque');
+}
+
+function escreverNoQuadro(dados) {
+  if (dados.tipo === 'limpar') {
+    quadro.replaceChildren();
+    document.body.classList.remove('aula');
+    dedo.classList.remove('mostrar');
+    ajustarCena();
+    return;
+  }
+
+  if (dados.tipo === 'apontar') {
+    apontarPara(document.getElementById(dados.alvo));
+    return;
+  }
+
+  const desenhar = renderizadores[dados.tipo];
+  if (!desenhar) return;              // vocabulario fechado: nao inventa
+
+  const primeiraVez = !document.body.classList.contains('aula');
+  document.body.classList.add('aula');
+  if (primeiraVez) ajustarCena();     // o avatar acabou de encolher
+
+  const bloco = novoBloco(dados.id, null);
+  desenhar(dados, bloco);
+  quadro.appendChild(bloco);
+  bloco.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // O dedo segue o que acabou de ser escrito. `requestAnimationFrame` para
+  // medir DEPOIS do layout - antes disso o bloco novo ainda nao tem posicao.
+  requestAnimationFrame(() => apontarPara(bloco));
+}
 
 
 // -------------------------------------------------- marca d'agua da build
