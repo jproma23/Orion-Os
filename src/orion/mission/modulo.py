@@ -80,7 +80,7 @@ class ModuloMissao:
             temperatura=self._conf["temperature"],
             caminho_prompt_sistema=self._conf["system_prompt_file"],
             max_tokens_resposta=self._conf["resposta_max_tokens"],
-            openai_model=self._conf.get("openai_model", "gpt-4o-mini"),
+            openai_model=self._conf.get("openai_model", "gemini-flash-lite-latest"),
             openai_base_url=self._conf.get("openai_base_url"),
         )
 
@@ -95,7 +95,7 @@ class ModuloMissao:
             from orion.mission.ponte_conselho import PonteConselho
 
             conselheiro = ConselheiroComportamento(
-                modelo=self._conf.get("mentor_model", "openai/gpt-4o-mini"),
+                modelo=self._conf.get("mentor_model", "gemini-flash-lite-latest"),
                 base_url=self._conf.get("openai_base_url"),
             )
             PonteConselho(conselheiro, self._comm).registrar(self._event_bus)

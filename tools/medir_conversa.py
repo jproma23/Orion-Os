@@ -120,7 +120,7 @@ async def principal() -> None:
         temperatura=ia_conf["temperature"],
         caminho_prompt_sistema=ia_conf["system_prompt_file"],
         max_tokens_resposta=ia_conf["resposta_max_tokens"],
-        openai_model=ia_conf.get("openai_model", "gpt-4o-mini"),
+        openai_model=ia_conf.get("openai_model", "gemini-flash-lite-latest"),
         openai_base_url=ia_conf.get("openai_base_url"),
     )
 

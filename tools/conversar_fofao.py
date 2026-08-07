@@ -203,7 +203,7 @@ async def principal() -> None:
         temperatura=secao_ia["temperature"],
         caminho_prompt_sistema=secao_ia["system_prompt_file"],
         max_tokens_resposta=secao_ia["resposta_max_tokens"],
-        openai_model=secao_ia.get("openai_model", "gpt-4o-mini"),
+        openai_model=secao_ia.get("openai_model", "gemini-flash-lite-latest"),
         openai_base_url=secao_ia.get("openai_base_url"),
     )
     if not os.environ.get("OPENAI_API_KEY"):
@@ -235,7 +235,7 @@ async def principal() -> None:
     # habilitado no orion.yaml - e esta desligado. Bug latente esperando
     # alguem ligar a chave.
     conselheiro = ConselheiroComportamento(
-        modelo=secao_ia.get("mentor_model", "openai/gpt-4o-mini"),
+        modelo=secao_ia.get("mentor_model", "gemini-flash-lite-latest"),
         base_url=secao_ia.get("openai_base_url"),
     )
     AtendenteConselhoIA(bus, conselheiro.aconselhar)

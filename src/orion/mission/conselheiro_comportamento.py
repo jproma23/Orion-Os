@@ -87,7 +87,7 @@ def _schema(opcoes: list[str]) -> dict:
 class ConselheiroComportamento:
     def __init__(
         self,
-        modelo: str = "openai/gpt-4o-mini",
+        modelo: str = "gemini-flash-lite-latest",
         temperatura: float = 0.3,
         timeout_s: float = 20.0,
         api_key: str | None = None,

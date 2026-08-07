@@ -55,7 +55,7 @@ class AiManager:
         temperatura: float = 0.6,
         caminho_prompt_sistema: str | Path = "config/prompt_sistema.txt",
         max_tokens_resposta: int | None = None,
-        openai_model: str = "gpt-4o-mini",
+        openai_model: str = "gemini-flash-lite-latest",
         openai_api_key: str | None = None,
         openai_base_url: str | None = None,
         max_turnos_memoria: int = 6,

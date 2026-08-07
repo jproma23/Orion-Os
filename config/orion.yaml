@@ -478,9 +478,19 @@ ai:
   resposta_max_tokens: 100
   system_prompt_file: "config/prompt_sistema.txt"
   # Modelo usado pelo Mentor de comportamento (behavior.mentor,
-  # 2026-07-24) - mesma OpenRouter/base_url acima, so o modelo pode ser
-  # diferente do da conversa (aqui exige saida JSON estruturada).
-  mentor_model: "openai/gpt-4o-mini"
+  # 2026-07-24) - mesmo base_url da conversa acima, so o modelo pode ser
+  # diferente (aqui exige saida JSON estruturada: json_schema com enum).
+  #
+  # ESTA CHAVE TEM DE ANDAR JUNTO COM O `openai_base_url`. Em 05/08 o
+  # base_url foi para o Google e este nome ficou na OpenRouter: 1737 erros
+  # 404 em 33 h, um a cada 30 s, e o Mentor NUNCA opinou nesse periodo. Nao
+  # apareceu como pane porque `aconselhar()` engole a excecao de proposito
+  # e o robo segue pela regra - ele fica mudo de opiniao, nao quebrado.
+  #
+  # O `gemini-flash-latest` NAO serve aqui, pelo mesmo motivo da conversa:
+  # ele pensa antes de responder e os tokens de pensamento consomem os 150
+  # de `max_tokens` - medido 06/08, devolveu 'Here' e o validador descartou.
+  mentor_model: "gemini-flash-lite-latest"
 
 display:
   avatar:                        # tela do notebook (Cap 13)
