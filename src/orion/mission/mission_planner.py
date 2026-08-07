@@ -27,11 +27,12 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 from orion.ensino.banco_aulas import normalizar_nivel as _normalizar_nivel
-from orion.mission.acoes_faladas import AcaoFalada
+from orion.mission.acoes_faladas import MARCADOR, AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
-from orion.mission.ai_manager import AiManager
+from orion.mission.ai_manager import SEM_IA, AiManager
+from orion.mission.comando_local import casar as _casar_comando_local
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
 
@@ -262,7 +263,12 @@ class MissionPlanner:
             resposta = resposta_diario
         else:
             bruta = await self._ai_manager.responder(texto_usuario, contexto)
-            resposta = await self._cumprir_acao_pedida(bruta)
+            # Mesmo degrau do caminho por frases: se a IA nao respondeu, ele
+            # tenta obedecer sozinho antes de dizer que nao consegue pensar.
+            if bruta == SEM_IA and (local := await self._obedecer_sem_ia(texto_usuario)):
+                resposta = local
+            else:
+                resposta = await self._cumprir_acao_pedida(bruta)
 
         await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
         return resposta
@@ -319,6 +325,16 @@ class MissionPlanner:
                 # primeira frase - e e por isso que o servo comeca a se mexer
                 # junto com o primeiro som, e nao depois da fala inteira.
                 primeira = False
+                # A IA NAO RESPONDEU (cota, chave, rede). Antes de repetir
+                # "nao consigo pensar", tenta obedecer sozinho: o catalogo
+                # inteiro estava trancado atras do modelo, e foi assim que a
+                # cota esgotada deixou o robo sem fazer NADA em 07/08.
+                if frase == SEM_IA:
+                    local = await self._obedecer_sem_ia(texto_usuario)
+                    if local is not None:
+                        yield local
+                        await self._registrar_interacao(pessoa_id, texto_usuario, local)
+                        return
                 frase = await self._cumprir_acao_pedida(frase)
                 if not frase:
                     # A resposta era so o marcador. Nao ha o que falar ainda -
@@ -384,6 +400,27 @@ class MissionPlanner:
                 logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
 
         return contexto or None
+
+    async def _obedecer_sem_ia(self, texto: str) -> str | None:
+        """Executa a acao pedida quando a IA NAO RESPONDEU. None = nao deu.
+
+        Roda so depois de o modelo falhar (cota esgotada, sem chave, rede
+        fora). Com a IA no ar, nada disto e consultado - o degrau e ABAIXO
+        dela, nao acima, e e isso que o separa do classificador de intencao
+        que este projeto recusou.
+
+        O casador escreve O MESMO MARCADOR que o modelo escreveria, e a
+        execucao segue pelo caminho de sempre: um caminho so ate o hardware,
+        ja testado, em vez de uma segunda maneira de acionar as mesmas acoes
+        que precisaria ser mantida em paralelo.
+        """
+        casamento = _casar_comando_local(texto)
+        if casamento is None:
+            return None
+        marcador = f"{MARCADOR}{casamento.acao.nome}"
+        if casamento.argumento:
+            marcador += f" {casamento.argumento}"
+        return await self._cumprir_acao_pedida(marcador)
 
     async def _tentar_dar_aula(self, texto: str) -> str | None:
         """Da aula a partir do BANCO LOCAL, sem chamar modelo nenhum.
