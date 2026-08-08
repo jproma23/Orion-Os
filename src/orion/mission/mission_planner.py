@@ -121,6 +121,21 @@ _PADRAO_PARAR = re.compile(
 #: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.
 RESPOSTA_PARAR = "Parado."
 
+#: PAUSAR e RETOMAR a aula (2026-08-07). Por expressao regular e nao pelo
+#: modelo, pelo mesmo motivo de "parar": e ordem, e ordem nao pode depender
+#: de cota, de internet nem de o modelo lembrar de escrever um marcador.
+#:
+#: "pausa" e "espera" cobrem o jeito natural de pedir; "continua" e "segue"
+#: cobrem a volta. Palavra inteira sempre - "pausa" casaria dentro de
+#: "pausada" e "segue" dentro de "seguem".
+_PADRAO_PAUSAR = re.compile(
+    r"\bpausa\b|\bpausar\b|\bpause\b|\bespera\b|\bespere\b|\bum momento\b|\bpera\b"
+)
+_PADRAO_RETOMAR = re.compile(
+    r"\bcontinua\b|\bcontinuar\b|\bcontinue\b|\bsegue\b|\bsiga\b"
+    r"|\bpode seguir\b|\bpode continuar\b|\bretoma\b|\bvolta a aula\b"
+)
+
 #: Quando a frase e um pedido de AULA (2026-08-07). Palavra inteira, sempre:
 #: sem `\b`, "aula" casaria dentro de "Paula" e "curso" dentro de "percurso" -
 #: e a deteccao por substring e o defeito que este projeto ja tomou.
@@ -260,6 +275,8 @@ class MissionPlanner:
             if self._professor is not None:
                 await self._professor.parar()
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
+        elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
+            resposta = aula_pausada
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
         elif (programa := self._responder_ementa(texto_usuario)) is not None:
@@ -307,6 +324,8 @@ class MissionPlanner:
             if self._professor is not None:
                 await self._professor.parar()
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
+        elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
+            resposta = aula_pausada
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
         elif (programa := self._responder_ementa(texto_usuario)) is not None:
@@ -415,6 +434,28 @@ class MissionPlanner:
                 logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
 
         return contexto or None
+
+    def _pausar_ou_retomar(self, texto: str) -> str | None:
+        """Segura e solta a aula. None = a frase nao era sobre isso.
+
+        SO responde quando ha aula em andamento: sem essa guarda, "espera ai"
+        no meio de uma conversa qualquer viraria uma resposta sobre aula que
+        ninguem esta tendo.
+
+        Existe porque o robo NAO ESCUTA enquanto fala (ver `sintese.py`), e
+        numa aula de doze minutos ele ficaria surdo o tempo todo. A janela em
+        que ele ouve e a pausa entre os passos - e por isso ela subiu para
+        1,5 s no professor.
+        """
+        if self._professor is None or not self._professor.dando_aula:
+            return None
+        if _PADRAO_RETOMAR.search(texto.lower()):
+            return "Continuando a aula." if self._professor.retomar() else None
+        if _PADRAO_PAUSAR.search(texto.lower()):
+            if self._professor.pausar():
+                return "Pausei a aula. Fala continua quando quiser seguir."
+            return None
+        return None
 
     def _responder_ementa(self, texto: str) -> str | None:
         """"O que voce ensina?" - respondido do mapa, sem modelo.

@@ -42,7 +42,13 @@ class Professor:
         quadro: Quadro,
         falar: Callable[[str], Awaitable[None]],
         event_bus,
-        pausa_entre_passos_s: float = 0.6,
+        # 1,5 s e nao 0,6 s, e o numero tem MOTIVO: enquanto o Piper fala, o
+        # robo NAO ESCUTA (ver sintese.py) - numa aula de doze minutos ele
+        # ficaria surdo a aula inteira, e o dono relatou exatamente isso,
+        # *"ele tem que parar quando mandar"*. Este intervalo entre passos e
+        # a unica janela em que ele ouve. Curto demais, ninguem consegue
+        # falar dentro dele.
+        pausa_entre_passos_s: float = 1.5,
         pausa_pergunta_s: float = 6.0,
     ) -> None:
         #: Quanto ele espera depois de uma pergunta de fixacao. Bem maior que
@@ -63,6 +69,16 @@ class Professor:
         #: processo com SEGV, dez vezes em sete dias, e sem traceback.
         self._silencio = asyncio.Event()
         self._silencio.set()
+        #: PAUSA. Fica SETADO quando a aula esta correndo - `wait()` so
+        #: bloqueia quando alguem pausou. Pedido do dono em 2026-08-07:
+        #: *"tem q ter pausar"*.
+        #:
+        #: Conferida ENTRE os passos, e nao dentro da fala: interromper o
+        #: Piper no meio de uma frase corta a palavra pela metade, e uma aula
+        #: que para no fim da frase e o que um professor faz quando alguem
+        #: levanta a mao.
+        self._correndo = asyncio.Event()
+        self._correndo.set()
         event_bus.subscribe("voice.response_started", self._marcar_falando)
         event_bus.subscribe("voice.response_finished", self._marcar_calado)
 
@@ -167,6 +183,11 @@ class Professor:
                 await asyncio.sleep(self._pausa)
 
             for numero, passo in enumerate(aula.passos, start=1):
+                # Segura aqui se alguem pausou. Fica esperando indefinidamente
+                # - quem pausou e quem decide voltar. Uma pausa com prazo
+                # seria o robo retomando a aula sozinho no meio de outra
+                # conversa.
+                await self._correndo.wait()
                 # O pulso segura a tela acesa mesmo num passo so de fala.
                 await self._bus.publish(
                     TOPICO_AULA, {"aula": aula.id, "passo": numero, "de": aula.quantos_passos}
@@ -210,6 +231,26 @@ class Professor:
             logger.info("aula %s terminada", aula.id)
         finally:
             self._aula_atual = None
+
+    @property
+    def pausado(self) -> bool:
+        return self.dando_aula and not self._correndo.is_set()
+
+    def pausar(self) -> bool:
+        """Segura a aula no fim do passo atual. Devolve se havia aula."""
+        if not self.dando_aula:
+            return False
+        self._correndo.clear()
+        logger.info("aula pausada")
+        return True
+
+    def retomar(self) -> bool:
+        """Continua de onde parou. Devolve se havia aula pausada."""
+        if not self.pausado:
+            return False
+        self._correndo.set()
+        logger.info("aula retomada")
+        return True
 
     async def parar(self) -> None:
         """Interrompe a aula em andamento. Silencioso se nao houver nenhuma."""
