@@ -42,13 +42,22 @@ class Professor:
         quadro: Quadro,
         falar: Callable[[str], Awaitable[None]],
         event_bus,
-        # 1,5 s e nao 0,6 s, e o numero tem MOTIVO: enquanto o Piper fala, o
-        # robo NAO ESCUTA (ver sintese.py) - numa aula de doze minutos ele
-        # ficaria surdo a aula inteira, e o dono relatou exatamente isso,
-        # *"ele tem que parar quando mandar"*. Este intervalo entre passos e
-        # a unica janela em que ele ouve. Curto demais, ninguem consegue
-        # falar dentro dele.
-        pausa_entre_passos_s: float = 1.5,
+        # A JANELA DE ESCUTA. Enquanto o Piper fala, o robo NAO ESCUTA (ver
+        # sintese.py): numa aula de doze minutos ele ficaria surdo a aula
+        # inteira, e foi o que o dono relatou - "ele tem que parar quando
+        # mandar". Este intervalo entre passos e o unico momento em que ele
+        # ouve.
+        #
+        # QUATRO SEGUNDOS, a pedido dele: "tem que ter uma pausa para ouvir,
+        # uma pausa superior onde ele va ouvir". Comecou em 0,6 s (so
+        # respiro), passou a 1,5 s e ainda era curto - quem quer interromper
+        # precisa perceber que a fala parou, decidir e falar. Isso nao cabe
+        # em um segundo e meio.
+        #
+        # O custo e real e vale dizer: 4 s x 12 passos = quase um minuto a
+        # mais de aula. E o preco de poder interromper, e o dono escolheu
+        # pagar.
+        pausa_entre_passos_s: float = 4.0,
         pausa_pergunta_s: float = 6.0,
     ) -> None:
         #: Quanto ele espera depois de uma pergunta de fixacao. Bem maior que
@@ -181,6 +190,17 @@ class Professor:
                     f"Antes de comecar, o plano de hoje. {aula.plano.objetivo}."
                 )
                 await asyncio.sleep(self._pausa)
+
+            # AVISA QUE A JANELA EXISTE. Enquanto eu falo eu nao escuto, e
+            # quem nao sabe disso fica repetindo "para" por cima da minha voz
+            # achando que o robo o esta ignorando - foi o que aconteceu.
+            # Dizer onde falar transforma um defeito aparente numa regra
+            # combinada.
+            await self._falar(
+                "Voce pode me interromper nas pausas entre um trecho e outro. "
+                "E so falar: para, ou pausa."
+            )
+            await asyncio.sleep(self._pausa)
 
             for numero, passo in enumerate(aula.passos, start=1):
                 # Segura aqui se alguem pausou. Fica esperando indefinidamente
