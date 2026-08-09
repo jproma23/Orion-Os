@@ -1,0 +1,74 @@
+id: ingles.pronomes-artigos.basico
+materia: ingles
+titulo: Pronomes e artigos
+nivel: basico
+resumo: Pronomes pessoais e o uso básico de a, an e the em frases curtas.
+fonte: 'British Council LearnEnglish: personal pronouns and articles, consultado em 2026-08-09.'
+plano:
+  objetivo: Escolher o pronome pessoal adequado e usar a, an e the em frases simples.
+  pre_requisitos:
+  - O verbo TO BE
+  duracao_min: 14
+  fixacao:
+  - Qual pronome substitui Maria and I?
+  - Por que se diz an apple e a book?
+  fechamento: Pronomes evitam repetir nomes; artigos mostram se falamos de algo ainda não
+    identificado ou de algo específico.
+passos:
+- fala: Em inglês, pronomes substituem nomes. Em vez de repetir Maria every time, podemos
+    dizer she.
+  quadro:
+    tipo: titulo
+    texto: Pronomes e artigos
+- fala: I significa eu e you significa você ou vocês. Para falar de outra pessoa, usamos he
+    para ele e she para ela.
+  quadro:
+    tipo: topicos
+    texto: Pessoas
+    itens:
+    - I = eu
+    - you = você ou vocês
+    - he = ele
+    - she = ela
+- fala: It é usado para uma coisa, um animal quando o sexo não importa ou uma ideia. Não usamos
+    it para tratar uma pessoa pelo nome.
+  quadro:
+    tipo: texto
+    texto: it = coisa, animal ou ideia
+- fala: We significa nós, incluindo quem fala. They significa eles ou elas, para mais de uma
+    pessoa ou coisa.
+  quadro:
+    tipo: topicos
+    texto: Plural
+    itens:
+    - we = nós
+    - they = eles ou elas
+- fala: Agora os artigos. A e an apresentam um substantivo não específico. Em português, muitas
+    vezes equivalem a um ou uma.
+  quadro:
+    tipo: texto
+    texto: a/an = um ou uma, em sentido geral
+- fala: 'A vem antes de som consonantal: a book, a teacher. An vem antes de som vocálico:
+    an apple, an English class.'
+  quadro:
+    tipo: topicos
+    texto: A ou an
+    itens:
+    - a book
+    - an apple
+    - an English class
+- fala: 'A escolha segue o som, não apenas a letra. Por isso dizemos a university: a palavra
+    começa com o som de you.'
+  quadro:
+    tipo: texto
+    texto: 'Som decide: a university'
+- fala: The aponta para algo específico, que a conversa já deixou claro. I have a book apresenta
+    qualquer livro; the book fala daquele livro.
+  quadro:
+    tipo: texto
+    texto: a book → the book
+- fala: 'Monte uma frase curta: primeiro o pronome, depois o verbo to be, e então a informação.
+    Por exemplo: They are in the classroom.'
+  quadro:
+    tipo: texto
+    texto: Pronome + to be + informação

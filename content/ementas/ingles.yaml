@@ -15,6 +15,7 @@ niveis:
       - id: en.pronomes-artigos
         titulo: Pronomes e artigos
         conteudo: I, you, he, she, it, we, they; a, an, the e quando nao se usa artigo.
+        aula: ingles.pronomes-artigos.basico
       - id: en.presente-simples
         titulo: Presente simples
         conteudo: Rotina e fato; o S da terceira pessoa; do e does na pergunta e na negativa.

@@ -1,0 +1,68 @@
+id: programacao.entrada-saida.basico
+materia: programacao
+titulo: Entrada e saída
+nivel: basico
+resumo: Como um programa mostra informação, recebe dados e converte texto para número em Python.
+fonte: 'Documentação oficial do Python: funções print e input, consultada em 2026-08-09.'
+plano:
+  objetivo: Usar print e input, formatar mensagens e converter uma entrada de texto para número.
+  pre_requisitos:
+  - Variáveis e tipos
+  duracao_min: 14
+  fixacao:
+  - Por que input retorna texto mesmo quando você digita um número?
+  - Qual conversão você usaria para somar duas idades digitadas?
+  fechamento: 'Todo programa conversa com alguém ou com outro sistema: saída mostra uma informação,
+    entrada recebe um dado e conversão deixa esse dado no tipo certo.'
+passos:
+- fala: Um programa só é útil quando consegue trocar informação com alguém. Hoje vamos fazê-lo
+    mostrar mensagens e receber respostas.
+  quadro:
+    tipo: titulo
+    texto: Entrada e saída
+- fala: A função print mostra algo na tela. Ela é a saída mais simples de um programa Python.
+  quadro:
+    tipo: texto
+    texto: print('Olá') mostra uma mensagem
+- fala: Podemos combinar texto e valores para explicar o resultado de uma conta. Uma f-string
+    deixa essa frase mais fácil de ler.
+  quadro:
+    tipo: texto
+    texto: f"Você tem {idade} anos"
+- fala: A função input faz a pergunta e espera a resposta. O que a pessoa digita volta para
+    o programa.
+  quadro:
+    tipo: texto
+    texto: nome = input("Qual é seu nome? ")
+- fala: 'Há uma regra importante: input devolve texto, sempre. Se a pessoa digita 12, o programa
+    recebe os caracteres um e dois, não o número doze.'
+  quadro:
+    tipo: texto
+    texto: input retorna str
+- fala: Para fazer conta, convertemos esse texto. int serve para inteiros, e float serve para
+    números que podem ter parte decimal.
+  quadro:
+    tipo: topicos
+    texto: Conversões
+    itens:
+    - int('12') produz 12
+    - float('2.5') produz 2.5
+- fala: Veja um erro comum. Juntar dois textos com mais cria uma palavra maior; somar dois
+    inteiros faz uma conta. O tipo decide o resultado.
+  quadro:
+    tipo: texto
+    texto: '''2'' + ''3'' dá ''23''; 2 + 3 dá 5'
+- fala: Um programa curto pode perguntar uma idade, converter a resposta e mostrar o próximo
+    aniversário.
+  quadro:
+    tipo: topicos
+    texto: Roteiro
+    itens:
+    - Ler idade com input
+    - Converter com int
+    - Mostrar idade mais um
+- fala: Antes de usar uma entrada, pense no tipo que a próxima operação precisa. Essa pergunta
+    evita muitas mensagens de erro.
+  quadro:
+    tipo: texto
+    texto: Entrada → conversão → processamento → saída

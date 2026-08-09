@@ -15,6 +15,7 @@ niveis:
       - id: prog.entrada-saida
         titulo: Entrada e saída
         conteudo: Print, input, formatacao de texto e conversao de tipo.
+        aula: programacao.entrada-saida.basico
       - id: prog.operadores
         titulo: Operadores e expressões
         conteudo: Aritmeticos, comparacao e logicos; precedencia e o erro de dividir inteiro.
