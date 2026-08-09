@@ -14,6 +14,7 @@ from orion.mission.grounding import (
     bloco_corpo,
     bloco_observacoes,
     bloco_pessoas,
+    bloco_visao_agora,
     montar_contexto,
 )
 
@@ -117,6 +118,28 @@ def test_contexto_limita_historico_a_cinco_falas() -> None:
     texto = montar_contexto(conversas_recentes=conversas)
     assert "fala 9" in texto
     assert "fala 4" not in texto  # só as 5 últimas
+
+
+# ---------- a visão atual entra no contexto (2026-08-09) ----------
+
+
+def test_bloco_visao_agora_marca_o_presente_e_rejeita_o_diario() -> None:
+    bloco = bloco_visao_agora("Na minha frente agora estou vendo um controle remoto.")
+    assert "Na minha frente agora estou vendo um controle remoto." in bloco
+    assert "O QUE ESTOU VENDO AGORA" in bloco
+    assert "PRESENTE" in bloco
+    assert "passado" in bloco and "diário" in bloco
+
+
+def test_bloco_visao_agora_sem_cena_fica_vazio() -> None:
+    assert bloco_visao_agora(None) == ""
+    assert bloco_visao_agora("") == ""
+
+
+def test_contexto_inclui_a_visao_agora_quando_ha_cena() -> None:
+    texto = montar_contexto(visao_agora="Na minha frente agora estou vendo um gato.")
+    assert "estou vendo um gato" in texto
+    assert "O QUE ESTOU VENDO AGORA" in texto
 
 
 # ---------- a frente descrita pelo que ELA E (2026-07-29) ----------

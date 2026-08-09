@@ -215,7 +215,9 @@ _PADRAO_HORA = re.compile(
 #:
 #: COBERTURA: "o que e isso/isto/esse/este?", "o que e esse objeto", "o que
 #: e o objeto na minha mao/ai?", "que objeto e esse?", "o que esta na
-#: frente?", "o que voce esta vendo?".
+#: frente?", "o que voce esta vendo?", "o que voce esta segurando?", "o que
+#: tem na (sua/minha) mao" e variacoes transcritas pelo Whisper em producao
+#: em 2026-08-09 ("o que e que voce esta segurando a minha mao?").
 #:
 #: SEGURANCA CONTRA SEQUESTRO (a licao de "parar" dentro de "preparar"):
 #: apos o sujeito, so entram palavras fechadas de LUGAR (`_LOCAL_DA_CENA`) -
@@ -238,6 +240,9 @@ _PADRAO_VER_AGORA = re.compile(
     r"|\bque\s+(?:objeto|coisa)\s+[ée]\s+(?:esse|este|isso|isto|essa)\b"
     + r"(?:\s+(?:que\s+est[áa]\s+)?" + _LOCAL_DA_CENA + r")?\s*[?.!]*$"
     r"|\bo\s+que\s+(?:ta|tá|esta|está|tem)\s+(?:ai\s+|aí\s+)?(?:na\s+)?(?:minha\s+)?frente\s*[?.!]*$"
+    r"|\bo\s+que\s+(?:[ée]\s+que\s+)?(?:voce|você|cê)\s+(?:est[áa]|t[áa])?\s*"
+    + r"segur(?:ando|a)\b(?:\s+(?:na|a|em)?\s*(?:minha|sua)?\s*m[ãa]o?)?\s*[?.!]*$"
+    r"|\bo\s+que\s+(?:tem|est[áa]|t[áa])\s+(?:ai\s+|aí\s+)?(?:na\s+|em\s+)?(?:minha\s+|sua\s+)?m[ãa]o?[?.!]*$"
     r"|\bo\s+que\s+(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s*[?.!]*$"
     r"|(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s+o\s+que\s*[?.!]*$"
 )
@@ -550,6 +555,27 @@ class MissionPlanner:
                 contexto["notas_relevantes"] = await self._memory_client.nota_buscar(texto_usuario)
             except Exception:
                 logger.debug("Falha ao buscar notas do vault (SSD ausente?)", exc_info=True)
+
+        # A VISAO ATUAL entra quando a cena e fresca (<3 s): o AGORA na
+        # frente da camera, diferente do diario (o dia inteiro). Sem este
+        # bloco, uma pergunta sobre o instante que nao casar com o padrao
+        # deterministico cai na IA e ela responde do diario ou inventa - o
+        # impasse medido em producao em 2026-08-09, quando o Whisper
+        # transcreveu "o que e que voce esta segurando a minha mao?" fora do
+        # padrao e a IA respondeu "e o celular ou o controle?". O snapshot
+        # no prompt faz a resposta sair dos fatos da camera.
+        #
+        # `ver_agora()` devolve None para cena velha: abertura sem
+        # afirmacao - sem o bloco, a IA nao fala do passado como se fosse
+        # agora. Quando a camera VE algo (mesmo "nada"), a frase descreve a
+        # cena traduzida, com o mesmo texto que o caminho deterministico.
+        if self._consultar_visao is not None:
+            try:
+                cena = self._consultar_visao()
+                if cena is not None:
+                    contexto["visao_agora"] = self._descrever_cena(cena)
+            except Exception:
+                logger.debug("Falha ao consultar a visao atual para o contexto", exc_info=True)
 
         return contexto or None
 

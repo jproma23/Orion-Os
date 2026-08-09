@@ -390,6 +390,7 @@ class AiManager:
             familia=familia,
             observacoes=contexto.get("observacoes"),
             conversas_recentes=contexto.get("conversas_recentes"),
+            visao_agora=contexto.get("visao_agora"),
         )
 
         partes = [self._prompt_sistema]

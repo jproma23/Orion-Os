@@ -655,6 +655,14 @@ PERGUNTAS_VER_AGORA = [
     "que coisa e essa?",
     "que e isto?",
     "o que é esse ai?",
+    "o que você está segurando minha mão?",
+    "o que é que você está segurando a minha mão?",
+    "o que voce esta segurando na minha mão?",
+    "o que voce esta segurando?",
+    "o que você segura na mão?",
+    "o que tem na sua mão?",
+    "o que esta na sua mão?",
+    "o que tem ai na sua mão?",
 ]
 
 FRASES_QUE_NAO_SAO_VER_AGORA = [
@@ -669,6 +677,10 @@ FRASES_QUE_NAO_SAO_VER_AGORA = [
     "o que e o objeto de estudo da biologia?",
     "que objeto e esse da historia do livro?",
     "o que e isso que eu sinto por ela?",
+    "por que voce esta segurando minha mão?",
+    "o que voce esta segurando com forca?",
+    "o que tem na mão da cadeira?",
+    "o que e isso que voce sente?",
 ]
 
 
@@ -799,3 +811,39 @@ async def test_em_frases_tambem_responde_da_visao():
     respostas = [frase async for frase in planner.responder_em_frases("o que e isso?")]
 
     assert respostas == ["Na minha frente agora estou vendo gato."]
+
+
+@pytest.mark.asyncio
+async def test_visao_agora_entra_no_contexto_para_a_frase_fora_do_padrao():
+    """Frase que nao casa com o padrao cai na IA - mas a IA recebe a cena
+    atual no contexto. Medido em producao em 2026-08-09: o Whisper saiu do
+    padrao ("o que e que voce esta segurando a minha mao?") e a IA respondeu
+    do diario ("e o celular ou o controle?"), em vez dos fatos da camera.
+    Com o snapshot no contexto, a resposta sai do que a camera ve agora."""
+    ai = AiManagerFalso(resposta="Na minha frente vejo um controle remoto.")
+    planner = MissionPlanner(
+        ai_manager=ai,
+        consultar_visao=lambda: _cena_fake(
+            objetos=[{"classe": "remote", "confianca": 0.8}]
+        ),
+    )
+
+    await planner.processar("o que voce esta segurando bem firme na mao?")
+
+    assert ai.chamadas, "a frase fora do padrao vai para a IA"
+    contexto = ai.chamadas[0][1]
+    assert contexto and contexto.get("visao_agora"), "a cena atual faltou no contexto"
+    assert "controle remoto" in contexto["visao_agora"], contexto["visao_agora"]
+
+
+@pytest.mark.asyncio
+async def test_cena_velha_nao_entra_no_contexto():
+    """`ver_agora()` devolve None para cena velha (>3 s) - e None nao vira
+    afirmacao no contexto: sem o bloco, a IA nao fala do passado como agora."""
+    ai = AiManagerFalso(resposta="resposta generica")
+    planner = MissionPlanner(ai_manager=ai, consultar_visao=lambda: None)
+
+    await planner.processar("quem e voce?")
+
+    contexto = ai.chamadas[0][1]
+    assert "visao_agora" not in (contexto or {}), "cena ausente virou afirmacao"

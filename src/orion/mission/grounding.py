@@ -178,6 +178,31 @@ def bloco_observacoes(observacoes: list[dict[str, Any]] | None) -> str:
     )
 
 
+def bloco_visao_agora(frase: str | None) -> str:
+    """O que a câmera vê NESTE INSTANTE (snapshot com menos de 3 s).
+
+    Diferente do diário: o diário é o dia inteiro; este bloco é o AGORA.
+    Para pergunta sobre o presente ("o que há na minha frente?", "o que
+    você está segurando?"), quem responde é ESTE bloco - o diário pode ter
+    visto outra coisa há meia hora, e a IA não pode ler o passado para
+    falar do instante.
+
+    A frase já vem PRONTA do mission_planner, que traduziu a cena do Vision
+    Core para português (o mesmo texto do caminho deterministico). Aqui só
+    ganha ordem e limite, para o modelo não confundir agora com hoje.
+    """
+    if not frase:
+        return ""
+    return (
+        "O QUE ESTOU VENDO AGORA (neste instante, na câmera):\n"
+        + f"- {frase}\n"
+        + "- ESTE bloco é o PRESENTE. Se perguntarem o que há na minha "
+        "frente, na minha mão ou o que estou vendo agora, responda DESTE "
+        "bloco - o diário logo acima é o passado, não leia nele para "
+        "falar do agora."
+    )
+
+
 #: Como o Fofão deve se dispor diante do mundo (2026-07-29, pedido do dono:
 #: *"quero que ele ligue e sinta o desejo de descobrir o mundo"*, *"temos que
 #: encorajar ele"*, *"programá-lo pra ele ser ousado e descobrir tudo o que ele
@@ -247,6 +272,7 @@ def montar_contexto(
     familia: list[str] | None = None,
     observacoes: list[dict[str, Any]] | None = None,
     conversas_recentes: list[dict[str, Any]] | None = None,
+    visao_agora: str | None = None,
     limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM,
 ) -> str:
     """Junta tudo num bloco pronto para colar no prompt de sistema."""
@@ -260,6 +286,12 @@ def montar_contexto(
         bloco_pessoas(retrato, familia),
         bloco_observacoes(observacoes),
     ]
+
+    # O AGORA (visão atual) entra DEPOIS do diário, marcado como presente:
+    # vem por último dos fatos, para que o modelo desempate a favor dele
+    # quando o diário e a câmera discordarem sobre "o que há na frente".
+    if visao_agora:
+        partes.append(bloco_visao_agora(visao_agora))
 
     if conversas_recentes:
         historico = "\n".join(
