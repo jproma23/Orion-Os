@@ -74,6 +74,58 @@ def test_pergunta_do_mundo_com_voce_dentro_nao_e_sequestrada(saber):
     assert saber.responder("voce sabe quem descobriu o Brasil?") is None
 
 
+def test_palavra_generica_solta_nao_sequestra(saber):
+    """Achado em uso real, 2026-08-08 - as frases sao as do chat.
+
+    Uma palavra generica ("consegue", "lado", "nao") encostava num fato e a
+    resposta pronta saia com confianca no lugar da conversa. Pior: COMANDOS
+    de movimento viravam palestra sobre o corpo, e o robo narrava em vez de
+    obedecer.
+    """
+    # "consegue" casava com "o que voce consegue ligar" -> fato da LUZ
+    assert saber.responder("Eu acho. Você consegue fazer isso?") is None
+    assert (
+        saber.responder(
+            "Isso é inteligência, você consegue usar isso futuramente "
+            "quando você quiser."
+        )
+        is None
+    )
+    # "nao" casava com o titulo "O que eu NAO tenho" -> fato dos BRACOS
+    assert (
+        saber.responder(
+            "eu vou lidar essas capacidades intrínsecas, "
+            "você ainda não tem essa capacidade"
+        )
+        is None
+    )
+    # pergunta emocional, nao anatomica: quem responde e a conversa
+    assert saber.responder("Você sente falta de ter braço?") is None
+
+
+def test_comando_de_movimento_nao_vira_palestra(saber):
+    """Achado em uso real, 2026-08-08.
+
+    "gire para a esquerda" casava com "lado" em "olha para os lados" e o
+    robo explicava os servos em vez de girar. Comando tem que seguir para a
+    cascata, que e quem sabe executar.
+    """
+    assert saber.responder("Eu quero que você gire para o lado esquerdo") is None
+    assert (
+        saber.responder("Eu quero que você rode ao redor do seu eixo com as rodas")
+        is None
+    )
+
+
+def test_pergunta_de_verdade_sobre_ele_continua_respondida(saber):
+    """A cobertura nao pode fechar a porta para quem pergunta do corpo."""
+    resposta = saber.responder("o que voce consegue ligar")
+    assert resposta is not None
+    assert "ventilador" in resposta
+    assert saber.responder("voce tem camera?") is not None
+    assert saber.responder("voce nao tem camera?") is not None
+
+
 def test_banco_vazio_nao_responde(tmp_path):
     vazio = Autoconhecimento(tmp_path / "vazio.db")
     assert vazio.responder("como voce anda") is None

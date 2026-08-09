@@ -67,6 +67,10 @@ _PALAVRAS_DE_PERGUNTA = frozenset({
     # "como voce sabe quem eu sou". As duas armam a pergunta; o assunto dela
     # estava em "descobriu" e "Brasil".
     "quem", "sabe", "saber", "conhece", "explica", "explicar", "diz", "dizer",
+    # "nao" entrou depois de "voce ainda nao tem essa capacidade" casar com o
+    # TITULO "O que eu NAO tenho" (uso real, 08/08): negar nao diz sobre o
+    # que se fala, e fez o fato dos BRACOS vencer sem a frase falar de braco.
+    "nao",
 })
 
 _ESQUEMA = """
@@ -186,7 +190,8 @@ class Autoconhecimento:
         termos = "{titulo perguntas} : (" + " OR ".join(f"{p}*" for p in palavras) + ")"
         try:
             linha = self._conectar().execute(
-                "SELECT s.resposta, bm25(sobre_mim_fts, 0.0, 3.0, 10.0, 1.0) AS nota"
+                "SELECT s.resposta, f.titulo, f.perguntas,"
+                " bm25(sobre_mim_fts, 0.0, 3.0, 10.0, 1.0) AS nota"
                 " FROM sobre_mim_fts f JOIN sobre_mim s ON s.id = f.id"
                 " WHERE sobre_mim_fts MATCH ? ORDER BY nota LIMIT 1",
                 (termos,),
@@ -195,5 +200,21 @@ class Autoconhecimento:
             logger.warning("busca de autoconhecimento rejeitada pelo FTS5: %r", termos)
             return None
         if linha is None or linha["nota"] > _TETO_BM25:
+            return None
+        # COBERTURA: uma palavra solta nao autoriza a resposta quando a frase
+        # trouxe mais assunto. Achado em uso real (08/08): "voce consegue
+        # fazer isso?" foi respondida com o fato da LUZ - "consegue" aparece
+        # na pergunta indexada "o que voce consegue ligar" - e "gire para o
+        # lado esquerdo", um COMANDO, virou a palestra sobre servos por causa
+        # de "lado". Uma palavra generica encosta em qualquer coisa; duas ja
+        # apontam um assunto. Quando a frase so tem uma palavra de conteudo
+        # ("voce tem camera?"), ela basta.
+        tokens_fato = re.sub(
+            r"[^\w\s]", " ", _sem_acento(linha["titulo"] + " " + linha["perguntas"])
+        ).split()
+        cobertas = sum(
+            1 for p in palavras if any(t.startswith(p) for t in tokens_fato)
+        )
+        if cobertas < min(2, len(palavras)):
             return None
         return linha["resposta"]
