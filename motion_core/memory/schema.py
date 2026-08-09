@@ -130,6 +130,87 @@ CREATE INDEX IF NOT EXISTS idx_logs_nivel_timestamp ON logs (nivel, timestamp);
 CREATE INDEX IF NOT EXISTS idx_objetos_ambiente ON objetos (ambiente_id);
 """
 
+# ## MEMORIA COGNITIVA (2026-08-09) - o que o ORION SABE e usa antes da IA.
+
+# A IA da conversa nunca consultava o proprio acervo: as aulas so respondiam
+# quando pediam "me da uma aula de", e a tabela `conhecimento` so tinha fatos
+# triviais sobre a pessoa. Pergunta normal ("o que e um BME280?") caia no
+# modelo, que inventava. Nascem 5 categorias que espelham como um aprendiz
+# organiza o que aprendeu + um FTS5 (`saber_fts`) sobre o texto pesquisavel.
+
+# - conhecimentos  : o que e, como funciona, como usar (conceito)
+# - experiencias   : o que aconteceu, o que funcionou, o que falhou
+# - procedimentos  : como executar uma tarefa, passo a passo
+# - dispositivos   : hardware - quais existem, onde estao, como acessar
+# - relacoes       : sensor -> funcao -> skill -> decisao (grafo)
+
+# `tipo_fonte`/`ref_id` no FTS apontam para a linha exata da tabela certa;
+# `bm25` ordena e `saber.buscar` confere a cobertura antes de responder.
+_MIGRACAO_003 = """
+CREATE TABLE IF NOT EXISTS conhecimentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL DEFAULT 'conceito',
+    titulo TEXT NOT NULL,
+    corpo TEXT NOT NULL DEFAULT '',
+    fonte TEXT NOT NULL DEFAULT '',
+    confianca REAL NOT NULL DEFAULT 0.7,
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS experiencias (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    situacao TEXT NOT NULL,
+    o_que_aconteceu TEXT NOT NULL DEFAULT '',
+    o_que_funcionou TEXT NOT NULL DEFAULT '',
+    o_que_falhou TEXT NOT NULL DEFAULT '',
+    resultado TEXT NOT NULL DEFAULT '',
+    contexto TEXT NOT NULL DEFAULT '',
+    criado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS procedimentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    passos TEXT NOT NULL DEFAULT '',
+    criado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dispositivos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT '',
+    localizacao TEXT NOT NULL DEFAULT '',
+    acesso TEXT NOT NULL DEFAULT '',
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS relacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    origem_tipo TEXT NOT NULL,
+    origem_id INTEGER NOT NULL,
+    relacao TEXT NOT NULL,
+    destino_tipo TEXT NOT NULL,
+    destino_id INTEGER NOT NULL,
+    criado_em TEXT NOT NULL
+);
+
+-- Indice de busca do "Eu ja sei?" (mesmo FTS5 do saber.db: barato, sem
+-- modelo de embedding). Removendo diacriticos nos dois sentidos como o
+-- banco de aulas, para fala sem acento achar conteudo com acento.
+CREATE VIRTUAL TABLE IF NOT EXISTS saber_fts USING fts5(
+    tipo_fonte UNINDEXED, ref_id UNINDEXED, titulo, corpo,
+    tokenize = "unicode61 remove_diacritics 2"
+);
+
+CREATE INDEX IF NOT EXISTS idx_conhecimentos_titulo ON conhecimentos (titulo);
+CREATE INDEX IF NOT EXISTS idx_experiencias_situacao ON experiencias (situacao);
+CREATE INDEX IF NOT EXISTS idx_procedimentos_nome ON procedimentos (nome);
+CREATE INDEX IF NOT EXISTS idx_dispositivos_nome ON dispositivos (nome);
+CREATE INDEX IF NOT EXISTS idx_relacoes_origem ON relacoes (origem_tipo, origem_id);
+"""
+
 #: RECADOS (2026-08-03). Nasceu de uma falha real, e vale registrar qual:
 #: o dono pediu *"avise a Mara quando a vir que eu quero falar com ela"*, o
 #: robo respondeu que sim, e quando a Mara chegou ele a cumprimentou e nao deu
@@ -160,7 +241,11 @@ CREATE TABLE IF NOT EXISTS recados (
 CREATE INDEX IF NOT EXISTS idx_recados_pendentes ON recados (para_nome, entregue_em);
 """
 
-MIGRACOES: tuple[Migracao, ...] = ((1, _MIGRACAO_001), (2, _MIGRACAO_002))
+MIGRACOES: tuple[Migracao, ...] = (
+    (1, _MIGRACAO_001),
+    (2, _MIGRACAO_002),
+    (3, _MIGRACAO_003),
+)
 
 #: Tabelas mapeadas por categoria da API de memoria (Cap 11 s.6) - usadas
 #: por MemoryAPI para traduzir `categoria` em nome de tabela sem expor SQL
@@ -175,4 +260,9 @@ TABELAS_POR_CATEGORIA: dict[str, str] = {
     "conhecimento": "conhecimento",
     "configuracao_memoria": "configuracao_memoria",
     "recados": "recados",
+    "conhecimentos": "conhecimentos",
+    "experiencias": "experiencias",
+    "procedimentos": "procedimentos",
+    "dispositivos": "dispositivos",
+    "relacoes": "relacoes",
 }

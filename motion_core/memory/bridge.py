@@ -143,6 +143,20 @@ class PonteMemoria:
             except FileNotFoundError as erro:
                 raise KeyError(str(erro)) from erro
             return [a.como_dict() for a in achados]
+
+        if operacao == "saber_guardar":
+            dados = _decodificar_binarios(payload["dados"])
+            return await self._memory_api.saber_guardar(payload["categoria"], dados)
+        if operacao == "saber_buscar":
+            return await self._memory_api.saber_buscar(
+                payload["consulta"], payload.get("limite", 3)
+            )
+        if operacao == "saber_stats":
+            return await self._memory_api.saber_stats()
+        if operacao == "registrar_consulta_ia":
+            await self._memory_api.registrar_consulta_ia()
+            return None
+
         if operacao == "nota_buscar":
             if self._vault is None:
                 raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")

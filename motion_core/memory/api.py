@@ -16,6 +16,7 @@ from typing import Any
 
 from motion_core.memory.database import DatabaseManager, agora_iso
 from motion_core.memory.schema import TABELAS_POR_CATEGORIA
+from motion_core.memory import saber
 from orion.kernel.event_bus import EventBus
 
 #: Colunas de timestamp preenchidas automaticamente em remember(), quando o
@@ -26,6 +27,11 @@ _CAMPOS_CRIACAO_AUTOMATICOS: dict[str, tuple[str, ...]] = {
     "objetos": ("visto_em",),
     "conhecimento": ("criado_em",),
     "conversas": ("timestamp",),
+    "conhecimentos": ("criado_em", "atualizado_em"),
+    "experiencias": ("criado_em",),
+    "procedimentos": ("criado_em",),
+    "dispositivos": ("criado_em", "atualizado_em"),
+    "relacoes": ("criado_em",),
     "missoes": ("inicio",),
     "eventos": ("timestamp",),
 }
@@ -33,6 +39,8 @@ _CAMPOS_CRIACAO_AUTOMATICOS: dict[str, tuple[str, ...]] = {
 #: Coluna "tocada" automaticamente em update(), quando a tabela tem uma.
 _CAMPO_ATUALIZACAO_AUTOMATICO: dict[str, str] = {
     "pessoas": "atualizado_em",
+    "conhecimentos": "atualizado_em",
+    "dispositivos": "atualizado_em",
 }
 
 
@@ -384,3 +392,132 @@ class MemoryAPI:
             estatisticas = await asyncio.to_thread(_contar)
         await self._event_bus.publish("memory.recall_executed", {"categoria": "stats"})
         return estatisticas
+
+    async def saber_guardar(self, categoria: str, dados: dict[str, Any]) -> int:
+        """Grava uma entrada da memoria cognitiva e indexa o texto no FTS.
+
+        `categoria` e uma das 5 (conhecimentos, experiencias, procedimentos,
+        dispositivos, relacoes) - ver `saber.py`. Alem da linha na tabela,
+        atualiza `saber_fts` para o "Eu ja sei?" achar depois. Publica o
+        mesmo evento de mutacao das outras gravacoes.
+        """
+        tabela = self._tabela(categoria)
+        completos = dict(dados)
+        if "criado_em" not in completos and categoria in {
+            "conhecimentos", "experiencias", "procedimentos", "dispositivos", "relacoes",
+        }:
+            completos["criado_em"] = agora_iso()
+        if categoria == "conhecimentos" and "atualizado_em" not in completos:
+            completos["atualizado_em"] = completos["criado_em"]
+        if categoria == "dispositivos" and "atualizado_em" not in completos:
+            completos["atualizado_em"] = completos["criado_em"]
+
+        def _inserir() -> int:
+            self._validar_colunas(tabela, completos.keys())
+            colunas = ", ".join(completos.keys())
+            marcadores = ", ".join("?" for _ in completos)
+            cursor = self._db.conexao.execute(
+                f"INSERT INTO {tabela} ({colunas}) VALUES ({marcadores})",
+                tuple(completos.values()),
+            )
+            novo_id = cursor.lastrowid
+            saber.sincronizar_fts(self._db.conexao, categoria, novo_id, completos)
+            return novo_id
+
+        async with self._db.lock:
+            novo_id = await asyncio.to_thread(_inserir)
+        await self._event_bus.publish(
+            "memory.updated", {"categoria": categoria, "operacao": "saber_guardar", "id": novo_id}
+        )
+        return novo_id
+
+    async def saber_buscar(self, consulta: str, limite: int = 3) -> list[dict[str, Any]]:
+        """O que o ORION ja sabe que cobre a fala - o portao do "Eu ja sei?".
+
+        A busca roda no `saber_fts`; o achado e completado com a linha inteira
+        da tabela de origem (via `saber.carregar`). Vazio = ele nao sabe
+        (e a conversa segue para a IA - a consultora externa).
+
+        `self` (sem lock) ja e a regra dos metodos de consulta junto com o
+        resto da API: ler dentro do lock evita resolver a linha numa
+        metade-escrita.
+        """
+        def _buscar() -> list[dict[str, Any]]:
+            achados = saber.buscar(self._db.conexao, consulta, limite=limite)
+            completos: list[dict[str, Any]] = []
+            for achado in achados:
+                registro = saber.carregar(
+                    self._db.conexao,
+                    str(achado.get("tipo_fonte", "")),
+                    int(achado.get("ref_id", 0)),
+                )
+                if registro is None:
+                    continue
+                registro["nota_bm25"] = achado.get("nota")
+                completo = dict(registro)
+                completo["categoria"] = {
+                    "conhecimento": "conhecimentos",
+                    "experiencia": "experiencias",
+                    "procedimento": "procedimentos",
+                }.get(str(achado.get("tipo_fonte", "")), "conhecimentos")
+                completos.append(completo)
+            return completos
+
+        async with self._db.lock:
+            resultado = await asyncio.to_thread(_buscar)
+        await self._event_bus.publish(
+            "memory.recall_executed",
+            {"categoria": "saber_buscar", "consulta": consulta, "quantidade": len(resultado)},
+        )
+        return resultado
+
+    async def saber_stats(self) -> dict[str, Any]:
+        """Contagens da memoria cognitiva + consultas a IA.
+
+        Alimenta o indicador CONHECIMENTO ORION: quantos conhecimentos,
+        experiencias, procedimentos, dispositivos, relacoes - e quantas vezes
+        a IA foi consultada (a medida de quanto ele ainda esta dependente).
+        """
+
+        def _levantar() -> dict[str, Any]:
+            contagens = saber.contar(self._db.conexao)
+            linha = self._db.conexao.execute(
+                "SELECT CAST(valor AS INTEGER) AS n FROM configuracao_memoria "
+                "WHERE chave = ?",
+                ("estatisticas.consultas_ia",),
+            ).fetchone()
+            contagens["consultas_ia"] = int(linha["n"] if linha is not None else 0)
+            contagens["total_conhecimento_local"] = sum(
+                contagens[c]
+                for c in (
+                    "conhecimentos", "experiencias", "procedimentos",
+                    "dispositivos", "relacoes",
+                )
+            )
+            return contagens
+
+        async with self._db.lock:
+            dados = await asyncio.to_thread(_levantar)
+        await self._event_bus.publish("memory.recall_executed", {"categoria": "saber_stats"})
+        return dados
+
+    async def registrar_consulta_ia(self) -> None:
+        """Conta mais uma consulta a IA (a consultora externa).
+
+        Chamado quando a conversa efetivamente caiu no modelo - o contador e
+        a medida de dependencia: quanto menor, mais ele tem conhecimento
+        proprio. Gravado em `configuracao_memoria` como inteiro em texto,
+        incrementado atomicamente para nao perder contagem por corrida.
+        """
+
+        def _incrementar() -> None:
+            self._db.conexao.execute(
+                "INSERT INTO configuracao_memoria (chave, valor) VALUES (?, '1') "
+                "ON CONFLICT(chave) DO UPDATE SET valor = "
+                "CAST(CAST(configuracao_memoria.valor AS INTEGER) + 1 AS TEXT)",
+                ("estatisticas.consultas_ia",),
+            )
+
+        async with self._db.lock:
+            await asyncio.to_thread(_incrementar)
+

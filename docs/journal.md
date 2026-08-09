@@ -7163,3 +7163,93 @@ não para tomar o microfone.
 janela o nome seco inicia a aula; fora dela, o mesmo nome seco é conversa.
 849 passam no Pi, 25 de ensino + modo aula no Notebook, ruff limpo,
 `orion-avatar` reiniciado.
+n## Sessão de 2026-08-09 — Camadas 1 e 2 da memória cognitiva: o "Eu já sei?"
+
+O dono já tinha pedido o robô "mais inteligente" (madrugada de 09/08). Nesta
+sessão a direção virou um sistema: o ORION deixa de ser um robô que consulta
+IA para ser um robô que TEM conhecimento próprio — memória cognitiva
+persistente (conhecimentos, experiências, procedimentos, dispositivos,
+relações) com o portão "Eu já sei?": responde do acervo quando sabe, só
+chama a IA (a consultora externa) quando não sabe ou é problema novo.
+
+### O corte
+
+Camadas 1 e 2, na ordem em que mordem:
+
+1. **Fundação no Pi** (`memory.saber_*`): gravar e buscar conhecimento.
+2. **Portão no Notebook** (`MissionPlanner`): "Eu já sei?" antes da IA, e a
+   consulta à IA passa a ser contada — a medida de dependência.
+
+### Fundação (Camada 1, Pi)
+
+- `motion_core/memory/saber.py` — busca no `saber_fts` (FTS5, unicode61 com
+  `remove_diacritics 2`, token único para "bme280"), com **cobertura** como
+  guarda: ao menos 2 palavras de conteúdo da fala presentes no título/corpo
+  (1 se a frase inteira só tinha 1 termo útil). O bm25 só ORDENA os achados:
+  com banco pequeno ele fica perto de zero, e um teto absoluto rejeitava
+  TUDO (medido: `-4.9e-06` com pesos `0.0,0.0,3.0,1.0`). O modelo lição: a
+  guarda de verdade é a cobertura; nota absoluta em corpus pequeno é
+  enganadora.
+- `schema.py` — `_MIGRACAO_003`: tabelas `conhecimentos`, `experiencias`,
+  `procedimentos`, `dispositivos`, `relacoes`, o FTS auxiliar e índices.
+- `api.py` — `saber_guardar` (indexa no FTS na hora), `saber_buscar`
+  (devolve o registro completo normalizado em `titulo`/`corpo` + `nota_bm25`),
+  `saber_stats` (contagens + `total_conhecimento_local`), `registrar_consulta_ia`
+  (contador em `configuracao_memoria`, incremento atômico).
+- `bridge.py` — rotas `memory.saber_guardar/buscar/stats` e
+  `memory.registrar_consulta_ia`.
+
+### Portão (Camada 2, Notebook)
+
+- `MemoryClient` ganhou `saber_guardar`, `saber_buscar`, `saber_stats`,
+  `registrar_consulta_ia`.
+- `MissionPlanner` ganhou `_responder_do_saber`: na cascata, logo depois do
+  autoconhecimento do corpo, pergunta "o que eu já sei que cobre essa fala?".
+  Vazio ou erro = segue para a IA (mesmo contrato dos outros degraus locais:
+  sem caminho, ele não finge). Responde SÓ o que foi guardado — nada
+  inventado na montagem do texto.
+- A consulta à IA agora é contada em segundo plano (`_contar_consulta_ia`,
+  tarefa que não espera rede — atrasar fala por estatística não vale).
+- O `conversar_fofao.py` já injeta `memory_client=MemoryClient(comm)` no
+  planner, então o portão entrou no ar sem tocar no boot.
+
+### Por que o bm25 não é o portão (lição da sessão, com medida)
+
+O `saber_buscar` voltou 0 com conteúdo gravado. Dois culpados, ambos medidos:
+
+1. `_MINIMO_TERMOS = 2` descartava "o que é um BME280?" — a frase tem UMA
+   palavra-chave (bme280), o resto é vazio. Sem consulta, sem resposta.
+   Fix: 1 termo quando a frase só tem 1.
+2. O teto `_TETO_BM25 = -0.5` rejeitava a nota `-4.9e-06` do banco pequeno
+   (poucos documentos = IDF ~0). Fix: remover o teto absoluto, a cobertura
+   é a guarda.
+
+### Validação (pontas a ponta, nas duas máquinas)
+
+- Pi: `test_saber_memoria.py` (6 testes) + vizinhos de memória (49) verdes.
+- Notebook: `test_mission_planner.py` (64, incluindo 4 do portão: sabe →
+  não chama IA; não sabe → consulta e conta; fala chega inteira à busca;
+  memória fora não emudece) + `test_memory_client.py` (6, incluindo o
+  cliente→bridge→FTS→volta real).
+- Sincronizados os 4 arquivos de `motion_core` (api/bridge/schema/saber)
+  para o Notebook (espelho do Pi, os testes importam de lá).
+- Deploy: `orion-motion.service` (Pi) e `orion-avatar.service` (Notebook)
+  reiniciados, ambos ativos, boot completo ("Pronto! Diga Fofão").
+
+### Indicadores que esta sessão criou
+
+`memory.saber_stats` → `consultas_ia` e `total_conhecimento_local`. Quanto
+menos `consultas_ia` e mais acervo local, menos dependente da consultora
+externa. Serve para medir a direção do dono ("robô mais inteligente") sem
+achismo.
+
+### Pendências, na ordem em que mordem
+
+1. **Alimentar o acervo** — o portão só responde com o que foi gravado, e
+   nada foi gravado ainda pela conversa. O `ExtratorFatos` segue gravando na
+   tabela `conhecimento` (fatos sobre as pessoas); gravar conhecimento de
+   PROCEDIMENTO/DISPOSITIVO aprendido pós-IA em `conhecimentos` é o próximo
+   fio (o degrau "ele aprendeu e guarda sozinho").
+2. As outras pendências das sessões anteriores (aula `prog.orion`, tag
+   `#acao:` vazada, "Olhando pra frente." duplicado, fecho repetitivo,
+   rascunhos de física, lista velha do 08/08).
