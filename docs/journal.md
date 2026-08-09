@@ -7127,3 +7127,16 @@ havia aula do básico. Feito:
    reconexão, destinatário do recado na criação, rotação de log, Mission
    Memory, heartbeat que mente, pisca da lanterna, reboot do Notebook,
    encoder de roda, Gmail.
+
+### Direção nova do dono (madrugada de 09/08), registrada na hora
+
+*"deixar o robo mais inteligente: aplicação de conceitos sobre sentimento,
+afinidade com pessoas, prazer em cumprir missão, sensação de dever cumprido,
+entre outros — robô intelectual e filosófico."*
+
+Isto vira pendência de primeira linha. Não é pedido de frases bonitas: é
+comportamento medido. Quando for atacado, cada conceito precisa de um
+critério observável (ex.: ele diz que gostou de cumprir a missão E o diário
+mostra a missão cumprida; ele reconhece afinidade E age diferente com quem
+convive mais), senão vira o robô dizendo que sente sem sentir — a família
+de defeito que este projeto mais persegue, agora na versão emocional.
