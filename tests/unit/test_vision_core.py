@@ -321,3 +321,34 @@ async def test_ver_agora_devolve_copia_do_estado():
 
     bus.parar()
     await tarefa
+
+
+@pytest.mark.asyncio
+async def test_ver_agora_cena_velha_deve_dizer_que_nao_esta_vendo(monkeypatch):
+    """RESPONDER DO QUE VE, NAO DO QUE VIU (2026-08-09): se a ultima cena ja
+    passou de TEMPO_MAXIMO_CENA_S, a visao nao esta olhando de verdade agora
+    - devolver o snapshot antigo seria mentir que enxerga."""
+    import orion.vision.vision_core as vision_core
+
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    cadeira = Deteccao(classe="chair", confianca=0.8, caixa=(0, 0, 50, 50))
+    vision = VisionCore(
+        bus,
+        captura=CapturaFalsa([_frame_fake()]),
+        detector=DetectorFalso([cadeira]),
+        reconhecedor=ReconhecedorFalso([]),
+    )
+    await vision.processar_um_frame()
+    cenou = vision.ver_agora()
+    assert cenou is not None
+
+    ts = vision._ultima_cena["timestamp"]
+    monkeypatch.setattr(
+        vision_core.time, "monotonic", lambda: ts + vision_core.TEMPO_MAXIMO_CENA_S + 1.0
+    )
+
+    assert vision.ver_agora() is None, "cena velha nao pode passar por visao atual"
+
+    bus.parar()
+    await tarefa

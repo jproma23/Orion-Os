@@ -205,19 +205,38 @@ _PADRAO_HORA = re.compile(
     r"|\bhor[áa]rio atual\b"
 )
 
-#: "O QUE E ISSO?" - a pergunta sobre o mundo ATUAL, respondida pela camera.
+#: "o que é isso?" / "o que é o objeto na minha mão?" / "que objeto é esse?"
 #:
-#: Foi o fio quente apontado em 2026-08-09: perguntado o que ha na frente,
-#: o robo respondia do DIARIO (o que viu meia hora atras) ou a IA chutava
-#: (o modelo nao ve o frame). O atalho existe pela mesma razao do relogio:
-#: a visao consulta e um sensor, nao precisa de modelo - e o modelo, sem o
-#: quadro, inventa.
+#: A pergunta sobre o mundo ATUAL - o que a camera ve AGORA, e nao o que o
+#: diario viu ha meia hora. Foi o fio quente apontado em 2026-08-09: o robo
+#: respondia do passado ou a IA chutava sem ver o frame. O atalho existe
+#: pela mesma razao do relogio: a visao consulta e um sensor, nao precisa de
+#: modelo - e o modelo, sem o quadro, inventa.
 #:
-#: O `$` no fim e o que protege contra sequestro: "o que e isso QUE voce
-#: disse" e pergunta sobre a conversa, nao sobre o que esta na frente, e nao
-#: pode ser comida por este caminho.
+#: COBERTURA: "o que e isso/isto/esse/este?", "o que e esse objeto", "o que
+#: e o objeto na minha mao/ai?", "que objeto e esse?", "o que esta na
+#: frente?", "o que voce esta vendo?".
+#:
+#: SEGURANCA CONTRA SEQUESTRO (a licao de "parar" dentro de "preparar"):
+#: apos o sujeito, so entram palavras fechadas de LUGAR (`_LOCAL_DA_CENA`) -
+#: "aí", "na minha mao", "na frente". Qualquer outra palavra depois ("o que
+#: e isso QUE voce disse?", "o que e esse discurso?") e outra pergunta, e a
+#: cascata segue para a IA. O `$` no fim garante isso.
+_LOCAL_DA_CENA = (
+    r"(?:(?:a[ií])"
+    r"|(?:em\s+|na\s+)?(?:minha\s+|sua\s+)?(?:m[ãa]o|frente)"
+    r"|à\s+frente)"
+)
 _PADRAO_VER_AGORA = re.compile(
-    r"\bo\s+que\s+[ée]\s+(?:isso|isto|esse|este)\s*[?.!]*$"
+    r"\bo\s+que\s+[ée]\s+"
+    r"(?:isso|isto|esse|este|essa|esta|essa\s+coisa|esse\s+objeto|este\s+objeto)\b"
+    + r"(?:\s+(?:que\s+est[áa]\s+)?" + _LOCAL_DA_CENA + r")?\s*[?.!]*$"
+    r"|\bo\s+que\s+[ée]\s+o\s+objeto\b"
+    + r"(?:\s+(?:que\s+est[áa]\s+)?" + _LOCAL_DA_CENA + r")?\s*[?.!]*$"
+    r"|\bque\s+[ée]\s+(?:isso|isto|esse|este|essa\s+coisa)\b"
+    + r"(?:\s+(?:que\s+est[áa]\s+)?" + _LOCAL_DA_CENA + r")?\s*[?.!]*$"
+    r"|\bque\s+(?:objeto|coisa)\s+[ée]\s+(?:esse|este|isso|isto|essa)\b"
+    + r"(?:\s+(?:que\s+est[áa]\s+)?" + _LOCAL_DA_CENA + r")?\s*[?.!]*$"
     r"|\bo\s+que\s+(?:ta|tá|esta|está|tem)\s+(?:ai\s+|aí\s+)?(?:na\s+)?(?:minha\s+)?frente\s*[?.!]*$"
     r"|\bo\s+que\s+(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s*[?.!]*$"
     r"|(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s+o\s+que\s*[?.!]*$"

@@ -30,6 +30,13 @@ logger = logging.getLogger("orion.vision.vision_core")
 
 CallbackPanTilt = Callable[[float, float], Awaitable[None]]
 
+#: Idade maxima da ultima cena para `ver_agora()` valer como "o que estou
+#: vendo AGORA" (2026-08-09). O laco processa na casa de alguns quadros por
+#: segundo, entao 3 s = muitas cenas - folga para um Notebook ocupado. Alem
+#: disso a visao NAO esta mais vendo de verdade (pausada pelo alivio de
+#: carga, camera engasgada) e responder do snapshot antigo seria mentir.
+TEMPO_MAXIMO_CENA_S = 3.0
+
 #: Marca os `motion.pan_tilt` que ESTA classe publicou, para nao ressincronizar
 #: a estimativa com o proprio eco (ver `_ao_outro_dono_mover_a_cabeca`).
 #:
@@ -170,9 +177,14 @@ class VisionCore:
         com o diario de meia hora atras.
 
         Devolve uma copia (ninguem pode mexer no estado interno ao ler).
-        None = ainda nao houve cena (camera ausente ou recem-aberta).
+        None = ainda nao houve cena, ou a cena ja ficou velha demais
+        (`TEMPO_MAXIMO_CENA_S`) - a visao nao esta vendo de verdade agora,
+        e responder do que viu ha mais tempo seria inventar.
         """
         if self._ultima_cena is None:
+            return None
+        idade = time.monotonic() - self._ultima_cena.get("timestamp", 0.0)
+        if idade > TEMPO_MAXIMO_CENA_S:
             return None
         return copy.deepcopy(self._ultima_cena)
 

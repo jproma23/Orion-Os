@@ -645,6 +645,16 @@ PERGUNTAS_VER_AGORA = [
     "o que tem ai na frente?",
     "o que voce esta vendo?",
     "voce esta vendo o que?",
+    "que objeto e esse?",
+    "o que e esse objeto?",
+    "o que e o objeto em minha mão?",
+    "o que é o objeto na minha mão?",
+    "o que e o objeto ai?",
+    "o que e isso na minha mao?",
+    "o que e isso ai?",
+    "que coisa e essa?",
+    "que e isto?",
+    "o que é esse ai?",
 ]
 
 FRASES_QUE_NAO_SAO_VER_AGORA = [
@@ -655,6 +665,10 @@ FRASES_QUE_NAO_SAO_VER_AGORA = [
     "olha para frente",
     "que horas sao?",
     "o que teremos de almoco?",
+    "o que e esse discurso?",
+    "o que e o objeto de estudo da biologia?",
+    "que objeto e esse da historia do livro?",
+    "o que e isso que eu sinto por ela?",
 ]
 
 
