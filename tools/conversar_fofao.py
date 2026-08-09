@@ -734,6 +734,13 @@ async def principal() -> None:
         # Cap 6 s.8: sem camera ou sem os modelos, a conversa segue de pe.
         logger.exception("Visao indisponivel - seguindo sem ela")
 
+    # A VISAO RESPONDE "O QUE E ISSO?" (2026-08-09). O planner foi montado
+    # ANTES do modulo de visao (a camera carrega o YOLO no iniciar), entao o
+    # fio e ligado aqui, DEPOIS de a visao estar no ar: quem pergunta o que
+    # ha na frente recebe o que a camera ve agora - e nao o diario da meia
+    # hora atras, nem a IA achando no escuro (o modelo nao ve o frame).
+    planner.registrar_consultar_visao(modulo_visao.ver_agora)
+
     # Atende os pedidos de alivio do Guardiao de RAM que roda no Pi. Ate
     # 2026-07-19 esse pedido era publicado e ninguem escutava - a protecao
     # contra travamento por falta de memoria existia so no papel.

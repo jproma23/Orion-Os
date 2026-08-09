@@ -12,6 +12,7 @@ ORION OS operacional (modo SEM_VISAO) em vez de derrubar o processo.
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -106,6 +107,15 @@ class VisionCore:
         self._ultimos_rostos: list[RostoReconhecido] = []
         self._ultimo_processamento_ts: float | None = None
         self._ultimo_frame = None
+        #: Estado da ultima cena processada - o "o que voce esta vendo AGORA".
+        #:
+        #: A cadeia antiga so tinha o diario: a visao via, o diario guardava e
+        #: NINGUEM consultava o momento. Perguntado "o que e isso?", o robo
+        #: respondia do que viu ha meia hora, ou a IA chutava no escuro (o
+        #: modelo nao ve o frame). Este dicionario e o que quem pergunta le
+        #: em vez disso - preenchido a cada quadro e consultavel por
+        #: `ver_agora()`.
+        self._ultima_cena: dict | None = None
         # 0 = sem limite (comportamento antigo). Vem de vision.fps no
         # orion.yaml: ate 2026-07-25 essa chave era configuracao MORTA e o
         # laco rodava a toda velocidade, medido em 131% de CPU disputando os
@@ -150,6 +160,21 @@ class VisionCore:
             return None
         cv2.imwrite(caminho, self._ultimo_frame)
         return caminho
+
+    def ver_agora(self) -> dict | None:
+        """O que a camera ve neste instante - a ultima cena processada.
+
+        O caminho que faltava para "o que e isso?": a visao via, o diario
+        guardava, e nada consultava o AGORA. Devolve o estado da ultima
+        cena, para quem pergunta conversar com a camera de verdade e nao
+        com o diario de meia hora atras.
+
+        Devolve uma copia (ninguem pode mexer no estado interno ao ler).
+        None = ainda nao houve cena (camera ausente ou recem-aberta).
+        """
+        if self._ultima_cena is None:
+            return None
+        return copy.deepcopy(self._ultima_cena)
 
     def carregar_pessoas_conhecidas(self, pessoas: list[dict]) -> None:
         self._reconhecedor.carregar_pessoas_conhecidas(pessoas)
@@ -252,6 +277,22 @@ class VisionCore:
             )
 
         identidades = self._associar_identidades(pessoas_detectadas, rostos)
+        # O AGORA consultavel (2026-08-09): quem pergunta "o que e isso?"
+        # le este estado, preenchido a cada quadro. Objetos + quem foi
+        # reconhecido + quantos estranhos - o que a camera ve, resumido.
+        self._ultima_cena = {
+            "objetos": [
+                {"classe": d.classe, "confianca": round(float(d.confianca), 2)}
+                for d in deteccoes
+            ],
+            "reconhecidos": [
+                {"nome": nome, "pessoa_id": pessoa_id}
+                for pessoa_id, nome in identidades.values()
+                if pessoa_id is not None and nome
+            ],
+            "desconhecidos": len(desconhecidos),
+            "timestamp": agora,
+        }
         caixas = [d.caixa for d in pessoas_detectadas]
         alvo = self._rastreador.atualizar(caixas, identidades, agora=agora)
 

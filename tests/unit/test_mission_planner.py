@@ -4,9 +4,11 @@ import asyncio
 
 import pytest
 
-pytest.importorskip("ollama")
-
-from orion.mission.mission_planner import _PADRAO_PARAR, MissionPlanner  # noqa: E402
+from orion.mission.mission_planner import (  # noqa: E402
+    _PADRAO_PARAR,
+    _PADRAO_VER_AGORA,
+    MissionPlanner,
+)
 
 
 def _coletor(destino: list):
@@ -619,3 +621,167 @@ async def test_memoria_sem_fio_nao_emudece_vai_para_ia():
 
     assert resposta == "Sem problema, posso ajudar."
     assert ai.chamadas
+
+
+# ---------------------------------------------------------------------------
+# "O QUE E ISSO?" - a visao atual consultavel (2026-08-09)
+#
+# O fio quente: perguntado o que ha na frente, o robo respondia do DIARIO
+# (o passado) ou a IA chutava sem ver o frame. A resposta agora vem do
+# Vision Core, que manteve o estado da ultima cena e o entrega por um
+# callback consultado aqui. Mesma filosofia do diario: leitura de sensor,
+# determinismo, e quem pergunta ouve o que a camera ve de verdade.
+# ---------------------------------------------------------------------------
+
+PERGUNTAS_VER_AGORA = [
+    "o que e isso?",
+    "o que é isso",
+    "o que e esse",
+    "o que e isto?",
+    "fofao, o que e isso?",
+    "o que tem na frente?",
+    "o que ta na minha frente",
+    "o que esta na frente?",
+    "o que tem ai na frente?",
+    "o que voce esta vendo?",
+    "voce esta vendo o que?",
+]
+
+FRASES_QUE_NAO_SAO_VER_AGORA = [
+    "o que e isso que voce disse ontem?",
+    "o que voce acha disso?",
+    "o que voce esta vendo na televisao?",
+    "deixa um recado para o Joao",
+    "olha para frente",
+    "que horas sao?",
+    "o que teremos de almoco?",
+]
+
+
+@pytest.mark.parametrize("frase", PERGUNTAS_VER_AGORA)
+def test_pergunta_do_que_ha_na_frente_casa_no_padrao(frase):
+    assert _PADRAO_VER_AGORA.search(frase.lower()) is not None, frase
+
+
+@pytest.mark.parametrize("frase", FRASES_QUE_NAO_SAO_VER_AGORA)
+def test_pergunta_sem_padrao_nao_e_comida_pela_visao(frase):
+    assert _PADRAO_VER_AGORA.search(frase.lower()) is None, frase
+
+
+def _cena_fake(objetos=None, reconhecidos=None, desconhecidos=0):
+    return {
+        "objetos": objetos if objetos is not None else [{"classe": "chair", "confianca": 0.8}],
+        "reconhecidos": reconhecidos if reconhecidos is not None else [],
+        "desconhecidos": desconhecidos,
+    }
+
+
+@pytest.mark.asyncio
+async def test_o_que_e_isso_responde_da_visao_sem_chamar_ia():
+    ai = AiManagerFalso(resposta="Nao devia ter sido chamada")
+    planner = MissionPlanner(
+        ai_manager=ai,
+        consultar_visao=lambda: _cena_fake(
+            objetos=[
+                {"classe": "chair", "confianca": 0.8},
+                {"classe": "dog", "confianca": 0.9},
+            ],
+            reconhecidos=[{"nome": "Joao Paulo", "pessoa_id": 1}],
+        ),
+    )
+
+    resposta = await planner.processar("o que e isso?")
+
+    assert resposta == "Na minha frente agora estou vendo cadeira, cachorro, e o Joao Paulo."
+    assert ai.chamadas == [], "leitura de sensor nao pode depender do modelo"
+
+
+@pytest.mark.asyncio
+async def test_o_que_e_isso_sem_cena_diz_que_nao_esta_vendo():
+    ai = AiManagerFalso()
+    planner = MissionPlanner(ai_manager=ai, consultar_visao=lambda: None)
+
+    resposta = await planner.processar("o que tem na frente?")
+
+    assert resposta == "Nao estou vendo nada na minha frente agora."
+    assert ai.chamadas == []
+
+
+@pytest.mark.asyncio
+async def test_objeto_repetido_na_cena_e_falado_uma_vez():
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(objetos=[{"classe": "chair", "confianca": 0.7}] * 3),
+    )
+
+    resposta = await planner.processar("o que e isso?")
+
+    assert resposta == "Na minha frente agora estou vendo cadeira."
+
+
+@pytest.mark.asyncio
+async def test_cena_so_com_desconhecido_diz_quem_nao_conhece():
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(objetos=[], desconhecidos=2),
+    )
+
+    resposta = await planner.processar("o que voce esta vendo?")
+
+    assert resposta == "Na minha frente agora estou vendo alguem que eu nao conheco."
+
+
+@pytest.mark.asyncio
+async def test_o_que_e_isso_sem_visao_vai_para_a_ia():
+    ai = AiManagerFalso(resposta="Isso e um enigma.")
+    planner = MissionPlanner(ai_manager=ai)
+
+    resposta = await planner.processar("o que e isso?")
+
+    assert resposta == "Isso e um enigma."
+    assert len(ai.chamadas) == 1
+
+
+@pytest.mark.asyncio
+async def test_pergunta_fora_do_padrao_nao_e_respondida_pela_visao():
+    ai = AiManagerFalso(resposta="Sobre o almoco.")
+    planner = MissionPlanner(ai_manager=ai, consultar_visao=lambda: _cena_fake())
+
+    resposta = await planner.processar("o que teremos de almoco?")
+
+    assert resposta == "Sobre o almoco."
+    assert len(ai.chamadas) == 1
+
+
+@pytest.mark.asyncio
+async def test_visao_registrada_depois_passa_a_responder():
+    """O fio nasce DEPOIS no boot (o planner vem antes da camera); registrar
+    a visao no meio do dia tem que passar a responder de verdade."""
+    ai = AiManagerFalso(resposta="vai para a IA")
+    planner = MissionPlanner(ai_manager=ai)
+
+    resposta_antes = await planner.processar("o que e isso?")
+    assert resposta_antes == "vai para a IA"
+
+    planner.registrar_consultar_visao(
+        lambda: _cena_fake(objetos=[{"classe": "bird", "confianca": 0.9}])
+    )
+
+    resposta_depois = await planner.processar("o que e isso?")
+    assert resposta_depois == "Na minha frente agora estou vendo passaro."
+    # so a PRIMEIRA chamada foi a IA; depois da visao registrar, a segunda
+    # pergunta saiu da camera e nao gastou modelo
+    assert len(ai.chamadas) == 1
+    assert ai.chamadas[0][0] == "o que e isso?"
+
+
+@pytest.mark.asyncio
+async def test_em_frases_tambem_responde_da_visao():
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(objetos=[{"classe": "cat", "confianca": 0.6}]),
+    )
+
+    respostas = [frase async for frase in planner.responder_em_frases("o que e isso?")]
+
+    assert respostas == ["Na minha frente agora estou vendo gato."]

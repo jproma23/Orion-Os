@@ -49,6 +49,12 @@ CallbackRecado = Callable[[str, str, str], Awaitable[bool]]
 #: Guarda um fato no vault (titulo, conteudo). Devolve se CONSEGUIU, pela
 #: mesma razao do recado: "guardei" so pode ser dito se guardou.
 CallbackConhecimento = Callable[[str, str], Awaitable[bool]]
+#: O que a camera ve AGORA (dict do VisionCore.ver_agora) ou None.
+#:
+#: Sincrono de proposito: ler o estado da ultima cena e uma leitura em
+#: memoria, sem rede nem serial - nada para esperar. Os outros callbacks
+#: deste planner sao async porque fazem I/O; este nao faz.
+CallbackVisao = Callable[[], dict | None]
 
 #: "voce viu a Ana hoje?", "viu o Bruno?", "voce viu Ana por aqui?"
 #: O nome vai ate o fim ou ate uma palavra de corte (hoje/por aqui/ai...).
@@ -199,6 +205,49 @@ _PADRAO_HORA = re.compile(
     r"|\bhor[áa]rio atual\b"
 )
 
+#: "O QUE E ISSO?" - a pergunta sobre o mundo ATUAL, respondida pela camera.
+#:
+#: Foi o fio quente apontado em 2026-08-09: perguntado o que ha na frente,
+#: o robo respondia do DIARIO (o que viu meia hora atras) ou a IA chutava
+#: (o modelo nao ve o frame). O atalho existe pela mesma razao do relogio:
+#: a visao consulta e um sensor, nao precisa de modelo - e o modelo, sem o
+#: quadro, inventa.
+#:
+#: O `$` no fim e o que protege contra sequestro: "o que e isso QUE voce
+#: disse" e pergunta sobre a conversa, nao sobre o que esta na frente, e nao
+#: pode ser comida por este caminho.
+_PADRAO_VER_AGORA = re.compile(
+    r"\bo\s+que\s+[ée]\s+(?:isso|isto|esse|este)\s*[?.!]*$"
+    r"|\bo\s+que\s+(?:ta|tá|esta|está|tem)\s+(?:ai\s+|aí\s+)?(?:na\s+)?(?:minha\s+)?frente\s*[?.!]*$"
+    r"|\bo\s+que\s+(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s*[?.!]*$"
+    r"|(?:voce|você|cê)\s+(?:esta|está|ta|tá)\s+vendo\s+o\s+que\s*[?.!]*$"
+)
+
+#: Nome em portugues para as classes do YOLO (COCO) que fazem sentido numa
+#: casa. Fora daqui, o nome do modelo vem como ele da. Pequeno de proposito:
+#: traducao de catalogo e trabalho do sistema, nao do modelo - o robo fala a
+#: classe que E, em portugues, para quem pergunta.
+_NOME_PT_DAS_CLASSES = {
+    "dog": "cachorro",
+    "cat": "gato",
+    "bird": "passaro",
+    "cell phone": "celular",
+    "chair": "cadeira",
+    "couch": "sofa",
+    "tv": "televisao",
+    "book": "livro",
+    "remote": "controle remoto",
+    "bottle": "garrafa",
+    "cup": "copo",
+    "keyboard": "teclado",
+    "laptop": "notebook",
+    "table": "mesa",
+    "potted plant": "vaso de planta",
+    "backpack": "mochila",
+    "clock": "relogio",
+    "refrigerator": "geladeira",
+}
+
 
 class _SemCaminho(RuntimeError):
     """A acao existe no catalogo, mas nao ha fio ligado ate o hardware.
@@ -232,6 +281,7 @@ class MissionPlanner:
         deixar_recado: CallbackRecado | None = None,
         guardar_conhecimento: CallbackConhecimento | None = None,
         consultar_internet=None,
+        consultar_visao: CallbackVisao | None = None,
         professor=None,
         autoconhecimento=None,
         ementas=None,
@@ -271,6 +321,11 @@ class MissionPlanner:
         #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
         #: codigo do robo o chamava. Este e o fio que faltava.
         self._guardar_conhecimento = guardar_conhecimento
+        #: Quem diz o que a camera ve AGORA (2026-08-09). None = o robo nao
+        #: responde "o que e isso?" por aqui e a pergunta vai para a IA -
+        #: que nao ve o frame e inventa. Mesmo contrato dos outros callbacks:
+        #: sem caminho, ele nao finge.
+        self._consultar_visao = consultar_visao
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -317,6 +372,10 @@ class MissionPlanner:
             texto_usuario, contexto
         )) is not None:
             resposta = resposta_diario
+        elif (visao_agora := await self._responder_sobre_o_que_ve(
+            texto_usuario
+        )) is not None:
+            resposta = visao_agora
         else:
             await self._contar_consulta_ia()
             bruta = await self._ai_manager.responder(texto_usuario, contexto)
@@ -373,6 +432,10 @@ class MissionPlanner:
             texto_usuario, contexto
         )) is not None:
             resposta = resposta_diario
+        elif (visao_agora := await self._responder_sobre_o_que_ve(
+            texto_usuario
+        )) is not None:
+            resposta = visao_agora
         else:
             resposta = None
 
@@ -862,6 +925,83 @@ class MissionPlanner:
         if not nome or nome.lower() in {"alguem", "alguém", "alguma coisa", "algo"}:
             return None
         return nome
+
+    def registrar_consultar_visao(self, callback: CallbackVisao | None) -> None:
+        """Liga a visao ao planner DEPOIS de ela subir (2026-08-09).
+
+        No `conversar_fofao.py` o MissionPlanner e construido ANTES do
+        ModuloVisao (a camera carrega o YOLO no `iniciar()`), entao este fio
+        nao pode nascer no `__init__`. Quem monta o boot chama este metodo
+        assim que o modulo de visao esta no ar.
+
+        None desliga de novo: se a visao cair a meio do dia, o robo volta a
+        deixar a pergunta "o que e isso?" para a IA - e volta a inventar,
+        que e honesto demais para nao ser, mas e o que o contrato manda
+        (sem caminho, ele nao finge).
+        """
+        self._consultar_visao = callback
+
+    async def _responder_sobre_o_que_ve(self, texto: str) -> str | None:
+        """Responde "o que e isso?" com o que a camera ve AGORA.
+
+        MESMA RAZAO DO DIARIO (NAO VAI PARA A IA): e leitura de sensor, no
+        instante. O modelo nao ve o frame - e, perguntado, inventa: foi o
+        impasse que abriu esta pendencia ("nao identifica objetos"). A
+        resposta vem de quem tem o dado do momento (o Vision Core), nao de
+        quem apalpa no escuro.
+
+        None = nao ha de onde tirar a resposta (callback ausente) ou a frase
+        nao e essa pergunta - a cascata segue para os proximos degraus.
+        """
+        if self._consultar_visao is None:
+            return None
+        if not _PADRAO_VER_AGORA.search(texto.lower()):
+            return None
+        try:
+            cena = self._consultar_visao()
+        except Exception:
+            logger.exception("falha ao consultar a visao atual")
+            return "Nao estou vendo nada na minha frente agora."
+        return self._descrever_cena(cena)
+
+    @staticmethod
+    def _descrever_cena(cena: dict | None) -> str:
+        """Transforma o snapshot da visao na fala: "estou vendo X, Y e o Z".
+
+        Resposta direta, dos fatos da cena - nada inventado. O robo diz o
+        que a camera diz, traduzido so no rotulo (pesquisa em catalogo, nao
+        achismo do modelo).
+        """
+        if not isinstance(cena, dict):
+            return "Nao estou vendo nada na minha frente agora."
+        itens: list[str] = []
+        vistos: set[str] = set()
+        for objeto in cena.get("objetos") or []:
+            if not isinstance(objeto, dict):
+                continue
+            classe = str(objeto.get("classe") or "").strip()
+            if not classe or classe == "person":
+                continue
+            rotulo = _NOME_PT_DAS_CLASSES.get(classe, classe)
+            if rotulo in vistos:
+                continue
+            vistos.add(rotulo)
+            itens.append(rotulo)
+        for reconhecido in cena.get("reconhecidos") or []:
+            if not isinstance(reconhecido, dict):
+                continue
+            nome = str(reconhecido.get("nome") or "").strip()
+            if nome:
+                itens.append(f"o {nome}")
+        if int(cena.get("desconhecidos") or 0) > 0:
+            itens.append("alguem que eu nao conheco")
+        if not itens:
+            return "Nao estou vendo nada na minha frente agora."
+        if len(itens) == 1:
+            return f"Na minha frente agora estou vendo {itens[0]}."
+        return "Na minha frente agora estou vendo {}, e {}.".format(
+            ", ".join(itens[:-1]), itens[-1]
+        )
 
     @staticmethod
     def _eh_pergunta_de_hora(texto: str) -> bool:

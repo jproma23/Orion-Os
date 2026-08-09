@@ -285,3 +285,54 @@ async def test_encerrar_mata_a_retentativa_dos_rostos(monkeypatch):
     parou_em = banco.chamadas
     await asyncio.sleep(0.05)
     assert banco.chamadas == parou_em, "a retentativa continuou viva depois de encerrar()"
+
+
+# ---------------------------------------------------------------------------
+# O AGORA CONSULTAVEL (2026-08-09)
+#
+# O planner responde "o que e isso?" perguntando `ver_agora()` aqui. Estes
+# testes prendem o contrato: delega ao nucleo, nao abre camera, e nunca
+# levanta - nucleo ausente ou quebrado devolve None, que vira "nao estou
+# vendo nada" na conversa.
+# ---------------------------------------------------------------------------
+
+
+class NucleoComVisaoAtual:
+    def __init__(self, cena):
+        self._cena = cena
+
+    def ver_agora(self):
+        return self._cena
+
+
+def test_ver_agora_delega_ao_nucleo():
+    cena = {"objetos": [{"classe": "chair", "confianca": 0.8}]}
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoComVisaoAtual(cena))
+
+    assert modulo.ver_agora() == cena
+
+
+def test_ver_agora_sem_nucleo_devolve_none_sem_levantar():
+    # nucleo=None acontece antes de iniciar(): a camera ainda nao montou.
+    # "nao estou vendo nada" e resposta, nao mudo.
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=None)
+
+    assert modulo.ver_agora() is None
+
+
+def test_ver_agora_com_nucleo_quebrado_devolve_none_sem_levantar():
+    class NucleoQuebrado:
+        def ver_agora(self):
+            raise RuntimeError("camera pegou fogo")
+
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoQuebrado())
+
+    assert modulo.ver_agora() is None
+
+
+def test_ver_agora_com_nucleo_sem_o_metodo_devolve_none_sem_levantar():
+    # dublês antigos e nucleos de outra versao nao tem ver_agora - o contrato
+    # nao pode depender de todo mundo ter atualizado junto.
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoFalso())
+
+    assert modulo.ver_agora() is None

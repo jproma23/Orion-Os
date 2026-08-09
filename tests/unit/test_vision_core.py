@@ -256,3 +256,68 @@ async def test_camera_error_e_publicado_e_propagado():
 
     bus.parar()
     await tarefa
+
+
+# ---------------------------------------------------------------------------
+# "O QUE E ISSO?" - o AGORA consultavel (2026-08-09)
+#
+# A cadeia antiga so tinha o diario: a visao via, o diario guardava e NINGUEM
+# consultava o momento. Perguntado o que ha na frente, o robo respondia do
+# passado ou a IA chutava sem ver o frame. Estes testes prendem o snapshot
+# que `ver_agora()` entrega - o estado da ultima cena, para o MissionPlanner
+# responder com o que a camera ve de verdade.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ver_agora_retorna_a_ultima_cena():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+
+    cadeira = Deteccao(classe="chair", confianca=0.8, caixa=(0, 0, 50, 50))
+    pessoa = Deteccao(classe="person", confianca=0.9, caixa=(100, 100, 300, 400))
+    rosto = RostoReconhecido(
+        pessoa_id=7, nome="Joao", confianca=0.95, caixa=(120, 110, 200, 190)
+    )
+    vision = VisionCore(
+        bus,
+        captura=CapturaFalsa([_frame_fake()]),
+        detector=DetectorFalso([cadeira, pessoa]),
+        reconhecedor=ReconhecedorFalso([rosto]),
+    )
+
+    assert vision.ver_agora() is None  # ainda nao houve cena
+
+    await vision.processar_um_frame()
+
+    cena = vision.ver_agora()
+    assert cena is not None
+    classes = {o["classe"] for o in cena["objetos"]}
+    assert "chair" in classes and "person" in classes
+    assert cena["reconhecidos"] == [{"nome": "Joao", "pessoa_id": 7}]
+    assert cena["desconhecidos"] == 0
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_ver_agora_devolve_copia_do_estado():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    cadeira = Deteccao(classe="chair", confianca=0.8, caixa=(0, 0, 50, 50))
+    vision = VisionCore(
+        bus,
+        captura=CapturaFalsa([_frame_fake()]),
+        detector=DetectorFalso([cadeira]),
+        reconhecedor=ReconhecedorFalso([]),
+    )
+    await vision.processar_um_frame()
+
+    cena = vision.ver_agora()
+    cena["objetos"].clear()
+
+    assert vision.ver_agora()["objetos"], "mexer na copia nao pode sujar o estado interno"
+
+    bus.parar()
+    await tarefa

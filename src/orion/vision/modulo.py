@@ -196,6 +196,29 @@ class ModuloVisao:
     def esta_saudavel(self) -> bool:
         return self._tarefa is not None and not self._tarefa.done()
 
+    def ver_agora(self) -> dict | None:
+        """O que a camera ve neste instante - para o planner responder
+        "o que e isso?" (2026-08-09).
+
+        A cadeia que faltava: a visao via e o DIARIO guardava, mas nenhum
+        codigo consultava o AGORA. Este metodo entrega o estado da ultima
+        cena processada pelo Vision Core, sem abrir um segundo leitor da
+        camera (EDR-0023 s.3) e sem duplicar o trabalho de deteccao.
+
+        None em dois casos legitimamente: o nucleo ainda nao existe
+        (iniciar() nao rodou, ou falhou antes de montar a camera) ou
+        nenhum frame foi processado ainda. Nunca levanta: visao fora e
+        resposta honesta ("nao estou vendo nada"), nao mudo.
+        """
+        ver = getattr(self._nucleo, "ver_agora", None)
+        if ver is None:
+            return None
+        try:
+            return ver()
+        except Exception:
+            logger.debug("falha ao consultar a visao atual", exc_info=True)
+            return None
+
     def pausar(self) -> None:
         """Suspende a visao inteira sob pressao de memoria (EDR-0020).
 
