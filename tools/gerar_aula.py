@@ -159,19 +159,49 @@ def _termos_alternativos(topico) -> list[str]:
     return termos[:6]
 
 
+# Palavras que aparecem em muitos assuntos e fazem uma busca parecer certa
+# quando nao e. Erros reais: Organizacao -> ONU; graficos -> videogame;
+# Portugues -> pagina de desambiguacao. Sem fonte e melhor que fonte errada.
+_TERMOS_AMBIGUOS = frozenset({
+    "organizacao", "contra", "graficos", "portugues", "sistema",
+    "nervoso", "nomenclatura", "familia", "escola", "religiao",
+})
+
+
+def _palavras_peso(texto: str) -> set[str]:
+    """Palavras comparaveis, sem acento e sem conectivos."""
+    limpo = "".join(
+        c for c in unicodedata.normalize("NFD", texto.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+    return {
+        p for p in re.findall(r"\w+", limpo)
+        if len(p) > 3 and p not in _LIGACAO
+    }
+
+
 def _parecidos(termo: str, titulo: str) -> bool:
     """O titulo achado divide alguma palavra de peso com o que se procurou?"""
-    def palavras(texto: str) -> set[str]:
-        # SEM ACENTO nos dois lados: a primeira versao descartou "Célula"
-        # por ter procurado "celula", que e como a ementa escreve.
-        limpo = "".join(
-            c for c in unicodedata.normalize("NFD", texto.lower())
-            if unicodedata.category(c) != "Mn"
-        )
-        return {p for p in re.findall(r"\w+", limpo) if len(p) > 3}
-    procuradas = palavras(termo)
-    return bool(procuradas & palavras(titulo)) if procuradas else False
+    procuradas = _palavras_peso(termo)
+    return bool(procuradas & _palavras_peso(titulo)) if procuradas else False
 
+
+def _titulo_adequado(termo: str, contexto: str, titulo: str) -> bool:
+    """Recusa o falso positivo que apenas repete uma palavra generica.
+
+    Um titulo igual ao termo e aceito, exceto os termos sabidamente ambiguos.
+    Nos demais casos ele precisa compartilhar ao menos DUAS palavras de peso
+    com o objetivo da aula. Isto evita associacao por uma coincidencia como
+    'organizacao' (ONU) ou 'graficos' (videogame).
+    """
+    palavras_termo = _palavras_peso(termo)
+    palavras_titulo = _palavras_peso(titulo)
+    if not (palavras_termo & palavras_titulo):
+        return False
+
+    if palavras_termo == palavras_titulo:
+        return not bool(palavras_termo & _TERMOS_AMBIGUOS)
+    return len(palavras_titulo & _palavras_peso(contexto)) >= 2
 
 #: Palavras do `conteudo` da ementa que nao sao termo a ensinar.
 _LIGACAO = frozenset({

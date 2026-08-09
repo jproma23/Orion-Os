@@ -1,0 +1,51 @@
+# Fontes curadas para os rascunhos de aulas básicas.
+# Cada URL foi conferida pelo endpoint da Wikipédia em 2026-08-09.
+# O gerador automático não deve substituir esta lista por busca aproximada.
+biologia.caracteristicas-vida.basico:
+  - titulo: Vida
+    url: https://pt.wikipedia.org/wiki/Vida
+  - titulo: Metabolismo
+    url: https://pt.wikipedia.org/wiki/Metabolismo
+  - titulo: Reprodução
+    url: https://pt.wikipedia.org/wiki/Reprodução
+  - titulo: Homeostase
+    url: https://pt.wikipedia.org/wiki/Homeostase
+biologia.celula.basico:
+  - titulo: Célula
+    url: https://pt.wikipedia.org/wiki/C%C3%A9lula
+  - titulo: Membrana celular
+    url: https://pt.wikipedia.org/wiki/Membrana_celular
+  - titulo: Citoplasma
+    url: https://pt.wikipedia.org/wiki/Citoplasma
+  - titulo: Núcleo celular
+    url: https://pt.wikipedia.org/wiki/N%C3%BAcleo_celular
+biologia.metabolismo-celular.basico:
+  - titulo: Metabolismo
+    url: https://pt.wikipedia.org/wiki/Metabolismo
+biologia.divisao-celular.basico:
+  - titulo: Divisão celular
+    url: https://pt.wikipedia.org/wiki/Divis%C3%A3o_celular
+  - titulo: Mitose
+    url: https://pt.wikipedia.org/wiki/Mitose
+  - titulo: Meiose
+    url: https://pt.wikipedia.org/wiki/Meiose
+biologia.tecidos.basico:
+  - titulo: Tecido
+    url: https://pt.wikipedia.org/wiki/Tecido
+  - titulo: Lista de tecidos animais
+    url: https://pt.wikipedia.org/wiki/Lista_de_tecidos_animais
+biologia.reinos.basico:
+  - titulo: Reino (biologia)
+    url: https://pt.wikipedia.org/wiki/Reino_(biologia)
+  - titulo: Taxonomia
+    url: https://pt.wikipedia.org/wiki/Taxonomia
+biologia.corpo-humano.basico:
+  - titulo: Corpo humano
+    url: https://pt.wikipedia.org/wiki/Corpo_humano
+biologia.saude.basico:
+  - titulo: Saúde
+    url: https://pt.wikipedia.org/wiki/Sa%C3%BAde
+  - titulo: Sistema imunitário
+    url: https://pt.wikipedia.org/wiki/Sistema_imunit%C3%A1rio
+  - titulo: Vacina
+    url: https://pt.wikipedia.org/wiki/Vacina
