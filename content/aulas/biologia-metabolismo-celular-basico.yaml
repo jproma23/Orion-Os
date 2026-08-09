@@ -1,0 +1,70 @@
+id: biologia.metabolismo-celular.basico
+materia: biologia
+titulo: Respiração e fotossíntese
+nivel: basico
+resumo: Como células obtêm energia dos alimentos e como plantas, algas e algumas bactérias produzem matéria orgânica usando luz.
+fonte: "Wikipedia: Respiração celular e Fotossíntese, consultados em 2026-08-09."
+plano:
+  objetivo: Comparar fotossíntese e respiração celular sem confundir matéria com energia.
+  pre_requisitos:
+    - A célula
+  duracao_min: 16
+  fixacao:
+    - Qual processo usa luz para produzir glicose?
+    - Por que uma planta também realiza respiração celular?
+  fechamento: Fotossíntese armazena energia da luz em moléculas orgânicas; respiração libera parte dessa energia para o trabalho celular.
+passos:
+  - fala: "Comer não é o mesmo que ganhar energia imediatamente. A célula precisa transformar as moléculas do alimento em uma forma que consiga usar."
+    quadro:
+      tipo: titulo
+      texto: "Respiração e fotossíntese"
+  - fala: "Metabolismo é o nome do conjunto de reações químicas da célula. Algumas reações montam moléculas; outras quebram moléculas e liberam energia utilizável."
+    quadro:
+      tipo: topicos
+      texto: "Metabolismo"
+      itens:
+        - Construção de moléculas
+        - Quebra e transformação de moléculas
+  - fala: "Na fotossíntese, plantas, algas e algumas bactérias usam luz para transformar água e gás carbônico em moléculas orgânicas, como a glicose."
+    quadro:
+      tipo: topicos
+      texto: "Fotossíntese"
+      itens:
+        - Usa luz
+        - Usa água e gás carbônico
+        - Produz matéria orgânica e libera oxigênio
+  - fala: "A glicose guarda energia química. Ela não é energia pura: é uma molécula que pode participar de reações posteriores."
+    quadro:
+      tipo: texto
+      texto: "Glicose = molécula que armazena energia química"
+  - fala: "Na respiração celular, a célula usa moléculas orgânicas e, em muitas situações, oxigênio para liberar energia que sustenta suas atividades."
+    quadro:
+      tipo: topicos
+      texto: "Respiração celular"
+      itens:
+        - Usa moléculas orgânicas
+        - Libera energia para a célula
+        - Em geral usa oxigênio
+  - fala: "Essa energia ajuda a célula a transportar substâncias, montar moléculas, movimentar partes e manter suas condições internas."
+    quadro:
+      tipo: texto
+      texto: "Energia celular permite trabalho"
+  - fala: "Fotossíntese e respiração não são inimigas. Uma produz moléculas orgânicas usando energia da luz; a outra usa essas moléculas para liberar energia para a vida celular."
+    quadro:
+      tipo: topicos
+      texto: "Comparação"
+      itens:
+        - "Fotossíntese: armazena energia em moléculas"
+        - "Respiração: libera energia das moléculas"
+  - fala: "Plantas fazem fotossíntese quando há luz, mas suas células também respiram. Elas precisam de energia o tempo todo, inclusive quando está escuro."
+    quadro:
+      tipo: texto
+      texto: "Planta também respira"
+  - fala: "Uma confusão comum é dizer que a planta tira toda sua massa do solo. Grande parte da matéria orgânica produzida vem do gás carbônico retirado do ar."
+    quadro:
+      tipo: texto
+      texto: "Gás carbônico também é matéria-prima"
+  - fala: "Para fechar, acompanhe o ciclo: luz ajuda a formar moléculas orgânicas; essas moléculas podem ser usadas na respiração; e a célula usa a energia liberada para viver."
+    quadro:
+      tipo: texto
+      texto: "Luz → moléculas orgânicas → respiração → trabalho celular"

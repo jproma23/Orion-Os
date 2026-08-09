@@ -12,12 +12,15 @@ niveis:
         titulo: O que é estar vivo
         conteudo: Organizacao, metabolismo, reproducao e resposta ao ambiente; virus e o limite.
       - id: bio.celula
+        aula: biologia.caracteristicas-vida.basico
         titulo: A célula
         conteudo: Procarionte e eucarionte, membrana, citoplasma, nucleo e organelas.
       - id: bio.metabolismo-celular
+        aula: biologia.celula.basico
         titulo: Respiração e fotossíntese
         conteudo: Como a celula tira energia do alimento e como a planta fabrica o dela.
       - id: bio.divisao-celular
+        aula: biologia.metabolismo-celular.basico
         titulo: Divisão celular
         conteudo: Mitose e meiose, para que serve cada uma, e o que da errado no cancer.
       - id: bio.tecidos

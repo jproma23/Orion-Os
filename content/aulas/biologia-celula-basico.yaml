@@ -1,0 +1,64 @@
+id: biologia.celula.basico
+materia: biologia
+titulo: A célula
+nivel: basico
+resumo: A célula como unidade básica da vida e as diferenças principais entre células procariontes e eucariontes.
+fonte: "Wikipedia: Célula, Membrana celular, Citoplasma e Núcleo celular, consultados em 2026-08-09."
+plano:
+  objetivo: Reconhecer as partes básicas de uma célula e comparar procariontes com eucariontes.
+  pre_requisitos: []
+  duracao_min: 16
+  fixacao:
+    - Qual é a função da membrana celular?
+    - O que diferencia uma célula procarionte de uma eucarionte?
+  fechamento: Toda célula separa um interior do ambiente, realiza reações no citoplasma e guarda informação genética; a organização dessa informação muda entre os grupos.
+passos:
+  - fala: "A célula é a menor unidade capaz de realizar as funções da vida. Seu corpo tem muitas delas, mas uma bactéria pode ser apenas uma célula."
+    quadro:
+      tipo: titulo
+      texto: "A célula"
+  - fala: "Imagine uma cidade pequena com uma fronteira, um espaço de trabalho e instruções. A célula também precisa controlar entradas, realizar reações e usar informação."
+    quadro:
+      tipo: topicos
+      texto: "Três necessidades"
+      itens:
+        - Separar dentro e fora
+        - Realizar reações
+        - Usar informação genética
+  - fala: "A membrana celular é a fronteira. Ela não é uma parede fechada: seleciona a passagem de água, gases e outras substâncias."
+    quadro:
+      tipo: texto
+      texto: "Membrana: controla trocas com o ambiente"
+  - fala: "O citoplasma é a região interna onde acontecem muitas reações químicas. Ele contém água, substâncias dissolvidas e estruturas celulares."
+    quadro:
+      tipo: texto
+      texto: "Citoplasma: espaço das reações"
+  - fala: "O material genético contém instruções usadas pela célula. Em células eucariontes, ele fica principalmente dentro de um núcleo."
+    quadro:
+      tipo: texto
+      texto: "Informação genética orienta o funcionamento celular"
+  - fala: "Há dois grandes arranjos. Nas procariontes, como as bactérias, não existe núcleo envolvido por membrana. O DNA fica em uma região do citoplasma."
+    quadro:
+      tipo: topicos
+      texto: "Procariontes"
+      itens:
+        - Sem núcleo delimitado
+        - "Exemplo: bactérias"
+  - fala: "Nas eucariontes, há núcleo delimitado e outras estruturas internas. Animais, plantas, fungos e protistas têm células desse tipo."
+    quadro:
+      tipo: topicos
+      texto: "Eucariontes"
+      itens:
+        - Núcleo delimitado
+        - Estruturas internas especializadas
+  - fala: "Plantas e animais são eucariontes, mas não são iguais. Células vegetais têm parede celular e cloroplastos; células animais não têm essas duas estruturas."
+    quadro:
+      tipo: topicos
+      texto: "Planta e animal"
+      itens:
+        - "Vegetal: parede celular e cloroplastos"
+        - "Animal: sem parede celular e sem cloroplastos"
+  - fala: "Uma boa forma de estudar célula é sempre perguntar três coisas: qual estrutura estou vendo, onde ela fica e qual função ela ajuda a cumprir?"
+    quadro:
+      tipo: texto
+      texto: "Estrutura + lugar + função"
