@@ -6920,3 +6920,210 @@ falha e deixa rastro.
    as entradas anteriores já listavam: o heartbeat que mente, o pisca da
    lanterna no boot, o `reboot` do Notebook sem sudoers, o encoder de roda e
    o Gmail.
+
+## Sessão de 2026-08-07 (entrada RETROATIVA, escrita em 09/08) — o robô passa a dar aula
+
+**Esta entrada faltou.** A sessão entregou 12 commits e terminou sem journal,
+quebrando a regra do projeto (documentação antes do commit). Reconstruída aqui
+a partir dos corpos dos commits, que são detalhados. Fica o registro da falha
+de processo, não só do conteúdo.
+
+Os 12 commits, na ordem (`eccd0c7` → `0d624c7`):
+
+1. **`eccd0c7` — o robô passa a DAR AULA.** Pedido do dono em três partes:
+   "jamboard como utilitário", "banco de dados com todo conteúdo, sem IA", e a
+   descoberta de que "a cota diária acabou e ele não faz nada sem IA". A aula
+   não chama modelo: fala e quadro de cada passo vivem em `content/aulas/*.yaml`
+   versionados. O quadro (`display/quadro.py`) tem vocabulário FECHADO de
+   blocos, conferido na construção do banco. O DEDO aponta cada bloco novo,
+   porque "quem vai usar a tela é o robô, o cursor é dedo". Detalhes que já
+   custaram caro e estão no código: a aula espera a fala do turno terminar
+   (duas falas simultâneas davam SEGV), roda em segundo plano (senão o robô
+   fica surdo dez minutos), e "para" encerra a aula junto com as rodas.
+   Conteúdo inicial: 4 aulas, 31 passos. 795 testes passando.
+2. **`1518f77` [tela]** — o dedo media a posição com rolagem suave em
+   andamento e apontava para onde o bloco ESTAVA; e o kiosk servia página de
+   duas versões atrás vinda do cache do perfil do Firefox. Nasceu
+   `tools/recarregar_kiosk.sh` (mata o firefox-esr, apaga o cache, reabre).
+3. **`82b484e` [conversa] — o robô OBEDECE com a cota zerada.** Quem escrevia
+   o marcador `#acao:` era só o modelo: sem ele, as 16 ações do catálogo
+   ficavam inalcançáveis. Agora, com a IA fora, o planner tenta obedecer
+   sozinho — degrau ABAIXO do modelo, não classificador de intenção (os três
+   motivos da recusa de 02/08 estão respondidos no corpo do commit). Negação
+   anula: "não acende a luz" não acende. 832 testes.
+4. **`ecad4b1` [ensino] — AUTOCONHECIMENTO** (`content/sobre_mim.yaml`, 12
+   fatos): ele responde sobre o próprio corpo sem IA, ANTES da IA na cascata,
+   porque o modelo inventa hardware que não existe. Dois achados em uso real:
+   "aula de ciência, por exemplo" devolvia a aula de equação (casou "exemplo"
+   no CORPO da aula — a busca passou a ser só em título/matéria/resumo) e
+   "por que o céu é azul" caía em "não consigo pensar". 844 testes.
+5. **`61be58d`** — a pergunta do mundo com "você" dentro ("você sabe quem
+   descobriu o Brasil?") era sequestrada pelo fato dos OLHOS. A busca do
+   autoconhecimento passou a casar só em título e perguntas esperadas, nunca
+   no texto da resposta. Mesma lição do item 4: onde casou vale mais que
+   quanto pontuou.
+6. **`0613d86` — as EMENTAS**: o mapa de 13 matérias e 312 assuntos, com o
+   robô sabendo dizer o que ainda não sabe. Ementa é o mapa; aula é o
+   território.
+7. **`d542f00`** — o PLANO DE AULA e o gerador de conteúdo da Wikipédia
+   (`tools/gerar_aula.py`): rascunho em `content/rascunhos/`, NUNCA direto
+   nas aulas, com fonte colada (CC BY-SA). Publicar é ato humano separado.
+8. **`ddd1384`** — o gerador monta a aula pelo OBJETIVO do tópico na ementa,
+   não pelo índice do artigo.
+9. **`71a025e`** — o REDATOR (`tools/redigir_aula.py`): UMA chamada de modelo
+   por AULA, na autoria, nunca por pergunta. A conta: 308 aulas = 308
+   chamadas uma vez; o caminho oposto acabaria com a cota numa tarde (e já
+   acabou, às 10h de 07/08). Três travas contra invenção: vocabulário
+   fechado de blocos, validação pelo mesmo carregador do robô antes de
+   gravar, e fonte preservada do rascunho, não pedida ao modelo.
+10. **`2c8b1d8` [internet]** — a busca para de responder com confiança sobre
+    o assunto errado.
+11. **`e0c752e`** — a aula PAUSA e RETOMA, e o intervalo entre passos vira
+    janela de escuta.
+12. **`0d624c7`** — a janela de escuta sobe para 4 segundos, e ele AVISA no
+    começo da aula que ela existe: quem não sabe que o robô não escuta
+    enquanto fala repete por cima da voz dele. Registrado como paliativo: a
+    solução de verdade é barge-in, mudança no Voice Core, não feita.
+
+---
+
+## Sessão de 2026-08-08 (noite, entrando pela madrugada de 09) — o autoconhecimento estava sequestrando a conversa, e a conversa não roda onde eu achava
+
+Sessão conduzida do PC Windows por SSH. Duas frentes: consertar o robô
+respondendo texto fixo fora de hora, e produzir as aulas de programação
+avançada.
+
+### A análise do chat (260 mensagens de 07 e 08/08, tabela `conversas`)
+
+Funcionando: a aula pausa/retoma/para na voz; comandos físicos diretos
+("acenda a luz", "modo patrulha"); a memória em uso ("você já me viu hoje?" →
+"vi, às 10:21" — correto); frases picotadas pelo Whisper contornadas com
+pedido de esclarecimento.
+
+Os defeitos, todos reproduzidos depois em teste:
+
+1. **O autoconhecimento sequestrava a conversa.** "Você consegue fazer
+   isso?" (sobre livre-arbítrio) recebia o fato da LUZ; "você sente falta de
+   ter braço?" recebia o fato dos BRAÇOS; e pior: "gire para o lado esquerdo",
+   um COMANDO, virava a palestra sobre servos — o robô narrava o corpo em vez
+   de obedecer, e só girava quando o dono insistia ("Isso, FAÇA isso").
+2. "Olhando pra frente." prefixando quase toda fala, às vezes duplicado.
+   **Não atacado nesta sessão.**
+3. A tag `#acao:deixar_recado ...` vazou no texto visível de uma resposta em
+   07/08. **Não atacado nesta sessão.**
+
+### A causa, medida
+
+Uma palavra solta autorizava a resposta pronta. Os casos reais, reproduzidos
+contra o `sobre_mim.yaml` de produção:
+
+- "Você consegue fazer isso?" → casou "consegue" com a pergunta indexada "o
+  que voce consegue ligar" → fato da LUZ.
+- "gire para o lado esquerdo" → casou "lado" com "olha para os lados" →
+  fato da CABEÇA.
+- "você ainda não tem essa capacidade" → casou "nao" com o TÍTULO "O que eu
+  NAO tenho" → fato dos BRAÇOS. Nem a negativa da frase era sobre braço.
+
+É a mesma família perseguida no dia anterior (buscar no texto explicativo faz
+qualquer palavra encostar em qualquer coisa), desta vez na direção oposta:
+palavra genérica demais da PERGUNTA encostando no índice curado.
+
+### A correção (`autoconhecimento.py`, não commitada ainda)
+
+- **Cobertura mínima**: o fato vencedor precisa cobrir ao menos DUAS palavras
+  de conteúdo da frase (ou uma, se a frase só tiver uma — "você tem câmera?"
+  segue respondida). Uma palavra genérica encosta em qualquer coisa; duas já
+  apontam um assunto.
+- **"nao"** virou palavra-de-pergunta: negar não diz sobre o que se fala.
+- **3 testes novos com as frases reais do chat**, datados, incluindo os dois
+  comandos de movimento que viravam palestra.
+
+Medição: as 6 frases sequestradas de 08/08 agora seguem para a IA; as 4
+perguntas legítimas sobre o corpo continuam respondidas. Suíte do Pi: 843
+passando, 0 falhando, ruff limpo. No Notebook: 16/16 do módulo, ruff limpo.
+
+### Onde eu errei nesta sessão
+
+**Reiniciei o serviço errado e quase declarei vitória.** Apliquei a correção
+no Pi e reiniciei o `orion-motion` — mas a CONVERSA roda no **Notebook**: o
+`orion-avatar.service` executa `tools/conversar_fofao.py`, e a chave da IA
+(`OPENAI_API_KEY`, que guarda uma chave do Google/Gemini) só existe no
+`secrets.env` do Notebook. O Pi roda movimento, banco e web; a reinicialização
+era inócua para o defeito. Quem denunciou foi a verificação: o processo do Pi
+não tinha a variável no ambiente, e o `ai_manager` a exige. A correção foi
+espelhada no Notebook, testada lá, e o avatar reiniciado — só então a correção
+passou a valer no caminho real.
+
+Lição alinhada com a rubrica do projeto: antes de "está no ar", confirmar
+ONDE o código roda, não assumir pela topologia do relatório anterior.
+
+### Aulas de programação avançada (pedido do dono nesta sessão)
+
+A ementa de programação já tinha o nível avançado mapeado (8 tópicos); só
+havia aula do básico. Feito:
+
+- **8 rascunhos gerados** da Wikipédia (`gerar_aula.py`), com fonte e data.
+- **`prog.orion` excluído da leva**: a ementa diz "material que só ele tem",
+  e a Wikipédia entregou o artigo genérico "Caso de estudo" — fonte errada,
+  conteúdo errado. Essa aula tem de ser escrita do journal e dos commits do
+  próprio projeto; fica como trabalho de autoria separado.
+- **A redação só roda no Notebook**: a primeira tentativa no Pi falhou 7/7
+  com "Missing credentials" — o `secrets.env` do Pi só tem
+  `ORION_SENHA_CONFIG`. Rascunhos copiados para o Notebook, redação por lá
+  (1 chamada Gemini por aula), resultado a publicar de volta no Pi.
+- **AUDITORIA DE FONTE PEGOU 5 DE 8 ERRADAS.** A revisão pré-publicação
+  conferiu o campo `fonte` de cada rascunho: a busca por termo do gerador
+  pescou "Direto (**boxe**)" para arquitetura (veio de "módulos que não se
+  chamam *direto*" na ementa), "Entrega" para redes (de "não *entrega*
+  nada"), "Concorrência (**economia**)" para concorrência, uma página de
+  desambiguação para hardware e "Modelo" (genérico) para IA aplicada. O
+  guarda `_parecidos` confere se o título divide ALGUMA palavra com o termo
+  — e artigo com parênteses de outro domínio passa. **É o mesmo defeito do
+  `2c8b1d8` (busca respondendo com confiança sobre o assunto errado), agora
+  dentro do gerador de aula.** Só `assincrono` ("Laço de eventos") e
+  `banco-dados` tinham fonte certa.
+- **Regeração com artigos apontados a mão** (`/tmp/regerar_avancado.py`,
+  reusando `_artigo_completo` e `_montar_rascunho` do próprio gerador):
+  cada candidato foi conferido na API da Wikipédia antes — "Arquitetura de
+  software", "Concorrência (ciência da computação)", "Rede de computadores",
+  "Interface serial"/"Baud"/"Microcontrolador", "Inteligência artificial
+  generativa"/"Aprendizado de máquina". Detalhe que custou uma chamada: a
+  Wikimedia devolve 403 sem o User-Agent com contato do projeto — estava
+  documentado no `internet.py` e eu inventei um UA novo mesmo assim.
+- **Fica aberto (defeito real)**: o gerador não tem como APONTAR o artigo;
+  o `--artigo` ou um campo `fonte_artigo` na ementa evitaria a pescaria
+  errada. O script de uso único não é solução, é registro do buraco.
+- **Resultado final: 7 aulas publicadas** (`assincrono`, `arquitetura`,
+  `banco-dados`, `redes`, `concorrencia`, `hardware`, `ia-aplicada`), lidas
+  antes de publicar, com os 7 tópicos apontados na ementa. Programação saiu
+  de "faltam 23" para "faltam 16". `saber.db` reconstruído nas DUAS máquinas
+  (o desenho já prevê: o banco é índice, cada máquina constrói o seu).
+  Validação pelo caminho real do professor, no Notebook: 7 pedidos falados
+  simulados, 7 aulas certas. Suítes: 843 no Pi, 970 no Notebook, ruff limpo.
+  `orion-avatar` reiniciado para o processo ler o banco novo.
+- **Resistência do modelo à validação**: `hardware` precisou de 5 tentativas
+  (insistia num bloco `formula` sem `texto`, ou devolvia JSON quebrado) e
+  `arquitetura` de 7 — só passou depois de o rascunho ganhar mais dois
+  artigos de base (a intro de "Arquitetura de software" tem 467 caracteres;
+  com material escasso o modelo enfeitava e errava o vocabulário de blocos).
+  A trava de validação segurou TODAS as tentativas ruins: nenhuma aula
+  inválida chegou ao banco.
+- Havia rascunhos antigos parados (`fisica.cinematica.basico` no Pi,
+  `fisica.leis-newton.basico` no Notebook) — não tocados.
+
+### Pendências, na ordem em que mordem
+
+1. **Commitar a correção do autoconhecimento** (Pi + Notebook, mesmos 2
+   arquivos) — esta entrada existe justamente porque 07/08 commitou sem
+   journal; 08/08 não pode terminar com journal sem commit.
+2. ~~Publicar as 7 aulas avançadas~~ — **feito nesta sessão** (ver acima).
+3. **Escrever a aula `prog.orion`** a partir do journal e dos commits.
+4. **O gerador não tem como apontar o artigo** — `--artigo` ou campo na
+   ementa; a pescaria por termo já errou 5 de 8 numa leva.
+4. "Olhando pra frente." duplicado na fala; tag `#acao:` vazada no texto.
+5. O fecho repetitivo "Quer que eu...?" em quase toda resposta.
+6. Rascunhos antigos de física parados nas duas máquinas.
+7. O que as entradas anteriores já listavam: ressincronizar pan/tilt na
+   reconexão, destinatário do recado na criação, rotação de log, Mission
+   Memory, heartbeat que mente, pisca da lanterna, reboot do Notebook,
+   encoder de roda, Gmail.
