@@ -1,0 +1,67 @@
+id: programacao.ia-aplicada.avancado
+materia: programacao
+titulo: IA aplicada
+nivel: avancado
+resumo: Chamar um modelo, prompt, cota, e por que o local sempre vem antes do remoto.
+fonte: Wikipedia, artigos Inteligência artificial generativa, Aprendizado de máquina, consultados
+  em 2026-08-09
+plano:
+  objetivo: Chamar um modelo, prompt, cota, e por que o local sempre vem antes do remoto.
+  pre_requisitos:
+  - Lógica de programação básica
+  duracao_min: 10
+  fixacao:
+  - O que e um prompt?
+  - Por que usamos o termo inteligencia artificial generativa?
+  fechamento: Agora voce sabe o que e IA generativa e como ela cria coisas novas a partir
+    de padres.
+passos:
+- fala: Fala, pessoal! Voce ja pediu para o celular criar uma imagem ou escrever uma redacao
+    do zero? Isso e IA aplicada.
+  quadro:
+    tipo: titulo
+    texto: IA Aplicada e Generativa
+- fala: A IA generativa cria conteudo novo usando padroes de dados de treinamento. Ela faz
+    texto, imagens, audio, video e codigo.
+  quadro:
+    tipo: topicos
+    texto: Tipos de conteudo gerado
+    itens:
+    - Texto
+    - Imagens
+    - Audio
+    - Video
+    - Codigo de software
+- fala: Para falar com ela, usamos pedidos em linguagem natural. Esses pedidos sao chamados
+    de prompts.
+  quadro:
+    tipo: texto
+    texto: 'Prompt: pedido em linguagem natural'
+- fala: Esses modelos sao categorizados pelo formato de entrada e saida. Por exemplo, text-to-text
+    ou text-to-image.
+  quadro:
+    tipo: topicos
+    texto: Categorias de entrada e saida
+    itens:
+    - text-to-text (texto para texto)
+    - text-to-image (texto para imagem)
+- fala: Vamos limpar o quadro para falar de como o computador aprende tudo isso.
+  quadro:
+    tipo: limpar
+- fala: Isso vem do aprendizado de maquina, ou machine learning. E um subcampo da ciencia
+    da computacao.
+  quadro:
+    tipo: titulo
+    texto: Aprendizado de Maquina
+- fala: Em 1959, Arthur Samuel definiu que esse campo da aos computadores a habilidade de
+    aprender sem serem explicitamente programados.
+  quadro:
+    tipo: texto
+    texto: 'Definicao (Arthur Samuel, 1959): Computadores aprendem sem programacao explicita.'
+- fala: Ou seja, os algoritmos aprendem com seus erros e fazem previsoes sobre os dados.
+  quadro:
+    tipo: topicos
+    texto: O que o algoritmo faz
+    itens:
+    - Aprende dos erros
+    - Faz previsoes sobre dados

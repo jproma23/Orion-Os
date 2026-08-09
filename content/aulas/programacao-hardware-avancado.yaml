@@ -1,0 +1,80 @@
+id: programacao.hardware.avancado
+materia: programacao
+titulo: Programar hardware
+nivel: avancado
+resumo: Serial, baud rate, microcontrolador, e o firmware que trava sem avisar.
+fonte: Wikipedia, artigos Interface serial, Baud, Microcontrolador, consultados em 2026-08-09
+plano:
+  objetivo: Aprender sobre interface serial, baud rate, microcontrolador e o funcionamento
+    de hardware.
+  pre_requisitos:
+  - Noções básicas de computadores
+  duracao_min: 10
+  fixacao:
+  - O que significa a transmissão em fila na interface serial?
+  - Qual a diferença entre baud e bits por segundo?
+  fechamento: Hoje vimos como os dados viajam bit a bit na serial, como o baud mede as mudanças
+    por segundo e o que é um microcontrolador.
+passos:
+- fala: Ja tentou ligar o mouse antigo ou uma impressora no computador e reparou naquele conector
+    cheio de pinos? Isso e a interface serial.
+  quadro:
+    tipo: titulo
+    texto: Interface Serial
+- fala: Na interface serial, tambem chamada de RS-232, os bits sao transferidos em fila. Ou
+    seja, passa um bit de dados de cada vez.
+  quadro:
+    tipo: texto
+    texto: 'Padrão RS-232: bits transferidos em fila (um por vez)'
+- fala: Originalmente ela usava vinte e cinco fios. Mas a IBM reduziu para nove pinos no projeto
+    do IBM-PC, mantendo o conector DB25 por causa do padrao da epoca.
+  quadro:
+    tipo: topicos
+    texto: Evolução do Conector
+    itens:
+    - 'Original: 25 fios'
+    - 'IBM-PC: apenas 9 pinos necessários'
+    - Conector DB25 mantido por ser padrão
+- fala: Agora vamos falar de velocidade. Voce ja viu a palavra baud configurada em programas
+    de comunicacao?
+  quadro:
+    tipo: titulo
+    texto: Baud Rate
+- fala: Esse nome vem de Emile Baudot, inventor frances. Um baud mede o numero de mudancas
+    na linha de transmissao por segundo.
+  quadro:
+    tipo: texto
+    texto: Baud = número de mudanças ou eventos por segundo na linha
+- fala: Cuidado para nao confundir baud com bits por segundo. Para achar os bps, precisamos
+    olhar a velocidade de sinalizacao em bauds e tambem o tipo de codificacao usada.
+  quadro:
+    tipo: formula
+    texto: bps = velocidade em Bauds + tipo de codificação
+- fala: Mas onde tudo isso roda? Num microcontrolador!
+  quadro:
+    tipo: titulo
+    texto: Microcontrolador
+- fala: Ele e um pequeno computador num unico circuito integrado. Dentro dele tem processador,
+    memoria e perifericos de entrada e saida.
+  quadro:
+    tipo: texto
+    texto: 'SoC (System on a Chip): processador + memória + periféricos'
+- fala: A memoria de programacao pode ser RAM, NOR flash ou PROM, e costuma vir direto no
+    chip.
+  quadro:
+    tipo: topicos
+    texto: Tipos de Memória
+    itens:
+    - RAM
+    - NOR flash
+    - PROM
+- fala: 'Para fechar, lembre-se: os microcontroladores sao feitos para aplicacoes embarcadas,
+    bem diferente dos processadores de computadores pessoais.'
+  quadro:
+    tipo: texto
+    texto: 'Uso: Aplicações embarcadas (diferente de PCs)'
+- fala: 'Pense bem: se um dispositivo usa baud para medir as mudancas na linha por segundo,
+    por que a taxa em bits por segundo pode ser diferente do valor em bauds?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que Baud e bps podem ser diferentes?'

@@ -1,0 +1,73 @@
+id: programacao.banco-dados.avancado
+materia: programacao
+titulo: Banco de dados
+nivel: avancado
+resumo: SQL, tabela, indice, e busca por texto completo sem servidor nenhum.
+fonte: Wikipedia, artigos Banco de dados, Tabela (banco de dados), Índice (estruturas de dados),
+  consultados em 2026-08-08
+plano:
+  objetivo: SQL, tabela, indice, e busca por texto completo sem servidor nenhum.
+  pre_requisitos:
+  - Conceitos basicos de informatica
+  duracao_min: 10
+  fixacao:
+  - O que e uma chave primaria?
+  - Para que serve um indice?
+  fechamento: Se voce precisar organizar dados sem instalar um servidor pesado, lembre-se
+    de como funcionam as tabelas e indices basicos.
+passos:
+- fala: Fala, pessoal! Ja pensou como o seu celular guarda milhares de contatos e mensagens
+    sem se perder? Ele usa um banco de dados.
+  quadro:
+    tipo: titulo
+    texto: Banco de Dados
+- fala: No computador, um banco de dados e um conjunto de arquivos com registros sobre pessoas,
+    lugares ou informacoes acessiveis de forma eletronica.
+  quadro:
+    tipo: texto
+    texto: Conjunto de arquivos ou dados relacionados com registros.
+- fala: Vamos ver como isso se organiza por dentro. O coracao disso e a tabela.
+  quadro:
+    tipo: limpar
+- fala: Num modelo relacional, a tabela junta dados em colunas e linhas. As colunas sao os
+    campos, como textos ou numeros.
+  quadro:
+    tipo: titulo
+    texto: Tabela Relacional
+- fala: As linhas sao as combinacoes desses valores. E para achar uma linha especifica sem
+    erro, usamos a chave primaria.
+  quadro:
+    tipo: topicos
+    texto: Estrutura da Tabela
+    itens:
+    - 'Colunas: campos e tipos de dados'
+    - 'Linhas: combinacoes de valores'
+    - 'Chave primaria: referencia unica para uma linha'
+- fala: Mas o que acontece quando a tabela cresce muito e a busca fica lenta? Entra em cena
+    o indice.
+  quadro:
+    tipo: limpar
+- fala: O indice e uma referencia associada a uma chave para otimizar a consulta e achar registros
+    mais rapido.
+  quadro:
+    tipo: titulo
+    texto: Indice
+- fala: Teoricamente, ele deixa a busca mais rapida que a forma linear, podendo ter complexidade
+    logaritmica ou constante.
+  quadro:
+    tipo: texto
+    texto: Busca mais rapida que complexidade linear (logaritmica ou constante).
+- fala: Num banco de dados, o indice e um arquivo auxiliar ligado a tabela que acelera o acesso
+    criando ponteiros para colunas especificas.
+  quadro:
+    tipo: topicos
+    texto: Funcao do Indice
+    itens:
+    - Estrutura ou arquivo auxiliar
+    - Acelera o tempo de acesso
+    - Cria ponteiros para colunas especificas
+- fala: 'Para fechar: se voce tem uma tabela enorme com milhares de linhas, por que criar
+    um indice em vez de ler linha por linha?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que usar um indice em tabelas grandes?'

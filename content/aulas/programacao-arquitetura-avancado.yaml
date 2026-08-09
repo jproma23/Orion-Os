@@ -1,0 +1,83 @@
+id: programacao.arquitetura.avancado
+materia: programacao
+titulo: Arquitetura e eventos
+nivel: avancado
+resumo: Modulos que nao se chamam direto; barramento de eventos; o acoplamento que se paga
+  depois.
+fonte: Wikipedia, artigos Arquitetura de software, Engenharia de software, Padrão de projeto
+  de software, consultados em 2026-08-09
+plano:
+  objetivo: Entender o que e arquitetura de software, engenharia de software e padroes de
+    projeto.
+  pre_requisitos:
+  - Programacao basica
+  duracao_min: 10
+  fixacao:
+  - O que define a arquitetura de um software?
+  - Para que serve um padrao de projeto?
+  fechamento: A arquitetura e os padroes ajudam a organizar o sistema para evitar problemas
+    de manutencao no futuro.
+passos:
+- fala: Fala galera! Imagine que voce vai construir uma casa gigante. Se colocar os comodos
+    sem planejar, a agua nao chega na cozinha. No software e igual. Vamos comecar definindo
+    o que e arquitetura de software.
+  quadro:
+    tipo: titulo
+    texto: Arquitetura e Eventos
+- fala: A arquitetura de software define os componentes do sistema, as propriedades deles
+    e como eles se relacionam com outros softwares.
+  quadro:
+    tipo: texto
+    texto: Componentes + Propriedades + Relacionamentos
+- fala: Documentar essa arquitetura traz tres grandes vantagens para o projeto. Vamos anotar.
+  quadro:
+    tipo: topicos
+    texto: Vantagens da Documentação
+    itens:
+    - Comunicação entre stakeholders
+    - Registro de decisões de alto nível
+    - Reúso de componentes e padrões
+- fala: 'Agora vamos dar um passo atras e olhar a area maior que engloba isso tudo: a engenharia
+    de software.'
+  quadro:
+    tipo: limpar
+- fala: A engenharia de software e uma area interdisciplinar que junta exatas e humanas, como
+    engenharia e administracao.
+  quadro:
+    tipo: titulo
+    texto: Engenharia de Software
+- fala: Ela rege o processo produtivo de sistemas, que inclui quatro etapas principais.
+  quadro:
+    tipo: topicos
+    texto: Processo de Software
+    itens:
+    - Especificação
+    - Desenvolvimento
+    - Manutenção
+    - Criação
+- fala: Para fazer tudo isso com qualidade, usamos varias tecnologias e praticas. Vamos ver
+    quais sao.
+  quadro:
+    tipo: topicos
+    texto: Práticas e Tecnologias
+    itens:
+    - Linguagens de programação
+    - Banco de dados
+    - Ferramentas e plataformas
+    - Padrões de projeto e qualidade
+- fala: Dentro disso, voce ja deve ter ouvido falar em padrao de projeto. Vamos ver o que
+    e isso.
+  quadro:
+    tipo: limpar
+- fala: Em ingles, chamamos de design pattern. E uma solucao geral para um problema que acontece
+    com frequencia no projeto de software.
+  quadro:
+    tipo: titulo
+    texto: Padrão de Projeto (Design Pattern)
+- fala: 'Atencao aqui: ele nao e um codigo pronto que voce copia e cola. Ele e um modelo,
+    uma boa pratica formalizada para resolver problemas comuns.'
+  quadro:
+    tipo: texto
+    texto: 'Não é código pronto: é um modelo de solução'
+- fala: 'Para fechar nossa aula, pensem comigo: se o padrao de projeto nao e um codigo pronto
+    para colar, o que ele realmente e para o programador?'

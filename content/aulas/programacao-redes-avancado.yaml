@@ -1,0 +1,44 @@
+id: programacao.redes.avancado
+materia: programacao
+titulo: Redes e protocolos
+nivel: avancado
+resumo: TCP, HTTP, socket; o socket zumbi que parece vivo e nao entrega nada.
+fonte: Wikipedia, artigos Rede de computadores, consultados em 2026-08-09
+plano:
+  objetivo: TCP, HTTP, socket; o socket zumbi que parece vivo e nao entrega nada.
+  pre_requisitos:
+  - Conceito basico de computadores e comunicacao
+  duracao_min: 10
+  fixacao:
+  - O que e um host?
+  - Como os computadores se encontram na rede?
+  fechamento: Voce viu que computadores conversam usando protocolos e enderecos, e que um
+    socket pode parecer ativo sem entregar nada.
+passos:
+- fala: Imagina que voce quer mandar uma carta para um amigo. Voce precisa do endereco dele,
+    certo? Na computacao e igual.
+  quadro:
+    tipo: titulo
+    texto: Redes e Protocolos
+- fala: Os computadores e celulares conectados na rede sao chamados de hosts, ou hospedeiros.
+  quadro:
+    tipo: texto
+    texto: 'Host: computadores e perifericos que se comunicam na rede'
+- fala: Para conversar, cada host precisa de um endereco de rede. E assim que o hardware sabe
+    para quem mandar os dados.
+  quadro:
+    tipo: texto
+    texto: 'Endereco de rede: identifica o host para o hardware'
+- fala: Mas ninguem decora numeros IP facilmente. Por isso usamos nomes de host, que sao etiquetas
+    faceis de lembrar.
+  quadro:
+    tipo: texto
+    texto: 'Nome de host: etiqueta memoravel para o no'
+- fala: Para traduzir esse nome facil em um endereco de rede de verdade, usamos servidores
+    de nomes, como o DNS.
+  quadro:
+    tipo: topicos
+    texto: 'Como o nome vira endereco:'
+    itens:
+    - Arquivo de hosts local
+    - Servidor de nomes (DNS)

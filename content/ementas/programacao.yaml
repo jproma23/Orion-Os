@@ -66,24 +66,31 @@ niveis:
     descricao: Sistemas que rodam sozinhos, como o proprio robo.
     topicos:
       - id: prog.assincrono
+        aula: programacao.assincrono.avancado
         titulo: Programação assíncrona
         conteudo: Async e await, laco de eventos, e por que esperar rede nao pode travar tudo.
       - id: prog.arquitetura
+        aula: programacao.arquitetura.avancado
         titulo: Arquitetura e eventos
         conteudo: Modulos que nao se chamam direto; barramento de eventos; o acoplamento que se paga depois.
       - id: prog.banco-dados
+        aula: programacao.banco-dados.avancado
         titulo: Banco de dados
         conteudo: SQL, tabela, indice, e busca por texto completo sem servidor nenhum.
       - id: prog.redes
+        aula: programacao.redes.avancado
         titulo: Redes e protocolos
         conteudo: TCP, HTTP, socket; o socket zumbi que parece vivo e nao entrega nada.
       - id: prog.concorrencia
+        aula: programacao.concorrencia.avancado
         titulo: Concorrência
         conteudo: Thread, processo e fila; o que quebra quando duas coisas escrevem ao mesmo tempo.
       - id: prog.hardware
+        aula: programacao.hardware.avancado
         titulo: Programar hardware
         conteudo: Serial, baud rate, microcontrolador, e o firmware que trava sem avisar.
       - id: prog.ia-aplicada
+        aula: programacao.ia-aplicada.avancado
         titulo: IA aplicada
         conteudo: Chamar um modelo, prompt, cota, e por que o local sempre vem antes do remoto.
       - id: prog.orion

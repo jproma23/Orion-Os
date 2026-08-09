@@ -1,0 +1,63 @@
+id: programacao.assincrono.avancado
+materia: programacao
+titulo: Programação assíncrona
+nivel: avancado
+resumo: Async e await, laco de eventos, e por que esperar rede nao pode travar tudo.
+fonte: Wikipedia, artigos Laço de eventos, consultados em 2026-08-08
+plano:
+  objetivo: Async e await, laco de eventos, e por que esperar rede nao pode travar tudo.
+  pre_requisitos:
+  - Logica de programacao basica
+  - Conceito de funcoes
+  duracao_min: 10
+  fixacao:
+  - O que acontece se uma requisicao de rede demorar em um sistema sincrono?
+  - Qual e o papel do laco de eventos em um programa?
+  fechamento: 'Pense: se voce faz um pedido em uma lanchonete e fica parado na frente do caixa
+    esperando ficar pronto sem deixar ninguem mais pedir, o atendimento trava. Como o laco
+    de eventos resolve isso?'
+passos:
+- fala: Imagina que voce pede uma comida por aplicativo. Se o entregador demora, voce trava
+    a sua vida e nao consegue fazer mais nada ate ele chegar?
+  quadro:
+    tipo: titulo
+    texto: Programacao Assincrona
+- fala: Na computacao, se a gente espera a rede responder travando tudo, o programa para de
+    funcionar para o usuario. A gente precisa evitar isso.
+  quadro:
+    tipo: texto
+    texto: Esperar a rede nao pode travar o programa.
+- fala: Para resolver isso, a ciencia da computacao usa uma construcao chamada laco de eventos,
+    ou event loop.
+  quadro:
+    tipo: titulo
+    texto: Laco de Eventos
+- fala: O laco de eventos e uma peca de codigo que fica rodando e esperando chegarem eventos
+    ou mensagens para despachar.
+  quadro:
+    tipo: texto
+    texto: Espera eventos e mensagens e os despacha.
+- fala: Por dentro, ele funciona como um laco infinito que fica bloqueado esperando um evento
+    chegar.
+  quadro:
+    tipo: texto
+    texto: 'Mecanismo: laco infinito bloqueado ate chegar evento.'
+- fala: Assim que o evento chega, ele e tratado e despachado. Depois disso, o mecanismo reinicia
+    o ciclo.
+  quadro:
+    tipo: texto
+    texto: O evento e tratado e o laco e reiniciado.
+- fala: Muitas vezes, essa estrutura e o centro do fluxo de controle do programa inteiro.
+  quadro:
+    tipo: texto
+    texto: Pode ser chamado de laco principal do programa.
+- fala: Alem disso, ele serve como ferramenta de comunicacao entre processos, usando troca
+    de mensagens.
+  quadro:
+    tipo: texto
+    texto: Comunicacao entre processos por troca de mensagens.
+- fala: 'Para fechar: qual e o comportamento principal do laco de eventos enquanto nao chega
+    nenhuma mensagem?'
+  quadro:
+    tipo: texto
+    texto: Fica bloqueado ate a chegada de um evento.

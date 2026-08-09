@@ -1,0 +1,71 @@
+id: programacao.concorrencia.avancado
+materia: programacao
+titulo: Concorrência
+nivel: avancado
+resumo: Thread, processo e fila; o que quebra quando duas coisas escrevem ao mesmo tempo.
+fonte: Wikipedia, artigos Concorrência (ciência da computação), Thread, consultados em 2026-08-09
+plano:
+  objetivo: Thread, processo e fila; o que quebra quando duas coisas escrevem ao mesmo tempo.
+  pre_requisitos:
+  - Conceitos básicos de programação e execução de programas
+  duracao_min: 10
+  fixacao:
+  - O que acontece quando dois processos tentam acessar o mesmo recurso sem coordenação?
+  - Qual é o nome dado a esse problema de comportamento imprevisível?
+  fechamento: Gerenciar a concorrência é essencial para evitar falhas graves quando múltiplos
+    processos rodam ao mesmo tempo.
+passos:
+- fala: Imagina que dois programas no seu computador tentam salvar dados no mesmo arquivo
+    ao mesmo tempo. É uma confusão só, né? Na computação, isso tem nome.
+  quadro:
+    tipo: titulo
+    texto: Concorrência em Computação
+- fala: Quando temos dois ou mais processos rodando ao mesmo tempo, chamamos isso de concorrência.
+  quadro:
+    tipo: texto
+    texto: Processos executados em simultâneo
+- fala: Isso acontece mais especificamente quando esses processos disputam o acesso aos mesmos
+    recursos partilhados.
+  quadro:
+    tipo: texto
+    texto: Disputa por recursos partilhados
+- fala: Gerenciar essa concorrência é uma das maiores dificuldades no desenvolvimento de software.
+  quadro:
+    tipo: texto
+    texto: Gestão da concorrência = grande dificuldade
+- fala: O que acontece quando o acesso a esse recurso é descoordenado? O sistema ganha um
+    comportamento imprevisível.
+  quadro:
+    tipo: texto
+    texto: Acesso descoordenado = comportamento imprevisível
+- fala: 'Esse problema clássico tem um nome bem específico na computação: condição de corrida.'
+  quadro:
+    tipo: texto
+    texto: Condição de corrida (Race Condition)
+- fala: Para lidar com isso e realizar operações em tempo real ou gerenciar multitarefas,
+    a maioria dos sistemas usa interrupções no fluxo normal do programa.
+  quadro:
+    tipo: texto
+    texto: Uso de interrupções no fluxo normal
+- fala: 'Agora vamos falar de um conceito muito ligado a isso: a Thread.'
+  quadro:
+    tipo: titulo
+    texto: O que é uma Thread?
+- fala: Na computação, uma thread é uma linha de execução dentro de um processo.
+  quadro:
+    tipo: texto
+    texto: 'Thread (computação): menor unidade de processamento'
+- fala: Mas cuidado para não confundir! A palavra thread também aparece em outros contextos,
+    como em discussões online.
+  quadro:
+    tipo: topicos
+    texto: Outros significados de Thread
+    itens:
+    - Thread (discussão) em fóruns
+    - Threads, telefilme de guerra de 1984
+    - Threads, rede social da Meta Platforms
+- fala: 'Para pensar sobre o que aprendemos hoje: o que acontece exatamente no sistema quando
+    ocorre uma condição de corrida?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que causa o comportamento imprevisível?'
