@@ -44,6 +44,7 @@ from motion_core.desligamento import Desligador
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
+from motion_core.memory.experiencias import RegistradorExperiencias
 from motion_core.memory.manutencao import TarefaManutencao
 from motion_core.memory.replica import replicar_backup
 from motion_core.memory.vault import VaultConhecimento
@@ -835,6 +836,10 @@ async def principal() -> None:
     if memory_api is not None:
         # Agora sim: o banco existe, e o contexto da IA passa a ter o diario.
         diario_leitura = DiarioObservacoes(event_bus, memory_api, apenas_leitura=True)
+        # O aprendizado por experiencia roda SO no Pi: os desfechos
+        # navigation.* nascem neste barramento, e e daqui que o produtor
+        # transforma o que aconteceu em experiencias buscaveis pelo portao.
+        registrador_experiencias = RegistradorExperiencias(event_bus, memory_api)
     tarefa_manutencao = None
     tarefa_manutencao_task = None
     if memory_api is not None:

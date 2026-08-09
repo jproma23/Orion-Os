@@ -7253,3 +7253,101 @@ achismo.
 2. As outras pendências das sessões anteriores (aula `prog.orion`, tag
    `#acao:` vazada, "Olhando pra frente." duplicado, fecho repetitivo,
    rascunhos de física, lista velha do 08/08).
+
+## Sessão de 2026-08-09 (tarde) — o "Eu já sei?" virou portão de verdade, e a tabela `experiencias` ganhou quem a escreve
+
+Sessão conduzida do PC Windows por SSH. Fechamos a camada das camadas 1 e 2
+(portão responde do acervo antes da IA) e demos o primeiro passo do
+APRENDIZADO POR EXPERIÊNCIA (a camada 6 do esquema que o dono desenhou): a
+tabela `experiencias` existia no schema mas NENHUM módulo escrevia nela.
+Agora escreve.
+
+### O que fechou da sessão passada
+
+- A camada 2 (portão "Eu já sei?" no `MissionPlanner`) estava mapeada mas o
+  `saber_buscar` voltava 0 com conteúdo gravado. Dois culpados medidos:
+  `_MINIMO_TERMOS = 2` descartava "o que é um BME280?" (1 palavra-chave só)
+  e `_TETO_BM25 = -0.5` rejeitava a nota `-4.9e-06` de banco pequeno.
+  Fixes: `_MINIMO_TERMOS = 1`, remover o teto absoluto — a COBERTURA é a
+  guarda, bm25 só ordena. `carregar` normaliza título/corpo via
+  `COLUNAS_TEXTO`.
+- `MemoryClient` ganhou os 4 métodos saber (`saber_guardar`, `saber_buscar`,
+  `saber_stats`, `registrar_consulta_ia`) e o planner usa o portão nos dois
+  caminhos (`processar` e `responder_em_frases`), contando a consulta à IA
+  em segundo plano (`_contar_consulta_ia`).
+- Testes: Pi 45 passed/1 skipped; Notebook 76 passed; 8 suites-alvo do Pi
+  re-verificadas 140 passed/1 skipped nesta sessão. Deploy feito, boot limpo.
+- Commits da sessão passada fechados no Pi: `43d477a` (camadas 1+2) e
+  `dddfafb` (degrau do portão). O PC não recebeu ainda — o clone local do
+  Notebook segue no `c618237`, e o espelho `motion_core/` precisa ser puxado.
+
+### O produtor de experiências (camada 6, primeiro fio)
+
+Arquitetura nova que o dono trouxe hoje (Orion Autonomous Core, 7 camadas
++ safety + curiosidade): o robô deve registrar o que aconteceu, o que
+funcionou e o que falhou, e responder disso antes de gastar IA. A prioridade
+escolhida foi a nº 6 — aprendizado por experiência.
+
+`motion_core/memory/experiencias.py` (`RegistradorExperiencias`): assina os
+desfechos REAIS no bus do Pi e grava experiência estruturada na tabela
+`experiencias` via `MemoryAPI.saber_guardar` (regra 5: ninguém abre banco
+direto).
+
+- `navigation.obstacle_avoided` → situação "avancar", falhou: obstáculo a N cm
+  (lê `distancia_frontal_cm` e `motivo` do payload real).
+- `navigation.target_lost` → "seguir_pessoa", falhou: perdeu o alvo.
+- `navigation.error` → situação = ação, falhou = motivo.
+- `navigation.risco_assumido` → "avancar_sem_medida", resultado risco. O
+  payload real tem `medida_confiavel` e `angulos_varridos` — vai no contexto.
+- `navigation.segment_completed` → "mover", funcionou: trecho concluído.
+
+`o_que_funcionou`/`o_que_falhou` saem SÓ do que o evento diz — nunca
+inferidos, nunca inventados (a mesma regra do projeto: preferir perder a
+experiência a mentir).
+
+Janela de silêncio de 90 s POR FAMÍLIA (`AVANCAR`, `FOLLOW`, `COMANDO`,
+`RISCO`, `TRECHO`): `navigation.obstacle_avoided` dispara a cada obstáculo e
+o replanejamento empilha eventos; a janela impede o despejo sem impedir
+episódio novo (a mesma decisão do diário). Relógio e janela injetáveis → os
+testes são determinísticos.
+
+Fiação: `motion_core/__main__.py`, no mesmo bloco do diário (linha ~836),
+só deixa o produtor existir quando o banco do SSD está montado. O producer
+roda SÓ no Pi (os desfechos `navigation.*` nascem nesse barramento).
+
+### Testes (10, todos verdes no Pi)
+
+`tests/unit/test_experiencias.py`: cada desfecho vira experiência com os
+campos certos; frente desconhecida também é falha de avanço (motivo diferente
+do obstáculo); dedup dentro da janela → 1 registro; após a janela → episódio
+novo; famílias diferentes são episódios independentes; banco fora do ar não
+derruba o registrador. Suíte alvo (8 arquivos): 140 passed, 1 skipped.
+Boot integrado (`test_motion_core_main.py`): 6 passed.
+
+### Deploy
+
+`orion-motion.service` (Pi) reiniciado às 16:13, ativo; boot limpo no
+`data/logs/motion_core.log`, Ponte de memória registrada. O Notebook não muda:
+ele roda `tools/conversar_fofao.py` (mission/avatar), não `motion_core.__main__`.
+
+### O que o portão ganhou com isto
+
+Experiências agora entram no FTS (já estavam no `FTS_POR_CATEGORIA` e no
+`COLUNAS_TEXTO` desde a camada 1). Quando o dono perguntar do acervo, e quando
+o robô reencontrar a mesma situação, há registro para puxar — a memória passa
+a ter o que contar do que ELE mesmo fez, não só o que foi ensinado.
+
+### Pendências, na ordem em que mordem
+
+1. **Ciclo fechado** — hoje o produtor GRAVA, mas ninguém LÊ uma experiência
+   para MUDAR a decisão (recall no portão já pondera experiencias quando o
+   dono pergunta; ainda não há o degrau "mesma situação → evita o erro de
+   novo"). É o próximo fio da camada 6.
+2. **Extração de lição via IA** — generalizar várias `experiencias` cruas
+   numa regra ("iluminação baixa → velocidade reduzida ao seguir"), padrão
+   `ExtratorFatos`. Custa cota; por isso em segundo.
+3. Alimentar `conhecimentos` com conhecimento de PROCEDIMENTO/DISPOSITIVO
+   pós-IA (pendência da sessão passada).
+4. Itens velhos: aula `prog.orion`, tag `#acao:` vazada, "Olhando pra
+   frente." duplicado, fecho repetitivo, rascunhos de física, lista velha
+   do 08/08.
