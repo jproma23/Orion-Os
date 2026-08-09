@@ -1,5 +1,7 @@
 """Testes do Mission Planner (Cap 7 s.4) - classificacao de
 comando/pergunta, integracao com IA/memoria/hardware via fakes."""
+import asyncio
+
 import pytest
 
 pytest.importorskip("ollama")
@@ -27,11 +29,19 @@ class AiManagerFalso:
 
 
 class MemoryClientFalso:
-    def __init__(self, contexto: dict | None = None, notas: list[dict] | None = None) -> None:
+    def __init__(
+        self,
+        contexto: dict | None = None,
+        notas: list[dict] | None = None,
+        saberes: list[dict] | None = None,
+    ) -> None:
         self._contexto = contexto or {}
         self._notas = notas
+        self._saberes = saberes or []
         self.lembrancas: list[tuple[str, dict]] = []
         self.consultas_de_nota: list[str] = []
+        self.consultas_ia = 0
+        self.buscas_do_saber: list[str] = []
 
     async def context(self, pessoa_id=None, limite_conversas=10, sobre=None):
         return self._contexto
@@ -45,6 +55,16 @@ class MemoryClientFalso:
         if self._notas is None:
             raise RuntimeError("vault indisponivel (SSD ausente)")
         return self._notas
+
+    def saber_plantar(self, titulo: str, corpo: str = "") -> None:
+        self._saberes.append({"categoria": "conhecimentos", "titulo": titulo, "corpo": corpo})
+
+    async def saber_buscar(self, consulta, limite=3):
+        self.buscas_do_saber.append(consulta)
+        return self._saberes
+
+    async def registrar_consulta_ia(self):
+        self.consultas_ia += 1
 
 
 @pytest.mark.asyncio
@@ -535,3 +555,67 @@ async def test_quando_o_kamal_chega_da_escola_chega_na_ia():
 
     assert ai.chamadas, "a pergunta nem chegou na IA"
     assert "horas e" not in resposta, f"respondeu com o relogio: {resposta!r}"
+
+
+# ---------------------------------------------------------------- O "Eu ja sei?"
+# A memoria cognitiva (Camada 1, 2026-08-09): quando a fala COBRE um registro
+# que ele guardou, a resposta sai do proprio acervo antes da IA - e, quando
+# nao sabe, a IA e chamada e a consulta a ela e contada.
+@pytest.mark.asyncio
+async def test_quando_sabe_responde_do_proprio_acervo_sem_chamar_ia():
+    ai = AiManagerFalso(resposta="Nao devia ter sido chamada")
+    memoria = MemoryClientFalso()
+    memoria.saber_plantar("Sensor de distancia", "Pingar, esperar o eco.")
+
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+    resposta = await planner.processar("como mede a distancia?")
+
+    assert "distancia" in resposta
+    assert ai.chamadas == []
+    assert memoria.consultas_ia == 0  # respondeu de casa, nao consultou a IA
+
+
+@pytest.mark.asyncio
+async def test_quando_nao_sabe_consulta_a_ia_e_conta():
+    ai = AiManagerFalso(resposta="Vou pensar sobre isso.")
+    memoria = MemoryClientFalso()  # nada plantado = saber_buscar devolve vazio
+
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+    resposta = await planner.processar("o que e a teoria da relatividade?")
+
+    assert resposta == "Vou pensar sobre isso."
+    assert ai.chamadas
+    assert memoria.buscas_do_saber, "a memoria nem foi consultada"
+    # A contagem roda em tarefa de segundo plano (nao atrasa a fala) - o
+    # teste deixa a fila drenar e a confere.
+    await asyncio.sleep(0.05)
+    assert memoria.consultas_ia == 1, "a consulta a IA nao foi contada"
+
+
+@pytest.mark.asyncio
+async def test_saber_busca_recebe_a_fala_inteira():
+    ai = AiManagerFalso()
+    memoria = MemoryClientFalso()
+    memoria.saber_plantar("BME280", "Sensor de temperatura, pressao e umidade.")
+
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+    await planner.processar("o que e um BME280?")
+
+    assert memoria.buscas_do_saber == ["o que e um BME280?"]
+
+
+@pytest.mark.asyncio
+async def test_memoria_sem_fio_nao_emudece_vai_para_ia():
+    """Se o Pi/banco esta fora, `saber_buscar` falha - e o erro nao pode
+    derrubar a conversa: o degrau devolve "nao sei" e a IA responde."""
+    ai = AiManagerFalso(resposta="Sem problema, posso ajudar.")
+
+    class MemoriaFora(MemoryClientFalso):
+        async def saber_buscar(self, consulta, limite=3):
+            raise RuntimeError("SSD ausente")
+
+    planner = MissionPlanner(ai_manager=ai, memory_client=MemoriaFora())
+    resposta = await planner.processar("para que serve um BME280?")
+
+    assert resposta == "Sem problema, posso ajudar."
+    assert ai.chamadas

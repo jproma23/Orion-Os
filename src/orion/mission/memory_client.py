@@ -95,3 +95,30 @@ class MemoryClient:
 
     async def nota_buscar(self, consulta: str, limite: int = 5) -> list[dict]:
         return await self._chamar("nota_buscar", consulta=consulta, limite=limite)
+
+    async def saber_guardar(self, categoria: str, dados: dict) -> int:
+        """Grava na memoria cognitiva do ORION - o acervo do "Eu ja sei?".
+
+        Categorias: conhecimentos, experiencias, procedimentos, dispositivos,
+        relacoes. Cada gravacao indexa o texto no FTS para o portao achar.
+        """
+        return await self._chamar("saber_guardar", categoria=categoria, dados=dados)
+
+    async def saber_buscar(self, consulta: str, limite: int = 3) -> list[dict]:
+        """O que o ORION ja sabe que COBRE a fala - o portao do "Eu ja sei?".
+
+        Vazio = ele nao sabe, e a cascata segue para a IA (a consultora
+        externa). Cada achado traz categoria, titulo, corpo e nota_bm25.
+        """
+        return await self._chamar("saber_buscar", consulta=consulta, limite=limite)
+
+    async def saber_stats(self) -> dict:
+        """Contagens da memoria cognitiva + quantas vezes a IA foi consultada."""
+        return await self._chamar("saber_stats")
+
+    async def registrar_consulta_ia(self) -> None:
+        """Conta mais uma consulta a IA - a medida de dependencia externa.
+
+        Chamado quando a conversa efetivamente caiu no modelo.
+        """
+        return await self._chamar("registrar_consulta_ia")

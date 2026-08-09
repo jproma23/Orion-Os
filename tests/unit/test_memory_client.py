@@ -147,3 +147,34 @@ async def test_nota_escrever_e_buscar_via_cliente(montagem_com_vault):
 
     resultado = await cliente.nota_buscar("kamal")
     assert resultado[0]["titulo"] == "Cor favorita do Kamal"
+
+
+@pytest.mark.asyncio
+async def test_saber_guardar_buscar_stats_via_cliente(montagem):
+    """O portao do "Eu ja sei?" cliente->ponte->FTS -> volta (2026-08-09).
+
+    Usa a `montagem` simples (sem vault, que nao tem o que ver com o
+    conhecimento cognitivo) e cobre as quatro rotas novas da bridge:
+    saber_guardar, saber_buscar, saber_stats, registrar_consulta_ia.
+    """
+    cliente, api = montagem
+    novo_id = await cliente.saber_guardar(
+        "conhecimentos",
+        {"titulo": "BME280", "corpo": "Sensor de temperatura, pressao e umidade, I2C.",
+         "fonte": "dono", "confianca": 0.9},
+    )
+    assert isinstance(novo_id, int)
+
+    achados = await cliente.saber_buscar("o que e um BME280?")
+    assert len(achados) == 1
+    assert achados[0]["titulo"] == "BME280"
+    assert achados[0]["nota_bm25"] is not None
+
+    linha = await api.recall("conhecimentos", {"id": novo_id})
+    assert linha[0]["titulo"] == "BME280"
+
+    await cliente.registrar_consulta_ia()
+    await cliente.registrar_consulta_ia()
+    stats = await cliente.saber_stats()
+    assert stats["conhecimentos"] == 1
+    assert stats["consultas_ia"] == 2

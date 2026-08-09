@@ -21,6 +21,7 @@ FECHADO (`acoes_faladas.py`); o que cada nome faz continua em codigo. O
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -308,6 +309,8 @@ class MissionPlanner:
             resposta = programa
         elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
             resposta = sobre_mim
+        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
+            resposta = ja_sei
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -315,6 +318,7 @@ class MissionPlanner:
         )) is not None:
             resposta = resposta_diario
         else:
+            await self._contar_consulta_ia()
             bruta = await self._ai_manager.responder(texto_usuario, contexto)
             # Mesmo degrau do caminho por frases: se a IA nao respondeu, ele
             # tenta obedecer sozinho antes de dizer que nao consegue pensar.
@@ -361,6 +365,8 @@ class MissionPlanner:
             resposta = programa
         elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
             resposta = sobre_mim
+        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
+            resposta = ja_sei
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -381,6 +387,7 @@ class MissionPlanner:
         # fragmentos e quebraria o "conversas_recentes" que volta no contexto.
         partes = []
         primeira = True
+        await self._contar_consulta_ia()
         async for frase in self._ai_manager.responder_em_frases(texto_usuario, contexto):
             if primeira:
                 # A ACAO SO PODE ESTAR AQUI. O marcador e a primeira coisa que
@@ -520,6 +527,59 @@ class MissionPlanner:
             # so perde essa resposta e segue para a IA.
             logger.exception("falha ao consultar o autoconhecimento")
             return None
+
+    async def _responder_do_saber(self, texto: str) -> str | None:
+        """O "Eu ja sei?" - a memoria cognitiva, antes da IA e nao depois.
+
+        O autoconhecimento cobre o CORPO; este degrau cobre o que ele APRENDEU
+        e guardou: conhecimentos, experiencias, procedimentos, dispositivos e
+        relacoes (a fundacao da Camada 1, 2026-08-09). Quando a fala COBRE um
+        registro no `saber_fts`, a resposta sai daqui, do proprio acervo - a
+        IA (a consultora externa) nao e chamada.
+
+        None = ele nao sabe (ou a memoria esta ausente/fora) e a fala segue
+        para a IA. Mesmo contrato dos outros degraus locais: sem caminho, ele
+        nao finge - e a resposta que sai daqui so contem o que foi guardado.
+        """
+        if self._memory_client is None:
+            return None
+        try:
+            achados = await self._memory_client.saber_buscar(texto)
+        except Exception:
+            # Memoria fora nao pode emudecer a conversa: ele perde essa
+            # resposta e segue para a IA, como em todos os degraus locais.
+            logger.exception("falha ao consultar o conhecimento proprio")
+            return None
+        if not achados:
+            return None
+        topo = achados[0]
+        titulo = str(topo.get("titulo") or "").strip()
+        corpo = str(topo.get("corpo") or "").strip()
+        if not titulo:
+            return None
+        # A resposta e o proprio conhecimento, montado do registro. Nada
+        # inventado: ele diz o que sabe, e so o que sabe.
+        return f"{titulo}. {corpo}".strip() if corpo else titulo
+
+    async def _contar_consulta_ia(self) -> None:
+        """Conta mais uma consulta a IA - a medida de dependencia externa.
+
+        Roda quando a cascata DE FATO caiu no modelo (a consultora externa).
+        O contador vive no Pi (`configuracao_memoria`); o planner apenas
+        dispara o incremento como tarefa em segundo plano, para o numero
+        subir sem esperar rede - atrasar a fala por estatistica nao vale,
+        e perder um incremento por corrida seria aceitavel do mesmo jeito.
+        """
+        if self._memory_client is None:
+            return
+
+        async def _contar() -> None:
+            try:
+                await self._memory_client.registrar_consulta_ia()
+            except Exception:
+                logger.warning("falha ao contar a consulta a IA", exc_info=True)
+
+        asyncio.create_task(_contar())
 
     async def _obedecer_sem_ia(self, texto: str) -> str | None:
         """Executa a acao pedida quando a IA NAO RESPONDEU. None = nao deu.
