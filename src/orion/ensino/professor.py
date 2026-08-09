@@ -156,6 +156,40 @@ class Professor:
             lista = ", ".join(materias[:-1]) + f" e {materias[-1]}"
         return f"Dessa eu ainda nao tenho aula. Por enquanto eu sei dar de {lista}."
 
+    def apresentar_cardapio(self) -> str:
+        """O cardapio do modo aula: o que ele PODE ensinar agora, e a pergunta.
+
+        Pedido do dono (2026-08-09): "ativar modo aula - ele entra com o
+        sistema de cursos e aulas disponiveis e pergunta qual aula ou curso
+        voce gostaria de comecar". Lista so o que tem aula ESCRITA - anunciar
+        o programa inteiro como se ele soubesse dar tudo e a mentira que a
+        ementa ja se recusa a contar.
+        """
+        try:
+            aulas = self._banco.listar()
+        except Exception:
+            logger.exception("falha ao listar as aulas do banco")
+            aulas = []
+        if not aulas:
+            return "Ainda nao tenho nenhuma aula guardada."
+        por_materia: dict[str, list[str]] = {}
+        for aula in aulas:
+            por_materia.setdefault(aula.materia, []).append(aula.titulo)
+        partes = []
+        for materia in sorted(por_materia):
+            titulos = por_materia[materia]
+            if len(titulos) <= 3:
+                partes.append(f"de {materia} eu sei {', '.join(titulos)}")
+            else:
+                partes.append(
+                    f"de {materia} eu sei {len(titulos)}, como {', '.join(titulos[:3])}"
+                )
+        corpo = "; ".join(partes)
+        return (
+            f"Modo aula ativado. No momento, {corpo}. "
+            "Qual aula ou curso voce gostaria de comecar?"
+        )
+
     async def dar_aula(self, aula: Aula) -> None:
         """Comeca a aula em segundo plano e volta na hora.
 

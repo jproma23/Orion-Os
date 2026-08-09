@@ -151,6 +151,23 @@ _PADRAO_AULA = re.compile(
     r"|\bpode me ensinar\b"
 )
 
+#: "Ativar modo aula" (2026-08-09): o dono quer o cardapio ANTES de
+#: escolher - "ele entra com o sistema de cursos e aulas disponiveis e
+#: pergunta qual aula ou curso voce gostaria de comecar". Palavra inteira,
+#: sempre, pela licao de "parar" dentro de "preparar".
+_PADRAO_MODO_AULA = re.compile(
+    r"\bmodo (?:de )?aula\b|\bmodo ensino\b|\bmodo professor\b"
+    r"|\bquero estudar\b|\bvamos estudar\b"
+)
+
+#: Desistencia na janela de escolha da aula. Apertada de proposito: ela so
+#: vale por UM turno depois do cardapio, mas mesmo ali "deixa eu ver" nao
+#: pode cancelar nada.
+_PADRAO_DESISTIR_AULA = re.compile(
+    r"\bcancela\b|\bdeixa pra la\b|\bdeixa para la\b|\bdeixa quieto\b"
+    r"|\besquece\b|\bnenhuma\b"
+)
+
 #: Como ele anuncia o nivel na frase de abertura.
 _ARTIGO_NIVEL = {
     "basico": "basica",
@@ -220,6 +237,10 @@ class MissionPlanner:
     ) -> None:
         #: Responde "o que voce ensina?" a partir do mapa das ementas.
         self._ementas = ementas
+        # A escuta da escolha de aula dura UM turno (modo aula,
+        # 2026-08-09). Modo grudento que reinterpreta conversa fora
+        # dele e o sequestro que este projeto persegue.
+        self._aguardando_escolha_aula = False
         #: O que ele sabe sobre o proprio corpo (2026-08-07). None = ele nao
         #: responde sobre si e a pergunta vai para a IA - que vai inventar.
         self._autoconhecimento = autoconhecimento
@@ -277,6 +298,10 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
             resposta = aula_pausada
+        elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
+            resposta = escolha
+        elif (modo_aula := self._ativar_modo_aula(texto_usuario)) is not None:
+            resposta = modo_aula
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
         elif (programa := self._responder_ementa(texto_usuario)) is not None:
@@ -326,6 +351,10 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
         elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
             resposta = aula_pausada
+        elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
+            resposta = escolha
+        elif (modo_aula := self._ativar_modo_aula(texto_usuario)) is not None:
+            resposta = modo_aula
         elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
             resposta = aula
         elif (programa := self._responder_ementa(texto_usuario)) is not None:
@@ -512,6 +541,51 @@ class MissionPlanner:
         if casamento.argumento:
             marcador += f" {casamento.argumento}"
         return await self._cumprir_acao_pedida(marcador)
+
+    def _ativar_modo_aula(self, texto: str) -> str | None:
+        """'Ativar modo aula': ele mostra o cardapio e PERGUNTA por onde comecar.
+
+        Pedido do dono (2026-08-09): entrar no sistema de cursos com o
+        contexto do que ha de pronto, e a pergunta "qual aula ou curso voce
+        gostaria de comecar" - em vez de exigir que quem pergunta saiba o
+        nome da aula de cor. A resposta seguinte e tratada como ESCOLHA
+        (`_escolher_aula_pendente`): vale dizer so "banco de dados".
+        """
+        if self._professor is None:
+            return None
+        if not _PADRAO_MODO_AULA.search(texto.lower()):
+            return None
+        self._aguardando_escolha_aula = True
+        return self._professor.apresentar_cardapio()
+
+    async def _escolher_aula_pendente(self, texto: str) -> str | None:
+        """A resposta ao "qual aula voce queria comecar?" - vale o nome seco.
+
+        A escuta expira SEMPRE neste turno: achou a aula, desistiu ou falou
+        de outra coisa, ela acabou e a frase segue a cascata normal. Um modo
+        que ficasse escutando para sempre reinterpretaria conversa que nao
+        e escolha - o sequestro que este projeto persegue.
+        """
+        if not self._aguardando_escolha_aula:
+            return None
+        if _PADRAO_MODO_AULA.search(texto.lower()):
+            return None  # pediu o cardapio de novo; quem responde e _ativar
+        self._aguardando_escolha_aula = False
+        if _PADRAO_DESISTIR_AULA.search(texto.lower()):
+            return "Combinado, sem aula por agora. Se quiser, e so pedir."
+        if self._professor is None:
+            return None
+        aula = self._professor.procurar(texto, nivel=_normalizar_nivel(texto))
+        if aula is None:
+            # Ele PERGUNTOU qual aula; ouvir um nome que nao tem no banco
+            # tem resposta honesta pronta ("nao tenho, sei dar estas"), e
+            # nao queda para a IA conversar de outra coisa como se a
+            # escolha nao tivesse acontecido.
+            return self._professor.oferecer_o_que_tem()
+        await self._professor.dar_aula(aula)
+        # Mesma frase de abertura do pedido direto: ela diz o NIVEL que ele
+        # escolheu, porque pode nao ser o que a pessoa pediu.
+        return f"Vou dar uma aula {_ARTIGO_NIVEL[aula.nivel]} sobre {aula.titulo}. Olha o quadro."
 
     async def _tentar_dar_aula(self, texto: str) -> str | None:
         """Da aula a partir do BANCO LOCAL, sem chamar modelo nenhum.

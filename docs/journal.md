@@ -7140,3 +7140,26 @@ critério observável (ex.: ele diz que gostou de cumprir a missão E o diário
 mostra a missão cumprida; ele reconhece afinidade E age diferente com quem
 convive mais), senão vira o robô dizendo que sente sem sentir — a família
 de defeito que este projeto mais persegue, agora na versão emocional.
+
+### Modo aula (madrugada de 09/08, mesmo fio da sessão)
+
+Pedido do dono: *"ativar modo aula — daí ele entra com o sistema de cursos
+e aulas disponíveis e pergunta qual aula ou curso você gostaria de começar"*.
+
+Antes disto, pedir aula exigia saber o que pedir: o gatilho era a palavra
+"aula" junto de um nome que a pessoa tinha de conhecer de cor. Agora
+**"ativar modo aula"** (e "modo ensino", "quero estudar", "vamos estudar")
+apresenta o cardápio do que tem aula ESCRITA — só o que existe, pelo mesmo
+motivo da ementa não anunciar o que ele não sabe — e termina com a pergunta.
+
+A resposta seguinte vale como escolha **mesmo sem a palavra "aula"** ("banco
+de dados" seco funciona). A escuta dura **um turno, e acabou**: achou,
+desistiu ("deixa pra lá") ou falou de outra coisa, expira e a frase segue a
+cascata normal. Modo grudento que reinterpreta conversa fora dele é o
+sequestro que este projeto persegue — o modo aula existe para dar contexto,
+não para tomar o microfone.
+
+6 testes novos (`test_modo_aula.py`), incluindo os dois lados da moeda: na
+janela o nome seco inicia a aula; fora dela, o mesmo nome seco é conversa.
+849 passam no Pi, 25 de ensino + modo aula no Notebook, ruff limpo,
+`orion-avatar` reiniciado.
