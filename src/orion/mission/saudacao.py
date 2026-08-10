@@ -26,6 +26,7 @@ import time
 from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Evento
+from orion.mission.acoes_faladas import sem_marcador as _sem_marcador
 
 logger = logging.getLogger("orion.mission.saudacao")
 
@@ -39,6 +40,18 @@ TOPICO_SAUDACAO = "voice.saudacao"
 #: Meia hora: sair da sala e voltar em dois minutos não é chegar - e um robô
 #: que cumprimenta a cada passagem cansa em uma tarde.
 INTERVALO_ENTRE_SAUDACOES_S = 1800.0
+
+#: Depois de uma conversa, por quanto tempo ninguém "chega".
+#:
+#: Queixa do dono (2026-08-09): *"no meio de uma conversa ele me sauda e diz q
+#: é um prazer me ver sendo q ja estou falando com ele algum tempo"*. O
+#: `_conversando` cobria só o turno - de "Fofão" até a resposta terminar - e
+#: entre um turno e outro a pessoa voltava a ser alguém que acabou de aparecer.
+#:
+#: Quinze minutos: uma conversa tem pausas de vários minutos e continua sendo a
+#: mesma conversa. Quem está falando com o robô não chegou agora - está aqui
+#: desde antes, e o robô sabe disso melhor que a câmera.
+JANELA_DE_CONVERSA_S = 900.0
 
 #: Variações para não soar gravado. A escolha é aleatória de propósito: a
 #: mesma frase toda vez faz o robô parecer um alarme, não um morador.
@@ -97,6 +110,7 @@ class SaudacaoEspontanea:
         event_bus: EventBus,
         falar: Callable[[str], Awaitable[None]],
         intervalo_entre_saudacoes_s: float = INTERVALO_ENTRE_SAUDACOES_S,
+        janela_de_conversa_s: float = JANELA_DE_CONVERSA_S,
         agora: Callable[[], float] | None = None,
         escolher_frase: Callable[[tuple[str, ...]], str] | None = None,
         familia: list[dict] | None = None,
@@ -164,6 +178,11 @@ class SaudacaoEspontanea:
         #: uma conversa em andamento. Cumprimentar alguém no meio da própria
         #: frase é pior do que não cumprimentar.
         self._conversando = False
+        #: Quando o último turno de conversa aconteceu. `_conversando` sozinho
+        #: só cobria o turno; entre um turno e outro a pessoa voltava a "chegar"
+        #: e ouvia "que bom te ver" no meio do papo (dono, 09/08).
+        self._ultima_conversa: float | None = None
+        self._janela_de_conversa_s = janela_de_conversa_s
         #: Cumprimento em voo - ver `_ao_reconhecer`.
         self._tarefa_cumprimento: asyncio.Task | None = None
 
@@ -173,15 +192,35 @@ class SaudacaoEspontanea:
 
     async def _ao_acordar(self, evento: Evento) -> None:
         self._conversando = True
+        self._ultima_conversa = self._agora()
 
     async def _ao_terminar_resposta(self, evento: Evento) -> None:
         self._conversando = False
+        # Marcado nas DUAS pontas: o wake abre a janela na hora, e o fim da
+        # resposta a renova. Marcar só no wake faria a janela começar a correr
+        # enquanto o robô ainda estava falando.
+        self._ultima_conversa = self._agora()
+
+    def _conversa_em_andamento(self) -> bool:
+        """Alguém está falando com ele agora, ou acabou de falar.
+
+        Quem conversa não CHEGA - já estava aqui. Esta é a diferença que o
+        `_conversando` sozinho não via, porque ele só valia dentro do turno.
+        """
+        if self._conversando:
+            return True
+        if self._ultima_conversa is None:
+            return False
+        return self._agora() - self._ultima_conversa < self._janela_de_conversa_s
 
     async def _ao_reconhecer(self, evento: Evento) -> None:
         nome = evento.dados.get("nome")
         if not nome:
             return  # sem identidade não há a quem cumprimentar pelo nome
-        if self._conversando:
+        if self._conversa_em_andamento():
+            # NAO marca `_cumprimentados`: a pessoa nao foi cumprimentada, so
+            # nao era hora. Marcar aqui adiaria o cumprimento de verdade em
+            # meia hora a cada quadro em que ela aparecesse durante a conversa.
             return
         # O instante da ULTIMA vez tem que ser lido AGORA, porque
         # `_chegou_agora` grava o horario de hoje em cima dele. Sem isto o
@@ -353,7 +392,21 @@ class SaudacaoEspontanea:
         except Exception:
             logger.info("IA não compôs o cumprimento - usando a frase de reserva", exc_info=True)
             return self._frase_da_lista(nome)
-        frase = (frase or "").strip()
+        # O MARCADOR SAI AQUI. Quem compõe é o `ai_manager`, e o prompt dele
+        # carrega o catálogo de ações - então o modelo às vezes abre o
+        # cumprimento com `#acao:...`. Sem este passo isso ia inteiro para o
+        # alto-falante: em 09/08 o robô disse em voz alta "#acao:girar_cabeca
+        # Olá, criador!" duas vezes, e `girar_cabeca` nem existe no catálogo.
+        #
+        # `sem_marcador` e nao `extrair`: aqui não há ação para carregar
+        # argumento, então o resto da linha É a frase. O `extrair` a levaria
+        # embora junto com o marcador e o robô cairia na frase de reserva
+        # toda vez que o modelo escrevesse a tag.
+        #
+        # A ação é DESCARTADA de propósito: o próprio prompt do cumprimento
+        # diz "não ofereça nem prometa nenhuma ação; só cumprimente" -
+        # cumprimentar não é hora de mexer o corpo.
+        frase = _sem_marcador(frase or "").strip()
         if not frase:
             return self._frase_da_lista(nome)
         # Teto de tamanho: cumprimento e uma frase, nao um discurso. Sem isto

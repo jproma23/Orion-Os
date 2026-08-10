@@ -154,11 +154,20 @@ async def test_nao_fala_por_cima_de_uma_conversa(bus):
 
     assert ditas == []
 
+    # ESTA METADE MUDOU EM 2026-08-09, e a mudanca e o conserto.
+    #
+    # Antes, terminar a resposta liberava o cumprimento na hora - e era isso
+    # que o dono ouvia: *"no meio de uma conversa ele me sauda e diz q é um
+    # prazer me ver sendo q ja estou falando com ele algum tempo"*. Quem
+    # acabou de conversar nao chegou agora.
+    #
+    # A janela de 15 min esta em `test_saudacao_na_conversa.py`, junto com a
+    # prova de que passado esse tempo a chegada volta a valer.
     await bus.publish("voice.response_finished", {})
     await bus.aguardar_fila_vazia()
     await _ver(bus, "João Paulo")
 
-    assert len(ditas) == 1, "continuou calado depois da conversa terminar"
+    assert ditas == [], "cumprimentou logo depois do turno, no meio da conversa"
 
 
 @pytest.mark.asyncio

@@ -71,6 +71,11 @@ MARCADOR = "#acao:"
 #: escreve livremente.
 _RE_MARCADOR = re.compile(rf"\A\s*{re.escape(MARCADOR)}\s*([a-z_]+)([^\n]*)\n?")
 
+#: So o marcador e o nome, sem levar o resto da linha junto. O `_RE_MARCADOR`
+#: acima engole ate o fim da linha porque ali aquilo e ARGUMENTO da acao; para
+#: quem so quer a frase limpa (ver `sem_marcador`) isso apagaria a fala.
+_RE_SO_MARCADOR = re.compile(rf"\A\s*{re.escape(MARCADOR)}\s*[a-z_]+[ \t]*")
+
 #: Separa o destinatario do conteudo dentro do argumento de um recado.
 #: Barra vertical porque ela nao aparece em fala humana - virgula e dois
 #: pontos aparecem dentro da propria mensagem ("diga que sim, eu vou").
@@ -414,6 +419,24 @@ def extrair(texto: str) -> tuple[AcaoFalada | None, str, str]:
     if acao.precisa_argumento and not argumento:
         return None, "", resto
     return acao, argumento, resto
+
+
+def sem_marcador(texto: str) -> str:
+    """Tira o marcador do comeco e devolve o resto - sem executar nada.
+
+    Existe para os caminhos que usam o `ai_manager` mas NAO sao a conversa: o
+    cumprimento, por exemplo. O prompt do `ai_manager` carrega o catalogo de
+    acoes, entao o modelo as vezes abre a frase com `#acao:...` mesmo quando
+    ninguem ia agir - e em 2026-08-09 isso foi FALADO em voz alta ("#acao:
+    girar_cabeca Ola, criador!", com um nome que nem existe no catalogo).
+
+    Diferente do `extrair`: la o que vem depois do nome na mesma linha e
+    ARGUMENTO da acao, e some da fala. Aqui nao ha acao para carregar
+    argumento - o resto da linha e a frase, e perde-la deixaria o robo mudo.
+
+    Nome inventado tambem e limpo: o que nao pode e virar audio.
+    """
+    return _RE_SO_MARCADOR.sub("", texto, count=1).lstrip()
 
 
 def partir_argumento(argumento: str) -> tuple[str, str]:
