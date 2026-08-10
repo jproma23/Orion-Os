@@ -138,12 +138,15 @@ class Transcritor:
             sem_fala = getattr(s, "no_speech_prob", 0.0)
             confianca = getattr(s, "avg_logprob", 0.0)
             if sem_fala > self._no_speech_threshold:
-                logger.debug(
+                # info, nao debug (2026-08-09): seis falas reais sairam `''`
+                # numa so noite e o journal nao dizia qual freio disparou.
+                # Saber que o robo preferiu calar vale tanto quanto o texto.
+                logger.info(
                     "descartado (prob de NAO ser fala %.2f): %r", sem_fala, s.text.strip()
                 )
                 continue
             if confianca < self._log_prob_threshold:
-                logger.debug(
+                logger.info(
                     "descartado (confianca %.2f abaixo de %.2f): %r",
                     confianca, self._log_prob_threshold, s.text.strip(),
                 )

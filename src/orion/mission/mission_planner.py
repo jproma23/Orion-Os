@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 
@@ -175,6 +176,15 @@ _PADRAO_DESISTIR_AULA = re.compile(
     r"|\besquece\b|\bnenhuma\b"
 )
 
+#: Teto de tempo da escuta da escolha de aula (2026-08-09). "Um turno" so
+#: conta quando a fala chega ao planner - e a transcricao vazia NAO chega
+#: (`processar_comando` retorna antes). Medido ao vivo no mesmo dia: o STT
+#: esvaziou todas as respostas ao cardapio e, dez minutos depois, o wake
+#: word "Fofao! Fofao! Fofao!" foi consumido como escolha de aula. Sem teto
+#: de tempo, a escuta dura a primeira fala nao-vazia, quando quer que ela
+#: venha - o modo grudento que "um turno" existia para impedir.
+_ESCOLHA_AULA_TIMEOUT_S = 120.0
+
 #: Como ele anuncia o nivel na frase de abertura.
 _ARTIGO_NIVEL = {
     "basico": "basica",
@@ -316,6 +326,9 @@ class MissionPlanner:
         # 2026-08-09). Modo grudento que reinterpreta conversa fora
         # dele e o sequestro que este projeto persegue.
         self._aguardando_escolha_aula = False
+        #: ...e tem teto de tempo (`_ESCOLHA_AULA_TIMEOUT_S`): turno vazio
+        #: nao chega aqui, entao "um turno" sozinho nao expira nunca.
+        self._escolha_aula_expira_em = 0.0
         #: O que ele sabe sobre o proprio corpo (2026-08-07). None = ele nao
         #: responde sobre si e a pergunta vai para a IA - que vai inventar.
         self._autoconhecimento = autoconhecimento
@@ -724,6 +737,7 @@ class MissionPlanner:
         if not _PADRAO_MODO_AULA.search(texto.lower()):
             return None
         self._aguardando_escolha_aula = True
+        self._escolha_aula_expira_em = time.monotonic() + _ESCOLHA_AULA_TIMEOUT_S
         return self._professor.apresentar_cardapio()
 
     async def _escolher_aula_pendente(self, texto: str) -> str | None:
@@ -732,10 +746,16 @@ class MissionPlanner:
         A escuta expira SEMPRE neste turno: achou a aula, desistiu ou falou
         de outra coisa, ela acabou e a frase segue a cascata normal. Um modo
         que ficasse escutando para sempre reinterpretaria conversa que nao
-        e escolha - o sequestro que este projeto persegue.
+        e escolha - o sequestro que este projeto persegue. E expira tambem
+        por TEMPO (`_ESCOLHA_AULA_TIMEOUT_S`): turno vazio nao passa por
+        aqui, e sem o teto a escuta esperava a primeira fala nao-vazia por
+        tempo indeterminado.
         """
         if not self._aguardando_escolha_aula:
             return None
+        if time.monotonic() > self._escolha_aula_expira_em:
+            self._aguardando_escolha_aula = False
+            return None  # a janela fechou: a frase e conversa normal
         if _PADRAO_MODO_AULA.search(texto.lower()):
             return None  # pediu o cardapio de novo; quem responde e _ativar
         self._aguardando_escolha_aula = False

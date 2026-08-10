@@ -7,6 +7,7 @@ O que protegem: o cardapio sai com a pergunta, a resposta seguinte vale
 como escolha MESMO SEM a palavra "aula", a escuta expira em um turno (modo
 grudento e sequestro), e fora do modo o nome seco nao inicia aula nenhuma.
 """
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -128,4 +129,41 @@ async def test_pedir_o_cardapio_de_vem_na_janela_reapresenta():
 
     assert "Qual aula ou curso" in resposta
     assert professor.cardapio_pedido == 2
+    assert professor.dadas == []
+
+
+@pytest.mark.asyncio
+async def test_escolha_depois_do_prazo_nao_e_mais_escolha():
+    """O caso real de 09/08: o STT esvaziou todas as respostas ao cardapio
+    (turno vazio nao chega ao planner) e, dez minutos depois, a primeira
+    fala nao-vazia foi consumida como escolha de aula. A escuta tem teto de
+    tempo: passado o prazo, ate um nome de aula e conversa normal."""
+    ai = AiManagerFalso()
+    professor = ProfessorFalso()
+    planner = MissionPlanner(ai_manager=ai, professor=professor)
+
+    await planner.processar("ativar modo aula")
+    planner._escolha_aula_expira_em = time.monotonic() - 1  # prazo vencido
+
+    resposta = await planner.processar("banco de dados")
+
+    assert resposta == "resposta da IA"
+    assert professor.dadas == []
+    assert planner._aguardando_escolha_aula is False
+
+
+@pytest.mark.asyncio
+async def test_wake_word_tardio_nao_e_consumido_como_escolha():
+    """A forma exata do sequestro medido: a fala tardia era o wake word."""
+    ai = AiManagerFalso()
+    professor = ProfessorFalso()
+    planner = MissionPlanner(ai_manager=ai, professor=professor)
+
+    await planner.processar("ativar modo aula")
+    planner._escolha_aula_expira_em = time.monotonic() - 1
+
+    resposta = await planner.processar("Fofao! Fofao! Fofao!")
+
+    assert resposta == "resposta da IA"
+    assert "nao tenho aula" not in resposta
     assert professor.dadas == []
