@@ -7464,9 +7464,12 @@ evento `pedido_ouvido` — esses NÃO foram tocados de propósito: são o regist
 fiel do que o microfone ouviu, e apagá-los perderia a prova de como o Whisper
 erra. **Nota é conhecimento; transcrição é história.**
 
-Sobrou uma suspeita entre as 4 que ficaram: `Apresentação do robô.md` diz
-*"vou me apresentar só como Óleo"* — as outras dizem "Órion". Mesmo defeito,
-de 07/08; apontada ao dono, não tocada sem autorização.
+Uma quarta caiu junto, também autorizada: `Apresentação do robô.md` dizia
+*"vou me apresentar só como **Óleo** daqui pra frente"* — as irmãs dela dizem
+"Órion" e "Órion Sousa". Mesmo Whisper, defeito de 07/08, e a mais perigosa
+das quatro: era o robô guardando o **próprio nome errado**.
+
+O vault ficou com 3 notas, todas conferidas linha a linha.
 
 ### Medição
 
