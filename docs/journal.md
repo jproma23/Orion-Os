@@ -7458,8 +7458,15 @@ ação passou a exigir pedido explícito (`pediu_para_guardar`: "guarda isso",
 "anota", "lembra disso", "memoriza"…), com negação anulando. As 3 frases
 reais são barradas pelas três; 4 pedidos legítimos passam.
 
-As 3 notas erradas **continuam no vault** — o dono ainda não decidiu se
-apaga.
+As 3 notas erradas foram **APAGADAS do vault** ainda nesta sessão, a pedido
+do dono. O texto delas fica registrado acima, e continua em `conversas` e no
+evento `pedido_ouvido` — esses NÃO foram tocados de propósito: são o registro
+fiel do que o microfone ouviu, e apagá-los perderia a prova de como o Whisper
+erra. **Nota é conhecimento; transcrição é história.**
+
+Sobrou uma suspeita entre as 4 que ficaram: `Apresentação do robô.md` diz
+*"vou me apresentar só como Óleo"* — as outras dizem "Órion". Mesmo defeito,
+de 07/08; apontada ao dono, não tocada sem autorização.
 
 ### Medição
 
