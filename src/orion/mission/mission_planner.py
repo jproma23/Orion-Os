@@ -35,6 +35,9 @@ from orion.mission.acoes_faladas import extrair as _extrair_acao
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.mission.ai_manager import SEM_IA, AiManager
 from orion.mission.comando_local import casar as _casar_comando_local
+from orion.mission.comando_local import combina_com_acao as _combina_com_acao
+from orion.mission.comando_local import pediu_de_fato as _pediu_de_fato
+from orion.mission.comando_local import pediu_para_guardar as _pediu_para_guardar
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
 
@@ -66,6 +69,69 @@ _PADRAO_VIU_ALGUEM = re.compile(
     r"(?:\s+(?:hoje|por\s+aqui|ai|aí|passar|passando|em\s+casa))?\s*[?.!]*$",
     re.IGNORECASE,
 )
+
+
+#: Ate quantas palavras uma frase pode ter para ser tratada como NARRACAO da
+#: acao, e nao como conteudo. Oito: "Varrendo a frente aqui para ver o
+#: movimento." tem oito e e narracao; passar disso ja e resposta.
+_PALAVRAS_DE_NARRACAO = 8
+
+#: Narracao de movimento comeca no GERUNDIO - "Olhando pra frente.",
+#: "Varrendo a frente.", "Endireitando a cabeca.", "Deixando o radar ligado".
+#:
+#: Este foi o segundo desenho. O primeiro cortava qualquer frase curta que
+#: falasse do assunto da acao, e um teste com fala real derrubou na hora:
+#: "Olha so, agora virei parte da historia!" tem sete palavras, tem "olha" e
+#: tem "virei" - e e a resposta de verdade. Tamanho nao separa narracao de
+#: conteudo; a forma do verbo separa.
+_COMECO_DE_NARRACAO = re.compile(r"^\W*\w+ndo\b", re.IGNORECASE)
+
+
+def _eh_narracao(frase: str, acao: AcaoFalada) -> bool:
+    """Esta frase e o robo anunciando o movimento, e nao respondendo?
+
+    Tres condicoes juntas, e as tres precisam valer: curta, comecando em
+    gerundio e falando do assunto DAQUELA acao. Qualquer uma sozinha derruba
+    conteudo real - foi assim que o primeiro desenho comeu "Olha so, agora
+    virei parte da historia!".
+
+    A frase pronta do catalogo passa mesmo fora dessa forma ("Lanterna
+    ligada." nao tem gerundio): ela e narracao por definicao, veio daqui.
+    """
+    if frase.strip().rstrip(".!?").strip() == acao.resposta.rstrip(".!?"):
+        return True
+    if len(frase.split()) > _PALAVRAS_DE_NARRACAO:
+        return False
+    if not _COMECO_DE_NARRACAO.match(frase):
+        return False
+    return _combina_com_acao(acao.nome, frase)
+
+
+def _sem_narracao(falado: str, acao: AcaoFalada) -> str:
+    """Tira do comeco da fala o anuncio do movimento que ninguem pediu.
+
+    So as frases DO COMECO, e so enquanto elas forem curtas e falarem do
+    assunto da acao. O modelo copia o exemplo do prompt e abre a resposta com
+    "Olhando pra frente." - no meio de uma conversa sobre outra coisa isso e
+    ruido, e foi a queixa do dono em 09/08. As vezes ele encadeia duas
+    ("Varrendo a frente. Deixando o radar ligado aqui na frente."), por isso
+    laco e nao um corte so.
+
+    Na primeira frase que NAO e narracao, para. O que vem dali para a frente e
+    a resposta de verdade, e cortar conteudo para calar um tique seria trocar
+    um defeito por um pior.
+    """
+    texto = falado.strip()
+    while texto:
+        corte = re.search(r"[.!?]+(?:\s+|$)", texto)
+        # Sem pontuacao a fala inteira e uma frase so: se for narracao, some.
+        primeira = texto[: corte.end()].strip() if corte else texto
+        resto = texto[corte.end():].strip() if corte else ""
+        if not _eh_narracao(primeira, acao):
+            break
+        logger.info("narracao nao pedida descartada: %r (acao %s)", primeira, acao.nome)
+        texto = resto
+    return texto
 
 
 def _mesmo_nome(nome: str, descricao: str) -> str:
@@ -421,7 +487,7 @@ class MissionPlanner:
             if bruta == SEM_IA and (local := await self._obedecer_sem_ia(texto_usuario)):
                 resposta = local
             else:
-                resposta = await self._cumprir_acao_pedida(bruta)
+                resposta = await self._cumprir_acao_pedida(bruta, texto_usuario)
 
         await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
         return resposta
@@ -505,7 +571,12 @@ class MissionPlanner:
                         yield local
                         await self._registrar_interacao(pessoa_id, texto_usuario, local)
                         return
-                frase = await self._cumprir_acao_pedida(frase)
+                # `pode_calar`: aqui sobrar nada e aceitavel, porque as frases
+                # seguintes ainda vem. Era exatamente nesta primeira frase que
+                # a narracao nao pedida saia no alto-falante.
+                frase = await self._cumprir_acao_pedida(
+                    frase, texto_usuario, pode_calar=True
+                )
                 if not frase:
                     # A resposta era so o marcador. Nao ha o que falar ainda -
                     # e um yield vazio faria o sintetizador carregar o Piper
@@ -829,7 +900,9 @@ class MissionPlanner:
                 return "Nao consegui executar esse comando agora."
         return resposta_pronta
 
-    async def _cumprir_acao_pedida(self, texto: str) -> str:
+    async def _cumprir_acao_pedida(
+        self, texto: str, texto_usuario: str = "", pode_calar: bool = False
+    ) -> str:
         """Faz o que o modelo pediu e devolve so o que deve ser FALADO.
 
         Sem marcador, devolve o texto intacto - que e o caso da maioria
@@ -841,6 +914,17 @@ class MissionPlanner:
         nada disso. Ela so entra quando o modelo mandou a acao e nao escreveu
         nada depois - um robo que age em silencio parece um robo que travou.
 
+        AGIR SEM PEDIDO E PERMITIDO; ANUNCIAR SEM PEDIDO, NAO (dono, 09/08:
+        *"ele pode se mexer sem ninguem pedir, ele e autonomo; o q precisa e
+        nao ficar falando coisas q nao tem nada a ver"*). Entao a acao roda
+        sempre - nada aqui a barra - e o que some e a NARRACAO dela quando a
+        frase da pessoa nao pediu nada daquilo. Medido no chat de 08 e 09/08:
+        "Voce conhece a Biblia?" recebia "Olhando pra frente.".
+
+        `pode_calar` diz se sobrar nada e aceitavel. No caminho por frases sim,
+        porque as frases seguintes ainda vem; na resposta inteira nao, porque
+        ali o silencio seria a resposta toda.
+
         FALHAR AQUI NAO EMUDECE O ROBO: se o servo nao responde, ele diz que
         nao conseguiu. O modo de falha que este projeto mais repete e o
         contrario - a acao nao acontece e ninguem fica sabendo.
@@ -849,7 +933,10 @@ class MissionPlanner:
         if acao is None:
             return falado
 
-        logger.info("acao falada: %s %s", acao.nome, argumento)
+        pedida = _pediu_de_fato(acao.nome, texto_usuario)
+        logger.info(
+            "acao falada: %s %s (pedida=%s)", acao.nome, argumento, pedida
+        )
         try:
             if acao.entrega == "hardware":
                 await self._despachar_comando(acao)
@@ -865,10 +952,26 @@ class MissionPlanner:
                 # escreveu a frase. Deixar `falado` vencer aqui faria o robo
                 # dizer o que ele imaginou em vez do que leu.
                 return await self._despachar_busca(argumento)
+            elif not _pediu_para_guardar(texto_usuario):
+                # NAO grava o que ninguem mandou gravar - ver
+                # `pediu_para_guardar`. E diz que nao gravou, porque a frase
+                # do modelo aqui costuma ser "guardei" ou "anotei", e deixar
+                # isso passar seria a mentira de sempre com o agravante de o
+                # acervo ficar limpo enquanto a pessoa acha que ensinou.
+                logger.info(
+                    "guardar_conhecimento ignorado, ninguem mandou guardar: %r",
+                    argumento,
+                )
+                return "Não anotei isso — se quiser que eu guarde, é só dizer 'guarda isso'."
             else:
                 await self._despachar_conhecimento(argumento)
         except _SemCaminho as erro:
             logger.warning("acao %r pedida sem caminho ate o hardware: %s", acao.nome, erro)
+            # "Ainda nao consigo fazer isso" e resposta a um PEDIDO. Sem
+            # pedido ela e a mesma intromissao que esta funcao existe para
+            # tirar - so que agora anunciando uma falha que ninguem esperava.
+            if not pedida:
+                return _sem_narracao(falado, acao)
             return falado or "Ainda nao consigo fazer isso."
         except _NaoGuardou:
             # NAO devolve `falado`: a frase do modelo diz "combinado, eu
@@ -879,7 +982,14 @@ class MissionPlanner:
         except Exception:
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
-        return falado or acao.resposta
+
+        if pedida:
+            return falado or acao.resposta
+        limpo = _sem_narracao(falado, acao)
+        # Sobrou nada e nao da para calar: a frase pronta volta. Um robo mudo
+        # depois de ouvir seu nome e pior que um robo que narra demais - e
+        # este e o unico caminho em que o silencio seria a resposta inteira.
+        return limpo if (limpo or pode_calar) else acao.resposta
 
     async def _despachar_busca(self, termo: str) -> str:
         """Consulta a internet e devolve o que sera FALADO, com a fonte.

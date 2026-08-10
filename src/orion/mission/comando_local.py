@@ -73,39 +73,50 @@ GATILHOS: dict[str, tuple[str, ...]] = {
     "varrer_a_frente": (
         "varre a frente", "varrer a frente", "escaneia a frente",
         "escanear a frente", "varre na frente", "faz uma varredura",
+        "varra a frente", "escaneie a frente",
     ),
     "andar_para_frente": (
         "anda para frente", "anda pra frente", "andar para frente",
         "vai para frente", "vai pra frente", "segue em frente",
         "va para frente", "anda para a frente",
+        "ande para frente", "ande pra frente",
     ),
     "virar_esquerda": (
         "vira a esquerda", "vira para a esquerda", "vira pra esquerda",
         "virar a esquerda", "gira a esquerda", "gira para a esquerda",
+        "vire a esquerda", "vire para a esquerda", "gire a esquerda",
+        "gire para a esquerda",
     ),
     "virar_direita": (
         "vira a direita", "vira para a direita", "vira pra direita",
         "virar a direita", "gira a direita", "gira para a direita",
+        "vire a direita", "vire para a direita", "gire a direita",
+        "gire para a direita",
     ),
     "olhar_esquerda": (
         "olha para a esquerda", "olha pra esquerda", "olha para esquerda",
         "olhar para a esquerda", "olha a esquerda",
+        "olhe para a esquerda", "olhe pra esquerda",
     ),
     "olhar_direita": (
         "olha para a direita", "olha pra direita", "olha para direita",
         "olhar para a direita", "olha a direita",
+        "olhe para a direita", "olhe pra direita",
     ),
     "olhar_cima": (
         "olha para cima", "olha pra cima", "olhar para cima",
         "levanta a cabeca", "levante a cabeca",
+        "olhe para cima", "olhe pra cima",
     ),
     "olhar_baixo": (
         "olha para baixo", "olha pra baixo", "olhar para baixo",
         "abaixa a cabeca", "abaixe a cabeca",
+        "olhe para baixo", "olhe pra baixo",
     ),
     "olhar_frente": (
         "olha para frente", "olha pra frente", "olhar para frente",
         "endireita a cabeca", "cabeca no centro", "olha pro centro",
+        "olhe para frente", "olhe pra frente",
     ),
 }
 
@@ -245,3 +256,134 @@ def casar(texto: str) -> Casamento | None:
             "comando local: %r -> %s (gatilho %r)", texto, melhor.acao.nome, melhor.gatilho
         )
     return melhor
+
+
+# ---------------------------------------------------------------------------
+# ALGUEM PEDIU ISTO? - o que decide se a acao vira FALA
+# ---------------------------------------------------------------------------
+#
+# Dito pelo dono em 2026-08-09, depois de eu propor barrar a acao:
+#
+# > *"ele pode se mexer sem ninguem pedir, ele e autonomo; o q precisa e nao
+# > ficar falando coisas q nao tem nada a ver"*
+#
+# Entao a acao NAO e barrada aqui - ela acontece do mesmo jeito. O que muda e
+# a FALA: a frase pronta do catalogo ("Olhando pra frente.") so e dita quando
+# a pessoa realmente pediu aquilo. Medido no chat de 08 e 09/08: em 26 de 123
+# respostas o robo anunciou um movimento no meio de outro assunto - "Voce
+# conhece a Biblia?" recebeu "Olhando pra frente."; "Me explica ai alguma
+# coisa" recebeu "Varrendo a frente.". O corpo podia mexer; a narracao e que
+# nao tinha o que fazer ali.
+#
+# POR QUE ISTO NAO E UMA LISTA NOVA: o vocabulario sai dos GATILHOS que ja
+# existem acima. Acao nova ganha gatilho (a conferencia do import obriga) e
+# ganha vocabulario junto - nao ha uma segunda tabela para envelhecer calada,
+# que e o defeito que o dono mesmo nomeou neste projeto.
+
+#: Palavras que aparecem em qualquer frase e nao dizem sobre o que ela fala.
+#: Sem esta lista, "para" - que esta em quase todo gatilho E em quase toda
+#: frase - autorizaria qualquer anuncio.
+_VAZIAS = frozenset({
+    "a", "o", "as", "os", "um", "uma", "de", "do", "da", "em", "no", "na",
+    "para", "pra", "pro", "por", "ao", "aos", "e", "que", "se", "com", "sem",
+    "meu", "minha", "seu", "sua", "me", "te", "voce", "eu", "ele", "ela",
+    "isso", "isto", "aqui", "ai", "la", "mais", "menos", "muito", "bem",
+    "faz", "fazer", "faca", "va", "vai", "vamos", "quero", "queria", "pode",
+})
+
+
+def _conteudo(frase: str) -> set[str]:
+    """As palavras de uma frase que dizem alguma coisa."""
+    return {p for p in frase.split() if p not in _VAZIAS and len(p) >= 3}
+
+
+#: O vocabulario de cada acao, tirado dos proprios gatilhos dela.
+_VOCABULARIO: dict[str, frozenset[str]] = {
+    nome: frozenset().union(*(_conteudo(f) for f in frases))
+    for nome, frases in {**GATILHOS, **GATILHOS_COM_ASSUNTO}.items()
+}
+
+#: Quantas letras iniciais bastam para duas formas do MESMO verbo casarem.
+#: Quatro: "andando" e "andar" dividem "anda"; "olhe" e "olha" nao dividem
+#: quatro letras, e por isso as duas formas estao escritas nos gatilhos. Menos
+#: que isto ("olh", "vir") faria "virtude" casar com "virar".
+_LETRAS_RADICAL = 4
+
+
+def _mesma_palavra(dita: str, do_gatilho: str) -> bool:
+    if dita == do_gatilho:
+        return True
+    if len(dita) < _LETRAS_RADICAL or len(do_gatilho) <= _LETRAS_RADICAL:
+        return False
+    return dita[:_LETRAS_RADICAL] == do_gatilho[:_LETRAS_RADICAL]
+
+
+def combina_com_acao(nome_acao: str, texto: str) -> bool:
+    """O texto fala do mesmo assunto que os gatilhos desta acao?
+
+    Basta UMA palavra de conteudo em comum. Uma so, e nao duas como no
+    autoconhecimento (08/08), porque aqui o custo de errar e invertido: pegar
+    de menos deixa o robo mudo quando ele obedece, e "um robo que age em
+    silencio parece um robo que travou".
+
+    Acao sem gatilho (`deixar_recado`, `guardar_conhecimento`) devolve True: a
+    fala delas nao e narracao de movimento, e a confirmacao do recado tem que
+    sair sempre - prometer calado e o defeito que criou aquele modulo.
+    """
+    vocabulario = _VOCABULARIO.get(nome_acao)
+    if vocabulario is None:
+        return True
+    ditas = _conteudo(_normalizar(texto))
+    return any(
+        _mesma_palavra(dita, do_gatilho)
+        for dita in ditas
+        for do_gatilho in vocabulario
+    )
+
+
+#: As formas de MANDAR GUARDAR. Nao entram no `GATILHOS` porque nao acionam
+#: nada sozinhas - `guardar_conhecimento` precisa de titulo e conteudo, e
+#: separar os dois dentro da frase e trabalho do modelo (ver
+#: SEM_GATILHO_DE_PROPOSITO). Aqui elas so respondem a UMA pergunta: alguem
+#: mandou guardar isto?
+GATILHOS_DE_GUARDAR: tuple[str, ...] = (
+    "guarda isso", "guarda essa", "guarde isso", "guardar isso",
+    "anota", "anote", "anotar", "toma nota",
+    "lembra disso", "lembre disso", "lembra que", "lembre que",
+    "nao esquece", "nao esqueca", "grava isso", "grave isso",
+    "aprende isso", "aprenda isso", "memoriza", "memorize",
+    "registra isso", "registre isso",
+)
+
+
+def pediu_para_guardar(fala: str) -> bool:
+    """Alguem MANDOU guardar? So entao `guardar_conhecimento` escreve.
+
+    Em 09/08 o robo gravou tres notas que ninguem mandou gravar, todas de
+    frase mal transcrita pelo Whisper: *"o usuario se chama Joao PALMO"*,
+    *"Servidores de GOMEN"* (era DNS) e *"os computadores da rede sao
+    chamados de OSPVE"*. Quem escreveu o marcador foi o modelo, sozinho, no
+    meio de uma conversa comum.
+
+    Mexer-se sem pedir e autonomia e o dono quer assim; **gravar sem pedir e
+    outra coisa**: o movimento passa, o registro fica, e depois vira "verdade"
+    para o portao do "Eu ja sei?". Aqui o custo de errar nao expira.
+
+    Negacao anula, como no `casar`: *"nao anota isso"* nao pode gravar.
+    """
+    normalizado = _normalizar(fala)
+    for frase in GATILHOS_DE_GUARDAR:
+        achado = re.search(rf"\b{re.escape(frase)}\b", normalizado)
+        if achado is not None and not _negado(normalizado, achado.start()):
+            return True
+    return False
+
+
+def pediu_de_fato(nome_acao: str, fala: str) -> bool:
+    """A PESSOA pediu esta acao? Decide se o robo anuncia o que vai fazer.
+
+    Nao decide se ele age - ver o cabecalho deste bloco. O que importa e que o
+    texto conferido e o da pessoa, nunca o do modelo: e o modelo que escreve o
+    marcador por conta propria, e e justamente isso que precisa de conferencia.
+    """
+    return combina_com_acao(nome_acao, fala)
