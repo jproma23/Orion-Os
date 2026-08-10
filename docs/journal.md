@@ -7498,3 +7498,57 @@ pior que o tique.
 5. **73 erros de ruff anteriores** a esta mudança.
 6. Aula `prog.orion`, `--artigo` no gerador, rascunhos de física parados, e a
    lista velha de 08/08.
+
+### Adendo da mesma noite — "ele me sauda no meio da conversa"
+
+Relatado pelo dono enquanto a sessão ainda rodava:
+
+> *"no meio de uma caonversa ele me sauda e diz q é um prazer me ver sendo q
+> ja estou falando com ele algum tempo"*
+
+Mesma família do resto da sessão — falar coisa que não tem a ver com o
+momento — mas outro módulo: `mission/saudacao.py`. O log do avatar mostrou
+**12 saudações em 09/08**, quatro delas com 3 a 12 minutos de intervalo, e
+**três causas diferentes** no mesmo sintoma:
+
+**1. A janela só cobria o TURNO.** `_conversando` valia de "Fofão" até a
+resposta terminar. Entre um turno e outro a pessoa voltava a ser alguém que
+acabou de aparecer na frente da câmera — e o `INTERVALO_ENTRE_SAUDACOES_S` de
+30 min liberava o cumprimento. Agora existe `_conversa_em_andamento()`: 15
+minutos depois do último turno, ninguém chega. Conversa tem pausa de minutos
+e continua sendo a mesma conversa.
+
+Detalhe que virou teste: ao recusar, o handler **não** marca
+`_cumprimentados`. Marcar ali adiaria o cumprimento de verdade em meia hora a
+cada quadro em que a câmera a visse durante o papo — o robô ficaria mudo
+quando ela realmente chegasse.
+
+**2. O marcador `#acao:` ia para o alto-falante.** Isto fecha a pendência
+"tag vazada" que a varredura do começo da noite tinha contado (2 casos). A
+causa: o cumprimento é composto pelo `ai_manager`, cujo prompt carrega o
+catálogo de ações — então o modelo às vezes abre a frase com a tag. O robô
+disse em voz alta, duas vezes:
+
+    "#acao:girar_cabeca Olá, criador! Bom te ver de novo por aqui."
+
+E `girar_cabeca` **não existe no catálogo** — era nome inventado, falado como
+se fosse fala. Nasceu `acoes_faladas.sem_marcador()`, que difere do `extrair`
+de propósito: lá o resto da linha é ARGUMENTO da ação e some; aqui não há ação
+para carregar argumento, o resto da linha É a frase. A primeira tentativa usou
+o `extrair` e o robô caía na frase de reserva toda vez — o teste pegou.
+
+**3. NÃO CONSERTADO: `_cumprimentados` mora só na RAM.** Todo restart do
+serviço zera quem já foi cumprimentado, e o robô cumprimenta de novo. Os PIDs
+no log provam — `1404601`, `1646986`, `1698241`, uma saudação nova a cada um.
+Foi a maior parte das 12 de hoje, porque a sessão reiniciou o avatar várias
+vezes. Consertar exige relógio de PAREDE persistido: o `_agora` do módulo é
+`time.monotonic()`, que zera junto com o processo. Mudança maior, e fica
+anotada em vez de meio-feita.
+
+Um teste antigo teve de mudar de expectativa: a segunda metade de
+`test_nao_fala_por_cima_de_uma_conversa` **garantia o defeito** — cumprimentar
+assim que a resposta acabasse. A razão da mudança ficou escrita dentro dele,
+datada, porque teste que muda sem explicação é como documento que mente.
+
+7 testes novos. Suítes: **1053 no Pi, 1123 no Notebook**. `orion-avatar`
+reiniciado, ativo. Commit `242fc67`.
