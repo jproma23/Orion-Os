@@ -7351,3 +7351,150 @@ a ter o que contar do que ELE mesmo fez, não só o que foi ensinado.
 4. Itens velhos: aula `prog.orion`, tag `#acao:` vazada, "Olhando pra
    frente." duplicado, fecho repetitivo, rascunhos de física, lista velha
    do 08/08.
+
+## Sessão de 2026-08-09 (noite) — o robô podia se mexer à vontade; falar do movimento no meio de outro assunto é que não
+
+Pedido do dono: *"vamos focar na conversação"*. A sessão começou por uma
+leitura do que a conversa REALMENTE fez — 246 turnos de 08 e 09/08 na tabela
+`conversas`, cruzados com o `journalctl` do `orion-avatar` — e não por uma
+lista de pendências.
+
+### O que a medição mostrou (123 falas do robô)
+
+| defeito | medida |
+|---|---|
+| anúncio de movimento fora de hora | 26 falas com "Olhando pra frente."/"Varrendo a frente." |
+| fecho repetitivo "Quer que eu...?" | 39 de 123 (32%) |
+| tag `#acao:` vazada no texto | 2 |
+| ações disparadas | 63, a maioria sem ninguém pedir |
+| tabela `conhecimentos` (portão "Eu já sei?") | **0 registros** |
+
+O cruzamento com o log é o que deu nome ao defeito. Cada `acao falada` foi
+casada com a frase que a causou (o timestamp do banco é UTC e o do journal é
+local; a diferença de 3 h escondeu a correlação na primeira tentativa, e a
+segunda pista foi que o registro no banco acontece ~12 s DEPOIS, quando a
+resposta inteira termina de sair):
+
+- "Você conhece a Bíblia?" → `olhar_frente`
+- "Me explica aí alguma coisa" → `olhar_frente` **e** `varrer_a_frente`
+- "Vamos lá, vamos lá" → `varrer_a_frente` (2×)
+- "Bora robô! Licas no motor!" → **`andar_para_frente`**
+- "Fofao" (só o nome) → `olhar_frente`
+- "Eu quero falar sobre outra coisa" → `olhar_direita`
+
+### A correção que eu propus estava errada, e o dono corrigiu
+
+Eu propus barrar a AÇÃO. Ele cortou na hora:
+
+> *"ele pode se mexer sem ninguem pedir ele é autonomo o q precisa é nao
+> ficar falando coisas q nao tem nada haver"*
+
+Isso inverte o conserto inteiro. **A ação roda sempre** — autonomia é o alvo
+do projeto ([[project-orion-missao-autonomia]]), e um robô que só se mexe com
+licença é menos robô. O que não pode é a NARRAÇÃO aparecer no meio de um
+assunto que não tem nada com ela. Registrado aqui porque foi o dono quem viu
+que o defeito era de fala, não de comportamento.
+
+### O conserto, em duas camadas
+
+**A fonte dos dois tiques era o próprio `config/prompt_sistema.txt`** — e é
+por isso que nenhuma camada nova foi empilhada
+([[feedback-orion-nao-empilhar-camadas]]):
+
+- ele MANDAVA usar a fórmula: *"uma pergunta curta, um 'quer que eu...'"* —
+  daí os 32%. Virou "não termine com 'quer que eu…'", com o número dentro do
+  texto para o modelo saber por que a regra existe;
+- a seção `NARRE O QUE VOCÊ FAZ` mandava narrar todo movimento. Virou
+  `MEXER-SE É LIVRE; ANUNCIAR NÃO É`, com a frase do dono por trás;
+- `acoes_faladas.bloco_para_prompt` ganhou o exemplo do caso calado (ação +
+  resposta sobre OUTRO assunto), porque o único exemplo que existia ensinava
+  a narrar.
+
+**O código é a garantia dura** — o prompt é pedido, e pedido o modelo cumpre
+quando quer:
+
+- `comando_local.pediu_de_fato()`: a fala DA PESSOA precisa dividir ao menos
+  uma palavra de conteúdo com os gatilhos daquela ação. **Uma**, não duas como
+  no autoconhecimento (08/08): lá o erro caro era responder demais, aqui é
+  calar quem obedeceu — *"um robô que age em silêncio parece um robô que
+  travou"* já estava escrito no próprio módulo.
+- O vocabulário sai dos `GATILHOS` que já existiam. Não há segunda tabela: a
+  conferência do import já obriga toda ação a ter gatilho, então ação nova
+  ganha vocabulário junto.
+- `mission_planner._sem_narracao()`: tira do começo da fala as frases que são
+  anúncio do movimento, em laço (o modelo encadeia duas: *"Varrendo a frente.
+  Deixando o radar ligado aqui na frente."*).
+- **O imperativo entrou nos gatilhos** — "olhe", "gire", "vire", "ande",
+  "varra", "escaneie". É como o dono fala ("me olhe para mim", "gire no seu
+  próprio eixo") e não estava lá; melhora também o obedecer-sem-IA, que lê a
+  mesma tabela.
+
+### O que os testes pegaram, e que eu não teria visto
+
+O primeiro desenho do corte ia por TAMANHO: frase curta que falasse do
+assunto da ação era narração. O teste com fala real derrubou:
+
+    "Olha só, agora virei parte da história!"
+
+Sete palavras, com "olha" e "virei" dentro — e é a resposta de verdade,
+virava string vazia. **Tamanho não separa narração de conteúdo; a forma do
+verbo separa**: narração abre em gerúndio ("Olhando", "Varrendo",
+"Endireitando", "Deixando"), resposta não. Três condições agora, e as três
+juntas: curta, gerúndio no começo, e falando do assunto daquela ação. A frase
+ficou como teste permanente, nas duas versões (7 e 11 palavras).
+
+### Gravar sem mandar é outra história
+
+`guardar_conhecimento` disparou 3× em 09/08, sozinho, e as 3 notas são de
+transcrição errada do Whisper:
+
+    identidade do usuario.md  -> "o usuário se chama João PALMO ... Sistema 3"
+    Servidores de Gómen.md    -> era DNS
+    OSPVE.md                  -> "os computadores da rede são chamados OSPVE"
+
+Mexer sem pedir expira no instante seguinte; **gravar sem pedir fica**, e vira
+"verdade" para o portão do "Eu já sei?" da sessão da tarde. Por isso essa
+ação passou a exigir pedido explícito (`pediu_para_guardar`: "guarda isso",
+"anota", "lembra disso", "memoriza"…), com negação anulando. As 3 frases
+reais são barradas pelas três; 4 pedidos legítimos passam.
+
+As 3 notas erradas **continuam no vault** — o dono ainda não decidiu se
+apaga.
+
+### Medição
+
+20 de 20 nas frases reais do chat: as 12 que sequestravam a fala calam, os 8
+pedidos de verdade seguem confirmando. Suíte do Pi: **1046 passed, 11
+skipped**. Suíte do Notebook: **1116 passed**. 37 testes novos em
+`tests/unit/test_narracao_nao_pedida.py`, todos com frase datada do chat.
+
+Ruff: os arquivos tocados estão limpos. **Os 73 erros restantes já existiam
+antes desta mudança** (conferido com `git stash`) — o repo não está limpo como
+as entradas anteriores diziam, e isso fica anotado como pendência.
+
+### Deploy
+
+`orion-avatar.service` no **Notebook** reiniciado, ativo, boot completo até
+*"Pronto! Diga Fofão"*. O Pi não muda nesta: o `motion_core` não decide fala.
+A lição de 08/08 (reiniciei o serviço errado e quase declarei vitória) foi
+aplicada — o serviço foi escolhido pelo que EXECUTA `conversar_fofao.py`.
+
+### Limite conhecido, dito na cara
+
+O corte pega gerúndio. Se o modelo escrever *"Vou dar uma olhada aqui na
+frente"* — que aconteceu em 09/08 — só o prompt segura, o código não. Preferi
+errar para menos: cortar demais come resposta de verdade, e esse defeito é
+pior que o tique.
+
+### Pendências, na ordem em que mordem
+
+1. **Medir o resultado no chat de amanhã**: "Quer que eu" e narração fora de
+   hora têm número de antes (39 e 26 em 123). Sem a contagem depois, isto aqui
+   é opinião.
+2. **As 3 notas erradas do vault** — decisão do dono.
+3. **A tag `#acao:` vazada** no texto visível (2 casos) — nunca atacada.
+4. **Alimentar o acervo do "Eu já sei?"** (0 registros) — pendência nº 1 da
+   sessão da tarde, intocada aqui.
+5. **73 erros de ruff anteriores** a esta mudança.
+6. Aula `prog.orion`, `--artigo` no gerador, rascunhos de física parados, e a
+   lista velha de 08/08.
