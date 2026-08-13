@@ -5,7 +5,7 @@
 <h1 align="center">ORION OS</h1>
 
 <p align="center">
-  <strong>Plataforma de robótica modular, 100% offline.</strong><br>
+  <strong>Plataforma de robótica modular.</strong><br>
   Primeiro robô: <strong>Fofão</strong>.
 </p>
 
@@ -13,15 +13,27 @@
   <a href="https://jproma23.github.io/Orion-Os/"><img alt="Diário de bordo" src="https://img.shields.io/badge/diário_de_bordo-2a3f8f?style=flat-square"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="C++" src="https://img.shields.io/badge/C++-Arduino-00979D?style=flat-square&logo=arduino&logoColor=white">
-  <img alt="Testes" src="https://img.shields.io/badge/testes-305_passando-2e7d32?style=flat-square">
-  <img alt="Offline" src="https://img.shields.io/badge/nuvem-nenhuma-555?style=flat-square">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-pytest-2e7d32?style=flat-square">
+  <img alt="IA" src="https://img.shields.io/badge/IA-remota_+_reserva_local-555?style=flat-square">
 </p>
 
 ---
 
 Um robô que percebe o ambiente, decide sozinho o que fazer e conversa com
-quem mora na casa — **sem depender de nuvem para nada**. Visão, voz e
-modelos de linguagem rodam localmente, no hardware que está na bancada.
+quem mora na casa.
+
+**Onde cada coisa roda.** Percepção e controle são inteiramente locais, no
+hardware que está na bancada: visão, reconhecimento facial, escuta, síntese
+de voz, arbitragem de comportamento e toda a malha de segurança reativa. Já
+o **modelo de linguagem que conversa é remoto** — API compatível com a da
+OpenAI, hoje apontada para o OpenRouter — com Ollama local como reserva
+automática quando falta internet ou a API dá erro.
+
+Isso é uma mudança deliberada de rumo, não um descuido: o projeto começou
+com a regra "100% offline" e ela foi revista em 2026-07-23, porque o LLM
+local travava demais e exigia máquina cara. O motivo, as alternativas e o
+que se perdeu estão em
+[EDR-0021](docs/edr/EDR-0021-ia-remota-e-memoria-hibrida.md).
 
 **[→ Diário de bordo do desenvolvimento](https://jproma23.github.io/Orion-Os/)**
 — cada sessão registrada no dia em que aconteceu, os acertos e os bugs que
@@ -60,7 +72,8 @@ em [`ARQUITETURA.txt`](ARQUITETURA.txt).
   ACK, heartbeat e reconexão automática
 - **Visão** — reconhecimento facial: o robô sabe quem é da casa e dispara
   alerta para rosto desconhecido
-- **Voz** — wake word, VAD e resposta falada, com modelo de linguagem local
+- **Voz** — wake word, VAD e resposta falada; a escuta e a fala são locais,
+  o modelo de linguagem que formula a resposta é remoto (ver acima)
 - **Memória** — diário de observações em banco, com consulta determinística
   ("você viu o fulano hoje?") separada da conversa livre
 - **Navegação** — fusão de odometria e IMU publicando `motion.position`
@@ -77,7 +90,7 @@ docs/ses/           Especificação do sistema, capítulos 01 a 20
 docs/edr/           Registros de decisão de arquitetura
 docs/journal.md     Diário de bordo — vira o blog via tools/build_blog.py
 config/orion.yaml   Configuração única do sistema
-tests/              305 testes
+tests/              suíte automatizada (pytest) — unitários e integração
 ```
 
 ## Como rodar
