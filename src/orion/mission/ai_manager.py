@@ -8,7 +8,7 @@ internet, erro de API, timeout - nunca deixa a conversa muda (Cap 6 s.8,
 mesma tolerancia ja usada para Arduino/SSD/Notebook ausentes).
 
 Chave da API (OPENAI_API_KEY) nunca fixa no codigo/config (regra 6 do
-CLAUDE.md) - vem de variavel de ambiente (EDR-0021).
+ARQUITETURA.txt) - vem de variavel de ambiente (EDR-0021).
 
 O contexto entregue ao modelo passa pelo grounding
 (orion/mission/grounding.py), que diz explicitamente o que o robo NAO

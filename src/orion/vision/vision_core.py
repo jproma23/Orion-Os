@@ -54,7 +54,7 @@ class VisionCore:
         self._captura = captura or CapturaCamera(indice=indice_camera, espelhado=camera_espelhada)
         # modelo_yolo vem do orion.yaml (vision.yolo_model). Antes o nome do
         # modelo ficava fixo no default do DetectorYolo e a config era
-        # ignorada - configuracao morta, contra a regra 6 do CLAUDE.md.
+        # ignorada - configuracao morta, contra a regra 6 do ARQUITETURA.txt.
         self._detector = detector or DetectorYolo(
             modelo=modelo_yolo, confianca_minima=confianca_minima, imgsz=imgsz
         )

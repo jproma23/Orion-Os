@@ -182,7 +182,7 @@ def _montar_modulos(
             conf_visao,
             conf_sentinela=config.secao("behavior").get("sentinela_visao"),
             # os rostos da familia moram no banco, no SSD do Raspberry - o
-            # Notebook os consulta pelo enlace (regra 5 do CLAUDE.md).
+            # Notebook os consulta pelo enlace (regra 5 do ARQUITETURA.txt).
             carregar_conhecidos=lambda: _MemoryClient(comm).recall("pessoas"),
             comm=comm,
         ),

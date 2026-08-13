@@ -26,7 +26,7 @@ estruturada com enum - mesma garantia de "nunca inventa nome de
 comportamento" que o Ollama local dava via `format=schema`) em vez de
 Ollama local - decisão do usuário: carregar um modelo no Ollama local
 trava o Notebook (mesmo achado do EDR-0021 para a IA de conversa). Chave
-da API nunca fixa no código (regra 6 do CLAUDE.md) - vem de
+da API nunca fixa no código (regra 6 do ARQUITETURA.txt) - vem de
 OPENAI_API_KEY.
 """
 from __future__ import annotations

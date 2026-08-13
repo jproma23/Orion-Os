@@ -8,7 +8,7 @@ estrategica) e PonteConselho (o Mentor).
 Depende do ComunicacaoService porque o planner precisa mandar comando ao
 Hardware Core e consultar a memoria, e porque as duas pontes atendem pedidos
 que chegam pelo enlace com o Pi. Continua sem conhecer outros modulos: tudo
-que sai daqui sai pelo Event Bus (regra 1 do CLAUDE.md).
+que sai daqui sai pelo Event Bus (regra 1 do ARQUITETURA.txt).
 """
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ class ModuloMissao:
     async def _enviar_comando_hardware(self, comando: str) -> None:
         """Manda um COMMAND ao Mega pela cadeia TCP -> serial e espera o ACK.
 
-        O Notebook nunca fala com o Arduino direto (regra 2 do CLAUDE.md): o
+        O Notebook nunca fala com o Arduino direto (regra 2 do ARQUITETURA.txt): o
         comando vai para "hardware_core" e o Raspberry o repassa pela serial.
         """
         await self._comm.send("hardware_core", {"comando": comando})

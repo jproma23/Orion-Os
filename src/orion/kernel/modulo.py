@@ -13,7 +13,7 @@ Regras do contrato (EDR-0023 secao 1):
   desligamento normal quanto depois de uma falha parcial de boot.
 - `esta_saudavel()` e sincrono e sem I/O - o Watchdog o chama em laco.
 - O modulo NAO conhece outros modulos. Toda troca continua passando pelo
-  Event Bus (regra 1 do CLAUDE.md).
+  Event Bus (regra 1 do ARQUITETURA.txt).
 """
 from __future__ import annotations
 

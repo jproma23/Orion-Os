@@ -122,7 +122,7 @@ async def test_missao_sobe_e_fica_saudavel():
 
 @pytest.mark.asyncio
 async def test_missao_manda_comando_pela_cadeia_e_nao_direto_ao_arduino():
-    """Regra 2 do CLAUDE.md: o Notebook nunca fala com o Arduino.
+    """Regra 2 do ARQUITETURA.txt: o Notebook nunca fala com o Arduino.
 
     O comando tem que sair endereçado a "hardware_core" - quem entrega pela
     serial e o Raspberry.

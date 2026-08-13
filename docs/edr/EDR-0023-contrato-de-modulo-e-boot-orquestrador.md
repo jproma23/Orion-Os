@@ -78,7 +78,7 @@ Regras do contrato:
 - `esta_saudavel()` é **síncrono e sem efeito colateral** — o Watchdog o
   chama em laço; não pode fazer I/O.
 - O módulo **não conhece outros módulos**. Toda troca continua pelo Event
-  Bus (regra 1 do `CLAUDE.md`).
+  Bus (regra 1 do `ARQUITETURA.txt`).
 
 ### 2. O boot passa a ser orquestrador, não encanamento
 
@@ -134,7 +134,7 @@ produção.
 ### 5. `--sim` tem que simular
 
 Achado durante a análise: `_conectar_raspberry()` **não recebe** o parâmetro
-`simulado` e tenta o Pi real mesmo com `--sim`, apesar de o `CLAUDE.md`
+`simulado` e tenta o Pi real mesmo com `--sim`, apesar de o `ARQUITETURA.txt`
 documentar a flag como "com Raspberry/Arduino simulados". Isso é perigoso
 além de errado: rodar o boot para testar rouba o enlace `mission_core` do
 processo de produção, porque o Pi só aceita um link com esse nome por vez.

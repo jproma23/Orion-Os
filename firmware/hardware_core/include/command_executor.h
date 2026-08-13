@@ -57,7 +57,7 @@ class CommandExecutor {
   bool executar(const char* comando, JsonObjectConst payload) {
     float velocidade = payload["velocidade_percent"] | 50.0f;
 
-    // Camada reativa (Cap 18 s.9, regra 7 do CLAUDE.md): enquanto uma
+    // Camada reativa (Cap 18 s.9, regra 7 do ARQUITETURA.txt): enquanto uma
     // parada de seguranca estiver ativa (obstaculo, inclinacao, impacto
     // ou timeout), nenhum comando de movimento NOVO e aceito, mesmo que
     // venha do Raspberry - so volta a aceitar quando safety.avaliar()
