@@ -7,6 +7,7 @@
 
 #include "bussola_manager.h"
 #include "dht_manager.h"
+#include "encoder_manager.h"
 #include "estado.h"
 #include "bateria_manager.h"
 #include "imu_manager.h"
@@ -20,7 +21,8 @@ class TelemetryManager {
  public:
   TelemetryManager(MotorManager& motores, RadarManager& radar, ImuManager& imu, DhtManager& dht,
                     MaquinaDeEstados& estados, SensorUltrassonico& ultrassomTraseiro,
-                    BateriaManager& bateria, BussolaManager& bussola)
+                    BateriaManager& bateria, BussolaManager& bussola,
+                    EncoderManager& encoders)
       : _motores(motores),
         _radar(radar),
         _imu(imu),
@@ -28,7 +30,8 @@ class TelemetryManager {
         _estados(estados),
         _ultrassomTraseiro(ultrassomTraseiro),
         _bateria(bateria),
-        _bussola(bussola) {}
+        _bussola(bussola),
+        _encoders(encoders) {}
 
   // Pacote REDUZIDO, para quando o robo esta em movimento (2026-07-27).
   //
@@ -72,6 +75,13 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+
+    // Encoder e yaw entram no pacote REDUZIDO, nao so no completo: os
+    // dois servem a odometria, e odometria so importa enquanto o robo
+    // anda - que e exatamente quando o pacote completo NAO e enviado.
+    // Sao 3 campos, longe de recriar o bloqueio de serial que motivou
+    // este pacote reduzido existir.
+    preencherOdometria(destino);
   }
 
   void preencherPayload(JsonObject destino) {
@@ -143,10 +153,36 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+
+    preencherOdometria(destino);
+  }
+
+  // Campos que a odometria do Motion Core consome (fusao_sensores.py).
+  // Compartilhado pelos dois pacotes para os nomes nao divergirem: um
+  // campo com nome diferente entre reduzido e completo apareceria como
+  // "encoder que some quando o robo para", que e o tipo de sintoma que
+  // custa uma sessao inteira para achar.
+  void preencherOdometria(JsonObject destino) {
+    // Publicados SEMPRE, mesmo sem encoder fisico ligado - ficam em zero, e
+    // quem decide se isso vale alguma coisa e o `motion.encoder_lado` do
+    // config, no Motion Core. O firmware nao tem como saber se ha sensor no
+    // pino; fingir que sabe seria inventar.
+    destino["pulsos_esquerda"] = _encoders.pulsosEsquerdo();
+    destino["pulsos_direita"] = _encoders.pulsosDireito();
+
+    // yaw so vai quando VALE: antes do vies do giroscopio ser estimado o
+    // numero e ruido integrado. Omitir e melhor que mandar - o
+    // fusao_sensores.py trata campo ausente caindo para a fonte pior e
+    // dizendo isso no `fonte_rumo`, enquanto um numero errado ele nao tem
+    // como perceber.
+    if (_imu.yawValido()) {
+      destino["yaw_graus"] = _imu.yawGraus();
+    }
   }
 
  private:
   MotorManager& _motores;
+  EncoderManager& _encoders;
   RadarManager& _radar;
   ImuManager& _imu;
   DhtManager& _dht;

@@ -52,7 +52,7 @@ orion::SensorUltrassonico ultrassomTraseiro;
 orion::BussolaManager bussola;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
 orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
-                                  bateria, bussola);
+                                  bateria, bussola, encoders);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 // DOIS REGIMES DE TELEMETRIA (2026-07-27, pedido do usuario a partir da
@@ -396,6 +396,11 @@ void loop() {
   }
 
   motores.atualizar();
+  // Logo DEPOIS de motores.atualizar(), nunca antes: o sentido tem que ser
+  // o que os motores estao executando agora. Um pulso que chegasse com o
+  // sentido do ciclo anterior seria contado para o lado errado - e no
+  // instante da inversao, que e justo quando a odometria mais erra.
+  encoders.definirSentido(motores.sentidoFrenteEsquerda(), motores.sentidoFrenteDireita());
   radar.atualizar();
   ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());

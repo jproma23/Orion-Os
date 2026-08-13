@@ -24,6 +24,42 @@ constexpr float LIMITE_IMPACTO_G = 2.5f;
 // passe despercebido entre dois quadros.
 constexpr unsigned long JANELA_IMPACTO_MS = 1000;
 
+// ---- Rumo relativo (yaw) por integracao do giroscopio (2026-08-13) ----
+//
+// Por que existe: com UM encoder so, a distancia vem do encoder e o RUMO
+// tem que vir de outro lugar (fusao_sensores.py). O acelerometro nao serve
+// - ele mede a gravidade, e girar no plano nao muda nada nela. Quem sabe
+// girar e o giroscopio, que a MPU6050 ja entrega na mesma leitura I2C que
+// esta classe ja faz a cada 50 ms. Custo adicional: zero leitura extra.
+//
+// O QUE ISTO NAO E: nao e bussola. Isto e rumo RELATIVO - conta quanto
+// girou desde que ligou (ou desde zerarYaw()), nao para onde o Norte fica.
+// E deriva: erro de vies nao corrigido vira angulo somado para sempre. Quem
+// da o rumo absoluto e a BussolaManager, e ela so vale com o robo parado
+// (motor de passo perto distorce o campo mais que a propria Terra,
+// EDR-0024). Os dois juntos e que fecham a conta: giroscopio enquanto anda,
+// bussola para rezerar quando para.
+
+// Abaixo desta taxa a leitura e tratada como robo PARADO: nao integra (o
+// ruido viraria giro fantasma) e aproveita para refinar o vies.
+//
+// 0,02 rad/s = 1,15 graus/s. O preco honesto dessa escolha: uma rotacao
+// mais lenta que isso e invisivel - girando a 1 grau/s por 10 s, o robo
+// perde 10 graus e nao sabe. Aceito porque este chassi gira na casa de
+// dezenas de graus por segundo; se um dia existir manobra fina de verdade,
+// e este numero que precisa cair (e ai o ruido do giro passa a entrar).
+constexpr float LIMIAR_REPOUSO_RAD_S = 0.02f;
+
+// Quanto de cada leitura em repouso entra no vies. Baixo de proposito: o
+// vies tem que seguir a deriva termica (que leva minutos), nao o ruido de
+// cada amostra.
+constexpr float FATOR_APRENDIZADO_VIES = 0.01f;
+
+// Antes disso o vies ainda nao vale nada e o yaw seria lixo somado - por
+// isso `yawValido()` responde false e a telemetria nem publica o campo. A
+// 50 ms por leitura, sao ~2,5 s de robo parado depois de ligar.
+constexpr uint16_t AMOSTRAS_VIES_MINIMAS = 50;
+
 // Calibracao do vetor "para baixo" gravada na EEPROM.
 //
 // Por que existe: o modulo nao esta colado perfeitamente alinhado com o
@@ -126,6 +162,16 @@ class ImuManager {
     if (_aceleracaoG > _limiteImpactoG) {
       _instanteImpacto = millis();
     }
+
+    // dt REAL, nao INTERVALO_IMU_MS assumido: quem chama isto e o loop de
+    // main.cpp, que atrasa quando a serial bloqueia ou o ultrassom espera
+    // eco. Integrar com o intervalo nominal enquanto o real foi outro erra
+    // o angulo na exata proporcao do atraso - e o loop deste firmware ja
+    // e conhecido por esticar (por isso existe o `loop_max_us`).
+    unsigned long agoraUs = micros();
+    float dt_s = (_ultimaLeituraUs == 0) ? 0.0f : (agoraUs - _ultimaLeituraUs) / 1000000.0f;
+    _ultimaLeituraUs = agoraUs;
+    _integrarYaw(gyro.gyro.z, dt_s);
   }
 
   // Le o pico acumulado e ZERA - assim cada quadro de telemetria reporta o
@@ -171,6 +217,17 @@ class ImuManager {
     return true;
   }
 
+  // Rumo relativo acumulado, 0..360 graus. So faz sentido depois de
+  // yawValido() - antes disso o vies do giroscopio ainda nao foi estimado
+  // e o valor e ruido integrado.
+  float yawGraus() const { return _yawGraus; }
+  bool yawValido() const { return _conectado && _amostrasVies >= AMOSTRAS_VIES_MINIMAS; }
+
+  // Faz do rumo atual o zero. Serve para o Motion Core alinhar o rumo
+  // relativo com uma referencia que ele conheca (a bussola com o robo
+  // parado, ou o inicio de uma missao).
+  void zerarYaw() { _yawGraus = 0.0f; }
+
   bool conectado() const { return _conectado; }
   bool calibrado() const { return _calibrado; }
   float inclinacaoGraus() const { return _inclinacaoGraus; }
@@ -189,6 +246,44 @@ class ImuManager {
   }
 
  private:
+  // Integra a taxa do giroscopio em angulo, descontando o vies.
+  //
+  // O vies e o motivo de isto nao ser so uma soma: um MPU6050 parado nao
+  // le zero, le algo como 0,01-0,03 rad/s de offset, que muda com a
+  // temperatura. Integrando sem descontar, o robo "gira" sozinho parado -
+  // 0,02 rad/s dao mais de 1 grau por segundo, 68 graus em um minuto.
+  //
+  // O vies NAO e medido uma vez no boot e esquecido, de proposito: ele
+  // anda com a temperatura, e o boot e justamente quando o chip esta frio.
+  // Em vez disso, toda leitura em repouso refina a estimativa. Isso tambem
+  // resolve o caso do robo que liga ja em movimento (empurrado, ou reset
+  // no meio de uma missao): yawValido() so responde true quando houver
+  // repouso suficiente para o vies valer alguma coisa.
+  void _integrarYaw(float gyroZ_rad_s, float dt_s) {
+    // dt zero = primeira leitura (nao ha intervalo ainda). dt grande =
+    // houve pausa longa (reset da serial, loop travado, robo dormindo);
+    // integrar um intervalo desses com a taxa de AGORA inventaria um giro
+    // que ninguem viu, entao o quadro e descartado.
+    if (dt_s <= 0.0f || dt_s > 0.5f) return;
+
+    float taxa_rad_s = gyroZ_rad_s - _viesZ;
+
+    if (fabs(taxa_rad_s) < LIMIAR_REPOUSO_RAD_S) {
+      // Parado: refina o vies e NAO integra. Nao integrar em repouso e o
+      // que impede a deriva de existir enquanto o robo esta parado - que e
+      // a maior parte do tempo dele.
+      _viesZ += (gyroZ_rad_s - _viesZ) * FATOR_APRENDIZADO_VIES;
+      if (_amostrasVies < AMOSTRAS_VIES_MINIMAS) _amostrasVies++;
+      return;
+    }
+
+    _yawGraus += degrees(taxa_rad_s) * dt_s;
+    // normaliza para 0..360 (fmod sozinho devolve negativo para entrada
+    // negativa, e o consumidor espera rumo, nao angulo com sinal)
+    _yawGraus = fmod(_yawGraus, 360.0f);
+    if (_yawGraus < 0.0f) _yawGraus += 360.0f;
+  }
+
   // Le a calibracao gravada; se nao houver, fica no eixo Z puro (0,0,1).
   void carregarCalibracao() {
     CalibracaoImu dados;
@@ -223,6 +318,12 @@ class ImuManager {
   unsigned long _instanteImpacto = 0;  // millis() do ultimo tranco (0 = nenhum)
   float _ax = 0, _ay = 0, _az = 0;      // ultima leitura crua (m/s^2)
   float _refX = 0, _refY = 0, _refZ = 1;  // referencia "para baixo" (normalizada)
+
+  // rumo relativo (yaw) integrado do giroscopio - ver _integrarYaw
+  float _yawGraus = 0.0f;
+  float _viesZ = 0.0f;             // offset do giroscopio em repouso (rad/s)
+  uint16_t _amostrasVies = 0;      // quantas leituras em repouso ja entraram
+  unsigned long _ultimaLeituraUs = 0;  // para o dt real da integracao
 };
 
 }  // namespace orion

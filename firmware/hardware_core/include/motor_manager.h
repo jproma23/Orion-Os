@@ -121,6 +121,12 @@ class MotorManager {
   long passosAcumuladosEsquerda() const { return _esquerda.passosAcumulados; }
   long passosAcumuladosDireita() const { return _direita.passosAcumulados; }
 
+  // Sentido COMANDADO de cada roda. Existe para o EncoderManager: um
+  // encoder de canal unico conta pulso mas nao sabe o lado, e sem isto
+  // toda marcha a re seria contada como avanco (ver encoder_manager.h).
+  bool sentidoFrenteEsquerda() const { return _esquerda.sentidoFrente; }
+  bool sentidoFrenteDireita() const { return _direita.sentidoFrente; }
+
  private:
   EstadoRoda _esquerda;
   EstadoRoda _direita;
