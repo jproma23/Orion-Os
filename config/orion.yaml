@@ -72,6 +72,36 @@ motion:
   # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
   # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
   # medir com o chassi real e ajustar aqui quando os motores forem montados.
+  #
+  # Com UM encoder só, este número deixa de ser cosmético: ele entra na
+  # recuperação da distância do centro (d_centro = d_roda ± (bitola/2)·Δθ).
+  # Errar a bitola vira erro de distância proporcional ao quanto o robô gira.
+
+  # --- Encoder de roda (2026-08-13) ---
+  #
+  # Onde há encoder FÍSICO instalado. Enquanto for "nenhum", a distância
+  # continua vindo dos passos COMANDADOS, que é uma afirmação e não uma
+  # medição - o robô já disse ter andado 85 cm com os motores desconectados.
+  #
+  #   "nenhum"    - sem encoder; distância = passos comandados (estado atual)
+  #   "esquerda"  - um encoder, na roda esquerda
+  #   "direita"   - um encoder, na roda direita
+  #   "ambos"     - dois encoders (odometria diferencial medida de verdade)
+  #
+  # Um encoder só é uma escolha legítima, não meia-solução: o rumo não sai
+  # da diferença entre as rodas (a pior fonte que existe - qualquer patinada
+  # corrompe e o erro nunca sai), e sim do giroscópio, quando o firmware
+  # passar a expor `yaw_graus`. Ver o cabeçalho de fusao_sensores.py.
+  encoder_lado: "nenhum"
+
+  # Pulsos do encoder por metro percorrido. ZERO = não medido ainda; com
+  # zero o módulo se recusa a usar o encoder e cai nos passos comandados,
+  # em vez de dividir por zero ou inventar escala.
+  #
+  # Como medir: marcar 2 m no chão, empurrar o robô com o motor desligado,
+  # ler o contador de pulsos, dividir por 2. NUNCA calcular pela datasheet -
+  # o diâmetro efetivo da roda muda com o peso e com o piso.
+  encoder_pulsos_por_metro: 0.0
 
 navigation:
   follow_distance_m: 1.2

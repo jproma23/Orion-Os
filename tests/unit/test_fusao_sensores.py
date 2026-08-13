@@ -9,6 +9,7 @@ comportamento esperado tambem com o Mega fisico.
 """
 import asyncio
 import math
+from contextlib import asynccontextmanager
 
 import pytest
 import pytest_asyncio
@@ -176,6 +177,159 @@ async def test_re_so_de_um_lado_gira_para_o_outro(cenario):
     recuo_direita_m = (800 - 2000) / CONFIG_MOTION["steps_per_meter"]
     esperado_graus = math.degrees(recuo_direita_m / CONFIG_MOTION["wheel_base_m"]) % 360.0
     assert cenario.posicoes[0]["orientacao_graus"] == pytest.approx(esperado_graus, rel=1e-3)
+
+
+# ---------- odometria com encoder de roda (motion.encoder_lado) ----------
+#
+# Telemetria sintetica, como o resto do arquivo: nenhum encoder fisico foi
+# montado ate 2026-08-13. As contas abaixo descrevem a geometria esperada,
+# nao uma medicao de bancada - quando houver pulso real, e este arquivo que
+# diz o que deveria ter acontecido.
+
+# um encoder so, na roda esquerda, com escala ja medida (1000 pulsos = 1 m)
+ENCODER_ESQUERDA = {"encoder_lado": "esquerda", "encoder_pulsos_por_metro": 1000.0}
+ENCODER_DIREITA = {"encoder_lado": "direita", "encoder_pulsos_por_metro": 1000.0}
+
+
+@asynccontextmanager
+async def cenario_com(**motion):
+    """Cenario com o bloco `motion` ajustado (encoder, escala, bitola)."""
+    config = dict(CONFIG_MOTION)
+    config.update(motion)
+    c = Cenario(config)
+    tarefa = asyncio.create_task(c.bus.iniciar())
+    try:
+        yield c
+    finally:
+        tarefa.cancel()
+
+
+@pytest.mark.asyncio
+async def test_um_encoder_mede_a_distancia_em_vez_de_afirmar():
+    # 2000 passos comandados = 0,5 m; 500 pulsos = 0,5 m medidos. Andando
+    # reto os dois concordam - o que este teste fixa e a PROCEDENCIA.
+    async with cenario_com(**ENCODER_ESQUERDA) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0, pulsos_esquerda=0)
+        await c.enviar_telemetria(
+            passos_esquerda=2000, passos_direita=2000, pulsos_esquerda=500
+        )
+        pos = c.posicoes[0]
+        assert pos["x_m"] == pytest.approx(0.5, abs=1e-3)
+        assert pos["orientacao_graus"] == pytest.approx(0.0, abs=1e-3)
+        assert pos["fonte_distancia"] == "encoder"
+
+
+@pytest.mark.asyncio
+async def test_girar_no_proprio_eixo_com_um_encoder_nao_vira_avanco():
+    """A armadilha do encoder unico, e a razao de a bitola entrar na conta.
+
+    Girando parado, a roda esquerda recua 0,15 m e a direita avanca 0,15 m
+    (bitola 0,30 m, 1 rad). O CENTRO nao sai do lugar. Quem lesse so o
+    encoder da esquerda concluiria "recuei 15 cm"; quem tratasse o lado sem
+    encoder como zero concluiria "avancei 7,5 cm". Os dois estariam errados.
+    """
+    async with cenario_com(**ENCODER_ESQUERDA) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0, pulsos_esquerda=0)
+        await c.enviar_telemetria(
+            passos_esquerda=-600, passos_direita=600, pulsos_esquerda=-150
+        )
+        pos = c.posicoes[0]
+        assert pos["x_m"] == pytest.approx(0.0, abs=1e-3)
+        assert pos["y_m"] == pytest.approx(0.0, abs=1e-3)
+        assert pos["orientacao_graus"] == pytest.approx(math.degrees(1.0), abs=1e-2)
+
+
+@pytest.mark.asyncio
+async def test_encoder_na_direita_usa_o_sinal_oposto_da_bitola():
+    # mesmo giro parado do teste anterior, encoder do outro lado: a roda
+    # direita avanca 0,15 m e o centro continua parado.
+    async with cenario_com(**ENCODER_DIREITA) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0, pulsos_direita=0)
+        await c.enviar_telemetria(
+            passos_esquerda=-600, passos_direita=600, pulsos_direita=150
+        )
+        pos = c.posicoes[0]
+        assert pos["x_m"] == pytest.approx(0.0, abs=1e-3)
+        assert pos["orientacao_graus"] == pytest.approx(math.degrees(1.0), abs=1e-2)
+
+
+@pytest.mark.asyncio
+async def test_quando_discordam_o_encoder_manda():
+    # o motor recebeu ordem de andar 0,5 m e a roda so girou 0,25 m (passo
+    # perdido no TB6600, roda patinando). E esse o caso que justifica o
+    # encoder existir - a pose tem que seguir o que girou, nao o que foi
+    # mandado girar.
+    async with cenario_com(**ENCODER_ESQUERDA) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0, pulsos_esquerda=0)
+        await c.enviar_telemetria(
+            passos_esquerda=2000, passos_direita=2000, pulsos_esquerda=250
+        )
+        assert c.posicoes[0]["x_m"] == pytest.approx(0.25, abs=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_sem_encoder_a_pose_admite_que_nao_mediu(cenario):
+    # comportamento antigo intacto, mas agora declarado: em 2026-07-30 a
+    # pose afirmou 85 cm com os motores desconectados, e nada no evento
+    # denunciava que aquilo era ordem, nao medicao.
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+    await cenario.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
+    pos = cenario.posicoes[0]
+    assert pos["x_m"] == pytest.approx(1.0, abs=1e-3)
+    assert pos["fonte_distancia"] == "passos_comandados"
+    assert pos["fonte_rumo"] == "passos_comandados"
+
+
+@pytest.mark.asyncio
+async def test_escala_nao_medida_recusa_o_encoder_em_vez_de_chutar():
+    # encoder_pulsos_por_metro = 0 e o default: ninguem mediu ainda. Usar
+    # assim seria dividir por zero; inventar um valor seria pior.
+    async with cenario_com(encoder_lado="esquerda", encoder_pulsos_por_metro=0.0) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0, pulsos_esquerda=0)
+        await c.enviar_telemetria(
+            passos_esquerda=4000, passos_direita=4000, pulsos_esquerda=999
+        )
+        pos = c.posicoes[0]
+        assert pos["fonte_distancia"] == "passos_comandados"
+        assert pos["x_m"] == pytest.approx(1.0, abs=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_config_promete_encoder_e_a_telemetria_nao_traz_o_campo():
+    # firmware velho, ou nome de campo trocado: nao pode travar a odometria
+    # nem fingir que o encoder existe.
+    async with cenario_com(**ENCODER_ESQUERDA) as c:
+        await c.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+        await c.enviar_telemetria(passos_esquerda=4000, passos_direita=4000)
+        pos = c.posicoes[0]
+        assert pos["x_m"] == pytest.approx(1.0, abs=1e-3)
+        assert pos["fonte_distancia"] == "passos_comandados"
+
+
+@pytest.mark.asyncio
+async def test_yaw_do_giroscopio_ganha_e_a_volta_de_359_para_1_e_dois_graus():
+    # yaw ainda nao existe na telemetria de hoje; quando existir, ele passa
+    # na frente ate dos dois encoders (o rumo tirado da diferenca entre
+    # rodas e o que mais acumula erro). A conta do menor arco evita que
+    # cruzar o zero injete um salto de -358 graus na pose.
+    async with cenario_com(encoder_lado="ambos", encoder_pulsos_por_metro=1000.0) as c:
+        await c.enviar_telemetria(
+            passos_esquerda=0,
+            passos_direita=0,
+            pulsos_esquerda=0,
+            pulsos_direita=0,
+            yaw_graus=359.0,
+        )
+        await c.enviar_telemetria(
+            passos_esquerda=0,
+            passos_direita=0,
+            pulsos_esquerda=0,
+            pulsos_direita=0,
+            yaw_graus=1.0,
+        )
+        pos = c.posicoes[0]
+        assert pos["orientacao_graus"] == pytest.approx(2.0, abs=1e-2)
+        assert pos["fonte_rumo"] == "giroscopio"
 
 
 # ---------- seguranca da IMU ----------
