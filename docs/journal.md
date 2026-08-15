@@ -7631,3 +7631,9 @@ cognitiva — alimentar o "Eu já sei?" (Camada 1) e fechar o ciclo
    próximo fio deste degrau.
 3. Fio 2 da Camada 6: extrair lição via IA de várias experiências cruas (padrão
    `ExtratorFatos`) — custa cota, por isso ficou de fora desta sessão.
+
+Decisões do dono (2026-08-14): (1) a memória do Notebook NÃO será alimentada
+agora — o portão "Eu já sei?" roda no Pi e é lá que ela importa; o caso
+`/mnt/ssd` do Notebook fica documentado como pendência do banco. (2) A fala
+proativa do relato `navigation.obstacle_recorrente` fica como próximo fio
+(o avatar ainda não narra eventos de navegação sozinhos).
