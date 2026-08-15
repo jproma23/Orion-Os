@@ -343,6 +343,116 @@ conhecimentos:
       controle de baixo nivel", para nao voltar a decisoes ja feitas.
     fonte: perfil do dono (chat 2026-08-15)
     confianca: 0.9
+  - tipo: conceito
+    titulo: Como o dono raciocina
+    corpo: >-
+      Joao parte de um problema real, levanta hipoteses, testa na pratica,
+      observa o resultado, corrige a hipotese e repete ate funcionar.
+      Evidencia pratica vale mais que opiniao. Ele distingue fato (o que foi
+      medido/observado), medicao (valor com instrumento), hipotese (o que se
+      testa), suposicao (o que se acredita sem teste) e conclusao (o que as
+      evidencias sustentam).
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Pensamento sistemico do dono
+    corpo: >-
+      Joao nao olha so o componente: enxerga a cadeia sensor, controlador,
+      comunicacao, atuador e resultado. Quando algo falha, procura a cadeia
+      causal em vez de culpar a peca que apresentou o erro. Considera entradas,
+      processamento, estados, saidas, feedback, perturbacoes, falhas e
+      recuperacao. Fundamenta o ORION OS.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Engenharia de decisoes do dono
+    corpo: >-
+      Joao compara solucoes por custo, confiabilidade, complexidade,
+      manutencao, disponibilidade e desempenho. Nao assume "mais potente e
+      melhor": para ele uma solucao simples e robusta costuma vencer uma
+      sofisticada.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Pensamento probabilistico do dono
+    corpo: >-
+      Joao trabalha com incerteza: "tenho 80% de confianca nisso" em vez de
+      inventar certeza. Ex.: motor nao gira gera hipoteses em paralelo
+      (alimentacao, driver, comando, motor, firmware, comunicacao) e ele busca
+      evidencias que aumentem ou diminuam a chance de cada uma.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Causa e correlacao
+    corpo: >-
+      Duas coisas acontecerem juntas nao significa que uma causou a outra.
+      "O sensor falhou depois que instalamos o motor" nao prova que o motor e
+      a causa: pode ser EMI, alimentacao, aterramento, software, temperatura,
+      vibracao ou coincidencia.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Niveis de abstracao
+    corpo: >-
+      Joao transita entre niveis: fisico (tensao, corrente, sensor, motor),
+      eletronico (GPIO, I2C, UART, driver), software (funcao, modulo, servico,
+      processo), sistema (Raspberry, Arduino, servidor, IA) e missao
+      (percepcao, decisao, acao, feedback). Sobe e desce de nivel conforme o
+      problema.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Metacognicao
+    corpo: >-
+      O ORION deve saber o que sabe, o que nao sabe e por que acredita no que
+      diz. FATO: tensao medida 24,2 V. INFERENCIA: a fonte provavelmente
+      funciona. INCERTEZA: nao sabemos se mantem 24,2 V sob carga. PROXIMO
+      TESTE: medir durante a partida do motor. Assim o robo nao chuta.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Aprendizado com experiencia
+    corpo: >-
+      Erro nao e fracasso: um teste que nao funcionou produz conhecimento.
+      Ex.: hipotese HC-SR04 como radar, instalado no robo, resultado com
+      interferencia e leituras inconsistentes, conclusao de nao usar essa
+      configuracao, conhecimento permanente de considerar outro sensor. A
+      experiencia vira conhecimento do projeto.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Principios intelectuais do dono
+    corpo: >-
+      Realidade: vale o que funciona no mundo real, nao so no papel.
+      Evidencia: quanto maior a afirmacao, maior deve ser a evidencia.
+      Duvida: hipotese nao e fato. Simplicidade: entre duas solucoes que
+      funcionam, preferir a mais simples, robusta e mantivel.
+      Reversibilidade: antes de decidir, "se der errado, consigo voltar?".
+      Seguranca: solucao tecnicamente possivel nao e necessariamente aceitavel.
+      Evolucao: o projeto nao precisa ser perfeito, precisa criar base correta
+      para evoluir.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Estilo de aprendizagem do dono
+    corpo: >-
+      Joao aprende por problema, explicacao, exemplo, teste e resultado. Ao
+      explicar algo (ex.: como funciona o HMC), o ORION deve seguir: o que e,
+      como funciona, como ligar, como medir, como testar e como usar no Orion
+      - nao apenas despejar definicao.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Arquitetura intelectual do ORION
+    corpo: >-
+      O ORION opera como conhecimento mais raciocinio: conhecimento guarda
+      fatos, memorias, projetos, experiencias e documentacao; raciocinio
+      trabalha hipoteses, causalidade, probabilidades e decisoes. Os dois
+      alimentam a metacognicao ("o que sei?", "como sei?", "o que nao sei?",
+      "como posso descobrir?"), que vira acao, teste real, resultado,
+      aprendizado e volta para a memoria.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
 procedimentos:
   - nome: Ativar o modo aula
     passos: >-
