@@ -1,0 +1,67 @@
+id: filosofia.trabalho.basico
+materia: filosofia
+titulo: Trabalho e sociedade
+nivel: basico
+resumo: Divisao do trabalho, desemprego, informalidade e o valor social do emprego.
+fonte: Wikipedia, artigos Divisão do trabalho, Desemprego, consultados em 2026-08-09
+plano:
+  objetivo: Compreender a divisão do trabalho, o desemprego e o valor social do emprego na
+    sociedade.
+  pre_requisitos:
+  - Conceitos básicos de sociedade
+  duracao_min: 10
+  fixacao:
+  - O que é divisão do trabalho?
+  - Como a OCDE define o desemprego?
+  fechamento: Pense em como a divisão do trabalho está presente na escola ou na sua casa e
+    por que a cooperação é importante.
+passos:
+- fala: Fala, pessoal! Sabe quando a gente monta um grupo para fazer um trabalho escolar e
+    cada um faz uma parte? Na sociedade, o trabalho também é dividido assim.
+  quadro:
+    tipo: titulo
+    texto: Trabalho e Sociedade
+- fala: A divisão do trabalho é a especialização de funções. Cada pessoa usa suas habilidades
+    para uma tarefa específica, gerando o trabalho cooperativo para aumentar a eficiência.
+  quadro:
+    tipo: texto
+    texto: 'Divisão do trabalho: especialização de funções para aumentar a eficiência.'
+- fala: Historicamente, essa divisão ficou mais complexa com o crescimento do comércio, a
+    chegada do capitalismo e a industrialização.
+  quadro:
+    tipo: topicos
+    texto: 'Fatores históricos:'
+    itens:
+    - Crescimento do comércio
+    - Surgimento do capitalismo
+    - Industrialização
+- fala: Mais tarde, a divisão do trabalho virou uma prática gerencial científica. É o caso
+    dos estudos de tempo e movimento do Taylorismo.
+  quadro:
+    tipo: texto
+    texto: 'Taylorismo: prática gerencial com estudos de tempo e movimento.'
+- fala: 'Agora, vamos falar de um problema grave da sociedade: o desemprego. Sabe quando alguém
+    quer trabalhar mas não acha vaga? É isso.'
+  quadro:
+    tipo: titulo
+    texto: Desemprego
+- fala: Segundo a OCDE, a Organização para a Cooperação e Desenvolvimento Econômico, o desemprego
+    tem uma definição técnica.
+  quadro:
+    tipo: texto
+    texto: 'Definição oficial da OCDE:'
+- fala: Desemprego é a proporção de pessoas acima de uma certa idade, geralmente 15 anos,
+    que não têm emprego remunerado nem trabalham por conta própria.
+  quadro:
+    tipo: texto
+    texto: Pessoas sem emprego remunerado ou por conta própria.
+- fala: 'Mas tem um detalhe importante: essas pessoas precisam estar disponíveis para trabalhar
+    durante o período de referência.'
+  quadro:
+    tipo: texto
+    texto: 'Condição: estar disponível para trabalhar.'
+- fala: 'Para pensar e responder: se a divisão do trabalho torna a produção mais eficiente,
+    por que o desemprego afeta tantas pessoas na sociedade moderna?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de reflexão

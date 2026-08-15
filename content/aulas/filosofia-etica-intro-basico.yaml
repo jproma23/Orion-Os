@@ -1,0 +1,74 @@
+id: filosofia.etica-intro.basico
+materia: filosofia
+titulo: Ética - primeiras perguntas
+nivel: basico
+resumo: Certo e errado, virtude, dever e consequencia; moral e etica nao sao a mesma coisa.
+fonte: Wikipedia, artigos Ética, Virtude, consultados em 2026-08-09
+plano:
+  objetivo: Certo e errado, virtude, dever e consequencia; moral e etica nao sao a mesma coisa.
+  pre_requisitos:
+  - Conceitos basicos de convivencia em sociedade
+  duracao_min: 10
+  fixacao:
+  - Qual a diferenca basica entre moral e etica?
+  - O que e virtude segundo o texto?
+  fechamento: Pense em uma situacao do seu dia a dia em que voce fez a coisa certa mesmo sem
+    ser obrigado. Por que voce agiu assim?
+passos:
+- fala: 'Fala serio: voce ja parou para pensar por que sabe que roubar e errado, mas ajudar
+    um colega e certo? Vamos entender como a filosofia estuda isso hoje.'
+  quadro:
+    tipo: titulo
+    texto: 'Ética: As Primeiras Perguntas'
+- fala: Primeiro, vamos olhar para o nosso dia a dia. Moral e etica parecem a mesma coisa,
+    mas nao sao. A etica e o conjunto de padroes e valores de um grupo ou de voce.
+  quadro:
+    tipo: texto
+    texto: Ética = conjunto de padrões e valores de um grupo ou indivíduo
+- fala: Ja na Filosofia, a etica vai mais fundo. Ela e a disciplina que estuda os fundamentos
+    da acao moral, procurando justificar a moralidade.
+  quadro:
+    tipo: texto
+    texto: 'Filosofia ética (ou filosofia moral): estuda os fundamentos da ação moral'
+- fala: A etica na filosofia serve para separar as aguas. Ela nos ajuda a distinguir o que
+    e uma acao moral, o que e imoral e o que e amoral.
+  quadro:
+    tipo: topicos
+    texto: Distinções da ação
+    itens:
+    - Ações morais
+    - Ações imorais
+    - Ações amorais
+- fala: Agora vamos falar de virtude. Ja reparou naquela pessoa que sempre faz a coisa certa,
+    mesmo quando ninguem esta olhando? Isso e virtude.
+  quadro:
+    tipo: texto
+    texto: Virtude (do latim virtus) = característica de excelência
+- fala: 'Essas caracteristicas de excelencia podem ser de tres tipos: morais, sociais ou intelectuais.'
+  quadro:
+    tipo: topicos
+    texto: Tipos de características
+    itens:
+    - Morais
+    - Sociais
+    - Intelectuais
+- fala: E por que isso importa? Porque o cultivo da virtude e considerado o bem da humanidade.
+    E visto como um proposito final da vida.
+  quadro:
+    tipo: texto
+    texto: 'Propósito final da vida: o cultivo e o refinamento da virtude'
+- fala: Na etica pratica, ter virtude significa estar disposto a escolher acoes que mostram
+    elevados padroes morais.
+  quadro:
+    tipo: texto
+    texto: Virtude prática = disposição para escolher ações de elevados padrões morais
+- fala: Isso significa fazer o que esta certo e evitar o que e errado em qualquer campo de
+    atividade, mesmo quando parece desutil ou desnecessario.
+  quadro:
+    tipo: texto
+    texto: Fazer o certo e evitar o errado, mesmo sem vantagem utilitarista
+- fala: 'Para fechar: para voce, qual e a diferenca entre seguir regras so porque todo mundo
+    segue e agir por virtude?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta final: Regra vs. Virtude'

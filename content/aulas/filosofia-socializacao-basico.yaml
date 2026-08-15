@@ -1,0 +1,70 @@
+id: filosofia.socializacao.basico
+materia: filosofia
+titulo: Socialização e cultura
+nivel: basico
+resumo: Como a pessoa aprende a viver em sociedade; cultura, norma e desvio.
+fonte: Wikipedia, artigos Pessoa, Cultura, consultados em 2026-08-09
+plano:
+  objetivo: Como a pessoa aprende a viver em sociedade; cultura, norma e desvio.
+  pre_requisitos:
+  - Vida em sociedade
+  duracao_min: 10
+  fixacao:
+  - O que e cultura?
+  - O que e uma norma cultural?
+  fechamento: Pense em uma regra de vestimenta ou comportamento da sua escola. O que acontece
+    se alguem decide quebrar essa regra?
+passos:
+- fala: Fala, galera! Ja reparou que a gente nasce sabendo mamar e chorar, mas aprende a falar,
+    a comer com talheres e a cumprimentar os outros?
+  quadro:
+    tipo: titulo
+    texto: Socialização e Cultura
+- fala: Essa forma de agir, de se vestir e de falar que a gente aprende vivendo em grupo e
+    o que a gente chama de cultura.
+  quadro:
+    tipo: texto
+    texto: 'Cultura: comportamento social, instituições, normas, crenças e hábitos de um grupo.'
+- fala: A cultura de um grupo engloba muita coisa. Vamos ver o que entra nesse pacote.
+  quadro:
+    tipo: topicos
+    texto: Elementos da Cultura
+    itens:
+    - Comportamento social e instituições
+    - Conhecimento, crenças e leis
+    - Artes, costumes e hábitos
+- fala: A cultura geralmente nasce ou pertence a uma região ou local específico. O jeito de
+    viver muda de um lugar para o outro.
+  quadro:
+    tipo: texto
+    texto: 'Origem: a cultura costuma estar ligada a uma região ou local específico.'
+- fala: Mas como a gente absorve tudo isso? A gente aprende a cultura de dois jeitos principais.
+  quadro:
+    tipo: topicos
+    texto: Como se adquire cultura
+    itens:
+    - Enculturação
+    - Socialização
+- fala: E e justamente essa aprendizagem que explica por que existem tantas culturas diferentes
+    nas sociedades humanas.
+  quadro:
+    tipo: texto
+    texto: 'Resultado: diversidade de culturas nas sociedades humanas.'
+- fala: Dentro da cultura, existem as chamadas normas culturais. Elas servem para mostrar
+    o que e uma conduta aceitável na sociedade.
+  quadro:
+    tipo: titulo
+    texto: Normas Culturais
+- fala: A norma funciona como uma diretriz para o nosso comportamento do dia a dia.
+  quadro:
+    tipo: topicos
+    texto: Exemplos de diretrizes
+    itens:
+    - Modo de vestir
+    - Linguagem utilizada
+    - Comportamento em situações específicas
+- fala: Por fim, essas normas servem como um modelo para as expectativas que o grupo social
+    tem sobre a gente.
+  quadro:
+    tipo: texto
+    texto: 'Função: servem como modelo para as expectativas em um grupo social.'

@@ -1,0 +1,71 @@
+id: filosofia.logica.basico
+materia: filosofia
+titulo: Lógica e argumentação
+nivel: basico
+resumo: Premissa, conclusao, validade, e as falacias mais usadas no dia a dia.
+fonte: Wikipedia, artigos Lógica da argumentação, Premissa, Conclusão, Validade, consultados
+  em 2026-08-09
+plano:
+  objetivo: Aprender premissa, conclusao e validade na logica e argumentacao
+  pre_requisitos:
+  - Raciocinio basico
+  duracao_min: 10
+  fixacao:
+  - O que e uma premissa?
+  - Para que serve a conclusao?
+  fechamento: Agora voce sabe identificar a base de um argumento e sua conclusao.
+passos:
+- fala: Fala, pessoal! Ja viram alguem ganhar uma discussao so porque soube organizar as ideias?
+    Hoje vamos ver como a logica estuda isso.
+  quadro:
+    tipo: titulo
+    texto: Logica e Argumentacao
+- fala: A logica formaliza a forma como raciocinamos e discutimos. Ela e usada ate em computadores
+    e inteligencia artificial.
+  quadro:
+    tipo: texto
+    texto: Descricao formalizada do raciocinio humano
+- fala: Vamos comecar pelo conceito de premissa. Pense nela como a base de um argumento, a
+    informacao aceita como verdadeira para iniciar um raciocinio.
+  quadro:
+    tipo: titulo
+    texto: Premissa
+- fala: No texto da logica, a premissa e uma formula considerada hipoteticamente verdadeira
+    dentro de uma inferencia.
+  quadro:
+    tipo: texto
+    texto: ' Formula considerada hipoteticamente verdadeira'
+- fala: A estrutura basica de um argumento junta varias premissas para chegar a um destino.
+  quadro:
+    tipo: topicos
+    texto: Estrutura do Argumento
+    itens:
+    - Colecao de premissas
+    - Conclusao
+- fala: Esse destino e a conclusao, que e para onde o nosso estudo e o nosso raciocinio nos
+    levam.
+  quadro:
+    tipo: titulo
+    texto: Conclusao
+- fala: A conclusao depende diretamente das premissas e do sistema logico que estamos usando.
+  quadro:
+    tipo: texto
+    texto: O resultado final baseado nas premissas
+- fala: Por fim, vamos falar de validade. Na logica, validade e uma propriedade dos argumentos
+    dedutivos.
+  quadro:
+    tipo: titulo
+    texto: Validade
+- fala: A validade tambem e conhecida como verdade logica, analitica ou necessaria.
+  quadro:
+    tipo: topicos
+    texto: Outros nomes para Validade
+    itens:
+    - Verdade logica
+    - Verdade analitica
+    - Verdade necessaria
+- fala: 'Para fechar: se voce usa duas premissas para defender um ponto de vista, como voce
+    garante que a sua conclusao e valida?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fixacao: Como as premissas garantem a conclusao?'

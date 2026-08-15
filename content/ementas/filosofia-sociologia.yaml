@@ -11,27 +11,33 @@ niveis:
       - id: fil.o-que-e-filosofia
         titulo: O que é filosofia
         conteudo: A pergunta como metodo, mito e razao, e por que duvidar e trabalho serio.
+        aula: filosofia.o-que-e-filosofia.basico
       - id: fil.socrates-platao
         titulo: Sócrates, Platão e Aristóteles
         conteudo: O nao saber socratico, o mundo das ideias e a logica aristotelica.
       - id: fil.logica
         titulo: Lógica e argumentação
         conteudo: Premissa, conclusao, validade, e as falacias mais usadas no dia a dia.
+        aula: filosofia.logica.basico
       - id: fil.etica-intro
         titulo: Ética - primeiras perguntas
         conteudo: Certo e errado, virtude, dever e consequencia; moral e etica nao sao a mesma coisa.
+        aula: filosofia.etica-intro.basico
       - id: soc.o-que-e-sociologia
         titulo: O que é sociologia
         conteudo: O olhar sociologico, senso comum contra conhecimento cientifico.
       - id: soc.socializacao
         titulo: Socialização e cultura
         conteudo: Como a pessoa aprende a viver em sociedade; cultura, norma e desvio.
+        aula: filosofia.socializacao.basico
       - id: soc.instituicoes
         titulo: Instituições sociais
         conteudo: Familia, escola, religiao, Estado - o que cada uma faz com as pessoas.
+        aula: filosofia.instituicoes.basico
       - id: soc.trabalho
         titulo: Trabalho e sociedade
         conteudo: Divisao do trabalho, desemprego, informalidade e o valor social do emprego.
+        aula: filosofia.trabalho.basico
 
   intermediario:
     descricao: Os classicos e as estruturas.

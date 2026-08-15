@@ -1,0 +1,86 @@
+id: filosofia.instituicoes.basico
+materia: filosofia
+titulo: Instituições sociais
+nivel: basico
+resumo: Familia, escola, religiao, Estado - o que cada uma faz com as pessoas.
+fonte: Wikipedia, artigos Família, Escola, Religião, consultados em 2026-08-09
+plano:
+  objetivo: Entender o que sao instituicoes sociais como familia, escola e religiao e o papel
+    de cada uma.
+  pre_requisitos:
+  - Viver em sociedade
+  duracao_min: 10
+  fixacao:
+  - O que e a familia?
+  - Qual a funcao da escola?
+  fechamento: Vimos que a familia, a escola e a religiao organizam a nossa vida em sociedade.
+passos:
+- fala: Ola! Pense em como voce aprende regras em casa, estuda na escola e segue valores.
+    Tudo isso sao instituicoes sociais moldando quem voce e.
+  quadro:
+    tipo: titulo
+    texto: Instituicoes Sociais
+- fala: Vamos comecar pela familia. Ela e a unidade basica da sociedade.
+  quadro:
+    tipo: texto
+    texto: 'Familia: unidade basica da sociedade.'
+- fala: A familia e formada por pessoas com ligacoes biologicas, legais ou afetivas, que vivem
+    ou viveram juntas.
+  quadro:
+    tipo: topicos
+    texto: Formacao da familia
+    itens:
+    - Ligacoes biologicas
+    - Ligacoes legais
+    - Ligacoes afetivas
+- fala: Ela e considerada um grupo social primario, pois influencia e e influenciada por outras
+    pessoas e instituicoes.
+  quadro:
+    tipo: texto
+    texto: Grupo social primario
+- fala: Agora vamos falar da escola. A palavra vem do grego schole, que significava um tempo
+    para conversa interessante e educativa.
+  quadro:
+    tipo: limpar
+- fala: Hoje, a escola e uma instituicao feita para o ensino de alunos sob a direcao de professores.
+  quadro:
+    tipo: texto
+    texto: 'Escola: ensino de alunos por professores.'
+- fala: A maioria dos paises tem sistemas formais de educacao que geralmente sao obrigatorios.
+  quadro:
+    tipo: topicos
+    texto: Educacao formal
+    itens:
+    - Sistemas formais
+    - Geralmente obrigatoria
+    - Niveis sucessivos
+- fala: Os estudantes passam por niveis como o ensino fundamental para criancas e o ensino
+    medio para adolescentes.
+  quadro:
+    tipo: topicos
+    texto: Niveis escolares
+    itens:
+    - Ensino fundamental (criancas)
+    - Ensino medio (adolescentes)
+- fala: 'Vamos para o terceiro ponto: a religiao.'
+  quadro:
+    tipo: limpar
+- fala: A religiao e um sistema sociocultural com praticas, organizacoes, morais, crencas
+    e textos sagrados.
+  quadro:
+    tipo: texto
+    texto: 'Religiao: sistema sociocultural'
+- fala: Ela geralmente relaciona a humanidade a elementos sobrenaturais, transcendentais e
+    espirituais.
+  quadro:
+    tipo: topicos
+    texto: Elementos da religiao
+    itens:
+    - Crencas e morais
+    - Elementos sobrenaturais
+    - Praticas e rituais
+- fala: 'Para terminar, pense na sua rotina: qual dessas tres instituicoes -- familia, escola
+    ou religiao -- voce acha que mais molda o seu dia a dia e por que?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual instituicao mais molda seu dia a dia?'
