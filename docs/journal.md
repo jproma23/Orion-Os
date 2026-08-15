@@ -7811,3 +7811,50 @@ duas linhas precisam se encontrar.
 E a mudança da IMU que estava solta no Pi desde as 11:32 foi commitada
 separada (`637ab18`) antes de qualquer coisa minha, para não misturar autoria
 nem assunto. Ela estava rodando em produção sem commit.
+## Sessão de 2026-08-15 — os 62 básicos sem aula ganharam aula; e o prompt do redigir não dizia os campos
+
+Pedido do dono: fechar a grade de ensino básico — os 62 tópicos básico que
+ainda não tinham aula (todas as 13 matérias) foram gerados, redigidos e
+publicados.
+
+### Ensino: a grade básica fecha (content/aulas 51 → 113)
+
+- Os 62 tópicos básico sem aula receberam rascunho no padrão do projeto
+  (`gerar_aula`, fonte "Wikipedia, artigos ...", consultados no dia), passaram
+  pelo `redigir_aula` (com retry) e foram publicados com
+  `gerar_aula --publicar`. Cada ementa teve o tópico apontado (`aula: <id>`);
+  `aulas.py construir` fecha com 312 tópicos, 113 com aula. O que falta são os
+  intermediário/avançado (16 por matéria).
+- Uma aula veio do lixo: `programacao.listas.basico` tinha sido gerada mirando
+  o artigo errado ("Programação de computadores") e repetia a mesma introdução
+  genérica em todos os passos, sem nenhuma linha sobre listas. Regenerada
+  mirando "Lista (informática)" e redigida normalmente.
+- `programacao.orion.avancado` segue FINO (2 passos), mas é avançado e ficou
+  fora deste escopo.
+
+### Achado que mordia: o modelo não sabia os campos do bloco
+
+- O modelo insistia em escrever bloco `formula` com o campo `expressao` em vez
+  de `texto` — "bloco 'formula' sem os campos ['texto']" rejeitou dezenas de
+  chamadas do `redigir_aula`, e uma aula (listas) nunca passava. A causa: o
+  prompt usava `bloco_para_prompt()`, que listava só nome+descrição de cada
+  tipo, sem os nomes dos campos — o modelo adivinhava e errava.
+- Correção em `src/orion/display/quadro.py`: `bloco_para_prompt()` agora lista
+  os campos ("(campos: texto)", "(campos: itens; opcionais: texto)", ...).
+  Sincronizado Pi → Notebook. Redigir daqui pra frente não precisa adivinhar.
+
+### Aulas antigas substituídas (conferir com o dono)
+
+- A normalização de fonte (formato antigo "Wikipedia: X, consultados em
+  <data>" → "Wikipedia, artigos X, consultados em <data>") reescreveu e
+  republicou 3 aulas que já existiam: `biologia.caracteristicas-vida`,
+  `biologia.metabolismo-celular` e `filosofia.o-que-e-filosofia`. As novas
+  versões são redigidas e válidas; a versão anterior está no git, se o dono
+  preferir voltar.
+
+### Pendências, na ordem em que mordem
+
+1. Revisar as 3 aulas substituídas acima (com o dono).
+2. Próximo degrau do ensino: intermediário/avançado (16 tópicos por matéria sem
+   aula).
+3. `programacao.orion.avancado` (FINO) quando o avançado entrar no escopo.
