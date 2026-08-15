@@ -7,6 +7,38 @@ assinatura do agente. Não apague entradas antigas — marque como resolvidas.
 
 ---
 
+## 2026-08-15 — Saber do robo em pasta por area + codigo do proprio robo na memoria
+
+**Agente:** opencode/DeepSeek
+**Estado:** concluído
+
+### O que foi feito
+
+- Criada `content/saber/` com um YAML por area (dono, modelo_cognitivo,
+  projetos, familia, sistema, hardware) e `content/saber/codigo/` com o
+  codigo-fonte descrito arquivo a arquivo: 65 de `src/`, 27 de `motion_core/`,
+  19 do firmware (hardware_core) = 111 entradas.
+- `tools/alimentar_memoria.py` agora le a PASTA inteira de forma recursiva
+  (`rglob`), nao so um arquivo: um YAML por area e tudo mesclado por
+  categoria. Continua idempotente e gravando via MemoryAPI.saber_guardar.
+- Memoria alimentada: conhecimentos 50 -> 161. Busca validada: "heartbeat",
+  "crc16", "enquadramento", "bussola" respondem apontando o arquivo exato.
+- Testes: 4 novos do alimentador (pasta inteira + arquivo unico), suíte de
+  memoria/grounding/ensino passando.
+
+### Avisos para quem continuar
+
+- A memoria do Notebook NAO e alimentada (decisao do dono) - o saber entra no
+  Pi e viaja no git.
+- `content/saber/codigo/` e gerado por script (AST/docstrings); se o codigo
+  mudar muito, regenerar: ler docstring + classes + funcoes de cada arquivo.
+- Working tree do Pi continua com `bussola_manager.h` (troca QMC6310->HMC5883L)
+  e `gerar_aula.py` de outros agentes - nao commitar.
+- Pendente desta sessao: ementa de programacao com 18 topicos avancados novos
+  (Python/JS/MQTT/C++/C/Assembly) ja adicionada, aguardando geracao/redacao.
+
+---
+
 ## 2026-08-15 — Ensino: grade básica fechada (113 aulas) + memória do dono
 
 **Agente:** opencode/DeepSeek
@@ -43,8 +75,6 @@ assinatura do agente. Não apague entradas antigas — marque como resolvidas.
   de seleção de artigo da Wikipedia, em uso pelo fluxo — não commitei).
 - Sync do Notebook está pendente: o `master` de lá está com working tree sujo
   (há outro agente trabalhando lá). Quando liberar, basta puxar o Pi.
-
----
 
 ## 2026-08-15 — Troca da bússola: QMC6310 → HMC5883L (EM ANDAMENTO)
 
