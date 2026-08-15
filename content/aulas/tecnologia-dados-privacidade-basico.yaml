@@ -1,0 +1,64 @@
+id: tecnologia.dados-privacidade.basico
+materia: tecnologia
+titulo: Dados e privacidade
+nivel: basico
+resumo: O que se deixa para tras ao usar um aplicativo, e quem lucra com isso.
+fonte: Wikipedia, artigos Privacidade, Proteção de dados, consultados em 2026-08-14
+plano:
+  objetivo: O que se deixa para tras ao usar um aplicativo, e quem lucra com isso.
+  pre_requisitos:
+  - Uso basico de aplicativos e internet
+  duracao_min: 10
+  fixacao:
+  - O que significa privacidade segundo Louis Brandeis?
+  - Qual o objetivo da protecao de dados pessoais?
+  fechamento: Proteger seus dados e garantir sua privacidade e uma forma de manter sua liberdade
+    no mundo digital.
+passos:
+- fala: Fala serio, voce ja percebeu que quando usa um aplicativo de graca, parece que ele
+    sabe tudo sobre voce? Vamos entender o que esta por tras disso.
+  quadro:
+    tipo: titulo
+    texto: Dados e Privacidade
+- fala: Para comecar, vamos falar de privacidade. Ja sentiu aquela vontade de ficar sozinho,
+    sem ninguem te encher o saco? O conceito moderno comecou exatamente com isso.
+  quadro:
+    tipo: texto
+    texto: 'Privacidade: direito à reserva de informações pessoais.'
+- fala: Na definicao classica, criada pelo jurista norte-americano Louis Brandeis junto com
+    Samuel Warren, isso se chama the right to be let alone.
+  quadro:
+    tipo: texto
+    texto: The right to be let alone (O direito de ser deixado em paz)
+- fala: Sabe de onde Brandeis tirou essa ideia? Ele se inspirou no filosofo Ralph Waldo Emerson,
+    que via a solidao como a verdadeira fonte de liberdade.
+  quadro:
+    tipo: topicos
+    texto: Origem do Conceito
+    itens:
+    - Louis Brandeis e Samuel Warren
+    - Inspiracao em Ralph Waldo Emerson
+    - Solidao como fonte de liberdade
+- fala: Agora, vamos mudar para o conceito de protecao de dados. Na lei, protecao de dados
+    significa, no fundo, proteger os seus dados pessoais.
+  quadro:
+    tipo: limpar
+- fala: E o que isso quer dizer na pratica? E a chance de cada cidadao decidir, por conta
+    propria, como os seus dados serao usados por ai.
+  quadro:
+    tipo: texto
+    texto: Autonomia sobre o uso dos próprios dados pessoais.
+- fala: Isso tambem serve para garantir uma serie de regras. O objetivo e impedir que usem
+    suas informacoes para te causar danos ou qualquer tipo de discriminacao.
+  quadro:
+    tipo: topicos
+    texto: Garantias da Protecao
+    itens:
+    - Evitar discriminacao
+    - Impedir danos ao cidadao
+    - Proteger a coletividade
+- fala: 'Para fechar: pense nas vezes que voce usa um app. O que voce acha que acontece com
+    os seus dados quando voce aceita aqueles termos longos sem ler?'
+  quadro:
+    tipo: texto
+    texto: 'Reflexão: O que você deixa para trás ao usar um app?'

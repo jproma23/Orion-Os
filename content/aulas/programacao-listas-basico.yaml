@@ -1,0 +1,67 @@
+id: programacao.listas.basico
+materia: programacao
+titulo: Listas
+nivel: basico
+resumo: Criar, percorrer, indexar, fatiar; o indice que comeca em zero.
+fonte: Wikipedia, artigos Programação de computadores, consultados em 2026-08-14
+plano:
+  objetivo: Criar, percorrer, indexar, fatiar; o indice que comeca em zero.
+  pre_requisitos:
+  - Conceitos basicos de programacao
+  duracao_min: 10
+  fixacao:
+  - Como voce faria para pegar o primeiro elemento de uma lista em programacao?
+  fechamento: Vimos que as listas guardam varios valores juntos e que comecamos a contar do
+    zero.
+passos:
+- fala: Fala, pessoal! Imagina que voce vai ao mercado e faz uma lista de compras com varios
+    itens anotados em um unico papel. Na programacao, a gente faz exatamente a mesma coisa.
+  quadro:
+    tipo: titulo
+    texto: Listas em Programacao
+- fala: O material diz que programar e criar programas usando uma linguagem. Quando precisamos
+    guardar varios dados de uma vez, nos usamos uma estrutura chamada lista.
+  quadro:
+    tipo: texto
+    texto: Uma lista guarda varios valores em uma unica variavel.
+- fala: Para criar uma lista no computador, a gente usa colchetes. Olha so como fica um exemplo
+    de lista com nomes de frutas.
+  quadro:
+    tipo: formula
+    texto: frutas = ['maca', 'banana', 'laranja']
+- fala: 'Agora, presta muita atencao numa regra de ouro da programacao: o computador comeca
+    a contar a posicao das coisas a partir do zero, e nao do um.'
+  quadro:
+    tipo: texto
+    texto: O indice sempre comeca em zero (0).
+- fala: Isso significa que o primeiro item da nossa lista de frutas esta na posicao zero.
+  quadro:
+    tipo: formula
+    texto: 'frutas[0]  # da ''maca'''
+- fala: Se quisermos o segundo item, usamos o indice um.
+  quadro:
+    tipo: formula
+    texto: 'frutas[1]  # da ''banana'''
+- fala: Esse processo de buscar um item pelo seu numero de posicao e o que chamamos de indexar.
+  quadro:
+    tipo: texto
+    texto: Indexar = acessar um elemento pelo seu indice.
+- fala: E se a gente quiser pegar um pedaco da lista de uma vez so? A gente faz o fatiamento,
+    indicando onde comeca e onde termina.
+  quadro:
+    tipo: formula
+    texto: 'frutas[0:2]  # pega ''maca'' e ''banana'''
+- fala: Para olhar todos os itens de uma vez sem precisar digitar um por um, nos usamos um
+    laco para percorrer a lista inteira.
+  quadro:
+    tipo: topicos
+    texto: 'Como percorrer:'
+    itens:
+    - Criar a lista
+    - Usar um laco de repeticao
+    - Exibir cada elemento
+- fala: 'Para fechar nossa aula: se voce tem uma lista chamada numeros com os valores 10,
+    20 e 30, qual codigo voce escreve para pegar o primeiro numero?'
+  quadro:
+    tipo: formula
+    texto: numeros[?]

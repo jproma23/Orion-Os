@@ -1,0 +1,68 @@
+id: biologia.tecidos.basico
+materia: biologia
+titulo: Tecidos e órgãos
+nivel: basico
+resumo: Epitelial, conjuntivo, muscular e nervoso; do tecido ao sistema.
+fonte: Wikipedia, artigos Tecido, consultados em 2026-08-14
+plano:
+  objetivo: Epitelial, conjuntivo, muscular e nervoso; do tecido ao sistema.
+  pre_requisitos:
+  - O que e uma celula
+  duracao_min: 10
+  fixacao:
+  - Quais sao os quatro tipos basicos de tecidos animais?
+  - O que forma um conjunto de tecidos trabalhando juntos?
+  fechamento: Hoje vimos que nosso corpo e formado por diferentes tipos de tecidos que se
+    organizam para formar os orgaos e sistemas.
+passos:
+- fala: Fala, pessoal! Pensem nas pecas de um time de futebol. Sozinhas, cada jogadora tem
+    uma funcao, mas juntas elas formam uma equipe forte. No nosso corpo, acontece a mesma
+    coisa com as celulas.
+  quadro:
+    tipo: titulo
+    texto: Tecidos e Orgaos
+- fala: Quando varias celulas especializadas se juntam para realizar uma funcao especifica,
+    nos damos o nome de tecido.
+  quadro:
+    tipo: texto
+    texto: Tecido = Conjunto de celulas especializadas
+- fala: Essas celulas que formam o tecido podem ser iguais ou diferentes, e podem ter liquidos
+    ou substancias entre elas.
+  quadro:
+    tipo: texto
+    texto: Celulas iguais ou diferentes com substancias intercelulares
+- fala: Esses tecidos nao existem apenas em nos, animais. As plantas tambem possuem tecidos
+    organizados para viver e crescer.
+  quadro:
+    tipo: texto
+    texto: Presentes em animais e vegetais
+- fala: Nos animais, o nosso foco principal, nos dividimos os tecidos em quatro categorias
+    basicas.
+  quadro:
+    tipo: topicos
+    texto: Tecidos animais basicos
+    itens:
+    - Tecido epitelial
+    - Tecido conjuntivo
+    - Tecido muscular
+    - Tecido nervoso
+- fala: So para voce saber, nas plantas os grupos sao outros, como o parenquima para preenchimento,
+    xilema e floema para conducao, e epiderme para revestimento.
+  quadro:
+    tipo: topicos
+    texto: Exemplos em vegetais
+    itens:
+    - 'Preenchimento: parenquima'
+    - 'Sustentacao: colenquima e esclerenquima'
+    - 'Revestimento: epiderme e periderme'
+    - 'Conducao: xilema e floema'
+- fala: 'Para fechar: se o tecido e um grupo de celulas, quando juntamos varios tecidos diferentes,
+    criamos um orgao, como o coracao ou o estomago, que formam os sistemas do corpo.'
+  quadro:
+    tipo: texto
+    texto: Celulas -> Tecidos -> Orgaos -> Sistemas
+- fala: 'Agora me respondam: se voce puder lembrar dos quatro tipos basicos de tecidos encontrados
+    nos animais, quais sao eles?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Quais sao os 4 tecidos animais?'

@@ -1,0 +1,74 @@
+id: geografia.urbanizacao.basico
+materia: geografia
+titulo: Urbanização
+nivel: basico
+resumo: Cidade, metropole, periferia, mobilidade e os problemas urbanos.
+fonte: Wikipedia, artigos Urbanização, Cidade, Metrópole, Periferia, consultados em 2026-08-09
+plano:
+  objetivo: Compreender cidade, metrópole, periferia, mobilidade e os problemas urbanos.
+  pre_requisitos:
+  - Noções básicas de espaço geográfico
+  duracao_min: 10
+  fixacao:
+  - Qual é a diferença básica entre uma cidade e uma metrópole?
+  - O que significa o processo de urbanização?
+  fechamento: 'Pense nos lugares por onde você passa todos os dias: como a cidade onde você
+    vive se organiza e quais são os maiores desafios dela?'
+passos:
+- fala: Imagine que você sai do campo e vai morar em uma vila ou cidade que não para de crescer.
+    Esse movimento de troca do campo pela cidade é o que chamamos de urbanização.
+  quadro:
+    tipo: titulo
+    texto: Urbanização
+- fala: 'No quadro, veja a definição: urbanização é a mudança da população das áreas rurais
+    para as urbanas, com a diminuição das pessoas no campo e a adaptação da sociedade a isso.'
+  quadro:
+    tipo: texto
+    texto: Mudança da população rural para a urbana e crescimento das cidades.
+- fala: Vamos apagar para falar de cidade.
+  quadro:
+    tipo: limpar
+- fala: Pense naquele lugar cheio de casas, prédios, lojas e ruas movimentadas onde você faz
+    suas compras. Isso é uma cidade.
+  quadro:
+    tipo: titulo
+    texto: Cidade
+- fala: 'Anote aí: cidade é um grande assentamento humano, permanente e densamente povoado,
+    onde as pessoas trabalham em tarefas não agrícolas.'
+  quadro:
+    tipo: topicos
+    texto: 'Características da Cidade:'
+    itens:
+    - Assentamento humano permanente
+    - Densamente povoado
+    - Trabalho não agrícola
+    - Sistemas de habitação, transporte e saneamento
+- fala: Vamos apagar o quadro para entender o que é uma metrópole.
+  quadro:
+    tipo: limpar
+- fala: Sabe aquela cidade gigante que manda em várias outras cidades ao redor em termos de
+    economia e cultura? Essa é a metrópole.
+  quadro:
+    tipo: titulo
+    texto: Metrópole
+- fala: 'Veja no quadro a origem e o significado: vem do grego ''mãe de cidade'' e é uma cidade
+    que polariza uma rede de municípios, influenciando a economia, a política e a cultura.'
+  quadro:
+    tipo: texto
+    texto: Cidade que polariza uma complexa rede de municípios e exerce forte influência.
+- fala: Vamos limpar o quadro novamente.
+  quadro:
+    tipo: limpar
+- fala: Agora vamos falar da periferia, que muitas vezes associamos aos subúrbios ou às favelas
+    nas grandes cidades.
+  quadro:
+    tipo: titulo
+    texto: Periferia
+- fala: No quadro, anote os significados que o termo pode ter no nosso estudo e no mundo.
+  quadro:
+    tipo: topicos
+    texto: 'Significados de Periferia:'
+    itens:
+    - Subúrbio ou favela
+    - Áreas afastadas dos centros urbanos principais
+    - Também usado para divisões regionais, como na Grécia

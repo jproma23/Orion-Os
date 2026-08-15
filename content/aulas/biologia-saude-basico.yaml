@@ -1,0 +1,62 @@
+id: biologia.saude.basico
+materia: biologia
+titulo: Saúde e doenças
+nivel: basico
+resumo: Infeccao, imunidade, vacina, antibiotico e por que a resistencia aparece.
+fonte: Wikipedia, artigos Infecção, Imunidade, Vacina, consultados em 2026-08-09
+plano:
+  objetivo: Infeccao, imunidade, vacina, antibiotico e por que a resistencia aparece.
+  pre_requisitos:
+  - Conceito basico de biologia
+  duracao_min: 10
+  fixacao:
+  - O que acontece quando tomamos uma vacina?
+  - Por que os antibioticos perdem o efeito se usados errado?
+  fechamento: Entendemos como o corpo se defende e a importancia de usar os remedios corretamente.
+passos:
+- fala: Pense num castelo sendo invadido por inimigos. No nosso corpo, quando microbios entram
+    e causam estragos, chamamos isso de infeccao.
+  quadro:
+    tipo: titulo
+    texto: Saude e Doencas
+- fala: A definicao oficial diz que infeccao e a invasao de tecidos corporais por organismos
+    que provocam doencas, se multiplicam e geram reacao.
+  quadro:
+    tipo: texto
+    texto: 'Infeccao: Invasao de tecidos por organismos causadores de doencas.'
+- fala: Quando essa infeccao se torna visivel com sintomas no corpo, chamamos de doenca infecciosa.
+  quadro:
+    tipo: texto
+    texto: 'Doenca infecciosa: Resultado clinico da presenca de agentes patogenicos.'
+- fala: 'Mas o nosso corpo nao fica indefeso. E aqui entra a imunidade: a nossa capacidade
+    de resistir a um agente causador de doenca.'
+  quadro:
+    tipo: titulo
+    texto: Imunidade
+- fala: O sistema imunologico tem defesas que barram qualquer patogeno, e outras que se adaptam
+    especificamente a cada nova doenca que aparece.
+  quadro:
+    tipo: topicos
+    texto: 'Tipos de acao imunologica:'
+    itens:
+    - 'Componentes inespecificos: barreiras amplas'
+    - 'Componentes especificos: adaptam-se a cada nova doenca'
+- fala: E como a gente ajuda o corpo a se preparar? Usando a vacina, que e uma preparacao
+    biologica para dar imunidade ativa.
+  quadro:
+    tipo: titulo
+    texto: Vacina
+- fala: A vacina pode ter o microbio enfraquecido, morto, suas toxinas ou proteinas de superficie.
+    O corpo reconhece, destroi e guarda na memoria.
+  quadro:
+    tipo: topicos
+    texto: 'Como age a vacina:'
+    itens:
+    - Usa microbio morto ou enfraquecido
+    - Estimula o sistema imune
+    - Cria memoria imunologica
+- fala: 'Para fechar, pense comigo: se a vacina ensina o corpo a criar memoria contra doencas,
+    por que e tao importante tomar ela direitinho?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como a memoria imunologica protege voce no futuro?'

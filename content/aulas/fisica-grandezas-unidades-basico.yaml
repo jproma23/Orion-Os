@@ -1,0 +1,73 @@
+id: fisica.grandezas-unidades.basico
+materia: fisica
+titulo: Grandezas e unidades
+nivel: basico
+resumo: Sistema Internacional, notacao cientifica, ordem de grandeza e algarismos significativos.
+fonte: Wikipedia, artigos Sistema, Sistema internacional, Notação científica, consultados
+  em 2026-08-09
+plano:
+  objetivo: Sistema Internacional, notacao cientifica, ordem de grandeza e algarismos significativos.
+  pre_requisitos:
+  - Potencias de 10
+  duracao_min: 10
+  fixacao:
+  - Como escrever um numero muito grande em notacao cientifica?
+  fechamento: Vimos que o Sistema Internacional padroniza as unidades e a notacao cientifica
+    facilita a escrita de numeros gigantes ou minusculos.
+passos:
+- fala: Fala, pessoal! Imagine que voce precisa medir o comprimento de uma sala, mas um usa
+    passos, outro usa polegadas e outro usa metros. Vira uma bagunca, nao e? Por isso precisamos
+    de padroes.
+  quadro:
+    tipo: titulo
+    texto: Grandezas e Unidades
+- fala: A palavra sistema vem do grego e significa combinar, ajustar ou formar um conjunto
+    organizado de elementos.
+  quadro:
+    tipo: texto
+    texto: Sistema = combinar, ajustar, formar um conjunto
+- fala: Para colocar todo mundo no mesmo idioma na ciencia, usamos o Sistema Internacional
+    de Unidades.
+  quadro:
+    tipo: texto
+    texto: Sistema Internacional de Unidades (SI)
+- fala: Agora, imagine escrever o numero de atomos numa gota d'agua. Vai dar um numero cheio
+    de zeros, muito chato de ler. Para isso, usamos a notacao cientifica.
+  quadro:
+    tipo: limpar
+- fala: A notacao cientifica tambem e chamada de forma exponencial. Ela serve para escrever
+    numeros muito grandes ou muito pequenos de um jeito facil.
+  quadro:
+    tipo: titulo
+    texto: Notacao Cientifica
+- fala: O uso dessa notacao e baseado nas potencias de dez.
+  quadro:
+    tipo: formula
+    texto: Baseada nas potencias de 10
+- fala: 'Olha esse exemplo de numero grandao: cem bilhoes. Escrever todos esses zeros da trabalho.'
+  quadro:
+    tipo: formula
+    texto: '100000000000'
+- fala: Em notacao cientifica, esse mesmo numero gigante fica um vezes dez elevado a onze.
+  quadro:
+    tipo: formula
+    texto: 1 x 10^11
+- fala: E se o numero for pequenininho, como zero virgula zero zero zero zero zero zero zero
+    zero zero zero um?
+  quadro:
+    tipo: formula
+    texto: 0,00000000001
+- fala: Na notacao cientifica, ele vira um vezes dez elevado a menos onze.
+  quadro:
+    tipo: formula
+    texto: 1 x 10^-11
+- fala: Na quimica, por exemplo, usamos muito isso para contar atomos, moleculas ou ions usando
+    a grandeza quantidade de materia, medida em mol.
+  quadro:
+    tipo: texto
+    texto: 'Quantidade de materia: mol (atomos, moleculas, ions)'
+- fala: 'Para terminar, me diga: como ficaria o numero milhoes em potencias de dez na notacao
+    cientifica?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como escrever numeros extremos?'

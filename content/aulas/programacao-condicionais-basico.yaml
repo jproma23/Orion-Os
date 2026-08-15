@@ -1,0 +1,87 @@
+id: programacao.condicionais.basico
+materia: programacao
+titulo: Condicionais
+nivel: basico
+resumo: If, elif, else; a diferenca entre um if depois do outro e um elif.
+fonte: Wikipedia, artigos Programação de computadores, consultados em 2026-08-14
+plano:
+  objetivo: If, elif, else; a diferenca entre um if depois do outro e um elif.
+  pre_requisitos:
+  - conceito basico de programa de computador
+  duracao_min: 10
+  fixacao:
+  - Diferenca entre if e elif
+  - Uso do else
+  fechamento: Entender como o computador toma decisoes no codigo.
+passos:
+- fala: 'Fala, pessoal! Imagina que voce chega na porta da escola e pensa: se estiver chovendo,
+    levo guarda-chuva. Senao, vou de bone. O computador faz exatamente isso usando decisoes.'
+  quadro:
+    tipo: titulo
+    texto: Estruturas Condicionais
+- fala: Na programacao, a gente escreve isso usando a palavra if, que significa 'se' em ingles.
+    Vamos ver como se escreve.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "if clima == 'chuva':\n    levar_guarda_chuva()"
+- fala: E quando temos duas opcoes exclusivas? Usamos o else, que quer dizer 'senao'. Se nao
+    for chuva, cai no else.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "if clima == 'chuva':\n    levar_guarda_chuva()\nelse:\n    ir_de_bone()"
+- fala: 'Mas e se tivermos tres ou mais opcoes? Tipo: se chover, guarda-chuva. Se estiver
+    nublado, blusa. Senao, so camiseta.'
+  quadro:
+    tipo: texto
+    texto: Multiplas condicoes com ELIF
+- fala: Para isso usamos o elif, que junta 'else' com 'if'. Ele testa uma nova condicao caso
+    a primeira seja falsa.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "if clima == 'chuva':\n    print('Guarda-chuva')\nelif clima == 'nublado':\n  \
+      \  print('Blusa')\nelse:\n    print('Camiseta')\n"
+- fala: Agora preste muita atencao nesta pegadinha. Qual a diferenca entre usar dois 'if'
+    separados ou um 'if' com 'elif'?
+  quadro:
+    tipo: texto
+    texto: IF seguido de IF  vs  IF com ELIF
+- fala: Quando usamos dois if separados, o computador testa as duas condicoes, mesmo que a
+    primeira ja seja verdadeira.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "idade = 18\nif idade >= 18:\n    print('Adulto')\nif idade == 18:\n    print('Tem\
+      \ exatos 18 anos')"
+- fala: Nesse codigo com dois if, as duas frases vao aparecer na tela porque os dois testes
+    sao independentes.
+  quadro:
+    tipo: texto
+    texto: Ambos os if sao executados se forem verdadeiros.
+- fala: Ja com o elif, se a primeira condicao for verdadeira, o computador ignora o resto
+    completamente. Ele so escolhe um caminho.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "idade = 18\nif idade > 18:\n    print('Maior que 18')\nelif idade == 18:\n   \
+      \ print('Tem exatos 18 anos')"
+- fala: Nesse segundo caso com elif, so a segunda frase aparece, porque a primeira falhou
+    e a segunda foi aceita.
+  quadro:
+    tipo: texto
+    texto: Apenas um bloco e executado na cadeia if-elif-else.
+- fala: 'Para fechar: se voce tem regras onde so UMA opcao pode valer por vez, voce usa if
+    e elif. Se todas as regras devem ser testadas, usa varios if. Facil, nao?'
+  quadro:
+    tipo: topicos
+    texto: Resumo
+    itens:
+    - 'if/elif/else: escolhe apenas um caminho'
+    - 'if seguidos: testa todas as condicoes'
+- fala: 'Agora me responda: se voce tem tres notas para testar aprovacao, recuperacao ou reprovacao,
+    voce deve usar varios if separados ou uma unica estrutura com if, elif e else?'
+  quadro:
+    tipo: texto
+    texto: Pergunta para pensar e usar na pratica!

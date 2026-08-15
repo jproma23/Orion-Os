@@ -1,0 +1,66 @@
+id: historia.grecia-roma.basico
+materia: historia
+titulo: Grécia e Roma
+nivel: basico
+resumo: Democracia ateniense, republica e imperio romano, e o que ficou disso.
+fonte: Wikipedia, artigos Democracia, Democracia ateniense, consultados em 2026-08-14
+plano:
+  objetivo: Democracia ateniense, republica e imperio romano, e o que ficou disso.
+  pre_requisitos:
+  - Conceito basico de governo
+  duracao_min: 10
+  fixacao:
+  - O que e democracia?
+  - Quem podia participar da democracia em Atenas?
+  fechamento: A grecia nos deu a ideia de democracia direta e roma organizou republicas e
+    leis, bases do que vivemos hoje.
+passos:
+- fala: Fala turma! Imagine se na sua escola todas as decisoes fossem votadas diretamente
+    por todo mundo, sem precisar de um presidente ou diretor mandando em tudo. E sobre isso
+    que vamos falar hoje.
+  quadro:
+    tipo: titulo
+    texto: 'Grecia e Roma: Politica e Poder'
+- fala: Vamos comecar entendendo o que significa a palavra democracia. E o sistema de governo
+    onde o poder do Estado e do povo.
+  quadro:
+    tipo: texto
+    texto: Democracia = Poder do povo
+- fala: Essa ideia nasceu la na Grecia antiga, na cidade de Atenas, em meados do seculo seis
+    antes de Cristo.
+  quadro:
+    tipo: texto
+    texto: 'Democracia Ateniense: seculo VI a.C.'
+- fala: Diferente de hoje, la a democracia era direta. Mas calma, nem todo mundo podia participar
+    da politica.
+  quadro:
+    tipo: topicos
+    texto: 'Regras para ser cidadao em Atenas:'
+    itens:
+    - Homens livres
+    - Nascidos em Atenas
+    - Maiores de 30 anos
+- fala: Nao bastava a idade. A partir do ano 451 antes de Cristo, a pessoa tinha que ser filha
+    de pai e mae atenienses.
+  quadro:
+    tipo: topicos
+    texto: 'Mais exigencias:'
+    itens:
+    - Filho de pai e mae atenienses
+    - Em dia com o servico militar
+    - Inscritos nos registros civicos
+- fala: Ou seja, mulheres, estrangeiros e escravizados ficavam de fora. Era so uma pequena
+    parcela da populacao que mandava.
+  quadro:
+    tipo: texto
+    texto: 'Participacao restrita: pequena parcela da populacao'
+- fala: 'Para fechar: se hoje temos o direito de votar e debater leis em sociedade, muito
+    disso comecou la na Grecia antiga com os atenienses.'
+  quadro:
+    tipo: texto
+    texto: 'O legado: participacao politica e leis'
+- fala: 'Agora me diga: se a democracia ateniense era tao legal, por que ela era considerada
+    exclusiva e nao atendia a toda a populacao de Atenas?'
+  quadro:
+    tipo: texto
+    texto: Pergunta para pensar

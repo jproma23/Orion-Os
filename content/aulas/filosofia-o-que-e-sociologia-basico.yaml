@@ -1,0 +1,81 @@
+id: filosofia.o-que-e-sociologia.basico
+materia: filosofia
+titulo: O que é sociologia
+nivel: basico
+resumo: O olhar sociologico, senso comum contra conhecimento cientifico.
+fonte: Wikipedia, artigos Sociologia, consultados em 2026-08-14
+plano:
+  objetivo: O olhar sociologico, senso comum contra conhecimento cientifico.
+  pre_requisitos:
+  - Curiosidade sobre o mundo ao redor
+  duracao_min: 10
+  fixacao:
+  - Diferenciar achismo de investigacao cientifica
+  - Entender o que a sociologia estuda
+  fechamento: Se todo mundo acha que algo é de um jeito, como a sociologia prova se é verdade
+    ou não?
+passos:
+- fala: Fala, pessoal! Já pararam para pensar por que a gente age de um jeito em casa e de
+    outro na escola? Vamos falar sobre o olhar sociológico.
+  quadro:
+    tipo: titulo
+    texto: O Olhar Sociológico
+- fala: No dia a dia, a gente costuma achar que sabe o motivo das coisas acontecerem. Isso
+    é o que chamamos de senso comum.
+  quadro:
+    tipo: texto
+    texto: 'Senso Comum: opiniões do dia a dia, sem investigação profunda.'
+- fala: Mas a sociologia faz diferente. Ela é uma ciência social. Isso significa que ela usa
+    métodos de investigação para estudar a sociedade de verdade.
+  quadro:
+    tipo: texto
+    texto: Sociologia = Ciência social que estuda a sociedade.
+- fala: Olhem o que está no quadro. A sociologia investiga os padrões de relações sociais,
+    a interação social e a cultura da vida cotidiana.
+  quadro:
+    tipo: topicos
+    texto: 'O que a Sociologia estuda:'
+    itens:
+    - Padrões de relações sociais
+    - Interação social
+    - Cultura da vida cotidiana
+- fala: Para descobrir as coisas, ela usa investigação empírica e análise crítica. Ou seja,
+    vai a campo, observa e analisa os fatos.
+  quadro:
+    tipo: texto
+    texto: 'Método: Investigação empírica e análise crítica.'
+- fala: Com isso, ela constrói um conhecimento sólido sobre a ordem social, a aceitação e
+    também sobre a mudança ou evolução social.
+  quadro:
+    tipo: texto
+    texto: 'Foco: Ordem social, aceitação e mudança social.'
+- fala: Por isso dizemos que a sociologia é a ciência geral da sociedade.
+  quadro:
+    tipo: texto
+    texto: 'Definição: Ciência geral da sociedade.'
+- fala: E o que os sociólogos fazem com tudo isso? Alguns criam pesquisas para ajudar na política
+    social e no bem-estar da população.
+  quadro:
+    tipo: texto
+    texto: 'Aplicação prática: Política social e bem-estar.'
+- fala: Outros focam em entender melhor a teoria por trás dos processos sociais.
+  quadro:
+    tipo: texto
+    texto: 'Aplicação teórica: Compreensão dos processos sociais.'
+- fala: 'Para terminar, vejam que o estudo vai do menor para o maior: da micro-sociologia,
+    que olha a ação individual, até a macro-sociologia, que olha os grandes sistemas.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Nível
+    - O que estuda
+    linhas:
+    - - Micro-sociologia
+      - Agência e interação individual
+    - - Macro-sociologia
+      - Sistemas e estrutura social
+- fala: 'Agora pensem comigo para encerrar: se todo mundo acha que sabe como a sociedade funciona
+    baseada só no achismo, por que precisamos da ciência sociológica?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Senso comum vs Conhecimento científico?'

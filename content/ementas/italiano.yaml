@@ -1,90 +1,97 @@
 materia: italiano
 nome: Italiano
-descricao: >
-  Uma lingua que se le como se escreve. O portugues ajuda no vocabulario e
-  atrapalha na gramatica - os artigos e os auxiliares nao batem.
+descricao: 'Uma lingua que se le como se escreve. O portugues ajuda no vocabulario e atrapalha
+  na gramatica - os artigos e os auxiliares nao batem.
 
+  '
 niveis:
   basico:
     descricao: Pronunciar certo e se apresentar.
     topicos:
-      - id: it.pronuncia
-        titulo: Pronúncia e alfabeto
-        conteudo: C e G duros e brandos, GLI, GN, SC; as consoantes dobradas que mudam a palavra.
-      - id: it.essere-avere
-        titulo: Essere e avere
-        conteudo: Os dois verbos que sustentam a lingua inteira; conjugacao e uso.
-      - id: it.artigos
-        titulo: Artigos definidos e indefinidos
-        conteudo: Il, lo, la, i, gli, le - a regra depende do som que comeca a palavra.
-      - id: it.substantivo-genero
-        titulo: Substantivos, gênero e número
-        conteudo: Finais em O, A e E; plurais que mudam a vogal em vez de acrescentar S.
-      - id: it.presente-indicativo
-        titulo: Presente do indicativo
-        conteudo: Verbos em ARE, ERE e IRE; os em ISC como capire.
-      - id: it.numeri-ora
-        titulo: Números, horas e datas
-        conteudo: Contar, dizer as horas, dias e meses; a data ao contrario do ingles.
-      - id: it.saluti
-        titulo: Saudações e apresentação
-        conteudo: Ciao, salve, buongiorno; tu e Lei; apresentar-se e perguntar o nome.
-      - id: it.vocabolario-quotidiano
-        titulo: Vocabulário do cotidiano
-        conteudo: Familia, casa, comida, cidade - e a comida, que em italiano e cultura.
-
+    - id: it.pronuncia
+      titulo: Pronúncia e alfabeto
+      conteudo: C e G duros e brandos, GLI, GN, SC; as consoantes dobradas que mudam a palavra.
+      aula: italiano.pronuncia.basico
+    - id: it.essere-avere
+      titulo: Essere e avere
+      conteudo: Os dois verbos que sustentam a lingua inteira; conjugacao e uso.
+      aula: italiano.essere-avere.basico
+    - id: it.artigos
+      titulo: Artigos definidos e indefinidos
+      conteudo: Il, lo, la, i, gli, le - a regra depende do som que comeca a palavra.
+      aula: italiano.artigos.basico
+    - id: it.substantivo-genero
+      titulo: Substantivos, gênero e número
+      conteudo: Finais em O, A e E; plurais que mudam a vogal em vez de acrescentar S.
+      aula: italiano.substantivo-genero.basico
+    - id: it.presente-indicativo
+      titulo: Presente do indicativo
+      conteudo: Verbos em ARE, ERE e IRE; os em ISC como capire.
+      aula: italiano.presente-indicativo.basico
+    - id: it.numeri-ora
+      titulo: Números, horas e datas
+      conteudo: Contar, dizer as horas, dias e meses; a data ao contrario do ingles.
+      aula: italiano.numeri-ora.basico
+    - id: it.saluti
+      titulo: Saudações e apresentação
+      conteudo: Ciao, salve, buongiorno; tu e Lei; apresentar-se e perguntar o nome.
+      aula: italiano.saluti.basico
+    - id: it.vocabolario-quotidiano
+      titulo: Vocabulário do cotidiano
+      conteudo: Familia, casa, comida, cidade - e a comida, que em italiano e cultura.
+      aula: italiano.vocabolario-quotidiano.basico
   intermediario:
     descricao: Falar do passado e se virar em situacao real.
     topicos:
-      - id: it.passato-prossimo
-        titulo: Passato prossimo
-        conteudo: O passado mais usado; a escolha entre essere e avere e a concordancia do participio.
-      - id: it.imperfetto
-        titulo: Imperfetto
-        conteudo: Costume e descricao no passado; a diferenca para o passato prossimo.
-      - id: it.futuro
-        titulo: Futuro simples
-        conteudo: Formacao, irregulares comuns e o futuro de suposicao.
-      - id: it.preposizioni
-        titulo: Preposições articuladas
-        conteudo: Di, a, da, in, su fundidos com o artigo - del, alla, dai, nel, sul.
-      - id: it.pronomi-diretti
-        titulo: Pronomes diretos e indiretos
-        conteudo: Lo, la, li, le, gli, ne, ci; a posicao antes do verbo.
-      - id: it.imperativo
-        titulo: Imperativo
-        conteudo: Dar instrucao e ordem; as formas irregulares curtas como va e di.
-      - id: it.aggettivi
-        titulo: Adjetivos e comparação
-        conteudo: Concordancia, posicao do adjetivo, piu e meno, o superlativo issimo.
-      - id: it.connettivi
-        titulo: Conectivos e conversa
-        conteudo: Ma, pero, quindi, allora; as muletas que aparecem em toda conversa italiana.
-
+    - id: it.passato-prossimo
+      titulo: Passato prossimo
+      conteudo: O passado mais usado; a escolha entre essere e avere e a concordancia do participio.
+    - id: it.imperfetto
+      titulo: Imperfetto
+      conteudo: Costume e descricao no passado; a diferenca para o passato prossimo.
+    - id: it.futuro
+      titulo: Futuro simples
+      conteudo: Formacao, irregulares comuns e o futuro de suposicao.
+    - id: it.preposizioni
+      titulo: Preposições articuladas
+      conteudo: Di, a, da, in, su fundidos com o artigo - del, alla, dai, nel, sul.
+    - id: it.pronomi-diretti
+      titulo: Pronomes diretos e indiretos
+      conteudo: Lo, la, li, le, gli, ne, ci; a posicao antes do verbo.
+    - id: it.imperativo
+      titulo: Imperativo
+      conteudo: Dar instrucao e ordem; as formas irregulares curtas como va e di.
+    - id: it.aggettivi
+      titulo: Adjetivos e comparação
+      conteudo: Concordancia, posicao do adjetivo, piu e meno, o superlativo issimo.
+    - id: it.connettivi
+      titulo: Conectivos e conversa
+      conteudo: Ma, pero, quindi, allora; as muletas que aparecem em toda conversa italiana.
   avancado:
     descricao: Congiuntivo, registro e cultura.
     topicos:
-      - id: it.congiuntivo
-        titulo: Congiuntivo
-        conteudo: Duvida, desejo e opiniao; penso che, credo che - o modo que o italiano culto exige.
-      - id: it.periodo-ipotetico
-        titulo: Período hipotético
-        conteudo: Se avessi, se fossi; realidade, possibilidade e impossibilidade.
-      - id: it.condizionale
-        titulo: Condicional presente e passado
-        conteudo: Pedido educado, desejo e o futuro visto do passado.
-      - id: it.passato-remoto
-        titulo: Passato remoto
-        conteudo: O passado da narrativa e do sul; onde ele aparece de verdade.
-      - id: it.forma-passiva
-        titulo: Voz passiva e o SI impessoal
-        conteudo: Essere e venire na passiva; si mangia, si dice.
-      - id: it.espressioni
-        titulo: Expressões idiomáticas e gestos
-        conteudo: O que se diz e o que se faz com as maos - o gesto e parte da lingua.
-      - id: it.dialetti
-        titulo: Variedades regionais
-        conteudo: Norte e sul, o italiano padrao e os dialetos; por que a musica ajuda a entender.
-      - id: it.scrittura
-        titulo: Escrita e leitura literária
-        conteudo: E-mail e texto formal; ler autor italiano no original.
+    - id: it.congiuntivo
+      titulo: Congiuntivo
+      conteudo: Duvida, desejo e opiniao; penso che, credo che - o modo que o italiano culto
+        exige.
+    - id: it.periodo-ipotetico
+      titulo: Período hipotético
+      conteudo: Se avessi, se fossi; realidade, possibilidade e impossibilidade.
+    - id: it.condizionale
+      titulo: Condicional presente e passado
+      conteudo: Pedido educado, desejo e o futuro visto do passado.
+    - id: it.passato-remoto
+      titulo: Passato remoto
+      conteudo: O passado da narrativa e do sul; onde ele aparece de verdade.
+    - id: it.forma-passiva
+      titulo: Voz passiva e o SI impessoal
+      conteudo: Essere e venire na passiva; si mangia, si dice.
+    - id: it.espressioni
+      titulo: Expressões idiomáticas e gestos
+      conteudo: O que se diz e o que se faz com as maos - o gesto e parte da lingua.
+    - id: it.dialetti
+      titulo: Variedades regionais
+      conteudo: Norte e sul, o italiano padrao e os dialetos; por que a musica ajuda a entender.
+    - id: it.scrittura
+      titulo: Escrita e leitura literária
+      conteudo: E-mail e texto formal; ler autor italiano no original.

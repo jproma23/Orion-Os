@@ -1,0 +1,87 @@
+id: historia.antiguidade-oriental.basico
+materia: historia
+titulo: Antiguidade oriental
+nivel: basico
+resumo: Mesopotamia, Egito, escrita, direito e os primeiros Estados.
+fonte: Wikipedia, artigos Mesopotâmia, Egito, Escrita, consultados em 2026-08-14
+plano:
+  objetivo: Mesopotamia, Egito, escrita, direito e os primeiros Estados.
+  pre_requisitos:
+  - Conceito basico de sociedades antigas
+  duracao_min: 10
+  fixacao:
+  - Onde ficava a Mesopotamia?
+  - Qual a importancia da escrita?
+  fechamento: A Antiguidade oriental formou as bases das primeiras civilizacoes, organizadas
+    em regioes fertis com sistemas proprios de escrita e governo.
+passos:
+- fala: Fala, pessoal! Ja pararam para pensar de onde vieram as primeiras cidades e as leis
+    que organizam a nossa vida hoje? Vamos viajar no tempo para a Antiguidade oriental.
+  quadro:
+    tipo: titulo
+    texto: Antiguidade Oriental
+- fala: Para começar, pensem em como e dificil plantar sem chuva. Na Antiguidade, as primeiras
+    grandes civilizacoes nasceram perto de grandes rios, que garantiam a agua e a terra fertil.
+  quadro:
+    tipo: texto
+    texto: 'Civilizacoes fluviais: agua e fertilidade'
+- fala: A nossa primeira parada e a Mesopotamia. Ela fica na Asia Ocidental, bem no meio dos
+    rios Tigre e Eufrates, na parte norte do Crescente Fertil.
+  quadro:
+    tipo: texto
+    texto: 'Mesopotamia: Rios Tigre e Eufrates'
+- fala: Para voce se localizar hoje em dia, o territorio da antiga Mesopotamia corresponde
+    quase todo ao atual Iraque.
+  quadro:
+    tipo: texto
+    texto: 'Localizacao atual: Iraque'
+- fala: A regiao da Mesopotamia tambem abrange partes do Sudoeste do Ira, Sudeste da Turquia,
+    Nordeste da Siria e Kuwait.
+  quadro:
+    tipo: topicos
+    texto: Outros paises da regiao
+    itens:
+    - Ira (sudoeste)
+    - Turquia (sudeste)
+    - Siria (nordeste)
+    - Kuwait
+- fala: Foi la na Mesopotamia que aconteceram os primeiros desenvolvimentos da Revolucao Neolitica,
+    la por volta de 10.000 antes de Cristo.
+  quadro:
+    tipo: texto
+    texto: 'Revolucao Neolitica: 10.000 a.C.'
+- fala: Agora vamos mudar de cenario e falar do Egito. O Egito e um pais localizado entre
+    o nordeste da Africa e o sudoeste da Asia, passando pela Peninsula do Sinai.
+  quadro:
+    tipo: limpar
+- fala: O Egito faz divisa com varios locais importantes. Ele e limitado pela Faixa de Gaza
+    e Israel a nordeste, e pelo Sudao ao sul.
+  quadro:
+    tipo: topicos
+    texto: Limites do Egito
+    itens:
+    - 'Nordeste: Faixa de Gaza e Israel'
+    - 'Leste: Golfo de Acaba e Mar Vermelho'
+    - 'Sul: Sudao'
+    - 'Oeste: Libia'
+- fala: 'Com tanta terra, comercio e gente crescendo, surgiu um problema pratico: como guardar
+    informacoes sem depender so da memoria? E ai que entra a escrita.'
+  quadro:
+    tipo: titulo
+    texto: O Surgimento da Escrita
+- fala: A escrita e a representacao persistente da linguagem. Ela usa um conjunto de simbolos
+    e regras para codificar uma lingua falada.
+  quadro:
+    tipo: texto
+    texto: Escrita = Simbolos + Regras da lingua
+- fala: Toda lingua escrita surge de uma lingua falada. E importante lembrar que, embora a
+    fala seja universal nas sociedades, a maioria das linguas faladas nao possui escrita.
+  quadro:
+    tipo: texto
+    texto: Toda escrita vem de uma lingua falada
+- fala: 'Para fechar: se a escrita e quem faz os registros, e a leitura o processo de interpretar
+    esses textos, pensem comigo: como seria a nossa vida hoje se ninguem tivesse inventado
+    a escrita la na Antiguidade?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como seria o mundo sem escrita?'

@@ -1,0 +1,67 @@
+id: portugues.leitura-interpretacao.basico
+materia: portugues
+titulo: Leitura e interpretação
+nivel: basico
+resumo: Achar a ideia principal, o que esta dito e o que esta suposto.
+fonte: Wikipedia, artigos Leitura, consultados em 2026-08-14
+plano:
+  objetivo: Achar a ideia principal, o que esta dito e o que esta suposto.
+  pre_requisitos:
+  - Saber ler palavras e frases
+  duracao_min: 10
+  fixacao:
+  - Qual a diferenca entre extrair e atribuir sentido?
+  - Por que a leitura e importante para estudantes?
+  fechamento: Ler nao e apenas juntar letras, e dar vida ao texto com a sua mente!
+passos:
+- fala: Fala, pessoal! Quando voce le uma mensagem no celular, voce so le as letrinhas ou
+    entende o que a pessoa quis dizer de verdade?
+  quadro:
+    tipo: titulo
+    texto: Leitura e Interpretacao
+- fala: A leitura e muito mais do que so decodificar simbolos. Ela e uma atividade cognitiva
+    e social complexa.
+  quadro:
+    tipo: texto
+    texto: Atividade cognitiva e social complexa
+- fala: Ela serve para extrair e atribuir significado ao texto. E um verdadeiro processamento
+    da linguagem!
+  quadro:
+    tipo: topicos
+    texto: 'Foco da leitura:'
+    itens:
+    - Extrair significado
+    - Atribuir significado
+- fala: 'Mas olha que interessante: existe um antagonismo entre esses dois verbos, por causa
+    da direcao do sentido.'
+  quadro:
+    tipo: texto
+    texto: 'Antagonismo: Extrair x Atribuir'
+- fala: Quando usamos o verbo extrair, a enfase fica toda no texto. E como se o significado
+    ja estivesse todinho la dentro dele.
+  quadro:
+    tipo: texto
+    texto: 'Extrair: O sentido esta no texto'
+- fala: Ja quando empregamos o verbo atribuir, a enfase muda. Ela vai todinha para o leitor!
+  quadro:
+    tipo: texto
+    texto: 'Atribuir: A enfase vai para o leitor'
+- fala: Isso quer dizer que o significado nao esta so na mensagem. Ele nasce dos acontecimentos
+    que o texto desencadeia na nossa mente.
+  quadro:
+    tipo: texto
+    texto: O sentido e criado na mente de quem le
+- fala: Por isso tudo, a leitura se tornou uma atividade extremamente importante para a nossa
+    civilizacao.
+  quadro:
+    tipo: texto
+    texto: Importancia para a civilizacao
+- fala: Para voces, estudantes, ela e essencial para o desenvolvimento cognitivo e socioemocional.
+  quadro:
+    tipo: topicos
+    texto: 'Desenvolvimento do estudante:'
+    itens:
+    - Cognitivo
+    - Socioemocional
+- fala: 'Para terminar, me responda: quando voce le um livro, o significado ja esta pronto
+    la ou e voce que constroi ele na sua cabeca?'

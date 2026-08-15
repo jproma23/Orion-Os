@@ -1,0 +1,73 @@
+id: matematica.equacao-primeiro-grau.basico
+materia: matematica
+titulo: Equação do primeiro grau
+nivel: basico
+resumo: 'A ideia de incognita, isolar o x, verificar a resposta, e montar a equacao a partir
+  de um problema escrito.
+
+  '
+fonte: Wikipedia, artigos Equação linear, consultados em 2026-08-14
+plano:
+  objetivo: Aprender a ideia de incognita, isolar o x, verificar a resposta e montar a equacao
+    a partir de um problema.
+  pre_requisitos:
+  - Operacoes basicas de aritmetica
+  duracao_min: 10
+  fixacao:
+  - Entender o que e a incognita
+  - Isolar a variavel
+  fechamento: Resolver equacoes e verificar os resultados.
+passos:
+- fala: Fala, pessoal! Imagine que voce foi a uma loja e comprou um caderno, e a caixinha
+    registradora mostra apenas que o total deu um valor desconhecido somado com outro.
+  quadro:
+    tipo: titulo
+    texto: Equação do Primeiro Grau
+- fala: Em matematica, quando temos um valor que a gente nao conhece, a gente chama ele de
+    incognita ou variavel, e geralmente usa a letra x para representar.
+  quadro:
+    tipo: texto
+    texto: 'Incógnita: valor desconhecido (ex: x)'
+- fala: O objetivo principal e achar o valor desse x. Para fazer isso, nos usamos uma equacao
+    polinomial de grau um, que no fundo e uma igualdade onde o maior expoente da letra e o
+    numero um.
+  quadro:
+    tipo: formula
+    texto: p = 0_A (polinômio de grau um)
+- fala: Vamos ver como montar e resolver isso na pratica usando uma equacao linear simples.
+    O segredo e isolar o x de um lado da igualdade.
+  quadro:
+    tipo: texto
+    texto: 'Passo 1: Isolar o x'
+- fala: Quando temos coeficientes multiplicando as incognitas, como nos termos com a_n e X_n,
+    precisamos organizar tudo para deixar a letra sozinha.
+  quadro:
+    tipo: formula
+    texto: a_n X_n + a_0 = 0_A
+- fala: O material mostra que uma equacao linear envolve coeficientes que pertencem a um anel
+    comutativo A, e o nulo do anel e o zero.
+  quadro:
+    tipo: texto
+    texto: Coeficientes em A e elemento nulo 0_A
+- fala: Outro modo de ver isso e fixar um polinomio de grau um igualado a zero, que e exatamente
+    a nossa equacao linear.
+  quadro:
+    tipo: formula
+    texto: p(X_1, ..., X_n) = 0_A
+- fala: Depois de isolar o x e encontrar o valor dele, voce deve fazer a verificacao, substituindo
+    o numero encontrado de volta na equacao original para ver se dos dois lados o resultado
+    bate.
+  quadro:
+    tipo: topicos
+    texto: Passos para resolver
+    itens:
+    - Identificar a incognita
+    - Montar a equacao linear p = 0_A
+    - Isolar o x
+    - Verificar a resposta
+- fala: 'Para terminar, pense comigo: se um polinomio de grau um com coeficientes em um anel
+    comutativo e igualado a zero, como voce faria para isolar a incognita x_1 se tivermos
+    apenas ela na equacao?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixação

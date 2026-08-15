@@ -1,0 +1,63 @@
+id: espanhol.saudacoes-cortesia.basico
+materia: espanhol
+titulo: Saudações e cortesia
+nivel: basico
+resumo: Tu contra usted, cumprimentar, despedir e pedir com educacao.
+fonte: Wikipedia, artigos Língua castelhana, consultados em 2026-08-14
+plano:
+  objetivo: Tu contra usted, cumprimentar, despedir e pedir com educacao.
+  pre_requisitos:
+  - Portugues basico
+  duracao_min: 10
+  fixacao:
+  - Diferenca entre tu e usted
+  - Cumprimentos em espanhol
+  fechamento: Qual pronome voce usaria para falar com o seu diretor de escola em espanhol?
+passos:
+- fala: Fala, galera! Imagina que voce vai falar 'ola' para o seu melhor amigo e depois para
+    o diretor da escola. No portugues a gente muda o jeito, ne? No espanhol tambem! Vamos
+    ver isso hoje.
+  quadro:
+    tipo: titulo
+    texto: Saudações e cortesia em espanhol
+- fala: Antes de ver os cumprimentos, sabia que o espanhol tem cerca de 500 milhoes de falantes
+    nativos? Ele e falado em 20 paises diferentes!
+  quadro:
+    tipo: texto
+    texto: 'Idioma global: 500 milhões de falantes nativos em 20 países.'
+- fala: O pais com a maior populacao que fala espanhol no mundo e o Mexico. Guarda esse dado!
+  quadro:
+    tipo: texto
+    texto: 'Maior população de falantes nativos: México'
+- fala: 'Agora vamos para a cortesia. Em espanhol, temos duas formas de tratar as pessoas:
+    o ''tu'' e o ''usted''.'
+  quadro:
+    tipo: topicos
+    texto: Tratamento
+    itens:
+    - 'Tu (informal: amigos, colegas)'
+    - 'Usted (formal: autoridades, desconhecidos)'
+- fala: Para cumprimentar alguem logo de manha, voce usa 'Buenos días'.
+  quadro:
+    tipo: texto
+    texto: Buenos días (Bom dia)
+- fala: Se for no periodo da tarde, a gente fala 'Buenas tardes'.
+  quadro:
+    tipo: texto
+    texto: Buenas tardes (Boa tarde)
+- fala: E para a noitinha ou noite, usamos 'Buenas noches'.
+  quadro:
+    tipo: texto
+    texto: Buenas noches (Boa noite)
+- fala: Na hora de ir embora e se despedir, voce pode dizer 'Adiós' ou 'Hasta luego'.
+  quadro:
+    tipo: topicos
+    texto: Despedidas
+    itens:
+    - Adiós (Adeus / Tchau)
+    - Hasta luego (Até logo)
+- fala: E para pedir com educacao, como pedir um favor ou por favor, usamos a expressao basica
+    de cortesia.
+  quadro:
+    tipo: texto
+    texto: Por favor / Gracias

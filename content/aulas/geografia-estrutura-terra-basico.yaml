@@ -1,0 +1,88 @@
+id: geografia.estrutura-terra.basico
+materia: geografia
+titulo: Estrutura da Terra e relevo
+nivel: basico
+resumo: Placas tectonicas, terremoto, vulcao, e como o relevo se forma e se desgasta.
+fonte: Wikipedia, artigos Placas, Tectónica de placas, Vulcão, consultados em 2026-08-09
+plano:
+  objetivo: Entender placas tectonicas, vulcoes e como a Terra funciona por dentro.
+  pre_requisitos:
+  - Conhecer o formato da Terra
+  duracao_min: 10
+  fixacao:
+  - O que sao as placas tectonicas?
+  - O que acontece quando um vulcao entra em erupcao?
+  fechamento: A Terra nao e parada. Por baixo dos nossos pes, o planeta esta sempre se movendo
+    e mudando de forma.
+passos:
+- fala: Ola! Voce ja reparou que o chao parece super firme, ne? Mas por dentro, a Terra funciona
+    como uma panela cheia de movimento. Vamos ver como isso mexe com o nosso planeta.
+  quadro:
+    tipo: titulo
+    texto: Estrutura da Terra e Relevo
+- fala: Primeiro, vamos falar de algo que parece mentira, mas a camada solta de fora da Terra
+    e dividida em enormes pedacos. Sao as placas tectonicas.
+  quadro:
+    tipo: texto
+    texto: Litosfera dividida em placas
+- fala: Esses blocos gigantescos nao estao parados. Eles se movem bem devagar, e fazem isso
+    ha bilhoes de anos, desde 3 a 4 bilhoes de anos atras.
+  quadro:
+    tipo: topicos
+    texto: Movimento das Placas
+    itens:
+    - Movem-se lentamente
+    - Desde 3-4 bilhoes de anos atras
+- fala: Essa ideia de que os continentes andam nasceu de um conceito chamado deriva continental,
+    la do inicio do seculo vinte.
+  quadro:
+    tipo: texto
+    texto: Deriva continental (Seculo XX)
+- fala: Mas os cientistas so aceitaram de verdade a teoria das placas tectonicas nos anos
+    1960, quando comprovaram que o fundo dos oceanos esta se expandindo.
+  quadro:
+    tipo: texto
+    texto: 'Aceitacao cientifica: decada de 1960'
+- fala: Todos esses processos que criam as placas e moldam a crosta da Terra recebem o nome
+    de tectonica.
+  quadro:
+    tipo: texto
+    texto: 'Tectonica: processos que moldam a crosta'
+- fala: E nao e so aqui na Terra! Placas tectonicas tambem existem em outros planetas e em
+    algumas luas.
+  quadro:
+    tipo: texto
+    texto: Ocorre tambem em outros planetas e luas
+- fala: 'Agora vamos falar de outra coisa impressionante: o vulcao. Ele e uma estrutura geologica
+    que se forma quando o magma, os gases e as cinzas conseguem escapar para a superficie.'
+  quadro:
+    tipo: titulo
+    texto: Vulcoes
+- fala: Normalmente, os vulcoes tem aquele formato de cone, parecendo uma montanha pontuda.
+  quadro:
+    tipo: texto
+    texto: 'Formato tipico: conico e montanhoso'
+- fala: Quando um vulcao entra em erupcao, ele joga muita poeira, gases e particulas quentes
+    na atmosfera. Isso ate mexe com o clima da Terra e funciona como uma poluicao natural.
+  quadro:
+    tipo: topicos
+    texto: Efeitos da erupcao
+    itens:
+    - Ejeta poeira, gases e aerossois
+    - Interfere no clima
+    - Poluicao natural
+- fala: Por fim, as erupcoes sao desastres naturais muito graves e quase impossiveis de prever
+    com precisao. Elas destroem tudo sem escolher, estragam o turismo, param avioes e dao
+    um prejuizo enorme.
+  quadro:
+    tipo: topicos
+    texto: Consequencias dos desastres
+    itens:
+    - Quase imprevisiveis
+    - Prejudicam o turismo e o trafego aereo
+    - Gera altos custos de reconstrucao
+- fala: 'Para pensar: se as placas tectonicas se movem bem devagar ha bilhoes de anos, o que
+    voce acha que vai acontecer com o formato dos continentes daqui a milhoes de anos?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O futuro dos continentes?'

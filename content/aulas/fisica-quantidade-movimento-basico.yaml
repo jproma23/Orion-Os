@@ -1,0 +1,62 @@
+id: fisica.quantidade-movimento.basico
+materia: fisica
+titulo: Quantidade de movimento
+nivel: basico
+resumo: Impulso, colisao elastica e inelastica, conservacao do momento.
+fonte: Wikipedia, artigos Impulso, Conservação do momento linear, consultados em 2026-08-09
+plano:
+  objetivo: Entender impulso, conservacao da quantidade de movimento e tipos de colisao
+  pre_requisitos:
+  - leis de Newton
+  duracao_min: 10
+  fixacao:
+  - O que gera um impulso em um objeto?
+  - O que acontece com o momento linear em um sistema fechado?
+  fechamento: Hoje vimos que o impulso altera a quantidade de movimento e que em sistemas
+    fechados essa quantidade se conserva.
+passos:
+- fala: Imagine que você está jogando futebol e chuta a bola. A força do seu pé na bola durante
+    aquele tempinho rápido muda o movimento dela. Vamos ver como chamamos isso na física.
+  quadro:
+    tipo: titulo
+    texto: Quantidade de Movimento e Impulso
+- fala: O impulso é a grandeza física que mede exatamente essa variação da quantidade de movimento
+    de um objeto.
+  quadro:
+    tipo: texto
+    texto: 'Impulso: mede a variação da quantidade de movimento.'
+- fala: Ele acontece pela ação de uma força atuando durante um intervalo de tempo.
+  quadro:
+    tipo: formula
+    texto: I = F * Delta t
+- fala: No Sistema Internacional, a unidade de medida do impulso é o newton segundo.
+  quadro:
+    tipo: texto
+    texto: 'Unidade (SI): N*s (newton-segundo)'
+- fala: Existem também unidades em outros sistemas, como na engenharia inglesa.
+  quadro:
+    tipo: topicos
+    texto: 'Outras unidades:'
+    itens:
+    - libra-força segundo (lbf*s)
+    - slug pés por segundo (slug*ft/s)
+- fala: 'Agora vamos falar de algo muito importante: a conservação do momento.'
+  quadro:
+    tipo: limpar
+- fala: Em um sistema fechado, o momento linear total é constante.
+  quadro:
+    tipo: texto
+    texto: 'Sistema Fechado: Momento linear total é constante.'
+- fala: Esse fato é conhecido como conservação da quantidade de movimento.
+  quadro:
+    tipo: titulo
+    texto: Conservação do Momento
+- fala: Essa regra da física é uma consequência direta das leis de Newton que você já estudou.
+  quadro:
+    tipo: texto
+    texto: 'Causa: Implicado pelas leis de Newton.'
+- fala: 'Para pensar: se você solta um objeto em um sistema fechado, por que o momento total
+    não muda?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que garante a constância do momento em sistemas fechados?'

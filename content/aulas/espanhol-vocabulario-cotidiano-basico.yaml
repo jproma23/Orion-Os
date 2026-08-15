@@ -1,0 +1,73 @@
+id: espanhol.vocabulario-cotidiano.basico
+materia: espanhol
+titulo: Vocabulário do cotidiano
+nivel: basico
+resumo: Familia, casa, comida, roupa, cidade e transporte.
+fonte: Wikipedia, artigos Língua castelhana, consultados em 2026-08-14
+plano:
+  objetivo: Aprender sobre a origem e a importância global da língua espanhola.
+  pre_requisitos:
+  - Curiosidade por línguas estrangeiras
+  duracao_min: 10
+  fixacao:
+  - Quantas pessoas falam espanhol no mundo?
+  - Qual é o país com a maior população de falantes nativos?
+  fechamento: Hoje vimos que o espanhol é uma língua gigante falada por centenas de milhões
+    de pessoas em dezenas de países.
+passos:
+- fala: 'Imagine que você viaja para o México ou para a Espanha e precisa conversar com as
+    pessoas de lá. Você usaria o idioma que une mais de 500 milhões de pessoas no mundo: o
+    espanhol!'
+  quadro:
+    tipo: titulo
+    texto: Língua Espanhola ou Castelhana
+- fala: Para começar, de onde vem esse idioma? O espanhol é uma língua românica que evoluiu
+    do latim vulgar falado na Península Ibérica da Europa.
+  quadro:
+    tipo: texto
+    texto: 'Origem: Latim vulgar da Península Ibérica'
+- fala: Hoje em dia, ele é uma língua global gigante. Sabe quantos falantes nativos ele tem?
+    Cerca de 500 milhões de pessoas!
+  quadro:
+    tipo: texto
+    texto: 'Falantes nativos: ~ 500 milhões'
+- fala: E se a gente somar quem aprendeu espanhol como segunda língua? O número total sobe
+    para cerca de 600 milhões de falantes.
+  quadro:
+    tipo: texto
+    texto: 'Total com 2ª língua: ~ 600 milhões'
+- fala: O espanhol não se fala só na Espanha. Ele é a língua oficial de vinte países diferentes
+    espalhados pelo mundo, principalmente nas Américas.
+  quadro:
+    tipo: texto
+    texto: 'Países com idioma oficial: 20 países'
+- fala: Ele também tem muito prestígio internacional. É uma das seis línguas oficiais da Organização
+    das Nações Unidas, a famosa ONU.
+  quadro:
+    tipo: texto
+    texto: Língua oficial das Nações Unidas (ONU)
+- fala: No ranking mundial de idiomas nativos, ele ocupa o segundo lugar, ficando atrás apenas
+    do mandarim.
+  quadro:
+    tipo: texto
+    texto: 2ª língua nativa mais falada (após o mandarim)
+- fala: E se contarmos todas as formas de falar, ele é a quarta língua mais falada no planeta,
+    depois do inglês, do mandarim e do hindustani.
+  quadro:
+    tipo: texto
+    texto: 4ª língua mais falada globalmente
+- fala: Entre todas as línguas que nasceram do latim, chamadas de românicas, o espanhol é
+    a mais falada de todas.
+  quadro:
+    tipo: texto
+    texto: A língua românica mais falada do mundo
+- fala: Para terminar, você sabe qual país tem a maior população de falantes nativos de espanhol?
+    É o México!
+  quadro:
+    tipo: texto
+    texto: 'Maior população nativa: México'
+- fala: 'Agora me responda: considerando o que vimos sobre os falantes nativos e totais, por
+    que você acha que aprender espanhol é tão útil para quem vive nas Américas?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual a importância do espanhol nas Américas?'

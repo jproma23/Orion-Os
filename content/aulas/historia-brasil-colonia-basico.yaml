@@ -1,0 +1,55 @@
+id: historia.brasil-colonia.basico
+materia: historia
+titulo: Brasil colônia
+nivel: basico
+resumo: Capitanias, engenho, mineracao e a administracao portuguesa.
+fonte: Wikipedia, artigos Brasil Colônia, consultados em 2026-08-14
+plano:
+  objetivo: Capitanias, engenho, mineracao e a administracao portuguesa.
+  pre_requisitos:
+  - Conhecer o descobrimento do Brasil
+  duracao_min: 10
+  fixacao:
+  - O que foi o Brasil Colonia?
+  - Quem administrava os territorios?
+  fechamento: 'Pense: como o fato de o Brasil ser administrado direto pela Coroa portuguesa
+    mudou a vida de quem morava aqui?'
+passos:
+- fala: Fala, pessoal! Sabe quando a sua casa era organizada de um jeito bem diferente de
+    hoje? O Brasil tambem teve uma epoca em que ele nao era um pais independente. Ele era
+    dominado por Portugal.
+  quadro:
+    tipo: titulo
+    texto: Brasil Colonia
+- fala: Essa epoca em que fomos uma colonia de Portugal tem um nome na historia. Vamos ver
+    o que significa.
+  quadro:
+    tipo: texto
+    texto: Periodo entre a ocupacao portuguesa e 1815
+- fala: Tudo comecou quando os portugueses comecaram a ocupar a America do Sul. E isso so
+    acabou em 1815.
+  quadro:
+    tipo: texto
+    texto: Inicio da ocupacao ate 1815 (Reino do Brasil)
+- fala: Durante esses anos todos, o territorio brasileiro nao era nosso. Ele fazia parte de
+    um imperio la na Europa.
+  quadro:
+    tipo: texto
+    texto: Integrantes do Imperio Portugues como conquistas ultramarinas
+- fala: E quem mandava em tudo por aqui? Nao tinha presidente nem governador eleito pelo povo.
+    A ordem vinha direto do rei.
+  quadro:
+    tipo: texto
+    texto: Administracao direta da Coroa portuguesa
+- fala: Para resumir, o Brasil Colonial foi o periodo em que fomos uma colonia sob o comando
+    de Portugal, antes de virarmos um reino.
+  quadro:
+    tipo: topicos
+    texto: Resumo do Periodo
+    itens:
+    - Ocupacao portuguesa
+    - Conquista ultramarina
+    - Administracao da Coroa
+    - Fim em 1815
+- fala: 'Agora me responda: se o Brasil era administrado de longe pela Coroa portuguesa, quem
+    voce acha que mandava de verdade na vida das pessoas que moravam aqui?'

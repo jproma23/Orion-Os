@@ -1,0 +1,72 @@
+id: italiano.pronuncia.basico
+materia: italiano
+titulo: Pronúncia e alfabeto
+nivel: basico
+resumo: C e G duros e brandos, GLI, GN, SC; as consoantes dobradas que mudam a palavra.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Aprender C e G duros e brandos, GLI, GN, SC e as consoantes dobradas em italiano.
+  pre_requisitos:
+  - Alfabeto latino basico
+  duracao_min: 10
+  fixacao:
+  - Como voce pronuncia 'gnocchi'?
+  - Qual a diferenca entre 'note' e 'notte'?
+  fechamento: Agora voce ja sabe os sons especiais do italiano e como as letras dobradas mudam
+    o sentido das palavras!
+passos:
+- fala: Fala, pessoal! Ja viram um filme italiano e perceberam que algumas letras tem sons
+    bem diferentes do portugues?
+  quadro:
+    tipo: titulo
+    texto: Pronuncia do Italiano
+- fala: Vamos comecar com a letra C. Quando vem antes de A, O ou U, ela tem som duro, igual
+    em 'casa'.
+  quadro:
+    tipo: texto
+    texto: 'C duro: A, O, U (som de K)'
+- fala: Mas se o C vem antes de E ou I, o som fica brando, como um 'tCH', igual em 'tocar'
+    em ingles ou 'tchau' em portugues.
+  quadro:
+    tipo: texto
+    texto: 'C brando: E, I (som de tCH)'
+- fala: Com a letra G e a mesma coisa. Antes de A, O e U, som duro de 'gato'.
+  quadro:
+    tipo: texto
+    texto: 'G duro: A, O, U (som de G)'
+- fala: E antes de E ou I, o G fica brando, com som de 'DJ', como em 'gelato'.
+  quadro:
+    tipo: texto
+    texto: 'G brando: E, I (som de dJ)'
+- fala: Agora veja o GLI. Ele tem um som parecido com o nosso 'LH' em portugues, como na palavra
+    'alho'.
+  quadro:
+    tipo: texto
+    texto: GLI = som de LH
+- fala: E o GN? Facil! Tem exatamente o som do nosso 'NH', como em 'ninho'.
+  quadro:
+    tipo: texto
+    texto: GN = som de NH
+- fala: E o SC antes de E ou I? Tem som de 'X' ou 'CH', como em 'xícara'.
+  quadro:
+    tipo: texto
+    texto: SC + E/I = som de X
+- fala: Por fim, o italiano adora consoantes dobradas. Quando uma letra aparece em dobro,
+    voce precisa segurar o som por mais tempo.
+  quadro:
+    tipo: texto
+    texto: 'Consoantes dobradas: som prolongado'
+- fala: 'Olha esse exemplo: ''note'' quer dizer noites, mas ''notte'' com dois tês muda totalmente
+    a forca da palavra.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Palavra
+    - Significado
+    linhas:
+    - - note
+      - noites
+    - - notte
+      - noite
+- fala: 'Para terminar, me responda: se ''note'' e ''notte'' mudam so com o dobro do t, como
+    fica a pronuncia no seu dia a dia?'

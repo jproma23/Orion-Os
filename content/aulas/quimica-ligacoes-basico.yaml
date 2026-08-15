@@ -1,0 +1,67 @@
+id: quimica.ligacoes.basico
+materia: quimica
+titulo: Ligações químicas
+nivel: basico
+resumo: Ionica, covalente e metalica; por que a agua dissolve sal e nao dissolve oleo.
+fonte: Wikipedia, artigos Ligação química, consultados em 2026-08-14
+plano:
+  objetivo: Aprender as ligações químicas iônicas e o exemplo do cloreto de sódio.
+  pre_requisitos:
+  - Conceito de atomos e eletrons
+  duracao_min: 10
+  fixacao:
+  - O que acontece com os elétrons na ligação iônica?
+  - Como o sal de cozinha se comporta ao ser dissolvido?
+  fechamento: Vimos que os atomos se unem formando substancias atraves de ligacoes como a
+    ionica.
+passos:
+- fala: Fala, pessoal! Ja viram que na natureza existem cerca de cem elementos quimicos? Eles
+    se unem para formar toda a diversidade de coisas que a gente conhece.
+  quadro:
+    tipo: titulo
+    texto: Ligações Químicas
+- fala: Para comecar, pense em como voce constroi uma casa usando blocos. Na quimica, os atomos
+    sao esses blocos. Eles se juntam formando moleculas ou superatomos.
+  quadro:
+    tipo: texto
+    texto: Atomos se unem para formar substâncias
+- fala: Isso acontece atraves das ligacoes quimicas. A primeira que vamos ver e a ligacao
+    ionica.
+  quadro:
+    tipo: texto
+    texto: Ligao Iônica
+- fala: Na ligacao ionica, um atomo doa eltrons e outro recebe. Eles viram ions e ficam grudados
+    por causa disso.
+  quadro:
+    tipo: topicos
+    texto: Passos da ligação iônica
+    itens:
+    - Doação de elétrons
+    - Recepção de elétrons
+    - Atração entre íons
+- fala: O exemplo classico disso e o cloreto de sodio, o nosso sal de cozinha.
+  quadro:
+    tipo: formula
+    texto: NaCl
+- fala: Os compostos ionicos tem caracteristicas proprias. Eles conduzem eletricidade quando
+    estao no estado liquido ou dissolvidos.
+  quadro:
+    tipo: texto
+    texto: Conduzem eletricidade (liquido/dissolvido)
+- fala: 'Mas preste muita atencao: eles nao conduzem eletricidade quando estao no estado solido.'
+  quadro:
+    tipo: texto
+    texto: Não conduzem eletricidade no estado sólido
+- fala: Para terminar, eles tambem costumam ter um alto ponto de fusao e um alto ponto de
+    ebulicao.
+  quadro:
+    tipo: topicos
+    texto: Propriedades
+    itens:
+    - Alto ponto de fusão
+    - Alto ponto de ebulição
+- fala: 'Agora me diga: por que o sal de cozinha conduz eletricidade quando esta dissolvido
+    na agua, mas nao quando esta solido?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: E o sal solido?'

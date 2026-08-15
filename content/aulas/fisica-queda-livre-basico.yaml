@@ -1,0 +1,90 @@
+id: fisica.queda-livre.basico
+materia: fisica
+titulo: Queda livre e lançamentos
+nivel: basico
+resumo: Gravidade, tempo de queda, lancamento vertical e obliquo.
+fonte: Wikipedia, artigos Gravidade, Tempo de queda livre, consultados em 2026-08-09
+plano:
+  objetivo: Compreender a gravidade e o tempo de queda.
+  pre_requisitos:
+  - Noções básicas de forças na física
+  duracao_min: 10
+  fixacao:
+  - O que a gravidade causa nos objetos na Terra?
+  - Em que escala a gravidade é mais significativa?
+  fechamento: Vimos que a gravidade atrai corpos com massa e define o movimento no universo
+    e o peso na Terra.
+passos:
+- fala: Fala, pessoal! Já reparou que, quando a gente solta um objeto, ele sempre cai no chão?
+    Vamos entender o porquê disso hoje.
+  quadro:
+    tipo: titulo
+    texto: Queda Livre e Gravidade
+- fala: A palavra gravidade vem do latim gravitas, que significa peso. Na física, ela é uma
+    interação fundamental que causa atração mútua entre todas as coisas que têm massa.
+  quadro:
+    tipo: texto
+    texto: 'Gravitas = Peso
+
+      Atração mútua entre massas'
+- fala: Sabe o que é interessante? Ela é, de longe, a mais fraca das quatro forças fundamentais
+    da natureza.
+  quadro:
+    tipo: texto
+    texto: A mais fraca das quatro forças fundamentais
+- fala: Para você ter uma ideia, ela é aproximadamente 10 elevado a 38 vezes mais fraca que
+    a interação forte.
+  quadro:
+    tipo: formula
+    texto: 10^38 vezes mais fraca que a força forte
+- fala: Ela também é 10 elevado a 36 vezes mais fraca que a força eletromagnética.
+  quadro:
+    tipo: formula
+    texto: 10^36 vezes mais fraca que a força eletromagnética
+- fala: E 10 elevado a 29 vezes mais fraca que a interação fraca.
+  quadro:
+    tipo: formula
+    texto: 10^29 vezes mais fraca que a interação fraca
+- fala: Por causa disso tudo, ela não tem influência significativa no nível das partículas
+    subatômicas.
+  quadro:
+    tipo: texto
+    texto: Sem influência significativa no nível subatômico
+- fala: Porém, na escala macroscópica, a gravidade é a interação mais significativa de todas!
+  quadro:
+    tipo: texto
+    texto: Maior importância na escala macroscópica
+- fala: É ela que determina o movimento dos planetas, das estrelas, das galáxias e até mesmo
+    da luz.
+  quadro:
+    tipo: topicos
+    texto: 'Determina o movimento de:'
+    itens:
+    - Planetas
+    - Estrelas
+    - Galáxias
+    - Luz
+- fala: Aqui na Terra, a gravidade dá peso aos objetos físicos. E quer ver outro exemplo?
+    A gravidade da Lua é responsável pelas marés nos oceanos.
+  quadro:
+    tipo: topicos
+    texto: 'Efeitos práticos:'
+    itens:
+    - Peso dos objetos na Terra
+    - Marés oceânicas causadas pela Lua
+- fala: Para terminar, existe o chamado tempo de queda livre. É o tempo que um corpo levaria
+    para entrar em colapso por sua própria atração, se não houvesse outras forças.
+  quadro:
+    tipo: texto
+    texto: 'Tempo de queda livre: tempo de colapso por atração gravitacional'
+- fala: Isso é fundamental na astrofísica, ajudando a entender desde a formação de estrelas
+    até supernovas!
+  quadro:
+    tipo: texto
+    texto: 'Uso na astrofísica:
+
+      - Formação de estrelas
+
+      - Heliosismologia
+
+      - Supernovas'

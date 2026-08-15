@@ -1,0 +1,69 @@
+id: historia.povos-originarios.basico
+materia: historia
+titulo: Povos originários da América
+nivel: basico
+resumo: Maias, astecas, incas e os povos do Brasil antes de 1500.
+fonte: Wikipedia, artigos Povos indígenas do Brasil, consultados em 2026-08-14
+plano:
+  objetivo: Conhecer os povos originários do Brasil antes de 1500.
+  pre_requisitos:
+  - História do Brasil colonial
+  duracao_min: 10
+  fixacao:
+  - Como os povos indígenas sobreviviam antes de 1500?
+  - O que significa ser um povo seminômade?
+  fechamento: Os povos originários já habitavam o Brasil há milênios com culturas ricas e
+    variadas antes da chegada dos portugueses no século XVI.
+passos:
+- fala: Fala, pessoal! Para comecar, imagine que voce vive em uma terra onde seus avos, bisavós
+    e todos os seus antepassados ja moravam ha milhares de anos, sem nenhuma cidade grande
+    ou estrada por perto. E exatamente assim que vamos comecar nossa aula de hoje.
+  quadro:
+    tipo: titulo
+    texto: Povos Originários do Brasil
+- fala: Vamos olhar para o termo correto. Os povos indígenas do Brasil fazem parte de um grupo
+    maior chamado de povos ameríndios.
+  quadro:
+    tipo: texto
+    texto: Povos Ameríndios
+- fala: Eles habitam esta regiao ha milênios, muito antes do inicio da colonização portuguesa.
+  quadro:
+    tipo: topicos
+    texto: Presença milenar
+    itens:
+    - Antes da colonização portuguesa
+    - Século XVI como marco inicial
+- fala: Quando os portugueses chegaram aqui no século XVI, os nativos estavam divididos em
+    um grande número de diferentes grupos étnicos.
+  quadro:
+    tipo: texto
+    texto: 'Século XVI: Chegada dos portugueses'
+- fala: Esses grupos eram seminômades. Sabe o que isso significa? Eles se moviam de tempos
+    em tempos para aproveitar o melhor que a natureza podia oferecer.
+  quadro:
+    tipo: texto
+    texto: Povos seminômades
+- fala: E de que eles viviam? A sobrevivencia vinha da caça, da pesca e da coleta na floresta.
+  quadro:
+    tipo: topicos
+    texto: Subsistência
+    itens:
+    - Caça
+    - Pesca
+    - Coleta
+- fala: Eles tambem praticavam a agricultura itinerante, plantando e colhendo mudando de lugar
+    para a terra descansar.
+  quadro:
+    tipo: texto
+    texto: Agricultura itinerante
+- fala: Por fim, cada um desses grupos desenvolveu suas proprias culturas diferenciadas, com
+    seus rituais, linguas e tradicoes.
+  quadro:
+    tipo: texto
+    texto: Culturas diferenciadas
+- fala: 'Para fechar nossa aula: se os portugueses chegaram no século XVI e acharam povos
+    que ja viviam da caça, pesca e agricultura ha milênios, por que chamamos esses grupos
+    de povos originários?'
+  quadro:
+    tipo: texto
+    texto: Reflexão final

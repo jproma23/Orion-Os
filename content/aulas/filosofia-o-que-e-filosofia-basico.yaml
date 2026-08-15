@@ -3,59 +3,78 @@ materia: filosofia
 titulo: O que é filosofia
 nivel: basico
 resumo: A pergunta como metodo, mito e razao, e por que duvidar e trabalho serio.
-fonte: Wikipedia, artigos Pergunta, consultados em 2026-08-09
+fonte: Wikipedia, artigos Filosofia, consultados em 2026-08-14
 plano:
   objetivo: A pergunta como metodo, mito e razao, e por que duvidar e trabalho serio.
   pre_requisitos:
-  - Entender o que e uma pergunta
+  - Curiosidade basica
   duracao_min: 10
   fixacao:
-  - O que diferencia uma pergunta de uma simples afirmacao?
-  - Como usamos perguntas no dia a dia?
-  fechamento: A filosofia comeca exatamente quando a gente para para fazer perguntas sobre
-    o que parece obvio.
+  - O que significa a palavra filosofia?
+  fechamento: A filosofia nos ensina que fazer perguntas e o primeiro passo para o conhecimento.
 passos:
-- fala: 'Fala, pessoal! Olha so, imagina que voce chega em casa e pergunta: ''O que tem para
-    o jantar?''. Voce esta pedindo uma informacao para alguem, certo?'
+- fala: Imagina que seu amigo diz que a chuva cai porque o ceu esta triste. Voce aceita isso
+    ou tenta entender como a nuvem funciona?
   quadro:
     tipo: titulo
     texto: O que e Filosofia?
-- fala: Na filosofia e na linguagem, a gente chama isso de enunciado em que se pede ao interlocutor
-    uma informacao. Toda vez que voce quer saber algo, voce faz uma pergunta.
+- fala: Antigamente, as pessoas usavam os mitos para explicar o mundo. A filosofia nasce quando
+    a gente troca o mito pela razao.
   quadro:
     tipo: texto
-    texto: 'Pergunta: enunciado que pede informacao ao interlocutor'
-- fala: Mas as perguntas nao aparecem so com aquela carinha de duvida tradicional. Na pragmatica,
-    que e o estudo de como usamos a lingua na pratica, elas podem aparecer de varias formas.
-  quadro:
-    tipo: titulo
-    texto: Tipos de Atos de Fala
-- fala: Elas sao enquadradas como um tipo de ato de fala diretamente realizado por oracoes
-    interrogativas. E aquela frase classica que termina com ponto de interrogacao.
+    texto: Mito vs. Razao
+- fala: A palavra filosofia vem do grego antigo e quer dizer amor pela sabedoria.
   quadro:
     tipo: texto
-    texto: '1. Direto: Orações Interrogativas'
-- fala: Mas voce tambem pode fazer uma pergunta de forma indireta. Sabia disso? Usando oracoes
-    imperativas, que sao aquelas que dao ordens ou pedidos.
+    texto: Philosophia = Amor pela sabedoria
+- fala: Dizem que o matematico Pitagoras foi o primeiro a usar essa palavra.
   quadro:
     tipo: texto
-    texto: '2. Indireto: Orações Imperativas'
-- fala: Ou entao atraves de oracoes declarativas, que apenas afirmam algo, mas funcionam como
-    um pedido de informacao naquele contexto.
-  quadro:
-    tipo: texto
-    texto: '3. Indireto: Orações Declarativas'
-- fala: Para organizar tudo isso, os estudiosos dividem as perguntas em diversos tipos e subtipos
-    diferentes. Nao existe apenas um jeito de questionar.
+    texto: Cunhado por Pitagoras (c. 570 - 495 a.C.)
+- fala: Mas o que o filosofo faz de verdade? Ele estuda questoes gerais e fundamentais sobre
+    a nossa existencia.
   quadro:
     tipo: topicos
-    texto: Classificacao das Perguntas
+    texto: Temas centrais
     itens:
-    - Divididas em diversos tipos
-    - Possuem subtipos variados
-    - Usadas na pragmatica do dia a dia
-- fala: 'Agora me responda: se voce usa uma frase no imperativo para pedir algo a alguem,
-    como isso se encaixa na definicao de fazer uma pergunta?'
+    - Existencia humana
+    - Conhecimento e verdade
+    - Valores morais e esteticos
+    - Razao e mente
+- fala: Para fazer isso, a filosofia usa ferramentas bem especificas. Nao e achismo.
+  quadro:
+    tipo: limpar
+- fala: O primeiro procedimento tecnico e o questionamento. A pergunta e o nosso metodo de
+    trabalho.
   quadro:
     tipo: texto
-    texto: 'Pergunta de Fechamento: Como ordens podem ser perguntas?'
+    texto: 1. Questionamento
+- fala: Depois vem a discussao critica e o argumento racional. Nao basta falar, tem que ter
+    logica.
+  quadro:
+    tipo: topicos
+    texto: Metodo filosofico
+    itens:
+    - Questionamento
+    - Discussao critica
+    - Argumento racional
+    - Apresentacao sistematica
+- fala: Duvidar de tudo nao e frescura, e trabalho serio. Olha o tipo de pergunta classica
+    que eles fazem.
+  quadro:
+    tipo: texto
+    texto: Questoes Classicas
+- fala: 'Um exemplo: E possivel saber qualquer coisa e provar que se sabe?'
+  quadro:
+    tipo: texto
+    texto: E possivel provar o que sabemos?
+- fala: 'Outra pergunta classica: Existe uma maneira melhor de se viver? E melhor ser justo
+    ou injusto?'
+  quadro:
+    tipo: texto
+    texto: Como devemos viver? Ser justo ou injusto?
+- fala: 'Para terminar, pensa comigo: por que voce acha que questionar as coisas ao nosso
+    redor e importante para a ciencia e para a nossa vida?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que duvidar e um trabalho serio?'

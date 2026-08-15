@@ -1,0 +1,79 @@
+id: tecnologia.sensores-atuadores.basico
+materia: tecnologia
+titulo: Sensores e atuadores
+nivel: basico
+resumo: A diferenca entre medir e agir; sensor de distancia, motor, servo e rele.
+fonte: Wikipedia, artigos Sensor de distância, Motor, consultados em 2026-08-14
+plano:
+  objetivo: Entender a diferença entre medir e agir, conhecendo sensores e atuadores
+  pre_requisitos:
+  - Conceito básico de tecnologia e máquinas
+  duracao_min: 10
+  fixacao:
+  - Qual a diferença entre um sensor e um motor?
+  - O que faz um sensor de distância?
+  fechamento: Sensores sentem o mundo e atuadores modificam o mundo.
+passos:
+- fala: 'Fala, pessoal! Pensem em quando vocês entram num quarto escuro e tateiam a parede
+    para achar o interruptor. Seus olhos e mãos sentem o ambiente, e seu dedo aperta o botão.
+    Na tecnologia, a gente divide isso em duas partes: os sensores, que sentem, e os atuadores,
+    que agem.'
+  quadro:
+    tipo: titulo
+    texto: Sensores e Atuadores
+- fala: Vamos começar pelos sensores. O sensor é o órgão dos sentidos da máquina. Ele capta
+    informações do mundo físico, como luz, temperatura ou distância.
+  quadro:
+    tipo: texto
+    texto: 'Sensor: Mede e coleta dados do ambiente'
+- fala: Um exemplo prático citado no nosso material é o sensor de distância. Ele serve exatamente
+    para medir o espaço entre um ponto de referência e algum objeto.
+  quadro:
+    tipo: texto
+    texto: Sensor de Distância
+- fala: Para estimar essa distância, o sensor pode usar diferentes tecnologias. A escolha
+    depende de onde ele vai ser usado e da precisão que a gente quer.
+  quadro:
+    tipo: topicos
+    texto: 'Critérios para escolha:'
+    itens:
+    - Aplicabilidade
+    - Precisão desejada
+- fala: 'Agora, vamos para o outro lado: os atuadores. Enquanto o sensor mede, o atuador age.
+    Ele transforma energia em movimento ou ação real.'
+  quadro:
+    tipo: texto
+    texto: 'Atuador: Converte energia em ação mecânica'
+- fala: O principal exemplo de atuador é o motor. Ele converte outras formas de energia em
+    energia mecânica, fazendo as coisas se moverem.
+  quadro:
+    tipo: texto
+    texto: Motor
+- fala: Os motores podem funcionar com vários tipos de energia, como elétrica, térmica, química
+    ou hidráulica. Por isso, estão em todos os lugares.
+  quadro:
+    tipo: topicos
+    texto: 'Tipos de energia nos motores:'
+    itens:
+    - Elétrica
+    - Térmica
+    - Química
+    - Hidráulica
+- fala: Eles aparecem em uma faixa enorme de aplicações, desde veículos e máquinas industriais
+    até nos eletrodomésticos da nossa casa.
+  quadro:
+    tipo: texto
+    texto: 'Aplicações: Veículos, indústrias e eletrodomésticos'
+- fala: Para fechar, vale lembrar que a humanidade usa fontes motoras para fazer trabalho
+    desde os primórdios da história.
+  quadro:
+    tipo: topicos
+    texto: 'Primeiras fontes motoras:'
+    itens:
+    - Força humana e tração animal
+    - Correntes de água, vento ou vapor
+- fala: 'Para pensar e responder: se você estivesse montando um carrinho automático que desvia
+    de paredes, qual parte dele seria o sensor de distância e qual parte seria o motor?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Sensor vs Atuador no carrinho?'

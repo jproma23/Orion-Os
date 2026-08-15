@@ -1,0 +1,91 @@
+id: espanhol.falsos-amigos.basico
+materia: espanhol
+titulo: Falsos amigos
+nivel: basico
+resumo: Embarazada, exquisito, oficina, rato, salada - as pegadinhas classicas.
+fonte: Wikipedia, artigos Cognato, consultados em 2026-08-14
+plano:
+  objetivo: 'Aprender os cinco falsos amigos classicos do espanhol: embarazada, exquisito,
+    oficina, rato e salada.'
+  pre_requisitos:
+  - Conhecer o alfabeto e leitura basica em espanhol
+  duracao_min: 10
+  fixacao:
+  - O que significa 'embarazada' em espanhol?
+  - Onde trabalha quem esta em uma 'oficina'?
+  fechamento: Agora voce ja nao cai mais nas pegadinhas mais famosas do espanhol.
+passos:
+- fala: Imagina que voce esta na Espanha, ouve a palavra 'embarazada' e acha que a pessoa
+    esta embaraçada ou envergonhada. Cuidado! Voce pode cometer um grande erro.
+  quadro:
+    tipo: titulo
+    texto: Falsos Amigos em Espanhol
+- fala: Em espanhol, chamamos de falsos amigos aquelas palavras que se parecem muito com o
+    portugues na escrita, mas que significam coisas totalmente diferentes.
+  quadro:
+    tipo: texto
+    texto: Parecem portugues, mas mudam de sentido!
+- fala: 'Vamos ver a primeira palavra da lista: ''embarazada''. Se parece com embaraçada,
+    mas na verdade significa gravida.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Espanhol
+    - Significado Real
+    linhas:
+    - - embarazada
+      - grávida
+- fala: 'Segunda palavra: ''exquisito''. No Brasil, exquisito pode soar como algo estranho.
+    Mas em espanhol quer dizer algo delicioso ou refinado.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Espanhol
+    - Significado Real
+    linhas:
+    - - exquisito
+      - delicioso / refinado
+- fala: 'Terceira palavra: ''oficina''. Nao e uma oficina mecanica de carros! Em espanhol,
+    oficina significa escritorio.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Espanhol
+    - Significado Real
+    linhas:
+    - - oficina
+      - escritório
+- fala: 'Quarta palavra: ''rato''. Nao pense no animal roedor. Em espanhol, um rato e um momento
+    curto, um instante.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Espanhol
+    - Significado Real
+    linhas:
+    - - rato
+      - momento / instante
+- fala: 'Quinta palavra: ''salada''. Em portugues pensamos na verdura do prato. Mas em espanhol,
+    salada significa salgada, com muito sal.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Espanhol
+    - Significado Real
+    linhas:
+    - - salada
+      - salgada
+- fala: Vamos revisar os cinco termos que estudamos hoje para fixar bem na memoria.
+  quadro:
+    tipo: topicos
+    texto: Resumo das 5 pegadinhas
+    itens:
+    - embarazada = grávida
+    - exquisito = delicioso
+    - oficina = escritório
+    - rato = momento
+    - salada = salgada
+- fala: Se uma pessoa espanhola te diz que vai trabalhar na oficina dela, onde ela esta indo?
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Onde trabalha quem vai à oficina?'

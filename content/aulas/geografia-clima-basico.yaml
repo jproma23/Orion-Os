@@ -1,0 +1,76 @@
+id: geografia.clima.basico
+materia: geografia
+titulo: Clima e tempo
+nivel: basico
+resumo: Fatores climaticos, tipos de clima, massas de ar e a diferenca entre tempo e clima.
+fonte: Wikipedia, artigos Clima temperado, Clima, consultados em 2026-08-09
+plano:
+  objetivo: Diferenciar tempo e clima, e conhecer fatores climaticos e tipos de clima.
+  pre_requisitos:
+  - Noçoes basicas de atmosfera e temperatura
+  duracao_min: 10
+  fixacao:
+  - 'O que muda mais rapido: o tempo ou o clima?'
+  - Qual e a temperatura media nos meses mais quentes do clima temperado?
+  fechamento: Hoje vimos que o tempo muda toda hora, mas o clima e o padrao que estudamos
+    com estatistica!
+passos:
+- fala: Ola! Voce ja reparou que num dia pode fazer sol de manha e chover a tarde, mas o inverno
+    todo costuma ser frio? Vamos entender essa diferenca.
+  quadro:
+    tipo: titulo
+    texto: Clima e Tempo
+- fala: A palavra clima vem do grego, que significa inelinação, olhando para o eixo da Terra.
+  quadro:
+    tipo: texto
+    texto: 'Clima: vem do grego ''inclinaçao'' (eixo da Terra)'
+- fala: O clima e o padrao da atmosfera da Terra ao longo do tempo.
+  quadro:
+    tipo: texto
+    texto: Padrão da atmosfera da Terra
+- fala: Para estudar o clima, a gente olha varios elementos meteorologicos, como temperatura
+    e vento.
+  quadro:
+    tipo: topicos
+    texto: 'Elementos meteorologicos:'
+    itens:
+    - Temperatura
+    - Precipitação
+    - Vento
+    - Umidade
+    - Pressão do ar
+- fala: Como o clima mexe com variaveis aleatorias e leis fisicas, a principal ferramenta
+    para estuda-lo e a estatistica.
+  quadro:
+    tipo: texto
+    texto: 'Ferramenta principal: Estatística'
+- fala: Fenomenos do dia a dia, como frentes frias, tempestades e furacoes, fazem parte dessas
+    variacoes.
+  quadro:
+    tipo: topicos
+    texto: 'Fenômenos associados:'
+    itens:
+    - Frentes frias
+    - Tempestades
+    - Furacões
+- fala: 'Agora vamos ver um tipo especifico de clima que aparece no material: o clima temperado.'
+  quadro:
+    tipo: titulo
+    texto: Clima Temperado
+- fala: No clima temperado, a temperatura varia regularmente o ano todo.
+  quadro:
+    tipo: texto
+    texto: Temperatura varia regularmente ao longo do ano
+- fala: Nos meses mais quentes, a media fica acima de 10 graus Celsius.
+  quadro:
+    tipo: texto
+    texto: 'Meses mais quentes: média acima de 10 °C'
+- fala: Ja nos meses frios, essa media fica entre -3 e 18 graus Celsius.
+  quadro:
+    tipo: texto
+    texto: 'Meses frios: média entre -3 °C e 18 °C'
+- fala: 'Para terminar: se o clima temperado muda a temperatura entre os meses quentes e frios,
+    o que voce acha que define o clima de uma regiao ao longo de muitos anos?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que a estatística analisa no clima?'

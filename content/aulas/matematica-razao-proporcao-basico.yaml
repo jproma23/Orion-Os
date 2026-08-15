@@ -1,0 +1,50 @@
+id: matematica.razao-proporcao.basico
+materia: matematica
+titulo: Razão, proporção e porcentagem
+nivel: basico
+resumo: 'Regra de tres direta e inversa, porcentagem no dia a dia, aumento e desconto sucessivos.
+
+  '
+fonte: Wikipedia, artigos Proporcionalidade, consultados em 2026-08-14
+plano:
+  objetivo: Regra de tres direta e proporcao basica
+  pre_requisitos:
+  - Divisao basica
+  - Fracoes
+  duracao_min: 10
+  fixacao:
+  - O que acontece com a razao na proporcionalidade direta?
+  - Para que serve a regra de tres?
+  fechamento: A regra de tres direta usa a constancia da razao entre grandezas para achar
+    valores desconhecidos.
+passos:
+- fala: Fala, pessoal! Imagina que voce vai comprar figurinhas. Se duas figurinhas custam
+    quatro reais, quanto custam quatro figurinhas? O dobro, oito reais! Isso que vamos ver
+    hoje.
+  quadro:
+    tipo: titulo
+    texto: Razão e Proporcionalidade Direta
+- fala: Na matematica, na quimica e na fisica, a proporcionalidade e a relacao mais simples
+    e comum entre grandezas.
+  quadro:
+    tipo: texto
+    texto: Relação mais simples e comum entre grandezas
+- fala: A proporcionalidade direta e um conceito muito util no dia a dia. E ela e facil de
+    resolver usando a famosa regra de tres.
+  quadro:
+    tipo: texto
+    texto: Conceito útil e de fácil resolução
+- fala: Mas o que significa isso na pratica? Quando existe proporcionalidade direta, a divisao
+    entre os valores correspondentes das duas grandezas e sempre igual.
+  quadro:
+    tipo: formula
+    texto: Razão (A / B) = Constante
+- fala: A essa divisao constante, damos o nome de constante de proporcionalidade.
+  quadro:
+    tipo: texto
+    texto: Constante de proporcionalidade
+- fala: Vamos ver como montar isso na pratica com a regra de tres. Se a grandeza A esta para
+    B, assim como C esta para X, a razao se mantem.
+  quadro:
+    tipo: formula
+    texto: A / B = C / X

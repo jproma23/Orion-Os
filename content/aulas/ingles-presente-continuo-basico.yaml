@@ -1,0 +1,69 @@
+id: ingles.presente-continuo.basico
+materia: ingles
+titulo: Presente contínuo
+nivel: basico
+resumo: O que esta acontecendo agora; ING; diferenca para o presente simples.
+fonte: Wikipedia, artigos Língua inglesa, consultados em 2026-08-14
+plano:
+  objetivo: O que esta acontecendo agora; ING; diferenca para o presente simples.
+  pre_requisitos:
+  - Ingles basico
+  duracao_min: 10
+  fixacao:
+  - Como voce diz que esta comendo agora?
+  - Qual a diferenca para o presente simples?
+  fechamento: Agora voce sabe falar sobre acoes que estao acontecendo neste exato momento!
+passos:
+- fala: Fala, pessoal! Imagina que eu estou falando com voce agora mesmo, neste exato segundo.
+    Como a gente diz isso em ingles?
+  quadro:
+    tipo: titulo
+    texto: Presente Continuo
+- fala: 'O presente continuo serve exatamente para isso: mostrar uma acao que esta acontecendo
+    agora, neste momento.'
+  quadro:
+    tipo: texto
+    texto: Acao acontecendo agora
+- fala: Para formar esse tempo verbal, a gente sempre usa o verbo to be antes, e depois o
+    verbo principal com ING no final.
+  quadro:
+    tipo: formula
+    texto: sujeito + verbo to be + verbo-ING
+- fala: Por exemplo, se eu quero dizer que estou comendo, eu pego o verbo eat e coloco o ING
+    no final, virando eating.
+  quadro:
+    tipo: texto
+    texto: eat -> eating
+- fala: 'Vamos ver como fica a frase completa: eu estou comendo.'
+  quadro:
+    tipo: formula
+    texto: I am eating
+- fala: E se for com ela? Ela esta comendo.
+  quadro:
+    tipo: formula
+    texto: She is eating
+- fala: Mas cuidado! Nao confunda com o presente simples. O presente simples fala de rotina,
+    daquilo que voce faz todo dia.
+  quadro:
+    tipo: texto
+    texto: Presente Simples = Rotina
+- fala: Ja o presente continuo e so o que esta acontecendo agora, neste momento da sua vida.
+  quadro:
+    tipo: texto
+    texto: Presente Continuo = Agora
+- fala: Olha a diferenca no quadro entre a rotina e o que acontece agora.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Presente Simples
+    - Presente Continuo
+    linhas:
+    - - I eat (eu como)
+      - I am eating (estou comendo)
+    - - You work (voce trabalha)
+      - You are working (esta trabalhando)
+- fala: 'Para terminar, me responda: se voce esta assistindo a uma aula agora, como voce fala
+    isso usando o ING?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Eu estou assistindo...'

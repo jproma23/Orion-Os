@@ -1,90 +1,96 @@
 materia: historia
 nome: História
-descricao: >
-  Nao e lista de datas - e entender por que as coisas ficaram como estao.
-  Toda aula termina com a pergunta do que isso explica do mundo de hoje.
+descricao: 'Nao e lista de datas - e entender por que as coisas ficaram como estao. Toda aula
+  termina com a pergunta do que isso explica do mundo de hoje.
 
+  '
 niveis:
   basico:
     descricao: Da Antiguidade a formacao do Brasil colonial.
     topicos:
-      - id: his.pre-historia
-        titulo: Primeiros povos e a agricultura
-        conteudo: Nomadismo, a revolucao agricola e o surgimento das cidades.
-      - id: his.antiguidade-oriental
-        titulo: Antiguidade oriental
-        conteudo: Mesopotamia, Egito, escrita, direito e os primeiros Estados.
-      - id: his.grecia-roma
-        titulo: Grécia e Roma
-        conteudo: Democracia ateniense, republica e imperio romano, e o que ficou disso.
-      - id: his.idade-media
-        titulo: Idade Média
-        conteudo: Feudalismo, Igreja, o mundo islamico e as cruzadas.
-      - id: his.povos-originarios
-        titulo: Povos originários da América
-        conteudo: Maias, astecas, incas e os povos do Brasil antes de 1500.
-      - id: his.grandes-navegacoes
-        titulo: Grandes navegações
-        conteudo: Por que a Europa foi ao mar, a tecnica que permitiu, e o que veio depois.
-      - id: his.brasil-colonia
-        titulo: Brasil colônia
-        conteudo: Capitanias, engenho, mineracao e a administracao portuguesa.
-      - id: his.escravidao
-        titulo: Escravidão e resistência
-        conteudo: O trafico, o trabalho escravizado, quilombos e revoltas.
-
+    - id: his.pre-historia
+      titulo: Primeiros povos e a agricultura
+      conteudo: Nomadismo, a revolucao agricola e o surgimento das cidades.
+      aula: historia.pre-historia.basico
+    - id: his.antiguidade-oriental
+      titulo: Antiguidade oriental
+      conteudo: Mesopotamia, Egito, escrita, direito e os primeiros Estados.
+      aula: historia.antiguidade-oriental.basico
+    - id: his.grecia-roma
+      titulo: Grécia e Roma
+      conteudo: Democracia ateniense, republica e imperio romano, e o que ficou disso.
+      aula: historia.grecia-roma.basico
+    - id: his.idade-media
+      titulo: Idade Média
+      conteudo: Feudalismo, Igreja, o mundo islamico e as cruzadas.
+      aula: historia.idade-media.basico
+    - id: his.povos-originarios
+      titulo: Povos originários da América
+      conteudo: Maias, astecas, incas e os povos do Brasil antes de 1500.
+      aula: historia.povos-originarios.basico
+    - id: his.grandes-navegacoes
+      titulo: Grandes navegações
+      conteudo: Por que a Europa foi ao mar, a tecnica que permitiu, e o que veio depois.
+      aula: historia.grandes-navegacoes.basico
+    - id: his.brasil-colonia
+      titulo: Brasil colônia
+      conteudo: Capitanias, engenho, mineracao e a administracao portuguesa.
+      aula: historia.brasil-colonia.basico
+    - id: his.escravidao
+      titulo: Escravidão e resistência
+      conteudo: O trafico, o trabalho escravizado, quilombos e revoltas.
+      aula: historia.escravidao.basico
   intermediario:
     descricao: As revolucoes e o Brasil imperio.
     topicos:
-      - id: his.renascimento-reforma
-        titulo: Renascimento e Reforma
-        conteudo: Humanismo, ciencia moderna, Lutero e as guerras religiosas.
-      - id: his.absolutismo-iluminismo
-        titulo: Absolutismo e Iluminismo
-        conteudo: O poder do rei e as ideias que o derrubaram.
-      - id: his.revolucoes-burguesas
-        titulo: Revoluções inglesa, americana e francesa
-        conteudo: Como a burguesia chegou ao poder e o que cada revolucao deixou.
-      - id: his.revolucao-industrial
-        titulo: Revolução Industrial
-        conteudo: Maquina, fabrica, cidade, e o nascimento da classe operaria.
-      - id: his.independencia-brasil
-        titulo: Independência do Brasil
-        conteudo: A corte no Rio, o processo de 1822 e o que nao mudou depois dele.
-      - id: his.brasil-imperio
-        titulo: Brasil império
-        conteudo: Primeiro e segundo reinado, cafe, guerra do Paraguai e abolicao.
-      - id: his.imperialismo
-        titulo: Imperialismo e partilha
-        conteudo: A corrida pela Africa e Asia, e as fronteiras que sobraram dela.
-      - id: his.republica-velha
-        titulo: República Velha
-        conteudo: Cafe com leite, coronelismo, revoltas populares e o tenentismo.
-
+    - id: his.renascimento-reforma
+      titulo: Renascimento e Reforma
+      conteudo: Humanismo, ciencia moderna, Lutero e as guerras religiosas.
+    - id: his.absolutismo-iluminismo
+      titulo: Absolutismo e Iluminismo
+      conteudo: O poder do rei e as ideias que o derrubaram.
+    - id: his.revolucoes-burguesas
+      titulo: Revoluções inglesa, americana e francesa
+      conteudo: Como a burguesia chegou ao poder e o que cada revolucao deixou.
+    - id: his.revolucao-industrial
+      titulo: Revolução Industrial
+      conteudo: Maquina, fabrica, cidade, e o nascimento da classe operaria.
+    - id: his.independencia-brasil
+      titulo: Independência do Brasil
+      conteudo: A corte no Rio, o processo de 1822 e o que nao mudou depois dele.
+    - id: his.brasil-imperio
+      titulo: Brasil império
+      conteudo: Primeiro e segundo reinado, cafe, guerra do Paraguai e abolicao.
+    - id: his.imperialismo
+      titulo: Imperialismo e partilha
+      conteudo: A corrida pela Africa e Asia, e as fronteiras que sobraram dela.
+    - id: his.republica-velha
+      titulo: República Velha
+      conteudo: Cafe com leite, coronelismo, revoltas populares e o tenentismo.
   avancado:
     descricao: O seculo XX e o mundo de agora.
     topicos:
-      - id: his.primeira-guerra
-        titulo: Primeira Guerra Mundial
-        conteudo: Causas, trincheiras, o tratado que preparou a guerra seguinte.
-      - id: his.entreguerras
-        titulo: Entreguerras, crise de 29 e fascismos
-        conteudo: A quebra da bolsa, o nazismo, o fascismo e por que eles cresceram.
-      - id: his.segunda-guerra
-        titulo: Segunda Guerra Mundial e Holocausto
-        conteudo: O conflito, o genocidio, e o dever de memoria.
-      - id: his.guerra-fria
-        titulo: Guerra Fria
-        conteudo: Dois blocos, corrida armamentista e espacial, e as guerras por procuracao.
-      - id: his.era-vargas
-        titulo: Era Vargas
-        conteudo: Revolucao de 30, Estado Novo, trabalhismo e o legado ambiguo.
-      - id: his.ditadura-militar
-        titulo: Ditadura militar no Brasil
-        conteudo: 1964, AI-5, censura, tortura, milagre economico e a abertura.
-      - id: his.redemocratizacao
-        titulo: Redemocratização e Constituição de 88
-        conteudo: Diretas ja, a Constituinte e os direitos que ela garantiu.
-      - id: his.mundo-contemporaneo
-        titulo: Mundo contemporâneo
-        conteudo: Globalizacao, fim da URSS, terrorismo, tecnologia e as disputas atuais.
+    - id: his.primeira-guerra
+      titulo: Primeira Guerra Mundial
+      conteudo: Causas, trincheiras, o tratado que preparou a guerra seguinte.
+    - id: his.entreguerras
+      titulo: Entreguerras, crise de 29 e fascismos
+      conteudo: A quebra da bolsa, o nazismo, o fascismo e por que eles cresceram.
+    - id: his.segunda-guerra
+      titulo: Segunda Guerra Mundial e Holocausto
+      conteudo: O conflito, o genocidio, e o dever de memoria.
+    - id: his.guerra-fria
+      titulo: Guerra Fria
+      conteudo: Dois blocos, corrida armamentista e espacial, e as guerras por procuracao.
+    - id: his.era-vargas
+      titulo: Era Vargas
+      conteudo: Revolucao de 30, Estado Novo, trabalhismo e o legado ambiguo.
+    - id: his.ditadura-militar
+      titulo: Ditadura militar no Brasil
+      conteudo: 1964, AI-5, censura, tortura, milagre economico e a abertura.
+    - id: his.redemocratizacao
+      titulo: Redemocratização e Constituição de 88
+      conteudo: Diretas ja, a Constituinte e os direitos que ela garantiu.
+    - id: his.mundo-contemporaneo
+      titulo: Mundo contemporâneo
+      conteudo: Globalizacao, fim da URSS, terrorismo, tecnologia e as disputas atuais.

@@ -1,0 +1,85 @@
+id: portugues.sujeito-predicado.basico
+materia: portugues
+titulo: Sujeito e predicado
+nivel: basico
+resumo: Quem faz e o que se diz; sujeito oculto, indeterminado e oracao sem sujeito.
+fonte: Wikipedia, artigos Oração, Sujeito, consultados em 2026-08-14
+plano:
+  objetivo: Aprender quem faz e o que se diz na oracao, alem de identificar sujeito oculto,
+    indeterminado e oracao sem sujeito.
+  pre_requisitos:
+  - Conceito basico de frase e verbo
+  duracao_min: 10
+  fixacao:
+  - Identificar o sujeito em frases do dia a dia
+  - Diferenciar sujeito oculto de indeterminado
+  fechamento: Se eu disser a frase 'Choveu muito ontem', como voce classificaria o sujeito
+    dela?
+passos:
+- fala: 'Ola! Pense na frase: ''O cachorro correu no quintal''. Quem e que correu? O cachorro!
+    E o que ele fez? Correu no quintal. Toda frase que tem verbo se divide assim.'
+  quadro:
+    tipo: titulo
+    texto: Sujeito e Predicado
+- fala: O sujeito e de quem a gente esta falando, ou quem pratica a acao. O predicado e tudo
+    o que a gente diz sobre esse sujeito.
+  quadro:
+    tipo: texto
+    texto: 'Sujeito: quem faz ou sofre a acao.
+
+      Predicado: o que se diz do sujeito.'
+- fala: 'Olhe este exemplo tirado do material: ''Nos vamos ao teatro''. O verbo e ''vamos''.
+    Ele concorda com o sujeito ''nos''.'
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: ''Nos vamos ao teatro''
+
+      Sujeito: Nos'
+- fala: Mas nem sempre o sujeito aparece escrito na frase. Quando ele nao esta escrito, mas
+    a gente descobre pelo verbo, chamamos de sujeito oculto.
+  quadro:
+    tipo: titulo
+    texto: Tipos de Sujeito
+- fala: Se eu digo 'Fomos ao mercado', quem foi? Nos! O sujeito nao esta escrito na palavra,
+    mas a gente sabe que e 'nos' por causa do verbo 'fomos'.
+  quadro:
+    tipo: texto
+    texto: 'Sujeito Oculto (ou Desinencial):
+
+      O sujeito nao aparece escrito, mas e identificado pela terminacao do verbo.'
+- fala: E quando a gente nao sabe ou nao quer dizer quem fez a acao? Ai temos o sujeito indeterminado.
+  quadro:
+    tipo: texto
+    texto: 'Sujeito Indeterminado:
+
+      A acao ocorreu, mas nao se sabe quem a praticou.'
+- fala: Isso acontece muito quando usamos o verbo na terceira pessoa do plural sem sujeito
+    aparente, como em 'Falaram mal da novela'. Quem falou? Nao sabemos.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: ''Falaram mal da novela''
+
+      (Nao se sabe quem falou)'
+- fala: Por fim, existem frases que nao tem sujeito nenhum! Sao os verbos que indicam fenomenos
+    da natureza, como chover ou ventar.
+  quadro:
+    tipo: texto
+    texto: 'Oracao sem Sujeito:
+
+      Verbos que indicam fenomenos da natureza (chover, nevar, ventar).'
+- fala: Quando dizemos 'Choveu muito ontem', nao existe nenhum ser praticando a acao. A oracao
+    e formada apenas pelo predicado.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: ''Choveu muito ontem''
+
+      Nao ha sujeito.'
+- fala: 'Para terminar, me responda: na frase ''Compraram um carro novo'', o sujeito e oculto,
+    indeterminado ou nao existe?'
+  quadro:
+    tipo: topicos
+    texto: 'Resuma os tipos:'
+    itens:
+    - Sujeito Oculto (sabemos quem e pelo verbo)
+    - Sujeito Indeterminado (nao sabemos quem e)
+    - Oracao sem Sujeito (fenomenos da natureza)

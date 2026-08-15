@@ -1,90 +1,96 @@
 materia: portugues
 nome: Português
-descricao: >
-  Ler entendendo, escrever sendo entendido, e reconhecer quando um texto
-  esta tentando convencer voce sem dizer que esta.
+descricao: 'Ler entendendo, escrever sendo entendido, e reconhecer quando um texto esta tentando
+  convencer voce sem dizer que esta.
 
+  '
 niveis:
   basico:
     descricao: A engrenagem da lingua - classes, frase e ortografia.
     topicos:
-      - id: pt.classes-palavras
-        titulo: Classes de palavras
-        conteudo: Substantivo, adjetivo, verbo, adverbio, pronome, preposicao e conjuncao.
-      - id: pt.sujeito-predicado
-        titulo: Sujeito e predicado
-        conteudo: Quem faz e o que se diz; sujeito oculto, indeterminado e oracao sem sujeito.
-      - id: pt.verbos-tempos
-        titulo: Verbos e tempos
-        conteudo: Presente, passado e futuro; os tres modos; a conjugacao que mais se erra.
-      - id: pt.ortografia
-        titulo: Ortografia e acentuação
-        conteudo: Regras de acento, uso do hifen, e as palavras que todo mundo escreve errado.
-      - id: pt.pontuacao
-        titulo: Pontuação
-        conteudo: A virgula que muda o sentido, ponto e virgula, dois-pontos e travessao.
-      - id: pt.concordancia
-        titulo: Concordância verbal e nominal
-        conteudo: Verbo com o sujeito, adjetivo com o substantivo, e os casos que confundem.
-      - id: pt.tipos-texto
-        titulo: Tipos de texto
-        conteudo: Narrar, descrever, expor, argumentar e instruir - cada um com sua forma.
-      - id: pt.leitura-interpretacao
-        titulo: Leitura e interpretação
-        conteudo: Achar a ideia principal, o que esta dito e o que esta suposto.
-
+    - id: pt.classes-palavras
+      titulo: Classes de palavras
+      conteudo: Substantivo, adjetivo, verbo, adverbio, pronome, preposicao e conjuncao.
+      aula: portugues.classes-palavras.basico
+    - id: pt.sujeito-predicado
+      titulo: Sujeito e predicado
+      conteudo: Quem faz e o que se diz; sujeito oculto, indeterminado e oracao sem sujeito.
+      aula: portugues.sujeito-predicado.basico
+    - id: pt.verbos-tempos
+      titulo: Verbos e tempos
+      conteudo: Presente, passado e futuro; os tres modos; a conjugacao que mais se erra.
+      aula: portugues.verbos-tempos.basico
+    - id: pt.ortografia
+      titulo: Ortografia e acentuação
+      conteudo: Regras de acento, uso do hifen, e as palavras que todo mundo escreve errado.
+      aula: portugues.ortografia.basico
+    - id: pt.pontuacao
+      titulo: Pontuação
+      conteudo: A virgula que muda o sentido, ponto e virgula, dois-pontos e travessao.
+      aula: portugues.pontuacao.basico
+    - id: pt.concordancia
+      titulo: Concordância verbal e nominal
+      conteudo: Verbo com o sujeito, adjetivo com o substantivo, e os casos que confundem.
+      aula: portugues.concordancia.basico
+    - id: pt.tipos-texto
+      titulo: Tipos de texto
+      conteudo: Narrar, descrever, expor, argumentar e instruir - cada um com sua forma.
+      aula: portugues.tipos-texto.basico
+    - id: pt.leitura-interpretacao
+      titulo: Leitura e interpretação
+      conteudo: Achar a ideia principal, o que esta dito e o que esta suposto.
+      aula: portugues.leitura-interpretacao.basico
   intermediario:
     descricao: Sintaxe, sentido e a literatura ate o Romantismo.
     topicos:
-      - id: pt.regencia-crase
-        titulo: Regência e crase
-        conteudo: Que preposicao cada verbo pede; a crase explicada de um jeito que fica.
-      - id: pt.oracoes-coordenadas
-        titulo: Orações coordenadas e subordinadas
-        conteudo: Como as oracoes se ligam e o que cada conjuncao faz com o sentido.
-      - id: pt.figuras-linguagem
-        titulo: Figuras de linguagem
-        conteudo: Metafora, metonimia, ironia, hiperbole - e para que servem fora da prova.
-      - id: pt.semantica
-        titulo: Semântica e ambiguidade
-        conteudo: Sinonimo, antonimo, polissemia, e a frase que quer dizer duas coisas.
-      - id: pt.variacao-linguistica
-        titulo: Variação linguística
-        conteudo: Registro formal e informal, regionalismo, e por que nao existe fala errada.
-      - id: pt.literatura-colonial
-        titulo: Literatura - do Quinhentismo ao Arcadismo
-        conteudo: A carta de Caminha, o Barroco de Gregorio de Matos, o Arcadismo mineiro.
-      - id: pt.romantismo
-        titulo: Romantismo
-        conteudo: As tres geracoes da poesia, o indianismo, e o romance urbano de Alencar.
-      - id: pt.coesao-coerencia
-        titulo: Coesão e coerência
-        conteudo: O que amarra um texto; conectivos; o paragrafo que nao se sustenta.
-
+    - id: pt.regencia-crase
+      titulo: Regência e crase
+      conteudo: Que preposicao cada verbo pede; a crase explicada de um jeito que fica.
+    - id: pt.oracoes-coordenadas
+      titulo: Orações coordenadas e subordinadas
+      conteudo: Como as oracoes se ligam e o que cada conjuncao faz com o sentido.
+    - id: pt.figuras-linguagem
+      titulo: Figuras de linguagem
+      conteudo: Metafora, metonimia, ironia, hiperbole - e para que servem fora da prova.
+    - id: pt.semantica
+      titulo: Semântica e ambiguidade
+      conteudo: Sinonimo, antonimo, polissemia, e a frase que quer dizer duas coisas.
+    - id: pt.variacao-linguistica
+      titulo: Variação linguística
+      conteudo: Registro formal e informal, regionalismo, e por que nao existe fala errada.
+    - id: pt.literatura-colonial
+      titulo: Literatura - do Quinhentismo ao Arcadismo
+      conteudo: A carta de Caminha, o Barroco de Gregorio de Matos, o Arcadismo mineiro.
+    - id: pt.romantismo
+      titulo: Romantismo
+      conteudo: As tres geracoes da poesia, o indianismo, e o romance urbano de Alencar.
+    - id: pt.coesao-coerencia
+      titulo: Coesão e coerência
+      conteudo: O que amarra um texto; conectivos; o paragrafo que nao se sustenta.
   avancado:
     descricao: Argumentar, analisar e escrever o que se pede.
     topicos:
-      - id: pt.realismo-naturalismo
-        titulo: Realismo e Naturalismo
-        conteudo: Machado de Assis e Aluisio Azevedo; a ironia como metodo.
-      - id: pt.modernismo
-        titulo: Modernismo
-        conteudo: A Semana de 22, as tres fases, Drummond, Clarice e Guimaraes Rosa.
-      - id: pt.literatura-contemporanea
-        titulo: Literatura contemporânea
-        conteudo: O que se escreve hoje no Brasil, e a literatura fora do eixo.
-      - id: pt.redacao-dissertativa
-        titulo: Redação dissertativo-argumentativa
-        conteudo: Tese, argumento, repertorio e proposta - a estrutura que o ENEM cobra.
-      - id: pt.argumentacao
-        titulo: Argumentação e falácias
-        conteudo: O que sustenta um argumento e os truques que parecem sustentar.
-      - id: pt.analise-discurso
-        titulo: Texto e intenção
-        conteudo: Quem fala, para quem, e o que o texto quer que voce ache sem dizer.
-      - id: pt.generos-digitais
-        titulo: Gêneros digitais
-        conteudo: Post, thread, comentario e noticia - como o meio muda o texto.
-      - id: pt.reescrita
-        titulo: Revisão e reescrita
-        conteudo: Cortar, trocar e reorganizar; por que o primeiro texto nunca e o texto.
+    - id: pt.realismo-naturalismo
+      titulo: Realismo e Naturalismo
+      conteudo: Machado de Assis e Aluisio Azevedo; a ironia como metodo.
+    - id: pt.modernismo
+      titulo: Modernismo
+      conteudo: A Semana de 22, as tres fases, Drummond, Clarice e Guimaraes Rosa.
+    - id: pt.literatura-contemporanea
+      titulo: Literatura contemporânea
+      conteudo: O que se escreve hoje no Brasil, e a literatura fora do eixo.
+    - id: pt.redacao-dissertativa
+      titulo: Redação dissertativo-argumentativa
+      conteudo: Tese, argumento, repertorio e proposta - a estrutura que o ENEM cobra.
+    - id: pt.argumentacao
+      titulo: Argumentação e falácias
+      conteudo: O que sustenta um argumento e os truques que parecem sustentar.
+    - id: pt.analise-discurso
+      titulo: Texto e intenção
+      conteudo: Quem fala, para quem, e o que o texto quer que voce ache sem dizer.
+    - id: pt.generos-digitais
+      titulo: Gêneros digitais
+      conteudo: Post, thread, comentario e noticia - como o meio muda o texto.
+    - id: pt.reescrita
+      titulo: Revisão e reescrita
+      conteudo: Cortar, trocar e reorganizar; por que o primeiro texto nunca e o texto.

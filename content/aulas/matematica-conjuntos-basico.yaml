@@ -1,0 +1,65 @@
+id: matematica.conjuntos.basico
+materia: matematica
+titulo: Conjuntos numéricos
+nivel: basico
+resumo: 'Naturais, inteiros, racionais, irracionais e reais. Por que os numeros foram sendo
+  inventados, e o que cada grupo resolve.
+
+  '
+fonte: Wikipedia, artigos Conjunto, Número natural, consultados em 2026-08-14
+plano:
+  objetivo: Aprender os conjuntos dos numeros naturais, inteiros, racionais, irracionais e
+    reais, entendendo o problema que cada um resolve.
+  pre_requisitos:
+  - Contagem basica
+  duracao_min: 10
+  fixacao:
+  - Identificar a qual conjunto pertence um numero dado
+  fechamento: Se voce precisa dividir uma pizza inteira entre pessoas e sobra fatia quebrada,
+    que conjunto novo voce esta usando?
+passos:
+- fala: Imagine que voce tem oito ovelhas para contar no curral. Voce usa os numeros para
+    contar coisas inteiras e que estao ali, comecando do zero.
+  quadro:
+    tipo: titulo
+    texto: Conjuntos Numericos
+- fala: O primeiro grupo que a humanidade usou foi o dos numeros naturais. Eles servem para
+    contar elementos inteiros e nao negativos.
+  quadro:
+    tipo: formula
+    texto: N = {0, 1, 2, 3, 4, ...}
+- fala: Mas e se a temperatura cai abaixo de zero, ou se voce deve dinheiro para alguem? Os
+    naturais nao resolvem isso sozinhos.
+  quadro:
+    tipo: texto
+    texto: 'Problema: como representar dividas ou temperaturas negativas?'
+- fala: Para resolver isso, criamos o conjunto dos numeros inteiros. Ele traz os numeros negativos
+    para a brincadeira, junto com os naturais.
+  quadro:
+    tipo: formula
+    texto: Z = {..., -3, -2, -1, 0, 1, 2, 3, ...}
+- fala: Agora pense em dividir uma barra de chocolate entre amigos. A resposta nem sempre
+    e um numero inteiro. Entao entram as divisoes e as fracoes.
+  quadro:
+    tipo: texto
+    texto: 'Problema: divisoes exatas que geram pedacos ou partes.'
+- fala: Esse e o conjunto dos numeros racionais. Ele guarda todas as fracoes, numeros com
+    virgula que terminam, e dizimas periodicas.
+  quadro:
+    tipo: formula
+    texto: Q = a/b (onde a e b sao inteiros e b diferente de 0)
+- fala: Mas nem todo numero com virgula vira fracao. Alguns numeros tem infinitas casas decimais
+    que nao se repetem nunca, como o famoso pi.
+  quadro:
+    tipo: texto
+    texto: 'Numeros irracionais: infinitas casas decimais sem repetir (ex: pi)'
+- fala: O conjunto dos irracionais nao pode ser escrito em forma de fracao. Exemplos sao a
+    raiz de dois e o numero pi.
+  quadro:
+    tipo: formula
+    texto: I = {pi, raiz(2), raiz(3), ...}
+- fala: 'Por fim, se a gente juntar todos esses grupos num balaio so, formamos o maior conjunto
+    que usamos no ensino medio: os numeros reais.'
+  quadro:
+    tipo: formula
+    texto: R = Q uniao I

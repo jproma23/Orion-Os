@@ -1,0 +1,74 @@
+id: geografia.populacao.basico
+materia: geografia
+titulo: População
+nivel: basico
+resumo: Crescimento, piramide etaria, migracao e densidade demografica.
+fonte: Wikipedia, artigos População, Crescimento populacional, Pirâmide etária, consultados
+  em 2026-08-09
+plano:
+  objetivo: Crescimento, piramide etaria, migracao e densidade demografica.
+  pre_requisitos:
+  - Conceitos basicos de geografia
+  duracao_min: 10
+  fixacao:
+  - O que e crescimento populacional?
+  - Para que serve a piramide etaria?
+  fechamento: Hoje vimos como a populacao cresce, se distribui no espaco e como lemos sua
+    estrutura por idade e genero.
+passos:
+- fala: Fala, pessoal! Ja pararam para pensar em quantas pessoas moram no mundo e como esse
+    numero muda? Hoje vamos falar sobre populacao.
+  quadro:
+    tipo: titulo
+    texto: Populacao
+- fala: Em 1950, a populacao mundial era de dois virgula cinco bilhoes de pessoas. Ja em 2000,
+    esse numero pulou para mais de seis bilhoes de humanos.
+  quadro:
+    tipo: topicos
+    texto: Crescimento Populacional Mundial
+    itens:
+    - '1950: 2.5 bilhoes'
+    - '2000: 6.0 bilhoes'
+- fala: Isso que vimos e o crescimento demografico, que e a mudanca positiva no numero de
+    individuos de uma populacao ao longo do tempo.
+  quadro:
+    tipo: texto
+    texto: 'Crescimento demografico: mudanca positiva no numero de individuos.'
+- fala: Mas a populacao nao se espalha igual por todo o planeta. Alguns lugares tem muito
+    mais gente que outros.
+  quadro:
+    tipo: titulo
+    texto: Densidade Demografica
+- fala: O material destaca locais com elevadas taxas de densidade demografica, como a Europa,
+    o Sudeste Asiatico e o Sudeste Brasileiro.
+  quadro:
+    tipo: topicos
+    texto: Areas de alta densidade
+    itens:
+    - Europa
+    - Sudeste Asiatico
+    - Sudeste Brasileiro
+    - Nordeste dos EUA
+    - Leste da China
+    - Sul da Africa
+- fala: Para estudar como essa gente toda e dividida por idade e por sexo, a geografia usa
+    um grafico especial chamado de piramide etaria.
+  quadro:
+    tipo: titulo
+    texto: Piramide Etaria
+- fala: A piramide etaria e um histograma que mostra a distribuicao de diferentes grupos etarios
+    em uma populacao.
+  quadro:
+    tipo: texto
+    texto: Histograma com a estrutura da populacao por sexo e idade.
+- fala: Esse grafico e feito de dois conjuntos de barras. Cada conjunto representa o genero
+    e a idade de um grupo populacional.
+  quadro:
+    tipo: topicos
+    texto: Componentes da Piramide
+    itens:
+    - Dois conjuntos de barras
+    - Mostra o genero
+    - Mostra a idade (cortes)
+- fala: 'Para fechar: se a populacao mundial em 1950 era de 2 ponto 5 bilhoes e em 2000 passou
+    de 6 bilhoes, qual foi o fenomeno demografico que explicamos agora no inicio da aula?'

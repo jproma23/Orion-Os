@@ -1,0 +1,69 @@
+id: tecnologia.sistema-operacional.basico
+materia: tecnologia
+titulo: Sistema operacional
+nivel: basico
+resumo: Arquivo, processo, permissao, e o que o sistema faz por baixo do que se ve.
+fonte: Wikipedia, artigos Arquivo, Processo, Permissão, consultados em 2026-08-14
+plano:
+  objetivo: Entender o que sao arquivos, processos e permissoes no contexto de sistemas.
+  pre_requisitos:
+  - Uso basico de computadores ou celulares
+  duracao_min: 10
+  fixacao:
+  - O que e um arquivo?
+  - Para que serve um processo?
+  fechamento: Se pudesse criar uma regra de permissao no seu celular para um aplicativo desconhecido,
+    qual seria?
+passos:
+- fala: Fala, pessoal! Quando voce guarda uma foto ou um trabalho escolar no computador, voce
+    esta criando algo que chamamos de arquivo.
+  quadro:
+    tipo: titulo
+    texto: Sistema Operacional
+- fala: Na pratica, arquivo e um conjunto de documentos guardados de forma organizada para
+    a gente usar quando precisar.
+  quadro:
+    tipo: texto
+    texto: 'Arquivo: conjunto de documentos organizados como fonte de informacao.'
+- fala: Esses arquivos podem ser publicos, comerciais ou pessoais, como as coisas que voce
+    guarda no seu celular.
+  quadro:
+    tipo: topicos
+    texto: Tipos de entidades mantenedoras
+    itens:
+    - Publicas
+    - Institucionais
+    - Comerciais
+    - Pessoais
+- fala: Agora, pense em quando voce abre um jogo no celular ou um programa no computador.
+    Por tras da tela, o sistema roda o que chamamos de processo.
+  quadro:
+    tipo: limpar
+- fala: Processo vem do latim e significa avancar. E uma sequencia de acoes com um objetivo
+    comum.
+  quadro:
+    tipo: titulo
+    texto: Processo
+- fala: Ele serve para criar, transformar, produzir ou controlar sistemas e produtos.
+  quadro:
+    tipo: texto
+    texto: 'Acao de avancar: conjunto sequencial de acoes com objetivo comum.'
+- fala: Por fim, voce ja reparou que alguns aplicativos pedem acesso a sua camera ou sua localizacao?
+    Isso tem a ver com permissao.
+  quadro:
+    tipo: limpar
+- fala: Permissao e uma autorizacao legal ou formal para que algo aconteca, como a permissao
+    para dirigir.
+  quadro:
+    tipo: titulo
+    texto: Permissao
+- fala: No computador, as permissoes controlam quem pode ver, alterar ou usar determinados
+    arquivos e programas.
+  quadro:
+    tipo: texto
+    texto: Autorizacao para acesso, uso ou realizacao de uma acao.
+- fala: 'Para fechar: se um aplicativo que voce acabou de baixar pede permissao para acessar
+    suas fotos sem precisar delas, voce aceitaria?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que o controle de permissoes e importante para sua seguranca?'

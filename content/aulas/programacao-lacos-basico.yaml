@@ -1,0 +1,60 @@
+id: programacao.lacos.basico
+materia: programacao
+titulo: Laços de repetição
+nivel: basico
+resumo: For e while; range; break e continue; o laco infinito e como sair dele.
+fonte: Wikipedia, artigos Programação de computadores, consultados em 2026-08-14
+plano:
+  objetivo: For e while; range; break e continue; o laco infinito e como sair dele.
+  pre_requisitos:
+  - Logica de programacao basica
+  duracao_min: 10
+  fixacao:
+  - Como parar um laco infinito?
+  - Qual a diferenca entre for e while?
+  fechamento: Comandos de repeticao sao essenciais para automatizar tarefas repetitivas no
+    codigo.
+passos:
+- fala: Imagina que voce precisa escrever 'Ola' cem vezes na tela. Ficar digitando cem vezes
+    a mesma linha de codigo seria cansativo, nao e?
+  quadro:
+    tipo: titulo
+    texto: Lacos de Repeticao
+- fala: Para resolver isso, usamos os lacos de repeticao, que servem para repetir instrucoes
+    no programa.
+  quadro:
+    tipo: texto
+    texto: Repetir instrucoes automaticamente
+- fala: O material diz que programacao e o processo de escrita, teste e manutencao de um programa
+    de computador.
+  quadro:
+    tipo: texto
+    texto: 'Programacao: escrita, teste e manutencao'
+- fala: Podemos escrever programas em diferentes linguagens de programacao, embora seja possivel
+    escrevê-los diretamente em linguagem de maquina com dificuldade.
+  quadro:
+    tipo: texto
+    texto: Linguagem de programacao vs Linguagem de maquina
+- fala: Diferentes linguagens funcionam de modos diferentes, e os programadores podem criar
+    programas variados.
+  quadro:
+    tipo: texto
+    texto: Diferentes linguagens, diferentes modos
+- fala: Teoricamente, a maioria das linguagens pode ser usada para criar qualquer programa.
+  quadro:
+    tipo: texto
+    texto: Qualquer programa em quase qualquer linguagem
+- fala: Ha varias decadas se debate a natureza da programacao entre estudiosos.
+  quadro:
+    tipo: topicos
+    texto: Debates sobre a programacao
+    itens:
+    - Arte (Donald Knuth)
+    - Ciencia ou Matematica (Edsger Dijkstra)
+    - Engenharia (David Parnas)
+    - Campo completamente novo
+- fala: 'Para finalizar, pense comigo: se a programacao permite criar tantas coisas usando
+    logica e repeticao, qual area voce acha mais parecida com ela: arte, matematica ou engenharia?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Arte, Matematica ou Engenharia?'

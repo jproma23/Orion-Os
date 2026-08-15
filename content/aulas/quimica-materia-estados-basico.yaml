@@ -1,0 +1,47 @@
+id: quimica.materia-estados.basico
+materia: quimica
+titulo: Matéria e seus estados
+nivel: basico
+resumo: Solido, liquido e gasoso, mudancas de estado, substancia pura e mistura.
+fonte: Wikipedia, artigos Sólido, consultados em 2026-08-14
+plano:
+  objetivo: Aprender sobre o estado sólido da matéria e suas características básicas.
+  pre_requisitos:
+  - Conceito básico de matéria
+  duracao_min: 5
+  fixacao:
+  - O que acontece com os átomos de um sólido?
+  - Como o sólido vira líquido?
+  fechamento: Hoje vimos que o sólido tem forma e volume definidos, átomos próximos e pode
+    mudar de estado com a temperatura.
+passos:
+- fala: Pense num bloco de gelo ou numa pedra. Eles mantêm a forma e não mudam de tamanho
+    sozinhos. Isso é o estado sólido.
+  quadro:
+    tipo: titulo
+    texto: 'Matéria: Estado Sólido'
+- fala: No estado sólido, a principal característica é que a matéria tem volume e forma definidos.
+  quadro:
+    tipo: texto
+    texto: Volume e forma definidos
+- fala: Por que isso acontece? Porque dentro do sólido, os átomos ou moléculas estão muito
+    próximos e rígidos.
+  quadro:
+    tipo: texto
+    texto: Átomos próximos e rígidos
+- fala: Mesmo parecendo parados, os átomos têm um pouco de energia cinética e se movem levemente
+    num movimento invisível.
+  quadro:
+    tipo: texto
+    texto: Movimento atômico leve e invisível
+- fala: Mas o sólido não dura para sempre nesse estado se esquentar muito. Quando atinge altas
+    temperaturas e alcança o ponto de fusão, ele passa para a fase líquida.
+  quadro:
+    tipo: texto
+    texto: 'Ponto de Fusão: Sólido para Líquido'
+- fala: Existe também a sublimação, que é quando o sólido passa direto para a fase de vapor,
+    sem virar líquido antes.
+  quadro:
+    tipo: texto
+    texto: 'Sublimação: Sólido para Vapor'
+- fala: 'Para terminar, me diga: o que é necessário para um sólido passar para a fase líquida?'

@@ -1,0 +1,66 @@
+id: matematica.unidades-medida.basico
+materia: matematica
+titulo: Unidades de medida
+nivel: basico
+resumo: Comprimento, area, volume, massa e tempo; conversao entre unidades e por que ela erra
+  tanto na pratica.
+fonte: Wikipedia, artigos Comprimento, Volume, consultados em 2026-08-14
+plano:
+  objetivo: Comprimento, area, volume, massa e tempo; conversao entre unidades e por que ela
+    erra tanto na pratica.
+  pre_requisitos:
+  - Operacoes basicas de multiplicacao
+  duracao_min: 10
+  fixacao:
+  - O que o volume mede?
+  fechamento: Vimos que o volume calcula o espaço ocupado por um corpo usando unidades cúbicas.
+passos:
+- fala: Fala, pessoal! Já tentou encher uma caixa d'água ou medir a altura de uma porta e
+    ficou confuso com os números? Hoje vamos ver as unidades de medida.
+  quadro:
+    tipo: titulo
+    texto: Unidades de Medida
+- fala: Vamos comecar pelo comprimento. Na fisica e na engenharia, ele expressa a distancia
+    entre dois pontos, e usamos os simbolos l ou L.
+  quadro:
+    tipo: texto
+    texto: Comprimento = distancia entre dois pontos (l ou L)
+- fala: Na linguagem comum, a gente separa o comprimento vertical chamando de altura, e o
+    horizontal chamando de largura.
+  quadro:
+    tipo: topicos
+    texto: 'Tipos de comprimento comum:'
+    itens:
+    - 'Altura: comprimento vertical'
+    - 'Largura: comprimento horizontal'
+- fala: Agora vamos falar de volume. O volume de um corpo e a quantidade de espaco que ele
+    ocupa.
+  quadro:
+    tipo: texto
+    texto: 'Volume: quantidade de espaco ocupado por um corpo'
+- fala: O volume usa unidades de tamanho cubicos, como centimetros cubicos ou metros cubicos.
+  quadro:
+    tipo: topicos
+    texto: 'Unidades de volume:'
+    itens:
+    - cm^3 (centimetros cubicos)
+    - m^3 (metros cubicos)
+- fala: Se voce tem uma caixa, que chamamos de paralelepipedo retangular, com comprimento
+    T, largura L e altura h, como calculamos o volume?
+  quadro:
+    tipo: texto
+    texto: Calculo do volume da caixa
+- fala: 'A formula e bem simples: multiplique o comprimento, a largura e a altura.'
+  quadro:
+    tipo: formula
+    texto: V = T * L * h
+- fala: E no Sistema Internacional de Unidades, a unidade oficial para o volume e o metro
+    cubico.
+  quadro:
+    tipo: texto
+    texto: 'Unidade no SI: metro cubico (m^3)'
+- fala: 'Para terminar, pensem comigo: se voce calcula o volume de uma caixa em metros cubicos,
+    como isso se relaciona com a capacidade dela?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixacao

@@ -1,0 +1,69 @@
+id: programacao.erros.basico
+materia: programacao
+titulo: Erros e como ler um erro
+nivel: basico
+resumo: Ler o traceback de baixo para cima; erro de sintaxe contra erro de execucao.
+fonte: Wikipedia, artigos Programação de computadores, consultados em 2026-08-14
+plano:
+  objetivo: Ler o traceback de baixo para cima; erro de sintaxe contra erro de execucao.
+  pre_requisitos:
+  - Escrever um programa simples de computador
+  duracao_min: 10
+  fixacao:
+  - Por onde comecamos a ler um erro?
+  - Qual a diferenca entre erro de sintaxe e de execucao?
+  fechamento: Sempre que seu programa falhar, olhe o final da mensagem primeiro!
+passos:
+- fala: Fala, pessoal! Imagina que voce esta escrevendo uma redacao e come a letra de uma
+    palavra, ou esquece o ponto final. Na programacao, quando a gente erra algo assim, o computador
+    trava e nos da uma mensagem estranha.
+  quadro:
+    tipo: titulo
+    texto: Erros e como ler um erro
+- fala: A programacao e o processo de escrita, teste e manutencao de um programa de computador.
+    E e normal errar nesse processo!
+  quadro:
+    tipo: texto
+    texto: Escrita, teste e manutencao
+- fala: Os programas sao escritos em uma linguagem de programacao. Diferentes linguagens funcionam
+    de modos diferentes, entao os erros tambem podem aparecer de jeitos diferentes.
+  quadro:
+    tipo: texto
+    texto: Linguagens de programacao
+- fala: 'Tem gente que debate se programar e arte, ciencia, matematica ou engenharia. Mas
+    uma coisa e certa: todo programador passa o tempo todo lidando com erros!'
+  quadro:
+    tipo: texto
+    texto: Programadores criam programas e lidam com erros
+- fala: 'Quando um erro acontece, o computador cospe uma lista enorme de textos na tela chamada
+    de traceback. Parece assustador, mas o segredo e simples: a gente le de baixo para cima!'
+  quadro:
+    tipo: topicos
+    texto: Regra de ouro do Erro
+    itens:
+    - Nao leia do comeco
+    - Va direto para a ultima linha
+- fala: A ultima linha do traceback e onde diz exatamente qual foi o problema que aconteceu.
+  quadro:
+    tipo: texto
+    texto: Ultima linha = O problema real
+- fala: As linhas de cima mostram o caminho que o computador fez ate o erro acontecer, passando
+    pelas funcoes e arquivos.
+  quadro:
+    tipo: texto
+    texto: Linhas superiores = O caminho do erro
+- fala: Existem dois tipos principais de problemas. O primeiro e o erro de sintaxe, que acontece
+    quando a gramatica da linguagem esta errada, igualzinho a um erro de portugues.
+  quadro:
+    tipo: texto
+    texto: 'Erro de sintaxe: Gramatica da linguagem'
+- fala: O segundo e o erro de execucao, que acontece enquanto o programa esta rodando e tenta
+    fazer algo impossivel, como dividir um numero por zero.
+  quadro:
+    tipo: texto
+    texto: 'Erro de execucao: Acontece rodando'
+- fala: 'Para fechar: se o seu programa parar com um montao de texto vermelho na tela, qual
+    e a primeira coisa que voce deve fazer?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por onde comecar a ler o traceback?'

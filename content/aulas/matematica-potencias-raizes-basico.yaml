@@ -1,0 +1,71 @@
+id: matematica.potencias-raizes.basico
+materia: matematica
+titulo: Potências e raízes
+nivel: basico
+resumo: Propriedades das potencias, expoente negativo e fracionario, raiz como potencia, notacao
+  cientifica.
+fonte: Wikipedia, artigos Negativo, Notação científica, consultados em 2026-08-14
+plano:
+  objetivo: Aprender potencias de 10 e notacao cientifica para numeros grandes e pequenos
+  pre_requisitos:
+  - Multiplicacao basica
+  - Conceito de potencias
+  duracao_min: 10
+  fixacao:
+  - Como escrever um numero grande em notacao cientifica
+  - Como escrever um numero pequeno em notacao cientifica
+  fechamento: Se voce tivesse que escrever a distancia da Terra ao Sol, que e gigantesca,
+    ou o tamanho de um virus, que e minusculo, prefere a forma normal cheia de zeros ou a
+    notacao cientifica?
+passos:
+- fala: Fala, pessoal! Imagina que voce precisa escrever o numero um milhao. E facil, tem
+    seis zeros. Mas e se o numero tiver doze zeros, ou vinte zeros? Fica dificil nao errar
+    na contagem, ne?
+  quadro:
+    tipo: titulo
+    texto: Notacao Cientifica
+- fala: Para resolver isso, a matematica usa as potencias de dez. No material, vimos que um
+    numero como cem bilhoes pode ser escrito de um jeito muito mais curto usando o dez elevado
+    a alguma coisa.
+  quadro:
+    tipo: texto
+    texto: Uso das potencias de 10 para numeros gigantes ou minusculos
+- fala: Vamos ver o primeiro exemplo do material. O numero cem bilhoes, que tem onze zeros,
+    aparece escrito de forma bem resumida.
+  quadro:
+    tipo: formula
+    texto: 100000000000 = 1 x 10^11
+- fala: Repare que o onze no alto do dez indica exatamente a quantidade de casas que a virgula
+    se moveu. Isso facilita muito a nossa vida.
+  quadro:
+    tipo: texto
+    texto: O expoente 11 indica as casas decimais
+- fala: Mas nao serve só para numeros gigantescos. A notacao cientifica tambem ajuda com numeros
+    menores que zero, aqueles cheios de zeros depois da virgula.
+  quadro:
+    tipo: texto
+    texto: Numeros menores que 1
+- fala: O material traz um exemplo de numero muito pequeno, com varios zeros antes do um.
+    Olha so como ele fica elegante usando o expoente negativo.
+  quadro:
+    tipo: formula
+    texto: 0,00000000001 = 1 x 10^-11
+- fala: O sinal de menos no expoente avisa que o numero e decimal, ou seja, menor do que um.
+    Ele e o oposto do expoente positivo.
+  quadro:
+    tipo: texto
+    texto: Expoente negativo indica numero menor que 1
+- fala: Essa forma de escrita e chamada de padrao ou notacao em forma exponencial. Ela e muito
+    usada em varias ciencias, como na quimica, quando contamos atomos e moleculas.
+  quadro:
+    tipo: topicos
+    texto: Vantagens da Notacao
+    itens:
+    - Facilita leitura de numeros gigantes
+    - Resume numeros muito pequenos
+    - Essencial na Quimica e Fisica
+- fala: 'Para terminar, me diga: se a regra diz que cem bilhoes vira dez elevado a onze, como
+    voce escreveria o numero mil em potencias de dez?'
+  quadro:
+    tipo: formula
+    texto: 1000 = ?

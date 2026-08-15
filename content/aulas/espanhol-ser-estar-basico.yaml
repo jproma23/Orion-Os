@@ -1,0 +1,58 @@
+id: espanhol.ser-estar.basico
+materia: espanhol
+titulo: Ser e estar
+nivel: basico
+resumo: Conjugacao e a diferenca de uso, que nem sempre bate com o portugues.
+fonte: Wikipedia, artigos Conjugação, consultados em 2026-08-14
+plano:
+  objetivo: Conjugacao e a diferenca de uso, que nem sempre bate com o portugues.
+  pre_requisitos:
+  - verbos basicos em espanhol
+  duracao_min: 10
+  fixacao:
+  - Diferenca entre ser e estar
+  fechamento: Qual verbo em espanhol voce usaria para dizer que uma pessoa esta feliz hoje?
+passos:
+- fala: Ola! Pense em como voce fala 'eu sou feliz' e 'eu estou cansado' em portugues. Em
+    espanhol, a escolha entre ser e estar pode te surpreender porque nem sempre segue a nossa
+    regra.
+  quadro:
+    tipo: titulo
+    texto: Ser e Estar em Espanhol
+- fala: O texto que a gente tem mostra que conjugar um verbo e mudar a forma dele de acordo
+    com a pessoa e o tempo, como na gramatica.
+  quadro:
+    tipo: texto
+    texto: 'Gramatica: formas do verbo por pessoa e tempo'
+- fala: Vamos ver como o verbo ser e conjugado. Preste muita atencao nas formas dele.
+  quadro:
+    tipo: topicos
+    texto: Conjugacao do verbo Ser
+    itens:
+    - yo soy
+    - tu eres
+    - el / ella es
+    - nosotros somos
+    - vosotros sois
+    - ellos son
+- fala: Agora vamos ver o verbo estar. Olha como ele e parecido, mas muda bastante no dia
+    a dia.
+  quadro:
+    tipo: topicos
+    texto: Conjugacao do verbo Estar
+    itens:
+    - yo estoy
+    - tu estas
+    - el / ella esta
+    - nosotros estamos
+    - vosotros estais
+    - ellos estan
+- fala: 'Agora me diga: qual e a diferenca de uso entre eles que o material aponta para a
+    gente aprender?'
+  quadro:
+    tipo: texto
+    texto: 'Diferenca de uso: nem sempre bate com o portugues'
+- fala: Pense bem no que voce estudou agora e tente responder a minha pergunta final.
+  quadro:
+    tipo: texto
+    texto: Hora de praticar!

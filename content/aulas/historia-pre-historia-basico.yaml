@@ -1,0 +1,55 @@
+id: historia.pre-historia.basico
+materia: historia
+titulo: Primeiros povos e a agricultura
+nivel: basico
+resumo: Nomadismo, a revolucao agricola e o surgimento das cidades.
+fonte: Wikipedia, artigos Nomadismo, consultados em 2026-08-14
+plano:
+  objetivo: Compreender o nomadismo, a transicao para a agricultura e o surgimento das cidades.
+  pre_requisitos:
+  - Conceito basico de passado e evolucao humana.
+  duracao_min: 10
+  fixacao:
+  - O que significa ser um povo nomade?
+  - O que mudou na vida das pessoas com a descoberta da agricultura?
+  fechamento: 'A agricultura transformou a humanidade: deixamos de nos mudar o tempo todo
+    para fixar raiz e construir cidades.'
+passos:
+- fala: Imagine que a sua familia nao tem uma casa fixa. Toda vez que a comida do supermercado
+    acaba ou a grama do quintal seca, voces precisam desmontar tudo e ir morar em outro lugar.
+    E assim que viviam os primeiros grupos humanos.
+  quadro:
+    tipo: titulo
+    texto: Primeiros Povos e a Agricultura
+- fala: Essa forma de vida em que as pessoas nao tem habitacao fixa e vivem mudando de lugar
+    se chama nomadismo.
+  quadro:
+    tipo: texto
+    texto: 'Nomadismo: ausencia de habitacao fixa, mudanca permanente de lugar.'
+- fala: Geralmente, esses povos antigos eram caçadores-coletores ou pastores. Eles se mudavam
+    para buscar novas pastagens para o gado quando a comida do lugar anterior acabava.
+  quadro:
+    tipo: topicos
+    texto: 'Caracteristicas dos nomades:'
+    itens:
+    - Cacadores-coletores
+    - Pastores em busca de pastagens
+    - Nao praticam agricultura
+    - Ignoram fronteiras nacionais
+- fala: Como eles nao plantavam, dependiam totalmente da natureza. Mas isso mudou completamente
+    com a descoberta da agricultura.
+  quadro:
+    tipo: texto
+    texto: 'A virada: A descoberta da agricultura.'
+- fala: Com a agricultura, a maioria dos antigos povos nômades tornou-se sedentária, ou seja,
+    passou a morar em um lugar fixo.
+  quadro:
+    tipo: texto
+    texto: 'Sedentarismo: fixacao em um lugar devido ao cultivo da terra.'
+- fala: Vale lembrar que isso aconteceu com a maioria, mas nao com todo mundo. Ate hoje existem
+    sociedades nomades, como algumas tribos de tuaregues no deserto do Saara.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo atual: Tribos de tuaregues do Saara.'
+- fala: 'Para pensar: se voce vivesse como um nomade hoje, o que acha que seria a parte mais
+    dificil de nao ter uma casa fixa?'

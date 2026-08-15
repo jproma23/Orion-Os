@@ -1,0 +1,66 @@
+id: quimica.atomo.basico
+materia: quimica
+titulo: Estrutura atômica
+nivel: basico
+resumo: Proton, neutron, eletron, numero atomico e de massa, isotopos.
+fonte: Wikipedia, artigos Próton, Nêutron, Elétron, consultados em 2026-08-14
+plano:
+  objetivo: Entender proton, neutron, eletron, numero atomico e de massa, isotopos.
+  pre_requisitos:
+  - Conceito basico de materia
+  duracao_min: 10
+  fixacao:
+  - O que diferencia o numero atomico de cada elemento?
+  - Como calcular a quantidade de neutrons?
+  fechamento: Primos na fisica e na quimica, protons, neutrons e eletronsformam tudo ao nosso
+    redor!
+passos:
+- fala: Fala, pessoal! Ja pararam para pensar que tudo ao nosso redor, desde o seu celular
+    ate voce mesmo, e feito de pecinhas invisiveis?
+  quadro:
+    tipo: titulo
+    texto: Estrutura Atomica
+- fala: Vamos comecar falando do proton. Ele e uma particula com carga eletrica positiva de
+    mais um.
+  quadro:
+    tipo: texto
+    texto: 'Proton: carga positiva (+1), simbolo p ou p+'
+- fala: O mais legal e que o numero de protons no nucleo define quem e o elemento quimico.
+    Isso se chama numero atomico.
+  quadro:
+    tipo: texto
+    texto: Numero Atomico (Z) = quantidade de protons no nucleo
+- fala: Junto com os protons no nucleo, nos temos o neutron. Ele e eletricamente neutro, ou
+    seja, nao tem carga.
+  quadro:
+    tipo: texto
+    texto: 'Neutron: particula eletricamente neutra'
+- fala: O neutron foi descoberto pelo fisico ingles James Chadwick em 1932. Ele ganhou o Premio
+    Nobel por isso!
+  quadro:
+    tipo: texto
+    texto: 'Descoberta do neutron: James Chadwick (1932)'
+- fala: A massa do atomo fica concentrada no nucleo, onde estao protons e neutrons, chamados
+    de nucleons.
+  quadro:
+    tipo: texto
+    texto: Nucleons = Protons + Neutrons (Massa aproximada de 1 u)
+- fala: E para descobrir quantos neutrons um atomo tem, e so fazer uma conta simples de menos.
+  quadro:
+    tipo: formula
+    texto: Neutrons = A (Numero de Massa) - Z (Numero Atomico)
+- fala: 'Agora vamos para a terceira particula: o eletron. Ele fica fora do nucleo e tem carga
+    negativa.'
+  quadro:
+    tipo: texto
+    texto: 'Eletron: carga eletrica negativa, simbolo e- ou beta-'
+- fala: Para voce ter uma ideia da diferenca de tamanho, a massa do eletron e de aproximadamente
+    um sobre mil oitocentos e trinta e seis da massa do proton.
+  quadro:
+    tipo: formula
+    texto: Massa do eletron = 1/1836 da massa do proton
+- fala: 'Para fechar, pense comigo: se um atomo tem numero atomico 6, quantos protons ele
+    tem no nucleo?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fixacao: Se Z = 6, quantos protons?'

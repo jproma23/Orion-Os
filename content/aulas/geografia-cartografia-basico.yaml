@@ -1,0 +1,79 @@
+id: geografia.cartografia.basico
+materia: geografia
+titulo: Cartografia
+nivel: basico
+resumo: Escala, projecao, coordenadas, fuso horario e a distorcao que todo mapa tem.
+fonte: Wikipedia, artigos Cartografia, Escala cartográfica, Projeção cartográfica, Coordenadas,
+  consultados em 2026-08-09
+plano:
+  objetivo: Aprender sobre escala, projecao, coordenadas, fuso horario e a distorcao nos mapas.
+  pre_requisitos:
+  - Noçoes basicas de matematica e geografia
+  duracao_min: 10
+  fixacao:
+  - Por que todo mapa tem distorcao?
+  - O que e a escala de um mapa?
+  fechamento: A cartografia usa tecnicas cientificas e artisticas para representar a Terra,
+    mas toda representacao plana gera distorcoes inevitaveis.
+passos:
+- fala: Ola! Voce ja tentou desenhar a Terra inteira numa folha de caderno plana? Sabe que
+    isso e impossivel de fazer sem esticar ou achatar alguma coisa, nao e? Vamos entender
+    como os mapas funcionam de verdade hoje.
+  quadro:
+    tipo: titulo
+    texto: Cartografia
+- fala: Primeiro, o que e a cartografia? E o conjunto de estudos e operacoes cientificas,
+    tecnicas e artisticas para fazer mapas e representar o espaco.
+  quadro:
+    tipo: texto
+    texto: Conjunto de estudos para elaborar mapas e planos
+- fala: Agora vamos falar de escala. Quando voce olha um mapa, ele e menor que o mundo real.
+    A escala e justamente essa relacao matematica entre o tamanho no mapa e o tamanho real.
+  quadro:
+    tipo: titulo
+    texto: Escala
+- fala: Na cartografia, existe um limite para o que conseguimos desenhar. A menor representacao
+    e o ponto, valendo zero vírgula dois milimetros. Abaixo disso, temos o erro grafico.
+  quadro:
+    tipo: texto
+    texto: 'Menor representação: ponto de 0,2 mm (Erro gráfico)'
+- fala: Mas como transformar a Terra que e redonda em um papel que e reto? E ai que entra
+    a projecao cartografica.
+  quadro:
+    tipo: titulo
+    texto: Projeção Cartográfica
+- fala: A projecao e um traçado sistematico de linhas de paralelos e meridianos numa superficie
+    plana. E a base para a construcao de qualquer mapa.
+  quadro:
+    tipo: texto
+    texto: Traçado de paralelos e meridianos numa superfície plana
+- fala: 'Preste muita atencao nisso: a representacao da Terra em mapas nunca sera verdadeira.
+    Ela sempre podera ser modificada e nunca sera isenta de distorcoes.'
+  quadro:
+    tipo: texto
+    texto: 'Aviso: Todo mapa possui distorções!'
+- fala: Como nao da para evitar as falhas, as projecoes sao criadas justamente para minimizar
+    essas imperfeicoes e trazer rigor cientifico para os mapas.
+  quadro:
+    tipo: texto
+    texto: 'Objetivo das projeções: minimizar imperfeições'
+- fala: Depois de colocar tudo no mapa, como a gente se acha nele? Usando as coordenadas geograficas,
+    que formam o sistema de mapeamento da Terra.
+  quadro:
+    tipo: titulo
+    texto: Coordenadas Geográficas
+- fala: Para terminar, lembre-se que sistemas de coordenadas tambem aparecem na matematica
+    e na astronomia, mas na geografia usamos para localizar qualquer ponto exato do nosso
+    planeta.
+  quadro:
+    tipo: topicos
+    texto: Aplicações de Coordenadas
+    itens:
+    - 'Geografia: Mapeamento da Terra'
+    - 'Matemática: Sistema de coordenadas'
+    - 'Astronomia: Sistema equatorial'
+- fala: 'Para pensar e responder: Sabendo que a Terra e redonda e o papel e plano, por que
+    e impossivel criar um mapa totalmente perfeito e sem distorcoes?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que todo mapa tem distorção?'

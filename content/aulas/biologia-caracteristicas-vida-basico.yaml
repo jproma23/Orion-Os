@@ -2,65 +2,81 @@ id: biologia.caracteristicas-vida.basico
 materia: biologia
 titulo: O que é estar vivo
 nivel: basico
-resumo: Como organização, metabolismo, reprodução e resposta ao ambiente ajudam a reconhecer seres vivos.
-fonte: "Wikipedia: Vida, Metabolismo, Reprodução e Homeostase, consultados em 2026-08-09."
+resumo: Organizacao, metabolismo, reproducao e resposta ao ambiente; virus e o limite.
+fonte: Wikipedia, artigos Vida, consultados em 2026-08-14
 plano:
-  objetivo: Distinguir características compartilhadas pelos seres vivos e explicar por que um critério isolado não basta.
-  pre_requisitos: []
-  duracao_min: 14
+  objetivo: Organizacao, metabolismo, reproducao e resposta ao ambiente; virus e o limite.
+  pre_requisitos:
+  - Conhecimento basico sobre seres vivos e objetos inanimados
+  duracao_min: 10
   fixacao:
-    - Por que reprodução sozinha não decide se algo está vivo?
-    - Onde o metabolismo aparece no seu dia a dia?
-  fechamento: Vida não é uma lista de uma única propriedade; é a organização de processos que mantém um organismo e permite sua continuidade.
+  - O que diferencia um ser vivo de um objeto inanimado de acordo com a biologia?
+  fechamento: Vimos que a vida depende de um conjunto de caracteristicas biologicas, e que
+    os virus desafiam essa definicao por nao terem celulas proprias.
 passos:
-  - fala: "Hoje vamos responder uma pergunta simples de dizer e difícil de fechar: o que faz algo estar vivo?"
-    quadro:
-      tipo: titulo
-      texto: "O que é estar vivo"
-  - fala: "Um ser vivo não é apenas algo que se move. Uma planta quase não muda de lugar, mas cresce, troca matéria com o ambiente e responde à luz."
-    quadro:
-      tipo: texto
-      texto: "Movimento não é o teste da vida"
-  - fala: "A primeira pista é a organização. Seres vivos têm partes que trabalham juntas, das moléculas às células e aos órgãos."
-    quadro:
-      tipo: topicos
-      texto: "Organização"
-      itens:
-        - Moléculas formam células
-        - Células formam tecidos e organismos
-        - As partes realizam funções juntas
-  - fala: "A segunda pista é o metabolismo: o conjunto de reações que obtém matéria e energia e as transforma. Comer, respirar e fabricar substâncias entram nessa ideia."
-    quadro:
-      tipo: texto
-      texto: "Metabolismo = transformações de matéria e energia"
-  - fala: "Também há regulação. Mesmo quando o ambiente muda, o organismo tenta manter condições internas em uma faixa adequada. Isso é chamado de homeostase."
-    quadro:
-      tipo: topicos
-      texto: "Homeostase"
-      itens:
-        - Suar ajuda a controlar a temperatura
-        - A sede ajuda a corrigir falta de água
-  - fala: "Seres vivos crescem e se desenvolvem porque usam matéria, energia e informação genética para construir e renovar suas estruturas."
-    quadro:
-      tipo: texto
-      texto: "Crescer não é apenas ficar maior; é organizar e renovar matéria"
-  - fala: "A reprodução permite que a vida continue em novas gerações. Mas ela não é um teste isolado: uma mula estéril continua sendo um ser vivo."
-    quadro:
-      tipo: texto
-      texto: "Reprodução mantém a linhagem, não define sozinha um indivíduo"
-  - fala: "Outra pista é a resposta a estímulos. Pupilas mudam com a luz, plantas se orientam e bactérias detectam substâncias do ambiente."
-    quadro:
-      tipo: texto
-      texto: "Estímulo → resposta"
-  - fala: "Os vírus deixam o limite interessante. Eles têm material genético e evoluem, mas não têm metabolismo próprio e dependem de uma célula para se reproduzir."
-    quadro:
-      tipo: topicos
-      texto: "O caso dos vírus"
-      itens:
-        - Têm genes
-        - Evoluem
-        - Dependem da célula hospedeira
-  - fala: "Por isso, em biologia, a pergunta não se resolve procurando uma única marca. Observamos o conjunto de organização, metabolismo, regulação, resposta e continuidade."
-    quadro:
-      tipo: texto
-      texto: "Vida é um conjunto de processos organizados"
+- fala: Fala serio, como voce sabe que um cachorro esta vivo, mas uma pedra nao esta? A pedra
+    nao faz nada disso sozinha, enquanto o cachorro respira, cresce e se mexe.
+  quadro:
+    tipo: titulo
+    texto: O que e estar vivo?
+- fala: Na ciencia, a biologia e a area que estuda a vida. Mas sabia que nao existe uma definicao
+    unica que todo cientista aceita?
+  quadro:
+    tipo: texto
+    texto: 'Ciencia que estuda a vida: Biologia'
+- fala: A ideia mais aceita e que os seres vivos sao sistemas abertos. Eles precisam trocar
+    materia e energia com o ambiente para funcionar.
+  quadro:
+    tipo: texto
+    texto: Organismos sao sistemas abertos
+- fala: O primeiro ponto fundamental e a organizacao. Todo ser vivo e composto de celulas,
+    que sao as menores unidades da vida.
+  quadro:
+    tipo: topicos
+    texto: Caracteristicas dos seres vivos
+    itens:
+    - Compostos de celulas
+    - Manutencao da homeostase
+- fala: Depois temos o metabolismo, que sao todas as reacoes quimicas que acontecem no corpo
+    para gerar energia, alem do crescimento.
+  quadro:
+    tipo: topicos
+    texto: Metabolismo e Crescimento
+    itens:
+    - Processos de sinalizacao celular
+    - Autossuficiencia
+    - Crescimento e ciclo de vida
+- fala: Os seres vivos tambem precisam reagir ao mundo. Eles respondem a estimulos e se adaptam
+    ao ambiente ao longo do tempo.
+  quadro:
+    tipo: topicos
+    texto: Relacao com o ambiente
+    itens:
+    - Resposta a estimulos
+    - Adaptacao
+    - Evolucao
+- fala: E claro que para a especie continuar existindo, ocorre a reproducao.
+  quadro:
+    tipo: texto
+    texto: Capacidade de reproducao
+- fala: Existem varias formas de vida na Terra. Plantas, animais, fungos, protistas, arqueas
+    e bacterias entram nessa lista.
+  quadro:
+    tipo: topicos
+    texto: Formas de vida
+    itens:
+    - Plantas
+    - Animais
+    - Fungos
+    - Protistas, arqueas e bacterias
+- fala: Mas onde entram os virus nessa historia? Eles sao o grande limite da definicao.
+  quadro:
+    tipo: limpar
+- fala: Os virus nao possuem celulas e nao tem metabolismo proprio fora de uma celula hospedeira.
+    Por isso, geram tanto debate sobre estarem vivos ou nao.
+  quadro:
+    tipo: texto
+    texto: 'O limite da vida: Virus (sem celulas e sem metabolismo proprio)'
+- fala: 'Para pensar e usar o que voce aprendeu: se um virus nao tem celulas nem metabolismo
+    proprio fora de outro organismo, ele cumpre os requisitos da biologia para ser considerado
+    vivo? O que voce acha?'

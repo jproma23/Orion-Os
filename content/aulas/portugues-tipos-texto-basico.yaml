@@ -1,0 +1,93 @@
+id: portugues.tipos-texto.basico
+materia: portugues
+titulo: Tipos de texto
+nivel: basico
+resumo: Narrar, descrever, expor, argumentar e instruir - cada um com sua forma.
+fonte: Wikipedia, artigos Narrativa, Dissertação, consultados em 2026-08-14
+plano:
+  objetivo: Narrar, descrever, expor, argumentar e instruir - cada um com sua forma.
+  pre_requisitos:
+  - Leitura básica
+  - Noção de gêneros textuais
+  duracao_min: 10
+  fixacao:
+  - Qual é a origem da palavra narrativa?
+  - Qual a diferença citada entre dissertação argumentativa e expositiva?
+  fechamento: 'Pense em uma notícia que você leu hoje: ela conta uma história ou apresenta
+    argumentos sobre um fato?'
+passos:
+- fala: Fala, pessoal! Pensem na última vez que vocês contaram para um amigo o que aconteceu
+    no fim de semana ou quando explicaram a regra de um jogo. Cada vez que fazemos isso, usamos
+    um tipo diferente de texto. Hoje vamos ver como eles funcionam.
+  quadro:
+    tipo: titulo
+    texto: Tipos de Texto
+- fala: 'Vamos começar pelo primeiro modo discursivo: a narrativa. Já viram um conto de fadas
+    ou leram uma notícia? Isso é narrar.'
+  quadro:
+    tipo: texto
+    texto: Narrativa / História
+- fala: A narrativa é qualquer relato de uma série de eventos ou experiências relacionadas.
+    Ela pode ser de dois tipos principais.
+  quadro:
+    tipo: topicos
+    texto: Tipos de Relato
+    itens:
+    - 'Não-ficcional: memórias, biografia, notícia, documentário'
+    - 'Ficcional: conto de fadas, fábula, lenda, suspense, romance'
+- fala: Essas histórias podem aparecer de várias formas. Não precisa ser só texto escrito.
+  quadro:
+    tipo: topicos
+    texto: Apresentação da Narrativa
+    itens:
+    - Sequência de palavras escritas ou faladas
+    - Imagens fixas ou em movimento
+    - Qualquer combinação destas
+- fala: De onde vem essa palavra? Ela vem do verbo latino 'narrare', que significa contar.
+    E esse verbo vem do adjetivo 'gnarus', que quer dizer saber ou hábil.
+  quadro:
+    tipo: texto
+    texto: 'Origem: narrare (contar) < gnarus (saber ou hábil)'
+- fala: A narração é um dos modos discursivos, junto com a argumentação, a descrição e a exposição.
+    De forma mais estreita, é o modo da ficção onde o narrador fala direto com o leitor.
+  quadro:
+    tipo: texto
+    texto: 'Modos discursivos: Narração, Argumentação, Descrição, Exposição'
+- fala: Agora vamos mudar de assunto e falar sobre a Dissertação. Sabe aquela redação da escola
+    ou do vestibular? É ela.
+  quadro:
+    tipo: limpar
+- fala: A palavra dissertação vem do latim 'disertatio' ou 'dissertatione'. É um texto em
+    prosa ou oral sobre um tema que exige certas ações.
+  quadro:
+    tipo: texto
+    texto: 'Dissertação: Redação em prosa ou oral sobre um tema'
+- fala: Numa dissertação, você precisa fazer algumas coisas específicas com o tema. Vamos
+    anotar quais são.
+  quadro:
+    tipo: topicos
+    texto: O que fazer na Dissertação
+    itens:
+    - Apresentar e discutir
+    - Argumentar
+    - Provar
+    - Exemplificar
+- fala: Esse tipo de texto é muito comum na nossa vida acadêmica, aparecendo nas escolas,
+    em exames vestibulares e em concursos.
+  quadro:
+    tipo: texto
+    texto: 'Uso: Escolas, vestibulares e concursos'
+- fala: Para terminar, a dissertação se divide em duas classificações principais, e ela é
+    diferente daquela dissertação de mestrado da faculdade.
+  quadro:
+    tipo: topicos
+    texto: Classificação da Dissertação
+    itens:
+    - Dissertação argumentativa
+    - Dissertação expositiva
+    - Diferente da dissertação de mestrado
+- fala: 'Para pensar em casa: se você precisa escrever um texto para convencer alguém a mudar
+    de ideia sobre um assunto, qual dos modos que vimos você deve usar?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual modo usar para convencer alguém?'

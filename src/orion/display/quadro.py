@@ -224,7 +224,17 @@ def bloco_para_prompt() -> str:
     escrito a mao envelhece calado - acrescentar um tipo e esquecer de
     descreve-lo daria um tipo que existe e que o modelo nunca usa.
     """
-    linhas = [f"- {tipo.nome}: {tipo.descricao}" for tipo in _CATALOGO]
+    linhas = []
+    for tipo in _CATALOGO:
+        campos = ", ".join(tipo.campos)
+        opcionais = ", ".join(tipo.campos_opcionais)
+        if campos:
+            sufixo = f"campos: {campos}"
+            if opcionais:
+                sufixo += f"; opcionais: {opcionais}"
+        else:
+            sufixo = "sem campos"
+        linhas.append(f"- {tipo.nome}: {tipo.descricao} ({sufixo})")
     return "\n".join(linhas)
 
 

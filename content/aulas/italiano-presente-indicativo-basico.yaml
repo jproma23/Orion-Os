@@ -1,0 +1,86 @@
+id: italiano.presente-indicativo.basico
+materia: italiano
+titulo: Presente do indicativo
+nivel: basico
+resumo: Verbos em ARE, ERE e IRE; os em ISC como capire.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Verbos em ARE, ERE e IRE; os em ISC como capire.
+  pre_requisitos:
+  - Noções básicas de gramática
+  duracao_min: 10
+  fixacao:
+  - Como conjugar parlare?
+  - O que muda nos verbos em ISC?
+  fechamento: Se você quer dizer que entende algo em italiano, qual forma do verbo capire
+    você usa?
+passos:
+- fala: Fala, pessoal! Quando a gente quer falar o que está acontecendo agora em italiano,
+    como eu digo 'eu falo' ou 'tu comes'? Vamos ver isso hoje.
+  quadro:
+    tipo: titulo
+    texto: Presente do Indicativo em Italiano
+- fala: 'Em português, os verbos terminam em AR, ER e IR. Em italiano, eles também se dividem
+    em três grandes grupos pelas terminações do infinitivo: ARE, ERE e IRE.'
+  quadro:
+    tipo: topicos
+    texto: Grupos de Verbos
+    itens:
+    - 'ARE (ex: parlare)'
+    - 'ERE (ex: credere)'
+    - 'IRE (ex: partire)'
+- fala: Vamos começar pelo grupo em ARE, usando o verbo parlare, que significa falar. Para
+    o 'eu' (io), a terminação troca por O.
+  quadro:
+    tipo: texto
+    texto: io parl-o (eu falo)
+- fala: Para o 'tu' (tu), a terminação do ARE vira I.
+  quadro:
+    tipo: texto
+    texto: tu parl-i (tu falas)
+- fala: Para ele ou ela (lui / lei), a terminação vira A.
+  quadro:
+    tipo: texto
+    texto: lui / lei parl-a (ele / ela fala)
+- fala: Agora vamos para o segundo grupo, os verbos em ERE. Vamos ver o verbo credere, que
+    significa crer ou acreditar. No 'io', fica 'credo'.
+  quadro:
+    tipo: texto
+    texto: io cred-o (eu creio)
+- fala: No ERE, para o 'tu', a terminação também é I, mas a vogal temática muda para E. Fica
+    'credi'.
+  quadro:
+    tipo: texto
+    texto: tu cred-i (tu crês)
+- fala: Para ele ou ela no ERE, a terminação vira E.
+  quadro:
+    tipo: texto
+    texto: lui / lei cred-e (ele / ela crê)
+- fala: O terceiro grupo é o dos verbos em IRE, como partire, que significa partir. No 'io',
+    fica 'parto'.
+  quadro:
+    tipo: texto
+    texto: io part-o (eu parto)
+- fala: Para o 'tu' em IRE, usamos a terminação I.
+  quadro:
+    tipo: texto
+    texto: tu part-i (tu partes)
+- fala: E para ele ou ela em IRE, a terminação é E.
+  quadro:
+    tipo: texto
+    texto: lui / lei part-e (ele / ela parte)
+- fala: Mas atenção! Alguns verbos em IRE ganham um pedacinho 'isc' nas pessoas do singular
+    e na terceira do plural. É o caso do verbo capire, que significa entender.
+  quadro:
+    tipo: topicos
+    texto: 'Verbos com ISC (ex: capire)'
+    itens:
+    - io cap-isc-o
+    - tu cap-isc-i
+    - lui / lei cap-isc-e
+    - loro cap-isc-ono
+- fala: 'Para pensar e usar o que aprendeu: se o verbo partire significa partir, como você
+    diria ''eu parto'' em italiano?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Como dizer ''eu parto''?'

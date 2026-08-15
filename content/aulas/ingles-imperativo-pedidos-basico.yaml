@@ -1,0 +1,70 @@
+id: ingles.imperativo-pedidos.basico
+materia: ingles
+titulo: Imperativo e pedidos
+nivel: basico
+resumo: Dar instrucao, pedir com can e could, e ser educado em ingles.
+fonte: Wikipedia, artigos Modo imperativo, consultados em 2026-08-14
+plano:
+  objetivo: Dar instrucao, pedir com can e could, e ser educado em ingles.
+  pre_requisitos:
+  - verbos basicos em ingles
+  duracao_min: 10
+  fixacao:
+  - Como voce diz para alguem abrir a porta em ingles?
+  - Como pedir algo com mais educacao usando um verbo modal?
+  fechamento: Hoje vimos como dar ordens, instrucoes e fazer pedidos de forma direta ou educada
+    usando o imperativo e os modais can e could.
+passos:
+- fala: Fala serio, quem nunca teve que falar 'fecha a porta' ou 'nao faca isso' para alguem?
+    Em ingles, a gente usa o imperativo para dar ordens, conselhos ou instrucoes.
+  quadro:
+    tipo: titulo
+    texto: Imperativo e Pedidos em Ingles
+- fala: Para dar uma ordem afirmativa, e muito simples. Voce so pega o verbo direto, sem colocar
+    o pronome 'voce' na frente. Por exemplo, 'abra a porta' vira so 'Open the door'.
+  quadro:
+    tipo: formula
+    texto: Open the door!
+- fala: 'Outro exemplo classico de sala de aula ou de mae mandando: ''sente-se''. Em ingles,
+    fica ''Sit down''.'
+  quadro:
+    tipo: formula
+    texto: Sit down!
+- fala: E se a gente quiser proibir algo? O imperativo negativo exige uma palavra negativa
+    antes do verbo. A gente usa 'Do not' ou a forma abreviada 'Don't'.
+  quadro:
+    tipo: formula
+    texto: Don't + Verbo
+- fala: Por exemplo, para dizer 'nao toque nisso', a gente junta o 'Don't' com o verbo tocar,
+    que e 'touch'. Fica 'Don't touch it'.
+  quadro:
+    tipo: formula
+    texto: Don't touch it!
+- fala: 'Outro exemplo com o negativo: se voce quer mandar alguem nao correr no corredor,
+    diz ''Don''t run''.'
+  quadro:
+    tipo: formula
+    texto: Don't run!
+- fala: Mas calma, nem tudo na vida e ordem seca. As vezes a gente precisa pedir um favor,
+    e para isso usamos verbos modais como 'Can' e 'Could'.
+  quadro:
+    tipo: topicos
+    texto: Pedidos com Modais
+    itens:
+    - Can you...?
+    - Could you...?
+- fala: O 'Can you' e um pedido comum do dia a dia, tipo 'voce pode me ajudar?'. Fica 'Can
+    you help me?'.
+  quadro:
+    tipo: formula
+    texto: Can you help me?
+- fala: Se voce quer ser ainda mais educado, como ao falar com um adulto desconhecido ou um
+    professor, voce troca o 'Can' por 'Could'.
+  quadro:
+    tipo: formula
+    texto: Could you open the window, please?
+- fala: 'Para fechar: como voce traduziria o pedido educado ''Voce poderia repetir isso, por
+    favor?'' usando o que aprendeu hoje?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Could you repeat that, please?'

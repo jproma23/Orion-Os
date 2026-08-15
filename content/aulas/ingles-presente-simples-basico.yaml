@@ -1,0 +1,87 @@
+id: ingles.presente-simples.basico
+materia: ingles
+titulo: Presente simples
+nivel: basico
+resumo: Rotina e fato; o S da terceira pessoa; do e does na pergunta e na negativa.
+fonte: Wikipedia, artigos Língua inglesa, consultados em 2026-08-14
+plano:
+  objetivo: Rotina e fato; o S da terceira pessoa; do e does na pergunta e na negativa.
+  pre_requisitos:
+  - Conhecer pronomes pessoais em ingles
+  duracao_min: 10
+  fixacao:
+  - Como voce diria 'ela trabalha' em ingles?
+  - Como transformar a frase 'you play' em uma pergunta?
+  fechamento: Hoje vimos que o presente simples serve para fatos e rotinas, ganha um S na
+    terceira pessoa e usa do e does para negar e perguntar.
+passos:
+- fala: Fala, pessoal! Imagina que voce quer contar o que faz todos os dias, como 'eu estudo
+    ingles' ou 'ele trabalha muito'. Para falar de rotinas e fatos no dia a dia, a gente usa
+    um tempo verbal em ingles chamado Presente Simples.
+  quadro:
+    tipo: titulo
+    texto: Presente Simples (Simple Present)
+- fala: A primeira regra importante e que usamos esse tempo para falar de rotinas, habitos
+    e verdades sobre o mundo. Por exemplo, dizer que o sol brilha ou que voce acorda cedo.
+  quadro:
+    tipo: texto
+    texto: 'Usos: Rotinas, habitos e fatos'
+- fala: Vamos ver como fica na afirmativa com a maioria das pessoas. Com I, you, we e they,
+    o verbo fica igualzinho ao infinitivo sem o 'to'. Olha so no quadro.
+  quadro:
+    tipo: topicos
+    texto: Afirmativa (I, you, we, they)
+    itens:
+    - I work (Eu trabalho)
+    - You work (Voce trabalha)
+    - We work (Nós trabalhamos)
+    - They work (Eles trabalham)
+- fala: 'Mas olha o que acontece quando a gente usa a terceira pessoa do singular: he, she
+    ou it. O verbo ganha uma letra S no final. Preste bem atencao nisso!'
+  quadro:
+    tipo: topicos
+    texto: Terceira pessoa do singular (He, She, It)
+    itens:
+    - He works (Ele trabalha)
+    - She works (Ela trabalha)
+    - It works (Isso funciona)
+- fala: Agora vamos aprender a fazer frases negativas. Quando usamos I, you, we e they, a
+    gente coloca a palavra 'do not', ou a forma curta 'don't', antes do verbo.
+  quadro:
+    tipo: formula
+    texto: I / You / We / They + don't + verbo
+- fala: 'Exemplo prático: se voce quer dizer que nao gosta de acorda tarde, voce fala ''I
+    don''t like''. Simples, né?'
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: I don''t like mornings.'
+- fala: E na terceira pessoa do singular, como fica a negativa? O 'do' vira 'does', entao
+    usamos 'does not' ou a forma curta 'doesn't'. E repare que o verbo perde o S!
+  quadro:
+    tipo: formula
+    texto: He / She / It + doesn't + verbo (sem S)
+- fala: 'Vamos ver um exemplo com ela: ''She doesn''t work on Sundays''. Ela nao trabalha
+    aos domingos. Viu como o verbo ''work'' fica normal sem o S?'
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: She doesn''t work on Sundays.'
+- fala: Para fazer perguntas com I, you, we e they, a gente joga a palavrinha 'Do' la no inicio
+    da frase. Olha o esquema no quadro.
+  quadro:
+    tipo: formula
+    texto: Do + I / you / we / they + verbo?
+- fala: Quer perguntar se eles moram aqui? Voce diz 'Do they live here?'. Coloca o 'Do' na
+    frente e pronto.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: Do they live here?'
+- fala: 'E para perguntar usando he, she ou it? A gente usa o ''Does'' no inicio da frase.
+    E lembre-se: o verbo principal tambem fica sem o S.'
+  quadro:
+    tipo: formula
+    texto: Does + he / she / it + verbo (sem S)?
+- fala: 'Para fechar, se voce quer perguntar se ela gosta de musica, voce diz ''Does she like
+    music?''. Agora e com voce: como voce perguntaria se ele trabalha la?'
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: Does she like music?'

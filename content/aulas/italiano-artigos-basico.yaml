@@ -1,0 +1,78 @@
+id: italiano.artigos.basico
+materia: italiano
+titulo: Artigos definidos e indefinidos
+nivel: basico
+resumo: Il, lo, la, i, gli, le - a regra depende do som que comeca a palavra.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Il, lo, la, i, gli, le - a regra depende do som que comeca a palavra.
+  pre_requisitos:
+  - Portugues basico
+  duracao_min: 10
+  fixacao:
+  - Identificar o artigo correto para uma palavra em italiano
+  - Diferenciar o uso pelo som inicial
+  fechamento: Qual artigo definido voce usaria para a palavra 'studente' em italiano e por
+    que?
+passos:
+- fala: 'Ola! Hoje vamos comecar a falar de uma lingua muito bonita e que se parece com o
+    portugues: o italiano.'
+  quadro:
+    tipo: titulo
+    texto: Artigos em Italiano
+- fala: Antes de ver as regras, vamos lembrar do portugues. Quando dizemos 'o livro' ou 'a
+    casa', usamos artigos definidos.
+  quadro:
+    tipo: texto
+    texto: Artigos definidos = o, a, os, as
+- fala: Em italiano, esses artigos mudam bastante dependendo de como a palavra seguinte comeca.
+  quadro:
+    tipo: texto
+    texto: A escolha do artigo depende do som inicial da palavra
+- fala: Para o masculino singular, temos o 'il' usado antes de consoantes normais, como em
+    'il libro'.
+  quadro:
+    tipo: texto
+    texto: IL - Masculino singular (consoantes)
+- fala: Mas se a palavra masculina comeca com S seguido de consoante, Z ou GN, usamos 'lo'.
+  quadro:
+    tipo: texto
+    texto: LO - Masculino singular (s+consoante, z, gn)
+- fala: 'Para o feminino singular, a regra e mais simples: usamos ''la'' antes de consoantes.'
+  quadro:
+    tipo: texto
+    texto: LA - Feminino singular (consoantes)
+- fala: Se a palavra comeca com vogal, tanto no masculino quanto no feminino, usamos o artigo
+    com apostrofo.
+  quadro:
+    tipo: texto
+    texto: L' - Para masculinos e femininos comecados com vogal
+- fala: Agora vamos para o plural! O plural de 'il' e 'i'.
+  quadro:
+    tipo: texto
+    texto: I - Plural de IL
+- fala: E o plural de 'lo' e 'l'' com vogal e o 'gli'.
+  quadro:
+    tipo: texto
+    texto: GLI - Plural de LO e L' (masculino)
+- fala: Por fim, o plural de 'la' e 'l'' feminino e sempre 'le'.
+  quadro:
+    tipo: texto
+    texto: LE - Plural feminino (LA e L')
+- fala: Vamos ver um resumo completo na tela para ajudar a memorizar.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Genero
+    - Singular
+    - Plural
+    linhas:
+    - - Masculino (consoante)
+      - Il
+      - I
+    - - Masculino (s+cons/z)
+      - Lo
+      - Gli
+    - - Feminino
+      - La
+      - Le

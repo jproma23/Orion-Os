@@ -1,0 +1,55 @@
+id: biologia.corpo-humano.basico
+materia: biologia
+titulo: Corpo humano - sistemas
+nivel: basico
+resumo: Digestorio, respiratorio, circulatorio, excretor, nervoso e endocrino.
+fonte: Wikipedia, artigos Corpo humano, consultados em 2026-08-09
+plano:
+  objetivo: 'Aprender os sistemas do corpo humano: digestorio, respiratorio, circulatorio,
+    excretor, nervoso e endocrino.'
+  pre_requisitos:
+  - Celulas
+  - Tecidos
+  - Orgaos
+  duracao_min: 10
+  fixacao:
+  - O que sao celulas?
+  - Como os orgaos se formam?
+  fechamento: O corpo humano funciona com varios sistemas trabalhando juntos.
+passos:
+- fala: Ola! Ja pensou em como seu corpo e formado? Voce tem trilhoes de celulas.
+  quadro:
+    tipo: titulo
+    texto: Corpo Humano - Sistemas
+- fala: Essas celulas sao a unidade fundamental da vida. Elas se juntam e formam os tecidos.
+  quadro:
+    tipo: texto
+    texto: Celulas -> Tecidos
+- fala: Os tecidos protegem o organismo por fora e formam as cavidades por dentro.
+  quadro:
+    tipo: texto
+    texto: 'Funcao dos tecidos: protecao e cavidades internas'
+- fala: Quando as celulas se agrupam ainda mais, elas formam os orgaos.
+  quadro:
+    tipo: texto
+    texto: Celulas agrupadas = Orgaos
+- fala: Os orgaos sao colecoes estruturadas de celulas com funcoes especificas no corpo.
+  quadro:
+    tipo: texto
+    texto: 'Orgaos: funcoes especificas'
+- fala: Hoje vamos falar sobre como esses orgaos se organizam em sistemas no corpo humano.
+  quadro:
+    tipo: topicos
+    texto: Sistemas do Corpo
+    itens:
+    - Digestorio
+    - Respiratorio
+    - Circulatorio
+    - Excretor
+    - Nervoso
+    - Endocrino
+- fala: 'Para terminar, pense comigo: se as celulas formam os tecidos, o que os tecidos formam
+    junto com as celulas?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que se forma apos os tecidos?'

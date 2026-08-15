@@ -1,0 +1,79 @@
+id: historia.idade-media.basico
+materia: historia
+titulo: Idade Média
+nivel: basico
+resumo: Feudalismo, Igreja, o mundo islamico e as cruzadas.
+fonte: Wikipedia, artigos Idade Média, Feudalismo, Igreja, consultados em 2026-08-14
+plano:
+  objetivo: Entender o Feudalismo, o papel da Igreja e o contexto geral da Idade Média.
+  pre_requisitos:
+  - Fim do Império Romano
+  duracao_min: 10
+  fixacao:
+  - O que foi a ruralização no feudalismo?
+  - Qual era o papel da Igreja na Idade Média?
+  fechamento: A Idade Média foi um período de transição marcado pela descentralização do poder
+    nos feudos e pela grande influãncia da Igreja.
+passos:
+- fala: Imagine que o poder central de um país sumisse. As pessoas fugiriam para o campo para
+    plantar o que comer e dependeriam de um senhor dono de terras. Foi mais ou menos assim
+    a Idade Média.
+  quadro:
+    tipo: titulo
+    texto: A Idade Média (Séculos V a XV)
+- fala: Esse período da história da Europa vai do século cinco ao século quinze. Começa com
+    a Queda do Império Romano do Ocidente e vai até a Idade Moderna.
+  quadro:
+    tipo: texto
+    texto: Queda de Roma (Sec. V) → Idade Média → Idade Moderna (Sec. XV)
+- fala: 'A Idade Média costuma ser dividida em duas partes: a Alta Idade Média e a Baixa Idade
+    Média.'
+  quadro:
+    tipo: topicos
+    texto: Divisão do Período
+    itens:
+    - Alta Idade Média
+    - Baixa Idade Média
+- fala: Vamos falar agora do Feudalismo. Foi o sistema político, econômico e social que predominou
+    na Europa Ocidental, tendo seu auge entre os séculos onze e treze.
+  quadro:
+    tipo: titulo
+    texto: O Feudalismo (Sec. XI a XIII)
+- fala: O feudalismo nasceu da crise do Império Romano. Com o fim do comércio e o fim da escravidão
+    em massa, a população fugiu das cidades. É a chamada ruralização.
+  quadro:
+    tipo: texto
+    texto: 'Fatores: Queda de Roma + Fim da escravidão + Ruralização'
+- fala: Nos campos, formaram-se vários reinos e senhorios independentes. Os imperadores não
+    conseguiam unificar o território novamente.
+  quadro:
+    tipo: texto
+    texto: 'Poder descentralizado: múltiplos senhorios e reinos independentes'
+- fala: Enquanto o poder político se dividia nos feudos, a Igreja Católica ganhava muita força
+    política e suppressão do paganismo.
+  quadro:
+    tipo: titulo
+    texto: O Papel da Igreja
+- fala: A palavra igreja tem vários sentidos. No sentido religioso mais básico, refere-se
+    à congregação ou assembleia de cristãos.
+  quadro:
+    tipo: texto
+    texto: Igreja = Assembleia ou congregação de cristãos
+- fala: Pode significar também a igreja universal, com todos os cristãos de todos os tempos,
+    ou um grupo de cristãos de uma localidade específica.
+  quadro:
+    tipo: texto
+    texto: 'Sentidos: Comunidade universal ou localidade específica'
+- fala: Por fim, também designa uma denominação cristã cujos membros seguem a mesma doutrina
+    e respondem a uma liderança.
+  quadro:
+    tipo: topicos
+    texto: Características da Igreja
+    itens:
+    - Mesma doutrina de fé
+    - Submissão a uma liderança local ou mundial
+- fala: 'Para pensar e usar o que aprendeu: Se o comércio acabou e as pessoas foram morar
+    no campo na Idade Média, como você acha que as pessoas trocavam mercadorias sem usar dinheiro?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fixação: Como funcionava a troca de produtos sem dinheiro no campo?'

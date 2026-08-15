@@ -1,0 +1,63 @@
+id: historia.escravidao.basico
+materia: historia
+titulo: Escravidão e resistência
+nivel: basico
+resumo: O trafico, o trabalho escravizado, quilombos e revoltas.
+fonte: Wikipedia, artigos Escravidão no Brasil, consultados em 2026-08-14
+plano:
+  objetivo: O trafico, o trabalho escravizado, quilombos e revoltas.
+  pre_requisitos:
+  - Periodo colonial brasileiro
+  duracao_min: 10
+  fixacao:
+  - Quando a escravidão foi abolida legalmente no Brasil?
+  - Quais povos foram as principais vítimas desse processo?
+  fechamento: A escravidão marcou profundamente a historia do Brasil colonial e imperial,
+    sendo sustentada pela exploração da mao de obra negra e indígena ate o final do século
+    XIX.
+passos:
+- fala: Fala, pessoal! Imagina viver numa epoca em que pessoas eram tratadas como mercadoria,
+    obrigadas a trabalhar sem receber nada e sem poder ir embora. É sobre essa dura realidade
+    da nossa historia que vamos falar hoje.
+  quadro:
+    tipo: titulo
+    texto: Escravidão e resistência no Brasil
+- fala: Para começar, vamos entender o que foi esse sistema. A escravidão no Brasil foi a
+    forma de organização social e economica que usava mão de obra escrava.
+  quadro:
+    tipo: texto
+    texto: 'Sistema escravocrata: relação social e economica baseada no trabalho forçado.'
+- fala: Esse sistema horroroso foi adotado de forma geral no país desde o período colonial,
+    e continuou assim ate pouco antes do final do Imperio, no seculo XIX.
+  quadro:
+    tipo: texto
+    texto: 'Duração: do período colonial até o final do Império (século XIX).'
+- fala: A marca principal desse sistema foi a exploração implacável de negros trazidos da
+    Africa. Eles foram transformados em escravos no Brasil pelos colonizadores portugueses.
+  quadro:
+    tipo: topicos
+    texto: Principais vítimas
+    itens:
+    - Negros trazidos da África
+    - Exploração pelos colonizadores portugueses
+- fala: Mas nao foram so os negros africanos. Muitos povos indigenas tambem foram victimas
+    desse mesmo processo de escravização aqui no Brasil.
+  quadro:
+    tipo: topicos
+    texto: Outras vítimas
+    itens:
+    - Povos indígenas do Brasil
+- fala: Houve muita resistencia contra essa barbárie. A escravidão indígena, por exemplo,
+    acabou sendo abolida oficialmente pelo Marquês de Pombal ja no final do seculo dezoito.
+  quadro:
+    tipo: texto
+    texto: 'Fim da escravidão indígena: final do século XVIII (Marquês de Pombal).'
+- fala: Ja a escravidão dos negros africanos e seus descendentes resistiu por muito mais tempo.
+    Ela so foi considerada ilegal e finalizada no ano de 1888, com a abolição da escravatura.
+  quadro:
+    tipo: texto
+    texto: 'Fim da escravidão negra: 1888 (Abolição da Escravatura).'
+- fala: 'Para pensar e responder: em que ano a escravidão foi legalmente finalizada no Brasil?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Quando ocorreu a abolição da escravatura?'

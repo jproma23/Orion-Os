@@ -1,0 +1,79 @@
+id: italiano.substantivo-genero.basico
+materia: italiano
+titulo: Substantivos, gênero e número
+nivel: basico
+resumo: Finais em O, A e E; plurais que mudam a vogal em vez de acrescentar S.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Finais em O, A e E; plurais que mudam a vogal em vez de acrescentar S no italiano.
+  pre_requisitos:
+  - Conceito basico de substantivo em portugues
+  duracao_min: 10
+  fixacao:
+  - Como fica o plural de uma palavra terminada em O?
+  - Como fica o plural de uma palavra feminina terminada em A?
+  fechamento: Em italiano, a gente muda a vogal do final para fazer o plural, sem colocar
+    a letra S.
+passos:
+- fala: 'Fala, pessoal! Olha so para esta palavra: casa. Em portugues e em italiano, a gente
+    sabe que e algo feminino, que termina com a letra A.'
+  quadro:
+    tipo: titulo
+    texto: 'Substantivos em Italiano: Genero e Numero'
+- fala: Em italiano, as palavras mudam de final para mostrar se sao masculinas, femininas,
+    no singular ou no plural. Vamos ver os padroes.
+  quadro:
+    tipo: texto
+    texto: 'Regra geral: as vogais finais mudam para indicar genero e numero.'
+- fala: Primeiro o masculino singular. Na maioria das vezes, ele termina com a letra O.
+  quadro:
+    tipo: texto
+    texto: Masculino Singular -> termina em O
+- fala: Para passar esse masculino para o plural, a letra O vira a letra I.
+  quadro:
+    tipo: texto
+    texto: 'Masculino Plural: O vira I'
+- fala: Agora vamos para o feminino singular. Ele costuma terminar com a letra A.
+  quadro:
+    tipo: texto
+    texto: Feminino Singular -> termina em A
+- fala: E no plural feminino, a letra A vira a letra E.
+  quadro:
+    tipo: texto
+    texto: 'Feminino Plural: A vira E'
+- fala: Tem tambem palavras que terminam com a letra E no singular, servindo tanto para masculino
+    quanto para feminino.
+  quadro:
+    tipo: texto
+    texto: Singular com E (masculino ou feminino)
+- fala: Quando a palavra termina com E no singular, o plural dela muda para a letra I.
+  quadro:
+    tipo: texto
+    texto: Plural de E -> vira I
+- fala: 'Preste muita atencao: em italiano a gente nao usa a letra S no final para fazer o
+    plural. A gente troca a vogal!'
+  quadro:
+    tipo: texto
+    texto: 'Atencao: Nao se usa S no plural!'
+- fala: Vamos organizar isso numa tabela para ficar facil de ver na hora de escrever no caderno.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Genero
+    - Singular
+    - Plural
+    linhas:
+    - - Masculino
+      - -o
+      - -i
+    - - Feminino
+      - -a
+      - -e
+    - - Ambos
+      - -e
+      - -i
+- fala: 'Para terminar, me diga: se voce tem uma palavra feminina no singular terminada em
+    A, qual e a letra que voce coloca no final para fazer o plural?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual a vogal do plural feminino (-a)?'

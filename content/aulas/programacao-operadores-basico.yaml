@@ -1,0 +1,74 @@
+id: programacao.operadores.basico
+materia: programacao
+titulo: Operadores e expressões
+nivel: basico
+resumo: Aritmeticos, comparacao e logicos; precedencia e o erro de dividir inteiro.
+fonte: Wikipedia, artigos Programação de computadores, consultados em 2026-08-14
+plano:
+  objetivo: Entender operadores aritmeticos, comparacao e logicos, precedencia e divisao inteira.
+  pre_requisitos:
+  - Logica basica
+  duracao_min: 10
+  fixacao:
+  - Qual e o resultado de 5 dividido por 2 na divisao inteira?
+  - Qual operador usamos para comparar igualdade?
+  fechamento: Pratique sempre testando a precedencia dos operadores nas suas expressoes!
+passos:
+- fala: Fala, pessoal! Ja viram uma calculadora que faz contas malucas porque a gente esquece
+    a ordem das operacoes? Na programacao, isso tambem acontece com os operadores e expressoes.
+  quadro:
+    tipo: titulo
+    texto: Operadores e Expressoes
+- fala: Primeiro, vamos olhar para os operadores aritmeticos. Eles servem para fazer contas
+    matematicas basicas no computador.
+  quadro:
+    tipo: topicos
+    texto: Aritmeticos
+    itens:
+    - 'Soma: +'
+    - 'Subtracao: -'
+    - 'Multiplicacao: *'
+    - 'Divisao: /'
+- fala: Tem um detalhe perigoso na divisao chamado erro de dividir inteiro. Se voce divide
+    dois numeros inteiros, o computador pode jogar fora a parte que sobra.
+  quadro:
+    tipo: texto
+    texto: 'Erro de divisao inteira: 5 / 2 pode resultar em parte inteira.'
+- fala: Agora vamos para os operadores de comparacao. Eles servem para comparar valores e
+    sempre respondem se e verdadeiro ou falso.
+  quadro:
+    tipo: topicos
+    texto: Comparacao
+    itens:
+    - 'Maior que: >'
+    - 'Menor que: <'
+    - 'Igualdade: =='
+    - 'Diferente: !='
+- fala: O terceiro grupo sao os operadores logicos. Eles juntam condicoes, como dizer que
+    algo so acontece se a primeira E a segunda coisa forem verdadeiras.
+  quadro:
+    tipo: topicos
+    texto: Logicos
+    itens:
+    - E (AND)
+    - OU (OR)
+    - NAO (NOT)
+- fala: Mas quem manda na conta quando misturamos tudo? E ai que entra a precedencia. O computador
+    nao resolve de qualquer jeito.
+  quadro:
+    tipo: texto
+    texto: 'Precedencia: Define a ordem em que o computador resolve cada operacao.'
+- fala: Primeiro, o computador sempre resolve o que esta dentro dos parenteses, exatamente
+    como na matematica da escola.
+  quadro:
+    tipo: formula
+    texto: ( ) tem prioridade maxima
+- fala: Depois dos parenteses, a multiplicacao e a divisao vem antes da soma e da subtracao.
+  quadro:
+    tipo: formula
+    texto: '* e / antes de + e -'
+- fala: 'Para fechar, me diga: se voce dividir 5 por 2 usando uma divisao inteira na programacao,
+    o que sera que o computador descarta?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que acontece com o resto na divisao inteira?'

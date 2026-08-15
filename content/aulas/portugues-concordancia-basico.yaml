@@ -1,0 +1,80 @@
+id: portugues.concordancia.basico
+materia: portugues
+titulo: Concordância verbal e nominal
+nivel: basico
+resumo: Verbo com o sujeito, adjetivo com o substantivo, e os casos que confundem.
+fonte: Wikipedia, artigos Concordância gramatical, consultados em 2026-08-14
+plano:
+  objetivo: Verbo com o sujeito, adjetivo com o substantivo, e os casos que confundem.
+  pre_requisitos:
+  - Identificar sujeito e verbo
+  - Diferenciar substantivo e adjetivo
+  duracao_min: 10
+  fixacao:
+  - O que e concordancia verbal?
+  - O que e concordancia nominal?
+  fechamento: Agora voce sabe que as palavras na frase precisam combinar direitinho em numero,
+    pessoa e genero!
+passos:
+- fala: 'Ola! Pense na frase: os meninos jogam bola. Se eu mudo o sujeito para o singular,
+    o verbo muda tambem. Fica: o menino joga bola. Isso e fazer as palavras combinarem.'
+  quadro:
+    tipo: titulo
+    texto: Concordancia Verbal e Nominal
+- fala: Na nossa aula de hoje, vamos ver como as palavras se relacionam e se harmonizam na
+    frase.
+  quadro:
+    tipo: texto
+    texto: Harmonizar flexoes de palavras em uma frase.
+- fala: Em termos simples, concordar significa que uma palavra se refere de forma correta
+    a outra.
+  quadro:
+    tipo: texto
+    texto: 'Significado: ''se refere de forma correta'''
+- fala: Vamos dividir isso em dois tipos. O primeiro e a concordancia verbal.
+  quadro:
+    tipo: limpar
+- fala: A concordancia verbal mexe com a relacao entre o verbo e o sujeito da frase.
+  quadro:
+    tipo: titulo
+    texto: 1. Concordancia Verbal
+- fala: Eles precisam combinar em numero, ou seja, singular ou plural, e em pessoa, que pode
+    ser primeira, segunda ou terceira.
+  quadro:
+    tipo: topicos
+    texto: 'Flexoes obrigatorias:'
+    itens:
+    - Numero (singular ou plural)
+    - Pessoa (1a, 2a ou 3a)
+- fala: 'Agora vamos para o segundo tipo: a concordancia nominal.'
+  quadro:
+    tipo: limpar
+- fala: A concordancia nominal olha para as variacoes de genero e numero dentro do sintagma
+    nominal.
+  quadro:
+    tipo: titulo
+    texto: 2. Concordancia Nominal
+- fala: Isso acontece entre o nucleo do nome, que e o substantivo, e as outras palavras que
+    o acompanham, como adjetivos e artigos.
+  quadro:
+    tipo: topicos
+    texto: 'Relacao do nome com:'
+    itens:
+    - Genero (masculino ou feminino)
+    - Numero (singular ou plural)
+- fala: Para resumir, o verbo se ajusta ao sujeito, e o adjetivo se ajusta ao substantivo.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Tipo
+    - O que combina com o que
+    linhas:
+    - - Verbal
+      - Verbo <-> Sujeito
+    - - Nominal
+      - Adjetivo <-> Substantivo
+- fala: 'Para pensar: se eu digo ''a casa bonita'', o adjetivo bonita concorda em genero e
+    numero com casa. Como ficaria se a palavra casa estivesse no plural?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: ''a casa bonita'' no plural?'

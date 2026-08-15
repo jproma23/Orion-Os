@@ -1,0 +1,69 @@
+id: matematica.geometria-plana.basico
+materia: matematica
+titulo: Geometria plana
+nivel: basico
+resumo: Area e perimetro das figuras basicas, teorema de Pitagoras, angulos e semelhanca de
+  triangulos.
+fonte: Wikipedia, artigos Perímetro, Teorema de Pitágoras, consultados em 2026-08-14
+plano:
+  objetivo: Area e perimetro das figuras basicas, teorema de Pitagoras, angulos e semelhanca
+    de triangulos.
+  pre_requisitos:
+  - aritmetica basica
+  duracao_min: 10
+  fixacao:
+  - Calcular o perimetro de uma figura
+  - Aplicar o teorema de Pitagoras
+  fechamento: Se voce tem um triangulo retangulo com catetos medindo 3 e 4, qual e o comprimento
+    da hipotenusa?
+passos:
+- fala: Fala, pessoal! Imagine que voce vai dar a volta inteira ao redor de uma praca quadrada.
+    A distancia total que voce caminha e o que chamamos de perimetro.
+  quadro:
+    tipo: titulo
+    texto: Geometria Plana
+- fala: 'Na matematica, o perimetro e exatamente isso: a medida do contorno de um objeto bidimensional.
+    Ele e a soma de todos os lados de uma figura geometrica.'
+  quadro:
+    tipo: texto
+    texto: Perimetro = soma de todos os lados
+- fala: 'Tem um detalhe curioso. Quando a figura e um circulo ou uma elipse, a gente nao chama
+    de perimetro. O perimetro do circulo tem um nome especial: circunferencia.'
+  quadro:
+    tipo: texto
+    texto: Circunferencia = perimetro do circulo ou elipse
+- fala: 'Agora vamos mudar de assunto e falar de uma relacao muito famosa na matematica: o
+    Teorema de Pitagoras.'
+  quadro:
+    tipo: limpar
+- fala: O teorema de Pitagoras vale para qualquer triangulo retangulo. Lembra dele? E aquele
+    triangulo que tem um angulo reto, de 90 graus.
+  quadro:
+    tipo: titulo
+    texto: Teorema de Pitagoras
+- fala: Nesse triangulo, o lado que fica opuesto ao angulo reto ganha o nome de hipotenusa.
+    Os outros dois lados que formam o angulo reto sao os catetos.
+  quadro:
+    tipo: topicos
+    texto: Elementos do triangulo retangulo
+    itens:
+    - 'Hipotenusa: lado oposto ao angulo reto'
+    - 'Catetos: os dois lados que formam o angulo reto'
+- fala: O teorema diz que existe uma relacao matematica entre os comprimentos desses lados.
+    Podemos pensar nisso tambem como uma relacao entre areas.
+  quadro:
+    tipo: texto
+    texto: Relacao entre os lados ou entre areas
+- fala: Em forma de conta, a formula famosa diz que o quadrado da hipotenusa e igual a soma
+    dos quadrados dos catetos.
+  quadro:
+    tipo: formula
+    texto: c^2 = a^2 + b^2
+- fala: Nessa formula que esta no quadro, a letra c representa o comprimento da hipotenusa.
+    E as letras a e b representam os comprimentos dos outros dois lados, que sao os catetos.
+  quadro:
+    tipo: topicos
+    texto: 'Onde:'
+    itens:
+    - c = hipotenusa
+    - a e b = catetos

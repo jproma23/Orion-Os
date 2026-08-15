@@ -2,69 +2,59 @@ id: biologia.metabolismo-celular.basico
 materia: biologia
 titulo: Respiração e fotossíntese
 nivel: basico
-resumo: Como células obtêm energia dos alimentos e como plantas, algas e algumas bactérias produzem matéria orgânica usando luz.
-fonte: "Wikipedia: Respiração celular e Fotossíntese, consultados em 2026-08-09."
+resumo: Como a celula tira energia do alimento e como a planta fabrica o dela.
+fonte: Wikipedia, artigos Metabolismo, consultados em 2026-08-14
 plano:
-  objetivo: Comparar fotossíntese e respiração celular sem confundir matéria com energia.
+  objetivo: Como a celula tira energia do alimento e como a planta fabrica o dela.
   pre_requisitos:
-    - A célula
-  duracao_min: 16
+  - Conceito basico de celulas
+  - Noorcao de nutrientes
+  duracao_min: 10
   fixacao:
-    - Qual processo usa luz para produzir glicose?
-    - Por que uma planta também realiza respiração celular?
-  fechamento: Fotossíntese armazena energia da luz em moléculas orgânicas; respiração libera parte dessa energia para o trabalho celular.
+  - O que significa metabolismo?
+  - Qual a diferenca entre sintese e degradacao no nosso corpo?
+  fechamento: Entendemos que o metabolismo e o motor quimico da celula, responsavel por transformar
+    substancias para manter a vida.
 passos:
-  - fala: "Comer não é o mesmo que ganhar energia imediatamente. A célula precisa transformar as moléculas do alimento em uma forma que consiga usar."
-    quadro:
-      tipo: titulo
-      texto: "Respiração e fotossíntese"
-  - fala: "Metabolismo é o nome do conjunto de reações químicas da célula. Algumas reações montam moléculas; outras quebram moléculas e liberam energia utilizável."
-    quadro:
-      tipo: topicos
-      texto: "Metabolismo"
-      itens:
-        - Construção de moléculas
-        - Quebra e transformação de moléculas
-  - fala: "Na fotossíntese, plantas, algas e algumas bactérias usam luz para transformar água e gás carbônico em moléculas orgânicas, como a glicose."
-    quadro:
-      tipo: topicos
-      texto: "Fotossíntese"
-      itens:
-        - Usa luz
-        - Usa água e gás carbônico
-        - Produz matéria orgânica e libera oxigênio
-  - fala: "A glicose guarda energia química. Ela não é energia pura: é uma molécula que pode participar de reações posteriores."
-    quadro:
-      tipo: texto
-      texto: "Glicose = molécula que armazena energia química"
-  - fala: "Na respiração celular, a célula usa moléculas orgânicas e, em muitas situações, oxigênio para liberar energia que sustenta suas atividades."
-    quadro:
-      tipo: topicos
-      texto: "Respiração celular"
-      itens:
-        - Usa moléculas orgânicas
-        - Libera energia para a célula
-        - Em geral usa oxigênio
-  - fala: "Essa energia ajuda a célula a transportar substâncias, montar moléculas, movimentar partes e manter suas condições internas."
-    quadro:
-      tipo: texto
-      texto: "Energia celular permite trabalho"
-  - fala: "Fotossíntese e respiração não são inimigas. Uma produz moléculas orgânicas usando energia da luz; a outra usa essas moléculas para liberar energia para a vida celular."
-    quadro:
-      tipo: topicos
-      texto: "Comparação"
-      itens:
-        - "Fotossíntese: armazena energia em moléculas"
-        - "Respiração: libera energia das moléculas"
-  - fala: "Plantas fazem fotossíntese quando há luz, mas suas células também respiram. Elas precisam de energia o tempo todo, inclusive quando está escuro."
-    quadro:
-      tipo: texto
-      texto: "Planta também respira"
-  - fala: "Uma confusão comum é dizer que a planta tira toda sua massa do solo. Grande parte da matéria orgânica produzida vem do gás carbônico retirado do ar."
-    quadro:
-      tipo: texto
-      texto: "Gás carbônico também é matéria-prima"
-  - fala: "Para fechar, acompanhe o ciclo: luz ajuda a formar moléculas orgânicas; essas moléculas podem ser usadas na respiração; e a célula usa a energia liberada para viver."
-    quadro:
-      tipo: texto
-      texto: "Luz → moléculas orgânicas → respiração → trabalho celular"
+- fala: Fala, pessoal! Imagina que a celula do seu corpo e uma fabrica que nao para nunca.
+    Para ela funcionar, ela precisa desmontar o que voce come e montar coisas novas o tempo
+    todo.
+  quadro:
+    tipo: titulo
+    texto: Respiração e Fotossíntese
+- fala: Todas essas transformacoes quimicas que acontecem dentro das celulas tem um nome cientifico.
+    A gente chama de metabolismo.
+  quadro:
+    tipo: texto
+    texto: Metabolismo
+- fala: 'A palavra vem do grego metabolismos, que significa mudanca ou troca. E exatamente
+    isso: a celula fica trocando e transformando substancias o tempo todo.'
+  quadro:
+    tipo: formula
+    texto: metabolismos = mudanca / troca
+- fala: 'Essas reacoes quimicas fazem dois trabalhos principais na celula: elas constroem
+    estruturas e desmontam nutrientes para gerar o que a celula precisa.'
+  quadro:
+    tipo: topicos
+    texto: 'Trabalhos do metabolismo na celula:'
+    itens:
+    - Sintese (construir)
+    - Degradacao (desmontar nutrientes)
+- fala: Sem esse conjunto de reacoes, a vida simplesmente nao existiria. E o metabolismo que
+    permite o crescimento e a reproducao das celulas.
+  quadro:
+    tipo: texto
+    texto: 'Base da vida: crescimento e reprodução'
+- fala: Além disso, é o metabolismo que mantem as estruturas da celula firmes e ajuda ela
+    a dar a resposta certa para o ambiente onde esta.
+  quadro:
+    tipo: topicos
+    texto: 'Funcoes de manutencao:'
+    itens:
+    - Manter estruturas celulares
+    - Adequar respostas ao ambiente
+- fala: 'Para fechar: Pense em tudo o que sua celula faz para processar o alimento que voce
+    comeu no almoco. Qual e o nome desse conjunto de transformacoes quimicas?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como chamamos o conjunto de transformacoes quimicas na celula?'

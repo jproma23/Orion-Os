@@ -1,0 +1,75 @@
+id: espanhol.artigos-genero.basico
+materia: espanhol
+titulo: Artigos e gênero
+nivel: basico
+resumo: El, la, los, las; palavras que trocam de genero do portugues para o espanhol.
+fonte: Wikipedia, artigos Gênero gramatical, consultados em 2026-08-14
+plano:
+  objetivo: Aprender os artigos definidos em espanhol e as palavras que mudam de genero em
+    relacao ao portugues.
+  pre_requisitos:
+  - Conhecer o genero gramatical basico em portugues.
+  duracao_min: 10
+  fixacao:
+  - Como se diz 'a ponte' em espanhol?
+  - Qual o artigo para a palavra 'leite' no masculino em espanhol?
+  fechamento: Vimos que o espanhol usa el, la, los e las, e que algumas palavras mudam de
+    genero se comparadas com o portugues.
+passos:
+- fala: Fala, pessoal! Imagina que voce vai falar 'o carro' e 'a casa' em espanhol. Voce ja
+    sabe que muda, mas sabia que algumas palavras mudam totalmente de genero do portugues
+    para la?
+  quadro:
+    tipo: titulo
+    texto: Artigos e Genero em Espanhol
+- fala: Em portugues, a gente usa o e a para o singular, e os e as para o plural. Em espanhol,
+    para o masculino singular, usamos el.
+  quadro:
+    tipo: texto
+    texto: Masculino Singular -> el
+- fala: Para o feminino singular, o artigo que usamos e la.
+  quadro:
+    tipo: texto
+    texto: Feminino Singular -> la
+- fala: No plural, para os rapazes ou objetos masculinos, usamos los.
+  quadro:
+    tipo: texto
+    texto: Masculino Plural -> los
+- fala: E para o feminino plural, usamos las.
+  quadro:
+    tipo: texto
+    texto: Feminino Plural -> las
+- fala: Vamos ver um exemplo classico. Em portugues dizemos 'o sangue'. Em espanhol, a palavra
+    sangue e feminina! Dizemos la sangre.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Portugues
+    - Espanhol
+    linhas:
+    - - o sangue
+      - la sangre
+- fala: Outro exemplo interessante e o sal. Em portugues e 'o sal', mas em espanhol dizemos
+    la sal.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Portugues
+    - Espanhol
+    linhas:
+    - - o sal
+      - la sal
+- fala: E o leite? Em portugues e 'o leite', mas em espanhol o correto e la leche.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Portugues
+    - Espanhol
+    linhas:
+    - - o leite
+      - la leche
+- fala: 'Para terminar, vamos pensar: se em portugues dizemos ''a ponte'', como sera que fica
+    em espanhol, sabendo que a palavra puente e masculina la?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: O que vem antes de puente? el ou la?'

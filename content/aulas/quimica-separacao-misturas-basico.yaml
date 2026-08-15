@@ -1,0 +1,81 @@
+id: quimica.separacao-misturas.basico
+materia: quimica
+titulo: Separação de misturas
+nivel: basico
+resumo: Filtracao, destilacao, decantacao, cromatografia - e onde se usa cada uma.
+fonte: Wikipedia, artigos Separação de misturas, Filtração, Destilação, Decantação, consultados
+  em 2026-08-14
+plano:
+  objetivo: 'Aprender os metodos de separacao de misturas: filtracao, destilacao e decantacao,
+    e onde usa cada um.'
+  pre_requisitos:
+  - Conceito de misturas
+  duracao_min: 10
+  fixacao:
+  - Diferenca entre filtracao e decantacao
+  - Aplicacao da destilacao no petroleo
+  fechamento: Qual metodo voce usaria para separar agua e oleo?
+passos:
+- fala: Ola! Voce ja reparou como fazemos para separar o po do cafe na hora do coador? E disso
+    que vamos falar hoje.
+  quadro:
+    tipo: titulo
+    texto: Separacao de Misturas
+- fala: Misturas estao por toda parte. Podemos separa-las tanto em laboratorios quanto em
+    grandes industrias.
+  quadro:
+    tipo: texto
+    texto: 'Escala: Laboratorios e Industria'
+- fala: O primeiro metodo e a filtragem. Usamos para separar um solido de um fluido, passando
+    tudo por um dispositivo poroso.
+  quadro:
+    tipo: topicos
+    texto: Filtracao
+    itens:
+    - Separa solido de fluido
+    - Usa dispositivo poroso
+    - Retem impurezas
+- fala: Na filtragem usamos meios como papel de filtro, algodao ou tecido, escolhendo o tamanho
+    do poro para cada caso.
+  quadro:
+    tipo: texto
+    texto: 'Meios porosos: Papel, algodao, tecidos, porcelana'
+- fala: Agora vamos para a destilacao. Pense na fabricacao de bebidas alcoolicas desde a antiguidade.
+  quadro:
+    tipo: titulo
+    texto: Destilacao
+- fala: A destilacao separa substancias de uma mistura liquida usando a diferenca no ponto
+    de ebulicao.
+  quadro:
+    tipo: topicos
+    texto: Como funciona
+    itens:
+    - Mistura liquida
+    - Diferenca de ponto de ebulicao
+    - 'Ex: Bebidas alcoolicas'
+- fala: Um exemplo moderno e o petroleo, que passa por varias destilacoes para virar gasolina,
+    diesel e asfalto.
+  quadro:
+    tipo: texto
+    texto: Petroleo -> Gasolina, Oleo diesel, Querosene, Asfalto
+- fala: O terceiro metodo e a decantacao, usada para misturas heterogeneas, como agua e oleo.
+  quadro:
+    tipo: titulo
+    texto: Decantacao
+- fala: Ela funciona deixando a mistura em repouso. O segredo aqui e a diferenca de densidade
+    entre os materiais.
+  quadro:
+    tipo: topicos
+    texto: Principios da Decantacao
+    itens:
+    - Misturas heterogeneas
+    - Misturas bifasicas
+    - Baseado na densidade
+    - 'Ex: Agua e oleo, Areia e agua'
+- fala: Apos o repouso, podemos usar um bastão de vidro para verter o liquido lentamente,
+    separando as fases.
+  quadro:
+    tipo: texto
+    texto: 'Separacao: Uso de repouso e bastao de vidro'
+- fala: 'Muito bem! Agora me diga: qual desses metodos voce usaria para separar uma mistura
+    de agua e areia?'

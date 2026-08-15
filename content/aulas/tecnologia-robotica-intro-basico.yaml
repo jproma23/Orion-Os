@@ -1,0 +1,67 @@
+id: tecnologia.robotica-intro.basico
+materia: tecnologia
+titulo: O que é um robô
+nivel: basico
+resumo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+fonte: Wikipedia, artigos Robótica, consultados em 2026-08-14
+plano:
+  objetivo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+  pre_requisitos:
+  - Conceito basico de maquinas e eletricidade
+  duracao_min: 10
+  fixacao:
+  - O que sao as tres funcoes basicas de um robo?
+  - O que diferencia um robo autonomo de um controle remoto?
+  fechamento: Todo robo precisa perceber o ambiente, tomar uma decisao e agir para realizar
+    uma tarefa.
+passos:
+- fala: Fala, pessoal! Voce ja reparou que algumas maquinas parecem pensar sozinhas? Pense
+    naquele robo aspirador que limpa a casa e desvia dos moveis sem voce encostar nele.
+  quadro:
+    tipo: titulo
+    texto: O que e um Robo?
+- fala: 'Para uma maquina ser considerada um robo, ela precisa fazer tres coisas basicas:
+    perceber o que esta ao redor, decidir o que fazer e agir.'
+  quadro:
+    tipo: topicos
+    texto: Ciclo do Robo
+    itens:
+    - 1. Perceber (sensores)
+    - 2. Decidir (processador)
+    - 3. Agir (atuadores)
+- fala: Segundo o material, a robotica mexe com partes mecanicas automaticas e circuitos integrados.
+    Isso junta mecanica, eletrica e computacao.
+  quadro:
+    tipo: texto
+    texto: Robotica = Mecanica + Eletronica + Computacao
+- fala: A robotica e estudada em varias areas, como computacao, aeroespacial, mecanica, automacao
+    e eletrica.
+  quadro:
+    tipo: topicos
+    texto: Areas de Estudo
+    itens:
+    - Computacao
+    - Aeroespacial
+    - Mecanica
+    - Automacao
+    - Eletrica
+- fala: As pessoas usam cada vez mais robos para tarefas do dia a dia. Olha so o exemplo do
+    robo aspirador que limpa o chao sozinho.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo cotidiano: Robo aspirador'
+- fala: Outro exemplo forte sao os robos usados em cirurgias medicas, ajudando os medicos
+    com muita precisao.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo avancado: Robos cirurgicos'
+- fala: Mas nem toda maquina e autonoma. Um carrinho de controle remoto depende 100 por cento
+    de voce. O robo decide mais sozinho conforme o seu grau de autonomia.
+  quadro:
+    tipo: texto
+    texto: 'Graus de Autonomia: Controle vs Independencia'
+- fala: 'Para fechar: se voce criasse um robo para arrumar seu quarto, quais seriam as partes
+    dele para perceber, decidir e agir?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta final: Como seu robo arrumaria o quarto?'

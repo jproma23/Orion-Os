@@ -1,0 +1,67 @@
+id: historia.grandes-navegacoes.basico
+materia: historia
+titulo: Grandes navegações
+nivel: basico
+resumo: Por que a Europa foi ao mar, a tecnica que permitiu, e o que veio depois.
+fonte: Wikipedia, artigos Era dos Descobrimentos, consultados em 2026-08-14
+plano:
+  objetivo: Por que a Europa foi ao mar, a tecnica que permitiu, e o que veio depois.
+  pre_requisitos:
+  - Historia geral basica
+  duracao_min: 10
+  fixacao:
+  - O que os europeus procuravam nas Indias?
+  - Quais paises comecaram essas exploracoes?
+  fechamento: Se voce pudesse entrar em uma caravela para buscar especiarias no seculo XV,
+    para onde iria?
+passos:
+- fala: Fala, pessoal! Imagina que voce quer comprar temperos raros e ouro, mas a rota terrestre
+    esta bloqueada e muito cara. Foi exatamente isso que aconteceu com a Europa.
+  quadro:
+    tipo: titulo
+    texto: Grandes Navegacoes
+- fala: Esse periodo de exploracao intensa do globo ficou conhecido como a Era dos Descobrimentos.
+  quadro:
+    tipo: texto
+    texto: Seculo XV ate o inicio do seculo XVII
+- fala: Tudo comecou la no seculo XV e foi ate o inicio do seculo XVII. Quem saiu na frente
+    nessa historia?
+  quadro:
+    tipo: texto
+    texto: 'Pioneiros: Portugal e Espanha'
+- fala: Isso mesmo, primeiro os portugueses, depois os espanhóis, e mais tarde outros paises
+    europeus.
+  quadro:
+    tipo: topicos
+    texto: Quem explorou?
+    itens:
+    - Portugueses (pioneiros)
+    - Espanhois
+    - Outros paises europeus
+- fala: E o que eles queriam tanto assim a ponto de se arriscar no mar desconhecido?
+  quadro:
+    tipo: texto
+    texto: Busca por novas rotas de comercio
+- fala: Eles queriam chegar nas Indias por uma rota alternativa. E o alvo principal era o
+    comercio de ouro, prata e especiarias.
+  quadro:
+    tipo: topicos
+    texto: O que buscavam?
+    itens:
+    - Ouro
+    - Prata
+    - Especiarias
+    - Rota alternativa para as Indias
+- fala: Com essas viagens pioneiras, eles acabaram estabelecendo relacoes diretas com tres
+    continentes.
+  quadro:
+    tipo: topicos
+    texto: Continentes alcancados
+    itens:
+    - Africa
+    - America
+    - Asia
+- fala: 'Para fechar: por que os europeus foram ao mar? Pense nisso e me diga.'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que motivou a busca por novas rotas?'

@@ -1,90 +1,100 @@
 materia: fisica
 nome: Física
-descricao: >
-  Por que as coisas caem, esquentam e acendem. Cada topico tem uma conta e
-  uma pergunta do mundo real - sem a pergunta, vira decoreba de formula.
+descricao: 'Por que as coisas caem, esquentam e acendem. Cada topico tem uma conta e uma pergunta
+  do mundo real - sem a pergunta, vira decoreba de formula.
 
+  '
 niveis:
   basico:
     descricao: Movimento e forca - a mecanica que explica quase tudo que se ve.
     topicos:
-      - id: fis.grandezas-unidades
-        titulo: Grandezas e unidades
-        conteudo: Sistema Internacional, notacao cientifica, ordem de grandeza e algarismos significativos.
-      - id: fis.cinematica
-        titulo: Cinemática
-        conteudo: Velocidade, aceleracao, movimento uniforme e uniformemente variado; graficos.
-      - id: fis.queda-livre
-        titulo: Queda livre e lançamentos
-        conteudo: Gravidade, tempo de queda, lancamento vertical e obliquo.
-      - id: fis.leis-newton
-        titulo: Leis de Newton
-        conteudo: Inercia, forca igual a massa vezes aceleracao, acao e reacao - e onde a intuicao erra.
-      - id: fis.atrito
-        titulo: Atrito e forças no plano
-        conteudo: Atrito estatico e dinamico, plano inclinado, forca normal e tracao.
-      - id: fis.trabalho-energia
-        titulo: Trabalho e energia
-        conteudo: Energia cinetica e potencial, conservacao de energia, potencia e rendimento.
-      - id: fis.quantidade-movimento
-        titulo: Quantidade de movimento
-        conteudo: Impulso, colisao elastica e inelastica, conservacao do momento.
-      - id: fis.estatica
-        titulo: Estática e equilíbrio
-        conteudo: Momento de uma forca, alavanca, centro de massa e por que um corpo tomba.
-
+    - id: fis.grandezas-unidades
+      titulo: Grandezas e unidades
+      conteudo: Sistema Internacional, notacao cientifica, ordem de grandeza e algarismos
+        significativos.
+      aula: fisica.grandezas-unidades.basico
+    - id: fis.cinematica
+      titulo: Cinemática
+      conteudo: Velocidade, aceleracao, movimento uniforme e uniformemente variado; graficos.
+      aula: fisica.cinematica.basico
+    - id: fis.queda-livre
+      titulo: Queda livre e lançamentos
+      conteudo: Gravidade, tempo de queda, lancamento vertical e obliquo.
+      aula: fisica.queda-livre.basico
+    - id: fis.leis-newton
+      titulo: Leis de Newton
+      conteudo: Inercia, forca igual a massa vezes aceleracao, acao e reacao - e onde a intuicao
+        erra.
+      aula: fisica.leis-newton.basico
+    - id: fis.atrito
+      titulo: Atrito e forças no plano
+      conteudo: Atrito estatico e dinamico, plano inclinado, forca normal e tracao.
+      aula: fisica.atrito.basico
+    - id: fis.trabalho-energia
+      titulo: Trabalho e energia
+      conteudo: Energia cinetica e potencial, conservacao de energia, potencia e rendimento.
+      aula: fisica.trabalho-energia.basico
+    - id: fis.quantidade-movimento
+      titulo: Quantidade de movimento
+      conteudo: Impulso, colisao elastica e inelastica, conservacao do momento.
+      aula: fisica.quantidade-movimento.basico
+    - id: fis.estatica
+      titulo: Estática e equilíbrio
+      conteudo: Momento de uma forca, alavanca, centro de massa e por que um corpo tomba.
+      aula: fisica.estatica.basico
   intermediario:
     descricao: Calor, fluidos e ondas.
     topicos:
-      - id: fis.temperatura-calor
-        titulo: Temperatura e calor
-        conteudo: Escalas, dilatacao, calor sensivel e latente, trocas de calor.
-      - id: fis.termodinamica
-        titulo: Termodinâmica
-        conteudo: Gases, as leis da termodinamica, maquinas termicas e por que nao existe rendimento total.
-      - id: fis.hidrostatica
-        titulo: Hidrostática
-        conteudo: Pressao, principio de Pascal, empuxo de Arquimedes e por que navio flutua.
-      - id: fis.ondas
-        titulo: Ondas
-        conteudo: Frequencia, comprimento, reflexao, refracao, interferencia e ressonancia.
-      - id: fis.acustica
-        titulo: Acústica
-        conteudo: Som, altura e intensidade, efeito Doppler, e como o robo escuta com dois microfones.
-      - id: fis.optica-geometrica
-        titulo: Óptica geométrica
-        conteudo: Reflexao, espelhos, refracao, lentes, e como o olho e a camera formam imagem.
-      - id: fis.eletrostatica
-        titulo: Eletrostática
-        conteudo: Carga, lei de Coulomb, campo e potencial eletrico.
-      - id: fis.circuitos
-        titulo: Circuitos elétricos
-        conteudo: Corrente, tensao, resistencia, lei de Ohm, serie e paralelo, potencia e consumo.
-
+    - id: fis.temperatura-calor
+      titulo: Temperatura e calor
+      conteudo: Escalas, dilatacao, calor sensivel e latente, trocas de calor.
+    - id: fis.termodinamica
+      titulo: Termodinâmica
+      conteudo: Gases, as leis da termodinamica, maquinas termicas e por que nao existe rendimento
+        total.
+    - id: fis.hidrostatica
+      titulo: Hidrostática
+      conteudo: Pressao, principio de Pascal, empuxo de Arquimedes e por que navio flutua.
+    - id: fis.ondas
+      titulo: Ondas
+      conteudo: Frequencia, comprimento, reflexao, refracao, interferencia e ressonancia.
+    - id: fis.acustica
+      titulo: Acústica
+      conteudo: Som, altura e intensidade, efeito Doppler, e como o robo escuta com dois microfones.
+    - id: fis.optica-geometrica
+      titulo: Óptica geométrica
+      conteudo: Reflexao, espelhos, refracao, lentes, e como o olho e a camera formam imagem.
+    - id: fis.eletrostatica
+      titulo: Eletrostática
+      conteudo: Carga, lei de Coulomb, campo e potencial eletrico.
+    - id: fis.circuitos
+      titulo: Circuitos elétricos
+      conteudo: Corrente, tensao, resistencia, lei de Ohm, serie e paralelo, potencia e consumo.
   avancado:
     descricao: Campos, luz e a fisica que mudou o seculo XX.
     topicos:
-      - id: fis.magnetismo
-        titulo: Magnetismo e eletromagnetismo
-        conteudo: Campo magnetico, forca sobre carga e fio, motor eletrico - o que move as rodas do robo.
-      - id: fis.inducao
-        titulo: Indução eletromagnética
-        conteudo: Lei de Faraday e Lenz, gerador, transformador e a rede eletrica.
-      - id: fis.ondas-eletromagneticas
-        titulo: Ondas eletromagnéticas
-        conteudo: Espectro, luz visivel, radio e wifi - como o robo fala sem fio.
-      - id: fis.fisica-moderna
-        titulo: Física moderna
-        conteudo: Efeito fotoeletrico, quantizacao, dualidade onda-particula.
-      - id: fis.relatividade
-        titulo: Relatividade
-        conteudo: Postulados de Einstein, dilatacao do tempo, e por que o GPS precisa disso.
-      - id: fis.fisica-nuclear
-        titulo: Física nuclear
-        conteudo: Radioatividade, meia-vida, fissao e fusao, e o uso em medicina e energia.
-      - id: fis.semicondutores
-        titulo: Semicondutores e eletrônica
-        conteudo: Diodo, transistor, e como um pedaco de silicio virou computador.
-      - id: fis.medicao-erro
-        titulo: Medição e erro experimental
-        conteudo: Incerteza, precisao e exatidao, e por que toda medida vem com uma margem.
+    - id: fis.magnetismo
+      titulo: Magnetismo e eletromagnetismo
+      conteudo: Campo magnetico, forca sobre carga e fio, motor eletrico - o que move as rodas
+        do robo.
+    - id: fis.inducao
+      titulo: Indução eletromagnética
+      conteudo: Lei de Faraday e Lenz, gerador, transformador e a rede eletrica.
+    - id: fis.ondas-eletromagneticas
+      titulo: Ondas eletromagnéticas
+      conteudo: Espectro, luz visivel, radio e wifi - como o robo fala sem fio.
+    - id: fis.fisica-moderna
+      titulo: Física moderna
+      conteudo: Efeito fotoeletrico, quantizacao, dualidade onda-particula.
+    - id: fis.relatividade
+      titulo: Relatividade
+      conteudo: Postulados de Einstein, dilatacao do tempo, e por que o GPS precisa disso.
+    - id: fis.fisica-nuclear
+      titulo: Física nuclear
+      conteudo: Radioatividade, meia-vida, fissao e fusao, e o uso em medicina e energia.
+    - id: fis.semicondutores
+      titulo: Semicondutores e eletrônica
+      conteudo: Diodo, transistor, e como um pedaco de silicio virou computador.
+    - id: fis.medicao-erro
+      titulo: Medição e erro experimental
+      conteudo: Incerteza, precisao e exatidao, e por que toda medida vem com uma margem.

@@ -1,0 +1,37 @@
+id: geografia.hidrografia.basico
+materia: geografia
+titulo: Hidrografia
+nivel: basico
+resumo: Bacias, rios, aquiferos, e a agua como recurso disputado.
+fonte: Wikipedia, artigos Hidrografia, consultados em 2026-08-09
+plano:
+  objetivo: Bacias, rios, aquiferos, e a agua como recurso disputado.
+  pre_requisitos:
+  - Noções básicas de geografia física
+  duracao_min: 10
+  fixacao:
+  - O que a hidrografia estuda?
+  fechamento: Pense em como usamos a água todos os dias e por que ela pode faltar.
+passos:
+- fala: Pense em quando você abre a torneira ou toma um banho. Toda essa água que usamos faz
+    parte de um grande estudo da geografia.
+  quadro:
+    tipo: titulo
+    texto: Hidrografia
+- fala: A hidrografia é a parte da geografia física que classifica e estuda as águas do planeta
+    Terra.
+  quadro:
+    tipo: texto
+    texto: Estudo e classificacao das aguas da Terra
+- fala: Vamos ver isso no quadro para fixar bem.
+  quadro:
+    tipo: topicos
+    texto: Conceito-chave
+    itens:
+    - Geografia física
+    - Estuda as águas da Terra
+    - Classifica os recursos hídricos
+- fala: 'Para terminar, responda: o que a hidrografia estuda?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixacao

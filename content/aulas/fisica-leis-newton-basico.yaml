@@ -1,0 +1,55 @@
+id: fisica.leis-newton.basico
+materia: fisica
+titulo: Leis de Newton
+nivel: basico
+resumo: Inercia, forca igual a massa vezes aceleracao, acao e reacao - e onde a intuicao erra.
+fonte: Wikipedia, artigos Leis de Newton, Inércia, consultados em 2026-08-09
+plano:
+  objetivo: Inercia, forca igual a massa vezes aceleracao, acao e reacao - e onde a intuicao
+    erra.
+  pre_requisitos:
+  - Conceito basico de forca e velocidade
+  duracao_min: 10
+  fixacao:
+  - O que acontece com os passageiros quando o onibus arranca?
+  - Quem formulou as tres leis da dinamica?
+  fechamento: As Leis de Newton explicam desde o movimento de um onibus ate a escala celeste,
+    mostrando como os corpos reagem a forcas.
+passos:
+- fala: Fala, pessoal! Ja repararam o que acontece quando voce esta em pe no onibus e ele
+    arranca de repente? Seu corpo vai para tras, nao vai?
+  quadro:
+    tipo: titulo
+    texto: As Leis de Newton
+- fala: Isso acontece por causa da inercia. Vamos entender a Primeira Lei de Newton, formulada
+    no seculo dezessete por Isaac Newton.
+  quadro:
+    tipo: texto
+    texto: 1ª Lei de Newton (Princípio da Inércia)
+- fala: A inercia e a propriedade da materia que faz com que um corpo mantenha seu estado
+    de movimento ou de repouso.
+  quadro:
+    tipo: topicos
+    texto: 'Comportamento sem forças (ou resultante nula):'
+    itens:
+    - Se está parado, permanece parado
+    - Se está em movimento, continua em linha reta e velocidade constante
+- fala: Lembra do exemplo do onibus? Quando ele arranca do repouso, seu corpo quer continuar
+    parado. Por isso voce vai para tras.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo cotidiano: O movimento do ônibus'
+- fala: Essas leis foram publicadas por Newton em seu famoso livro chamado Principia Mathematica.
+  quadro:
+    tipo: texto
+    texto: 'Livro: Philosophiae Naturalis Principia Mathematica'
+- fala: E vale lembrar que essas regras valem tanto na Terra quanto la no ceu, nas escalas
+    celeste e terrestre.
+  quadro:
+    tipo: texto
+    texto: 'Escalas: Celeste e terrestre'
+- fala: 'Para fechar, pensem comigo: se um onibus esta em movimento constante e freia bruscamente,
+    para onde seu corpo tende a ir por causa da inercia?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fixação: E na freada?'

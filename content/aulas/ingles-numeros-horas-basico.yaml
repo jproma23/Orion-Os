@@ -1,0 +1,48 @@
+id: ingles.numeros-horas.basico
+materia: ingles
+titulo: Números, horas e datas
+nivel: basico
+resumo: Contar, dizer as horas, dias da semana, meses e como se le uma data.
+fonte: Wikipedia, artigos Semana, Dias da semana, consultados em 2026-08-14
+plano:
+  objetivo: Contar, dizer as horas, dias da semana, meses e como se le uma data.
+  pre_requisitos:
+  - Alfabeto basico em ingles
+  duracao_min: 10
+  fixacao:
+  - Quantas horas tem uma semana?
+  - De onde vem a palavra semana?
+  fechamento: Se uma semana tem 168 horas, quantos dias sao necessarios para completar exatamente
+    72 horas?
+passos:
+- fala: 'Fala pessoal! Imagine que voce ganhou um bilhete de viagem e precisa saber a duracao
+    exata de tudo: quantos dias faltam, que horas embarcar e a data certa. Vamos aprender
+    isso em ingles hoje!'
+  quadro:
+    tipo: titulo
+    texto: Numeros, Horas e Datas
+- fala: Para comecar, vamos pensar no tempo que a gente vive. Quanto tempo dura uma semana?
+  quadro:
+    tipo: texto
+    texto: Duracao da semana
+- fala: Uma semana e um periodo de sete dias. E o tempo que dura, mais ou menos, uma fase
+    da lua.
+  quadro:
+    tipo: texto
+    texto: 1 semana = 7 dias (fase lunar)
+- fala: Voce sabe de onde vem a palavra semana? Ela vem do latim septimana, que significava
+    sete manhas.
+  quadro:
+    tipo: texto
+    texto: 'Origem: septimana (sete manhas)'
+- fala: Se cada dia tem 24 horas e a semana tem 7 dias, fazendo as contas, quanto da no total?
+  quadro:
+    tipo: texto
+    texto: Calculo total de horas
+- fala: Isso mesmo, uma semana inteira tem uma duracao exata de 168 horas.
+  quadro:
+    tipo: formula
+    texto: 7 dias x 24 horas = 168 horas
+- fala: Agora vamos falar sobre os dias da semana. Sabia que eles tem ligacao com o ceu?
+  quadro:
+    tipo: limpar

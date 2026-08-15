@@ -1,0 +1,62 @@
+id: fisica.estatica.basico
+materia: fisica
+titulo: Estática e equilíbrio
+nivel: basico
+resumo: Momento de uma forca, alavanca, centro de massa e por que um corpo tomba.
+fonte: Wikipedia, artigos Momento, Alavanca, consultados em 2026-08-09
+plano:
+  objetivo: Momento de uma forca, alavanca, centro de massa e por que um corpo tomba.
+  pre_requisitos:
+  - Leis de Newton
+  duracao_min: 10
+  fixacao:
+  - O que e uma alavanca?
+  - Para que serve o fulcro?
+  fechamento: A alavanca multiplica nossa força usando um ponto fixo.
+passos:
+- fala: Fala, pessoal! Já tentou abrir uma porta empurrando bem perto da dobradiça? É super
+    difícil, né? Mas na maçaneta é facinho. Vamos ver por quê.
+  quadro:
+    tipo: titulo
+    texto: 'Estática e Equilíbrio: A Alavanca'
+- fala: Na física, quando a gente usa um objeto duro para multiplicar a força, a gente chama
+    isso de alavanca.
+  quadro:
+    tipo: texto
+    texto: 'Alavanca: objeto rígido usado para multiplicar força'
+- fala: Para a alavanca funcionar, ela precisa de um ponto fixo onde ela se apoia. O nome
+    desse ponto é fulcro.
+  quadro:
+    tipo: texto
+    texto: Fulcro = Ponto fixo de apoio
+- fala: Essa multiplicação da força que a alavanca faz também é chamada de vantagem mecânica.
+  quadro:
+    tipo: texto
+    texto: 'Vantagem mecânica: multiplicação da força aplicada'
+- fala: Tudo isso que a gente viu sobre a alavanca funciona seguindo o princípio dos momentos,
+    que é um dos conceitos da estática.
+  quadro:
+    tipo: texto
+    texto: Princípio dos momentos
+- fala: 'E olha que legal: a gente também pode analisar como a alavanca funciona usando as
+    leis de Newton que você já estudou.'
+  quadro:
+    tipo: texto
+    texto: Análise baseada nas Leis de Newton
+- fala: 'Para terminar, a alavanca faz parte de um grupo muito importante na física: ela é
+    uma das seis máquinas simples.'
+  quadro:
+    tipo: topicos
+    texto: As 6 Máquinas Simples
+    itens:
+    - Alavanca
+    - Roda e eixo
+    - Polia
+    - Plano inclinado
+    - Cunha
+    - Parafuso
+- fala: 'Agora me responde: se você precisa levantar uma pedra pesada com uma barra de ferro,
+    onde você deve colocar o ponto de apoio (o fulcro) para fazer menos força?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixação

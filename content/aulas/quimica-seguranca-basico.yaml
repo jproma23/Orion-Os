@@ -1,0 +1,75 @@
+id: quimica.seguranca.basico
+materia: quimica
+titulo: Segurança no laboratório
+nivel: basico
+resumo: O que nunca se mistura, rotulo, descarte e primeiros socorros.
+fonte: Wikipedia, artigos Mistura, Rótulo, consultados em 2026-08-14
+plano:
+  objetivo: Compreender o que nunca se mistura, a importancia do rotulo, o descarte e os primeiros
+    socorros.
+  pre_requisitos:
+  - Curiosidade sobre ciencias
+  duracao_min: 10
+  fixacao:
+  - Identificar informacoes no rotulo
+  - Entender o conceito de mistura
+  fechamento: A seguranca comeca lendo o rotulo e entendendo o que temos em maos.
+passos:
+- fala: Fala, pessoal! Ja tentaram misturar oleo e agua na cozinha e viram que nao da certo?
+    No laboratorio, saber o que nunca se mistura e questao de sobrevivencia.
+  quadro:
+    tipo: titulo
+    texto: Seguranca no Laboratorio
+- fala: Para comecar, vamos lembrar o que e uma mistura. Na quimica, e uma porcao de materia
+    formada por duas ou mais substancias, que chamamos de constituintes.
+  quadro:
+    tipo: texto
+    texto: 'Mistura: porcao de materia com duas ou mais substancias (constituintes).'
+- fala: Agora, imagine pegar um frasco no laboratorio sem saber o que tem dentro. Perigoso,
+    né? E ai que entra o rotulo.
+  quadro:
+    tipo: titulo
+    texto: A importancia do Rotulo
+- fala: O rotulo e toda e qualquer informacao sobre um produto que esta transcrita na embalagem
+    dele.
+  quadro:
+    tipo: texto
+    texto: Rotulo = informacao na embalagem do produto.
+- fala: Ele nao serve só para deixar o produto atraente ou mostrar a marca. O rotulo funciona
+    como uma comunicacao visual cheia de avisos importantes.
+  quadro:
+    tipo: topicos
+    texto: 'Funcoes do Rotulo:'
+    itens:
+    - Comunicacao visual
+    - Informacoes sobre o produto
+    - Deixar o produto atraente
+- fala: Voce sabia que a embalagem pode ter diferentes formatos de informacao? O rotulo principal
+    tem um formato e tamanho definidos para aquela embalagem.
+  quadro:
+    tipo: texto
+    texto: 'Rotulo: formato e tamanho definidos para a embalagem.'
+- fala: Se virarmos a embalagem, podemos encontrar o contra-rotulo, que traz um novo formato
+    de informacao.
+  quadro:
+    tipo: texto
+    texto: 'Contra-rotulo: novo formato de informacao na embalagem.'
+- fala: E se aparecer qualquer outro formato ou tamanho na mesma embalagem, a definicao tecnica
+    muda. O nome disso e desdobramento.
+  quadro:
+    tipo: texto
+    texto: 'Desdobramento: qualquer outro formato ou tamanho na mesma embalagem.'
+- fala: Vamos dar uma olhada rapida em tudo o que vimos sobre a identificacao dos produtos
+    no laboratorio.
+  quadro:
+    tipo: topicos
+    texto: 'Resumo de Termos:'
+    itens:
+    - Rotulo (formato principal)
+    - Contra-rotulo (novo formato)
+    - Desdobramento (outros formatos/tamanhos)
+- fala: 'Para encerrar, pensem o seguinte: se voce pega um frasco e o desdobramento traz informacoes
+    confusas, o que voce deve fazer antes de abrir?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que conferir o rotulo e o contra-rotulo evita acidentes?'

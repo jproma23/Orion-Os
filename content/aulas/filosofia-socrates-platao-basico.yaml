@@ -1,0 +1,81 @@
+id: filosofia.socrates-platao.basico
+materia: filosofia
+titulo: Sócrates, Platão e Aristóteles
+nivel: basico
+resumo: O nao saber socratico, o mundo das ideias e a logica aristotelica.
+fonte: Wikipedia, artigos Sócrates, Platão, Aristóteles, consultados em 2026-08-14
+plano:
+  objetivo: O nao saber socratico, o mundo das ideias e a logica aristotelica.
+  pre_requisitos:
+  - Filosofia basica da Grecia Antiga
+  duracao_min: 10
+  fixacao:
+  - O que significa a frase 'sei que nada sei' para Socrates?
+  - Qual e a diferenca entre o mundo sensivel e o mundo das ideias de Platao?
+  - Como Aristoteles organizou o conhecimento humano?
+  fechamento: Estes tres gregos mudaram para sempre a forma como pensamos, investigamos e
+    entendemos o mundo.
+passos:
+- fala: Fala, pessoal! Imagina que voce acha que sabe tudo sobre um jogo, mas quando alguem
+    te faz perguntas simples, voce trava e percebe que nao sabe nada. E sobre isso que vamos
+    falar hoje.
+  quadro:
+    tipo: titulo
+    texto: Grandes Filosofos da Grecia Antiga
+- fala: Nosso primeiro pensador e Socrates. Ele nasceu em Atenas por volta de 470 a.C. e e
+    um dos fundadores da filosofia ocidental.
+  quadro:
+    tipo: texto
+    texto: Socrates (c. 470 a.C. - 399 a.C.) - Atenas
+- fala: A gente conhece Socrates principalmente pelos relatos de seus alunos, como Platao
+    e Xenofonte, e pelas pecas do comediante Aristofanes.
+  quadro:
+    tipo: topicos
+    texto: Fontes sobre Socrates
+    itens:
+    - 'Alunos: Platao e Xenofonte'
+    - 'Contemporaneo: Aristofanes'
+- fala: Socrates ficou muito famoso pela ideia do 'nao saber'. Ele dizia que so sabia que
+    nada sabia. Ou seja, o primeiro passo para aprender e reconhecer a propria ignorancia.
+  quadro:
+    tipo: texto
+    texto: 'O Nao Saber Socratico: ''Sei que nada sei'''
+- fala: O segundo grande nome e Platao, que foi aluno de Socrates. Ele nasceu em Atenas entre
+    428 e 427 a.C. e fundou a Academia, a primeira instituicao de educacao superior do mundo
+    ocidental.
+  quadro:
+    tipo: texto
+    texto: Platao (428/427 a.C. - 348/347 a.C.) - Fundador da Academia
+- fala: Platao criou a ideia do mundo das ideias. Para ele, o mundo real que a gente ve e
+    so uma copia imperfeita de um mundo perfeito de ideias e formas.
+  quadro:
+    tipo: texto
+    texto: 'Platao: Teoria do Mundo das Ideias'
+- fala: Platao e considerado uma figura central da filosofia ocidental, ajudando a construir
+    os alicerces da filosofia natural, da ciencia e ate da espiritualidade.
+  quadro:
+    tipo: topicos
+    texto: Legado de Platao
+    itens:
+    - Filosofia natural e ciencia
+    - Religiao e espiritualidade
+    - Alunos de Socrates, mentor de Aristoteles
+- fala: 'Agora vamos para o terceiro pensador: Aristoteles. Ele nasceu em Estagira em 384
+    a.C. e foi aluno de Platao na Academia.'
+  quadro:
+    tipo: texto
+    texto: Aristoteles (384 a.C. - 322 a.C.) - Estagira
+- fala: 'Aristoteles foi um verdadeiro polimata. Ele estudou quase tudo: biologia, fisica,
+    metafisica, logica, politica, etica e muito mais.'
+  quadro:
+    tipo: topicos
+    texto: Campos de estudo de Aristoteles
+    itens:
+    - Biologia, Fisica e Metafisica
+    - Logica, Politica e Etica
+    - Poetica, Retorica e Economia
+- fala: Para Aristoteles, a filosofia passou a ser compreendida de forma bem ampla, buscando
+    se tornar uma verdadeira ciencia das ciencias.
+  quadro:
+    tipo: texto
+    texto: 'Filosofia para Aristoteles: A Ciencia das Ciencias'

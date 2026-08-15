@@ -1,0 +1,70 @@
+id: portugues.verbos-tempos.basico
+materia: portugues
+titulo: Verbos e tempos
+nivel: basico
+resumo: Presente, passado e futuro; os tres modos; a conjugacao que mais se erra.
+fonte: Wikipedia, artigos Presente, consultados em 2026-08-14
+plano:
+  objetivo: Entender o que sao verbos e tempos basicos
+  pre_requisitos:
+  - Saber ler e escrever
+  duracao_min: 10
+  fixacao:
+  - Identifique o tempo verbal
+  - Conjugue um verbo
+  fechamento: Como voce diferencia o passado do futuro?
+passos:
+- fala: Ola! Pense em uma acao que voce faz agora, como correr ou estudar. A palavra que mostra
+    essa acao e o verbo.
+  quadro:
+    tipo: titulo
+    texto: Verbos e Tempos
+- fala: O verbo muda de forma para mostrar quando a acao acontece. E o que chamamos de tempo
+    verbal.
+  quadro:
+    tipo: texto
+    texto: 'Tempo verbal: indica quando a acao ocorre'
+- fala: O primeiro tempo e o presente. Acontece agora, neste exato momento.
+  quadro:
+    tipo: texto
+    texto: Presente = Ocorre agora
+- fala: O segundo tempo e o passado, tambem chamado de pretérito. E o que ja aconteceu.
+  quadro:
+    tipo: texto
+    texto: Passado (Pretérito) = Ja aconteceu
+- fala: E o terceiro tempo e o futuro. E o que ainda vai acontecer.
+  quadro:
+    tipo: texto
+    texto: Futuro = Vai acontecer
+- fala: Os verbos tambem mudam de acordo com os modos. O primeiro modo e o indicativo, que
+    indica certeza.
+  quadro:
+    tipo: topicos
+    texto: Os Tres Modos
+    itens:
+    - 'Indicativo: certeza'
+    - 'Subjuntivo: duvida'
+    - 'Imperativo: ordem'
+- fala: Vamos ver um exemplo pratico com o verbo amar no presente do indicativo.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pessoa
+    - Verbo Amar (Presente)
+    linhas:
+    - - Eu
+      - amo
+    - - Tu
+      - amas
+    - - Ele
+      - ama
+    - - Nos
+      - amamos
+    - - Vois
+      - amais
+    - - Eles
+      - amam
+- fala: 'Para fechar: se eu digo ''eu virei'', de que tempo verbal estamos falando?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: ''Eu virei'' e passado ou futuro?'

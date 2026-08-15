@@ -1,0 +1,95 @@
+id: espanhol.numeros-horas.basico
+materia: espanhol
+titulo: Números, horas e datas
+nivel: basico
+resumo: Contar, dizer as horas, dias e meses; os numeros que mudam de forma.
+fonte: Wikipedia, artigos Língua castelhana, consultados em 2026-08-14
+plano:
+  objetivo: Aprender os numeros, horas, dias e meses em espanhol
+  pre_requisitos:
+  - Portugues basico
+  duracao_min: 10
+  fixacao:
+  - Dizer que horas sao em espanhol
+  - Contar de 1 a 10
+  fechamento: Se voce fosse falar com alguem no Mexico, como diria o seu aniversario em espanhol?
+passos:
+- fala: Fala, galera! Imagine que voce esta na Espanha ou no Mexico e precisa perguntar que
+    horas sao ou pagar alguma coisa. Vamos aprender os numeros, horas e datas em espanhol!
+  quadro:
+    tipo: titulo
+    texto: Numeros, horas e datas em espanhol
+- fala: Primeiro, o espanhol e uma lingua global gigantesca. Tem cerca de 500 milhoes de falantes
+    nativos e e oficial em 20 paises, sendo o Mexico o pais com mais falantes.
+  quadro:
+    tipo: texto
+    texto: 500 milhoes de falantes nativos / 20 paises oficiais
+- fala: Vamos comecar pelos numeros cardinais basicos de 1 a 5. Em espanhol, temos uno, dos,
+    tres, cuatro e cinco.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Numero
+    - Espanhol
+    linhas:
+    - - '1'
+      - uno
+    - - '2'
+      - dos
+    - - '3'
+      - tres
+    - - '4'
+      - cuatro
+    - - '5'
+      - cinco
+- fala: 'Continuando a contagem basica de 6 a 10, dizemos: seis, siete, ocho, nueve e diez.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Numero
+    - Espanhol
+    linhas:
+    - - '6'
+      - seis
+    - - '7'
+      - siete
+    - - '8'
+      - ocho
+    - - '9'
+      - nueve
+    - - '10'
+      - diez
+- fala: Atencao para os numeros que mudam de forma! O numero um, por exemplo, vira un antes
+    de um substantivo masculino, como 'un libro'.
+  quadro:
+    tipo: texto
+    texto: 'uno vira un antes de substantivo masculino (ex: un libro)'
+- fala: Da mesma forma, o numero uno vira una antes de um substantivo feminino, como 'una
+    mesa'.
+  quadro:
+    tipo: texto
+    texto: 'uno vira una antes de substantivo feminino (ex: una mesa)'
+- fala: E o numero 21? Ele tambem muda! Fica veintiuno, mas se vier antes de um substantivo
+    masculino, vira veintiun.
+  quadro:
+    tipo: texto
+    texto: veintiuno vira veintiun antes de masculino
+- fala: Para dizer as horas, usamos o verbo ser no plural para as horas a partir de duas.
+    Dizemos 'Son las dos' para duas horas.
+  quadro:
+    tipo: texto
+    texto: 'Para horas: ''Son las dos'', ''Son las tres''...'
+- fala: 'Mas para a uma hora em ponto, usamos o singular: ''Es la una''.'
+  quadro:
+    tipo: texto
+    texto: 'Para 1 hora: ''Es la una'''
+- fala: Para falar de datas, usamos os dias da semana e os meses do ano, lembrando que no
+    espanhol eles sao escritos com letras minusculas.
+  quadro:
+    tipo: texto
+    texto: 'Dias e meses em espanhol: letras minusculas!'
+- fala: 'Para fechar, pense nisso: sabendo que o Mexico e o pais com a maior populacao de
+    falantes nativos da lingua, como voce diria que sao exatamente tres horas da tarde la?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: ''Son las tres de la tarde'''

@@ -1,96 +1,97 @@
 materia: filosofia
 nome: Filosofia e Sociologia
-descricao: >
-  Pensar sobre o pensar, e enxergar a sociedade em que se esta metido. Sao
-  duas materias no mesmo curso porque as perguntas se cruzam o tempo todo.
+descricao: 'Pensar sobre o pensar, e enxergar a sociedade em que se esta metido. Sao duas
+  materias no mesmo curso porque as perguntas se cruzam o tempo todo.
 
+  '
 niveis:
   basico:
     descricao: As perguntas fundadoras e os conceitos basicos.
     topicos:
-      - id: fil.o-que-e-filosofia
-        titulo: O que é filosofia
-        conteudo: A pergunta como metodo, mito e razao, e por que duvidar e trabalho serio.
-        aula: filosofia.o-que-e-filosofia.basico
-      - id: fil.socrates-platao
-        titulo: Sócrates, Platão e Aristóteles
-        conteudo: O nao saber socratico, o mundo das ideias e a logica aristotelica.
-      - id: fil.logica
-        titulo: Lógica e argumentação
-        conteudo: Premissa, conclusao, validade, e as falacias mais usadas no dia a dia.
-        aula: filosofia.logica.basico
-      - id: fil.etica-intro
-        titulo: Ética - primeiras perguntas
-        conteudo: Certo e errado, virtude, dever e consequencia; moral e etica nao sao a mesma coisa.
-        aula: filosofia.etica-intro.basico
-      - id: soc.o-que-e-sociologia
-        titulo: O que é sociologia
-        conteudo: O olhar sociologico, senso comum contra conhecimento cientifico.
-      - id: soc.socializacao
-        titulo: Socialização e cultura
-        conteudo: Como a pessoa aprende a viver em sociedade; cultura, norma e desvio.
-        aula: filosofia.socializacao.basico
-      - id: soc.instituicoes
-        titulo: Instituições sociais
-        conteudo: Familia, escola, religiao, Estado - o que cada uma faz com as pessoas.
-        aula: filosofia.instituicoes.basico
-      - id: soc.trabalho
-        titulo: Trabalho e sociedade
-        conteudo: Divisao do trabalho, desemprego, informalidade e o valor social do emprego.
-        aula: filosofia.trabalho.basico
-
+    - id: fil.o-que-e-filosofia
+      titulo: O que é filosofia
+      conteudo: A pergunta como metodo, mito e razao, e por que duvidar e trabalho serio.
+      aula: filosofia.o-que-e-filosofia.basico
+    - id: fil.socrates-platao
+      titulo: Sócrates, Platão e Aristóteles
+      conteudo: O nao saber socratico, o mundo das ideias e a logica aristotelica.
+      aula: filosofia.socrates-platao.basico
+    - id: fil.logica
+      titulo: Lógica e argumentação
+      conteudo: Premissa, conclusao, validade, e as falacias mais usadas no dia a dia.
+      aula: filosofia.logica.basico
+    - id: fil.etica-intro
+      titulo: Ética - primeiras perguntas
+      conteudo: Certo e errado, virtude, dever e consequencia; moral e etica nao sao a mesma
+        coisa.
+      aula: filosofia.etica-intro.basico
+    - id: soc.o-que-e-sociologia
+      titulo: O que é sociologia
+      conteudo: O olhar sociologico, senso comum contra conhecimento cientifico.
+      aula: filosofia.o-que-e-sociologia.basico
+    - id: soc.socializacao
+      titulo: Socialização e cultura
+      conteudo: Como a pessoa aprende a viver em sociedade; cultura, norma e desvio.
+      aula: filosofia.socializacao.basico
+    - id: soc.instituicoes
+      titulo: Instituições sociais
+      conteudo: Familia, escola, religiao, Estado - o que cada uma faz com as pessoas.
+      aula: filosofia.instituicoes.basico
+    - id: soc.trabalho
+      titulo: Trabalho e sociedade
+      conteudo: Divisao do trabalho, desemprego, informalidade e o valor social do emprego.
+      aula: filosofia.trabalho.basico
   intermediario:
     descricao: Os classicos e as estruturas.
     topicos:
-      - id: fil.medieval-moderna
-        titulo: Filosofia medieval e moderna
-        conteudo: Fe e razao, Descartes e a duvida metodica, empirismo e racionalismo.
-      - id: fil.iluminismo
-        titulo: Iluminismo e contrato social
-        conteudo: Hobbes, Locke e Rousseau; de onde vem a legitimidade do poder.
-      - id: fil.kant
-        titulo: Kant e a ética do dever
-        conteudo: Imperativo categorico, autonomia e a critica ao que se pode conhecer.
-      - id: soc.marx
-        titulo: Marx - classe e capital
-        conteudo: Mais-valia, alienacao, luta de classes e a critica ao capitalismo.
-      - id: soc.durkheim
-        titulo: Durkheim - fato social
-        conteudo: Coesao, anomia, solidariedade mecanica e organica.
-      - id: soc.weber
-        titulo: Weber - ação e burocracia
-        conteudo: Tipos de dominacao, racionalizacao e o desencantamento do mundo.
-      - id: soc.desigualdade
-        titulo: Desigualdade e estratificação
-        conteudo: Classe, raca e genero; mobilidade social e meritocracia como discurso.
-      - id: soc.movimentos-sociais
-        titulo: Movimentos sociais e cidadania
-        conteudo: Direitos civis, politicos e sociais; como direito se conquista.
-
+    - id: fil.medieval-moderna
+      titulo: Filosofia medieval e moderna
+      conteudo: Fe e razao, Descartes e a duvida metodica, empirismo e racionalismo.
+    - id: fil.iluminismo
+      titulo: Iluminismo e contrato social
+      conteudo: Hobbes, Locke e Rousseau; de onde vem a legitimidade do poder.
+    - id: fil.kant
+      titulo: Kant e a ética do dever
+      conteudo: Imperativo categorico, autonomia e a critica ao que se pode conhecer.
+    - id: soc.marx
+      titulo: Marx - classe e capital
+      conteudo: Mais-valia, alienacao, luta de classes e a critica ao capitalismo.
+    - id: soc.durkheim
+      titulo: Durkheim - fato social
+      conteudo: Coesao, anomia, solidariedade mecanica e organica.
+    - id: soc.weber
+      titulo: Weber - ação e burocracia
+      conteudo: Tipos de dominacao, racionalizacao e o desencantamento do mundo.
+    - id: soc.desigualdade
+      titulo: Desigualdade e estratificação
+      conteudo: Classe, raca e genero; mobilidade social e meritocracia como discurso.
+    - id: soc.movimentos-sociais
+      titulo: Movimentos sociais e cidadania
+      conteudo: Direitos civis, politicos e sociais; como direito se conquista.
   avancado:
     descricao: Pensamento contemporaneo e os dilemas de agora.
     topicos:
-      - id: fil.existencialismo
-        titulo: Existencialismo
-        conteudo: Nietzsche, Sartre e Beauvoir; liberdade, angustia e responsabilidade.
-      - id: fil.escola-frankfurt
-        titulo: Escola de Frankfurt
-        conteudo: Industria cultural, razao instrumental e a critica a tecnica.
-      - id: fil.filosofia-ciencia
-        titulo: Filosofia da ciência
-        conteudo: Popper e a falseabilidade, Kuhn e os paradigmas; o que separa ciencia de crenca.
-      - id: fil.etica-tecnologia
-        titulo: Ética e tecnologia
-        conteudo: Privacidade, vigilancia, automacao e as decisoes tomadas por maquina.
-      - id: fil.filosofia-mente
-        titulo: Filosofia da mente e IA
-        conteudo: Consciencia, o quarto chines, e o que significa uma maquina entender.
-      - id: soc.poder-foucault
-        titulo: Poder, disciplina e biopoder
-        conteudo: Foucault, instituicoes que vigiam, e o poder que nao precisa de forca.
-      - id: soc.brasil-formacao
-        titulo: Pensamento social brasileiro
-        conteudo: Gilberto Freyre, Sergio Buarque, Florestan Fernandes e Darcy Ribeiro.
-      - id: soc.midias-redes
-        titulo: Mídias, redes e opinião pública
-        conteudo: Bolha, desinformacao, algoritmo e a formacao da opiniao no ambiente digital.
+    - id: fil.existencialismo
+      titulo: Existencialismo
+      conteudo: Nietzsche, Sartre e Beauvoir; liberdade, angustia e responsabilidade.
+    - id: fil.escola-frankfurt
+      titulo: Escola de Frankfurt
+      conteudo: Industria cultural, razao instrumental e a critica a tecnica.
+    - id: fil.filosofia-ciencia
+      titulo: Filosofia da ciência
+      conteudo: Popper e a falseabilidade, Kuhn e os paradigmas; o que separa ciencia de crenca.
+    - id: fil.etica-tecnologia
+      titulo: Ética e tecnologia
+      conteudo: Privacidade, vigilancia, automacao e as decisoes tomadas por maquina.
+    - id: fil.filosofia-mente
+      titulo: Filosofia da mente e IA
+      conteudo: Consciencia, o quarto chines, e o que significa uma maquina entender.
+    - id: soc.poder-foucault
+      titulo: Poder, disciplina e biopoder
+      conteudo: Foucault, instituicoes que vigiam, e o poder que nao precisa de forca.
+    - id: soc.brasil-formacao
+      titulo: Pensamento social brasileiro
+      conteudo: Gilberto Freyre, Sergio Buarque, Florestan Fernandes e Darcy Ribeiro.
+    - id: soc.midias-redes
+      titulo: Mídias, redes e opinião pública
+      conteudo: Bolha, desinformacao, algoritmo e a formacao da opiniao no ambiente digital.

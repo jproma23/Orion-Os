@@ -1,0 +1,65 @@
+id: italiano.saluti.basico
+materia: italiano
+titulo: Saudações e apresentação
+nivel: basico
+resumo: Ciao, salve, buongiorno; tu e Lei; apresentar-se e perguntar o nome.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Ciao, salve, buongiorno; tu e Lei; apresentar-se e perguntar o nome.
+  pre_requisitos:
+  - Nenhum
+  duracao_min: 10
+  fixacao:
+  - Como cumprimentar um amigo em italiano?
+  - Qual a diferenca entre tu e Lei?
+  fechamento: Agora voce sabe cumprimentar e se apresentar em italiano!
+passos:
+- fala: Imagina que voce encontrou um amigo na rua. Em portugues voce diz oi. Em italiano,
+    voce diz ciao.
+  quadro:
+    tipo: titulo
+    texto: Saudacoes em Italiano
+- fala: Para escrever oi em italiano, voce usa esta palavra.
+  quadro:
+    tipo: texto
+    texto: Ciao
+- fala: Se voce quer ser mais formal ou cumprimentar alguem que voce nao conhece muito bem,
+    voce pode usar salve.
+  quadro:
+    tipo: texto
+    texto: Salve
+- fala: Para dar bom dia pela manha, a palavra usada e buongiorno.
+  quadro:
+    tipo: texto
+    texto: Buongiorno
+- fala: Agora vamos falar de tratamento. Em italiano, para falar com amigos e pessoas proximas,
+    voce usa tu.
+  quadro:
+    tipo: titulo
+    texto: 'Tratamento: tu e Lei'
+- fala: Mas se for falar com uma pessoa mais velha ou com quem voce nao tem intimidade, voce
+    usa Lei com letra maiuscula, que significa o senhor ou a senhora.
+  quadro:
+    tipo: texto
+    texto: Lei (formal)
+- fala: Vamos ver como se apresentar. Para dizer o seu nome, voce usa mi chiamo seguido do
+    seu nome.
+  quadro:
+    tipo: titulo
+    texto: Apresentacao e Nome
+- fala: No quadro, veja a frase para dizer o meu nome e a pergunta para saber o nome dos outros.
+  quadro:
+    tipo: topicos
+    texto: Frases uteis
+    itens:
+    - Mi chiamo... (Eu me chamo...)
+    - Come ti chiami? (Como voce se chama?)
+- fala: Se voce estiver falando de forma formal com alguem, a pergunta muda para Come si chiama?
+  quadro:
+    tipo: texto
+    texto: Come si chiama? (Formal)
+- fala: 'Muito bem! Para terminar, tente imaginar: se voce quiser perguntar o nome de um colega
+    de classe, o que voce diria em italiano?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Come ti chiami?'

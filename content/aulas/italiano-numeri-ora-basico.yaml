@@ -1,0 +1,128 @@
+id: italiano.numeri-ora.basico
+materia: italiano
+titulo: Números, horas e datas
+nivel: basico
+resumo: Contar, dizer as horas, dias e meses; a data ao contrario do ingles.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Contar, dizer as horas, dias e meses; a data ao contrario do ingles.
+  pre_requisitos:
+  - Alfabeto basico
+  duracao_min: 10
+  fixacao:
+  - Que horas sao?
+  - Qual e a data de hoje?
+  fechamento: Agora voce sabe falar numeros, horas e datas em italiano.
+passos:
+- fala: Ola! Hoje vamos aprender a falar numeros, horas e datas em italiano.
+  quadro:
+    tipo: titulo
+    texto: Numeri, ore e date
+- fala: 'Vamos comecar do comeco: os numeros de um a tres em italiano.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Numero
+    - Italiano
+    linhas:
+    - - '1'
+      - uno
+    - - '2'
+      - due
+    - - '3'
+      - tre
+- fala: Agora do quatro ao seis.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Numero
+    - Italiano
+    linhas:
+    - - '4'
+      - quattro
+    - - '5'
+      - cinque
+    - - '6'
+      - sei
+- fala: E para fechar a primeira dezena, do sete ao dez.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Numero
+    - Italiano
+    linhas:
+    - - '7'
+      - sette
+    - - '8'
+      - otto
+    - - '9'
+      - nove
+    - - '10'
+      - dieci
+- fala: Para perguntar as horas, usamos a expressao che ora e?
+  quadro:
+    tipo: texto
+    texto: Che ora e? (Que horas sao?)
+- fala: Para responder, usamos 'e l'una' para uma hora, ou 'sono le' para as outras horas.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Horario
+    - Italiano
+    linhas:
+    - - '1:00'
+      - E l'una
+    - - '2:00'
+      - Sono le due
+    - - '5:00'
+      - Sono le cinque
+- fala: Os dias da semana tambem sao fundamentais no dia a dia.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Dia
+    - Italiano
+    linhas:
+    - - Segunda
+      - lunedi
+    - - Terca
+      - martedi
+    - - Quarta
+      - mercoledi
+- fala: 'Continuando os dias: quinta, sexta, sabado e domingo.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Dia
+    - Italiano
+    linhas:
+    - - Quinta
+      - giovedi
+    - - Sexta
+      - venerdi
+    - - Sabado
+      - sabato
+    - - Domingo
+      - domenica
+- fala: E os meses do ano comecam com gennaio, febbraio e marzo.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Mes
+    - Italiano
+    linhas:
+    - - Janeiro
+      - gennaio
+    - - Fevereiro
+      - febbraio
+    - - Marco
+      - marzo
+- fala: 'Atencao para a data: em italiano, dizemos o dia antes do mes, igual no portugues
+    e ao contrario do ingles.'
+  quadro:
+    tipo: texto
+    texto: 'Data: [Dia] de [Mes] (Ex: il primo gennaio)'
+- fala: 'Para terminar, me diga: como voce diria ''sao tres horas'' em italiano?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: 3:00 ?'

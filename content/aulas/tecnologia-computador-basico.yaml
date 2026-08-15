@@ -1,0 +1,70 @@
+id: tecnologia.computador.basico
+materia: tecnologia
+titulo: Como um computador funciona
+nivel: basico
+resumo: Processador, memoria, disco, entrada e saida; o que acontece ao ligar.
+fonte: Wikipedia, artigos Processador, Disco, Entrada/saída, consultados em 2026-08-14
+plano:
+  objetivo: Entender o processador, memoria, disco, entrada e saida de um computador
+  pre_requisitos:
+  - Uso basico de computadores
+  duracao_min: 10
+  fixacao:
+  - O que faz o processador?
+  - Qual a diferenca entre entrada e saida?
+  fechamento: Agora voce sabe as pecas principais que fazem um computador funcionar.
+passos:
+- fala: Fala galera! Ja se perguntou o que acontece dentro do seu celular ou computador quando
+    voce joga ou assiste a um video?
+  quadro:
+    tipo: titulo
+    texto: Como um computador funciona
+- fala: 'Para comecar, vamos falar do cerebro da maquina: o processador. Ele e um circuito
+    integrado que faz calculos e toma decisoes.'
+  quadro:
+    tipo: texto
+    texto: 'Processador: realiza funcoes de calculo e tomada de decisao'
+- fala: O processador tambem pode ser chamado de Unidade Central de Processamento. E ele que
+    executa as instrucoes dos programas.
+  quadro:
+    tipo: texto
+    texto: Unidade Central de Processamento (CPU)
+- fala: Alem da CPU normal, existe a GPU, que e um microprocessador especializado em processar
+    graficos para jogos e videos.
+  quadro:
+    tipo: texto
+    texto: 'GPU: processamento de graficos'
+- fala: Se voce precisa guardar muita coisa para depois, usamos o disco. O disco rigido e
+    a midia de armazenamento de longo prazo no computador.
+  quadro:
+    tipo: texto
+    texto: 'Disco rigido: armazenamento no computador'
+- fala: Agora vamos falar de Entrada e Saida, ou E/S. A entrada e a insercao de dados no sistema.
+  quadro:
+    tipo: texto
+    texto: Entrada / Saida (E/S ou I/O)
+- fala: 'Dispositivos de entrada sao aqueles que mandam dados para dentro. Exemplos: teclado,
+    mouse, microfone, webcam e scanner.'
+  quadro:
+    tipo: topicos
+    texto: Unidades de Entrada
+    itens:
+    - Teclado
+    - Mouse
+    - Microfone
+    - Webcam
+    - Scanner
+- fala: 'E a saida e quando o computador mostra o resultado para voce. Exemplos: monitor,
+    caixas de som e impressora.'
+  quadro:
+    tipo: topicos
+    texto: Unidades de Saida
+    itens:
+    - Monitor
+    - Caixas de som
+    - Impressora
+- fala: 'Para pensar: se voce digita algo usando o teclado, esse teclado e uma unidade de
+    entrada ou de saida?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Teclado e Entrada ou Saida?'

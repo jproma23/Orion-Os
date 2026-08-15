@@ -1,90 +1,97 @@
 materia: espanhol
 nome: Espanhol
-descricao: >
-  A lingua mais proxima do portugues, e por isso a mais traicoeira: metade
-  do trabalho e aprender, a outra metade e desaprender o que parece igual.
+descricao: 'A lingua mais proxima do portugues, e por isso a mais traicoeira: metade do trabalho
+  e aprender, a outra metade e desaprender o que parece igual.
 
+  '
 niveis:
   basico:
     descricao: Falar de si, dos outros e do dia a dia.
     topicos:
-      - id: es.alfabeto-pronuncia
-        titulo: Alfabeto e pronúncia
-        conteudo: O J, o LL, o Ñ e o R; as vogais que nao mudam de som como no portugues.
-      - id: es.ser-estar
-        titulo: Ser e estar
-        conteudo: Conjugacao e a diferenca de uso, que nem sempre bate com o portugues.
-      - id: es.artigos-genero
-        titulo: Artigos e gênero
-        conteudo: El, la, los, las; palavras que trocam de genero do portugues para o espanhol.
-      - id: es.presente-regulares
-        titulo: Presente dos verbos regulares
-        conteudo: As tres conjugacoes AR, ER e IR, e o pronome que quase sempre se omite.
-      - id: es.numeros-horas
-        titulo: Números, horas e datas
-        conteudo: Contar, dizer as horas, dias e meses; os numeros que mudam de forma.
-      - id: es.falsos-amigos
-        titulo: Falsos amigos
-        conteudo: Embarazada, exquisito, oficina, rato, salada - as pegadinhas classicas.
-      - id: es.saudacoes-cortesia
-        titulo: Saudações e cortesia
-        conteudo: Tu contra usted, cumprimentar, despedir e pedir com educacao.
-      - id: es.vocabulario-cotidiano
-        titulo: Vocabulário do cotidiano
-        conteudo: Familia, casa, comida, roupa, cidade e transporte.
-
+    - id: es.alfabeto-pronuncia
+      titulo: Alfabeto e pronúncia
+      conteudo: O J, o LL, o Ñ e o R; as vogais que nao mudam de som como no portugues.
+      aula: espanhol.alfabeto-pronuncia.basico
+    - id: es.ser-estar
+      titulo: Ser e estar
+      conteudo: Conjugacao e a diferenca de uso, que nem sempre bate com o portugues.
+      aula: espanhol.ser-estar.basico
+    - id: es.artigos-genero
+      titulo: Artigos e gênero
+      conteudo: El, la, los, las; palavras que trocam de genero do portugues para o espanhol.
+      aula: espanhol.artigos-genero.basico
+    - id: es.presente-regulares
+      titulo: Presente dos verbos regulares
+      conteudo: As tres conjugacoes AR, ER e IR, e o pronome que quase sempre se omite.
+      aula: espanhol.presente-regulares.basico
+    - id: es.numeros-horas
+      titulo: Números, horas e datas
+      conteudo: Contar, dizer as horas, dias e meses; os numeros que mudam de forma.
+      aula: espanhol.numeros-horas.basico
+    - id: es.falsos-amigos
+      titulo: Falsos amigos
+      conteudo: Embarazada, exquisito, oficina, rato, salada - as pegadinhas classicas.
+      aula: espanhol.falsos-amigos.basico
+    - id: es.saudacoes-cortesia
+      titulo: Saudações e cortesia
+      conteudo: Tu contra usted, cumprimentar, despedir e pedir com educacao.
+      aula: espanhol.saudacoes-cortesia.basico
+    - id: es.vocabulario-cotidiano
+      titulo: Vocabulário do cotidiano
+      conteudo: Familia, casa, comida, roupa, cidade e transporte.
+      aula: espanhol.vocabulario-cotidiano.basico
   intermediario:
     descricao: Contar o que aconteceu e defender uma opiniao.
     topicos:
-      - id: es.verbos-irregulares
-        titulo: Verbos irregulares no presente
-        conteudo: Tener, venir, poder, querer, jugar; os que mudam a vogal do radical.
-      - id: es.preterito-indefinido
-        titulo: Pretérito indefinido
-        conteudo: O passado do que terminou; irregulares fortes como estar, tener e hacer.
-      - id: es.preterito-imperfecto
-        titulo: Pretérito imperfecto
-        conteudo: O que era costume ou pano de fundo; quando usar um e nao o outro.
-      - id: es.futuro-condicional
-        titulo: Futuro e condicional
-        conteudo: Formacao regular, irregulares comuns, e o futuro que expressa suposicao.
-      - id: es.pronomes-complemento
-        titulo: Pronomes complemento
-        conteudo: Me, te, lo, la, le, se; a posicao do pronome e quando ele se cola ao verbo.
-      - id: es.perifrases
-        titulo: Perífrases verbais
-        conteudo: Ir a, acabar de, empezar a, seguir, volver a - o que o portugues faz de outro jeito.
-      - id: es.comparativos
-        titulo: Comparação e superlativo
-        conteudo: Mas que, menos que, tan como; o superlativo em isimo.
-      - id: es.conectores
-        titulo: Conectores do discurso
-        conteudo: Pero, sin embargo, aunque, por lo tanto - ligar ideias em texto e fala.
-
+    - id: es.verbos-irregulares
+      titulo: Verbos irregulares no presente
+      conteudo: Tener, venir, poder, querer, jugar; os que mudam a vogal do radical.
+    - id: es.preterito-indefinido
+      titulo: Pretérito indefinido
+      conteudo: O passado do que terminou; irregulares fortes como estar, tener e hacer.
+    - id: es.preterito-imperfecto
+      titulo: Pretérito imperfecto
+      conteudo: O que era costume ou pano de fundo; quando usar um e nao o outro.
+    - id: es.futuro-condicional
+      titulo: Futuro e condicional
+      conteudo: Formacao regular, irregulares comuns, e o futuro que expressa suposicao.
+    - id: es.pronomes-complemento
+      titulo: Pronomes complemento
+      conteudo: Me, te, lo, la, le, se; a posicao do pronome e quando ele se cola ao verbo.
+    - id: es.perifrases
+      titulo: Perífrases verbais
+      conteudo: Ir a, acabar de, empezar a, seguir, volver a - o que o portugues faz de outro
+        jeito.
+    - id: es.comparativos
+      titulo: Comparação e superlativo
+      conteudo: Mas que, menos que, tan como; o superlativo em isimo.
+    - id: es.conectores
+      titulo: Conectores do discurso
+      conteudo: Pero, sin embargo, aunque, por lo tanto - ligar ideias em texto e fala.
   avancado:
     descricao: Subjuntivo, registro e variedade regional.
     topicos:
-      - id: es.subjuntivo-presente
-        titulo: Subjuntivo presente
-        conteudo: Desejo, duvida, emocao e ordem negativa; o modo que separa quem fala bem.
-      - id: es.subjuntivo-imperfecto
-        titulo: Subjuntivo imperfeito e condicionais
-        conteudo: Si tuviera, si hubiera; hipotese e arrependimento.
-      - id: es.imperativo
-        titulo: Imperativo afirmativo e negativo
-        conteudo: A troca de forma na negativa e a posicao dos pronomes.
-      - id: es.voz-pasiva-se
-        titulo: Voz passiva e o SE impessoal
-        conteudo: Se vende, se dice; a construcao mais usada que a passiva com ser.
-      - id: es.variedades
-        titulo: Variedades do espanhol
-        conteudo: Espanha e America; vosotros e ustedes; o voseo argentino; sotaques e vocabulario.
-      - id: es.expressoes
-        titulo: Expressões idiomáticas e gírias
-        conteudo: O que nao se traduz, e como o registro muda de pais para pais.
-      - id: es.escrita-formal
-        titulo: Escrita formal
-        conteudo: Carta, e-mail e texto argumentativo; pontuacao e os sinais de abertura.
-      - id: es.leitura-literaria
-        titulo: Leitura de texto literário
-        conteudo: Ler autor hispanico no original; estrategias para vocabulario desconhecido.
+    - id: es.subjuntivo-presente
+      titulo: Subjuntivo presente
+      conteudo: Desejo, duvida, emocao e ordem negativa; o modo que separa quem fala bem.
+    - id: es.subjuntivo-imperfecto
+      titulo: Subjuntivo imperfeito e condicionais
+      conteudo: Si tuviera, si hubiera; hipotese e arrependimento.
+    - id: es.imperativo
+      titulo: Imperativo afirmativo e negativo
+      conteudo: A troca de forma na negativa e a posicao dos pronomes.
+    - id: es.voz-pasiva-se
+      titulo: Voz passiva e o SE impessoal
+      conteudo: Se vende, se dice; a construcao mais usada que a passiva com ser.
+    - id: es.variedades
+      titulo: Variedades do espanhol
+      conteudo: Espanha e America; vosotros e ustedes; o voseo argentino; sotaques e vocabulario.
+    - id: es.expressoes
+      titulo: Expressões idiomáticas e gírias
+      conteudo: O que nao se traduz, e como o registro muda de pais para pais.
+    - id: es.escrita-formal
+      titulo: Escrita formal
+      conteudo: Carta, e-mail e texto argumentativo; pontuacao e os sinais de abertura.
+    - id: es.leitura-literaria
+      titulo: Leitura de texto literário
+      conteudo: Ler autor hispanico no original; estrategias para vocabulario desconhecido.

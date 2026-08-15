@@ -1,0 +1,61 @@
+id: tecnologia.internet.basico
+materia: tecnologia
+titulo: Como a internet funciona
+nivel: basico
+resumo: Endereco IP, DNS, servidor e cliente; o caminho de um site ate a tela.
+fonte: Wikipedia, artigos Endereço IP, consultados em 2026-08-14
+plano:
+  objetivo: Entender o que e endereco IP e suas versoes IPv4 e IPv6.
+  pre_requisitos:
+  - Uso basico de computadores e internet
+  duracao_min: 10
+  fixacao:
+  - O que significa IP?
+  - Qual a diferenca principal entre IPv4 e IPv6?
+  fechamento: Se todo dispositivo na internet precisa de um numero para ser encontrado, por
+    que precisamos de versoes novas como o IPv6?
+passos:
+- fala: 'Fala, pessoal! Pensem na sua casa: para receber uma carta, ela precisa de um endereco
+    com rua e numero, certo? Na internet, e a mesma coisa.'
+  quadro:
+    tipo: titulo
+    texto: Como a Internet Funciona
+- fala: Todo aparelho conectado a uma rede usa um rotulo numerico para se comunicar. Esse
+    rotulo e o endereco IP.
+  quadro:
+    tipo: texto
+    texto: Endereco IP = rotulo numerico para dispositivos na rede
+- fala: 'O IP tem duas funcoes principais: ele identifica a interface do computador e diz
+    a sua localizacao na rede.'
+  quadro:
+    tipo: topicos
+    texto: 'Funcoes do IP:'
+    itens:
+    - Identificacao de interface de hospedeiro
+    - Endereçamento de localização
+- fala: A versao mais antiga e conhecida e o IPv4. Ele usa numeros de 32 bits para identificar
+    os aparelhos.
+  quadro:
+    tipo: texto
+    texto: 'IPv4: usa numeros de 32 bits'
+- fala: Mas a internet cresceu tanto que os endereços IPv4 comecaram a acabar.
+  quadro:
+    tipo: texto
+    texto: 'Problema: Esgotamento de endereços IPv4'
+- fala: Por causa disso, em 1995 foi desenvolvida uma nova versao, o IPv6, que usa 128 bits.
+  quadro:
+    tipo: texto
+    texto: 'IPv6: criado em 1995, usa 128 bits'
+- fala: O IPv6 foi padronizado como RFC 2460 em 1998, e sua implantacao esta em andamento
+    desde meados de 2000.
+  quadro:
+    tipo: topicos
+    texto: 'Historico do IPv6:'
+    itens:
+    - Padronizado na RFC 2460 em 1998
+    - Implantação desde meados de 2000
+- fala: 'Para fechar: se o seu celular usa um endereco IP para ser encontrado na rede, imagine
+    quantos endereços sao necessarios hoje em dia. Pense nisso!'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Por que mudamos do IPv4 (32 bits) para o IPv6 (128 bits)?'

@@ -1,0 +1,61 @@
+id: portugues.ortografia.basico
+materia: portugues
+titulo: Ortografia e acentuação
+nivel: basico
+resumo: Regras de acento, uso do hifen, e as palavras que todo mundo escreve errado.
+fonte: Wikipedia, artigos Ortografia, consultados em 2026-08-14
+plano:
+  objetivo: Entender o que e ortografia e como ela define a escrita correta das palavras.
+  pre_requisitos:
+  - Saber ler e escrever.
+  duracao_min: 10
+  fixacao:
+  - O que significa a palavra ortho?
+  - O que a ortografia ensina?
+  fechamento: A ortografia e o guia oficial que transforma os sons da nossa fala em regras
+    escritas.
+passos:
+- fala: Fala, pessoal! Sabe quando a gente escreve uma palavra e fica na duvida se tem H,
+    se e com S ou com Z? E sobre isso que vamos falar hoje.
+  quadro:
+    tipo: titulo
+    texto: Ortografia e Acentuacao
+- fala: Para comecar, vamos olhar de onde vem essa palavra. Ela vem do grego.
+  quadro:
+    tipo: texto
+    texto: 'Origem da palavra:'
+- fala: A palavra ortho vem do grego e significa 'correto'.
+  quadro:
+    tipo: formula
+    texto: ortho = correto
+- fala: E a parte gráphos significa 'escrita'. Juntando tudo, ortografia e a escrita correta.
+  quadro:
+    tipo: formula
+    texto: graphos = escrita
+- fala: Entao, juntando os dois pedacos, temos a definicao oficial do que e a ortografia.
+  quadro:
+    tipo: texto
+    texto: 'Ortografia: escrita correta das palavras.'
+- fala: Mas o que entra nesse pacote da ortografia? Nao e só as letras.
+  quadro:
+    tipo: topicos
+    texto: 'O que a ortografia define:'
+    itens:
+    - Conjunto de simbolos e letras
+    - Sinais diacriticos (acentos)
+    - Pontuacao
+    - Uso de letras maiusculas
+- fala: A gramatica normativa e quem define essas regras todas para a gente seguir na lingua.
+  quadro:
+    tipo: texto
+    texto: Regras estabelecidas pela gramatica normativa.
+- fala: No fundo, tudo isso e so uma tentativa de passar os sons que a gente fala na boca
+    para o papel em forma de simbolos.
+  quadro:
+    tipo: texto
+    texto: 'Objetivo: transcrever sons em simbolos escritos.'
+- fala: 'Para fechar: se ortho significa correto, como voce acha que a ortografia ajuda a
+    gente no dia a dia a se comunicar melhor?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fechamento

@@ -1,0 +1,71 @@
+id: quimica.reacoes.basico
+materia: quimica
+titulo: Reações químicas
+nivel: basico
+resumo: Tipos de reacao, balanceamento e o que a equacao esta dizendo.
+fonte: Wikipedia, artigos Reação química, consultados em 2026-08-14
+plano:
+  objetivo: Aprender o que e uma reacao quimica, como ela e representada e a conservacao da
+    massa.
+  pre_requisitos:
+  - Conceito basico de atomos e substancias
+  duracao_min: 10
+  fixacao:
+  - O que acontece com a massa dos atomos durante uma reacao quimica?
+  - Qual e a diferenca entre reagentes e produtos numa equacao?
+  fechamento: Entender que a reacao quimica e so uma reorganizacao dos atomos, onde nada se
+    cria e nada se perde.
+passos:
+- fala: Fala, pessoal! Imagina que voce desmonta um carrinho de Lego e usa as mesmas pecas
+    para montar uma nave espacial. As pecas sao as mesmas, mas o objeto mudou completamente.
+    Na quimica, e isso que acontece.
+  quadro:
+    tipo: titulo
+    texto: Reacoes Quimicas
+- fala: Na quimica, chamamos isso de reacao quimica. E o processo onde uma ou mais substancias
+    se transformam em outras, mudando suas propriedades.
+  quadro:
+    tipo: texto
+    texto: Processo de transformacao de substancias
+- fala: Por tras dessa transformacao, o que esta acontecendo e uma reorganizacao dos atomos
+    no espaco. Eles mudam de par, mas continuam sendo os mesmos.
+  quadro:
+    tipo: texto
+    texto: Reorganizacao dos atomos no espaco
+- fala: 'E olha que legal: durante essa troca toda, a massa nao se altera em nenhum momento.
+    Isso tem um nome muito importante na ciencia.'
+  quadro:
+    tipo: texto
+    texto: A massa nao se altera
+- fala: Essa regra e a famosa Lei da Conservacao das Massas. Nada se perde, tudo se transforma.
+  quadro:
+    tipo: texto
+    texto: Lei da Conservacao das Massas
+- fala: Para mostrar uma reacao no papel, a gente usa a equacao quimica. Ela funciona como
+    uma receita de bolo.
+  quadro:
+    tipo: limpar
+- fala: Do lado esquerdo da equacao, nos escrevemos os reagentes, que sao os ingredientes
+    que vao participar do fenomeno.
+  quadro:
+    tipo: texto
+    texto: Reagentes = O que participa da reacao
+- fala: E do lado direito, colocamos os produtos, que sao as novas substancias formadas apos
+    a reacao acontecer.
+  quadro:
+    tipo: texto
+    texto: Produtos = O que e formado
+- fala: Para resumir, a equacao quimica nos mostra exatamente quem entra na brincadeira e
+    quem sai dela transformado.
+  quadro:
+    tipo: topicos
+    texto: Estrutura da Equacao
+    itens:
+    - Reagentes (Inicio)
+    - Seta de transformacao
+    - Produtos (Fim)
+- fala: 'Para fechar: se voce mistura dois reagentes e forma um produto, o que acontece com
+    o peso total dos atomos no final das contas?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O peso muda no final?'

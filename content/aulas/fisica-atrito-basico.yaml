@@ -1,0 +1,48 @@
+id: fisica.atrito.basico
+materia: fisica
+titulo: Atrito e forças no plano
+nivel: basico
+resumo: Atrito estatico e dinamico, plano inclinado, forca normal e tracao.
+fonte: Wikipedia, artigos Normal, Plano inclinado, consultados em 2026-08-14
+plano:
+  objetivo: Atrito estatico e dinamico, plano inclinado, forca normal e tracao.
+  pre_requisitos:
+  - Leis de Newton
+  - Energia mecanica
+  duracao_min: 10
+  fixacao:
+  - Como o plano inclinado ajuda a levantar um objeto com menos forca?
+  - O que acontece com a distancia que o objeto percorre no plano inclinado?
+  fechamento: Vimos que o plano inclinado e uma maquina simples que facilita o trabalho de
+    subir objetos.
+passos:
+- fala: Imagina que voce precisa colocar uma caixa pesada em cima de um caminhao. E mais facil
+    subir ela direto na vertical ou empurrar por uma rampa?
+  quadro:
+    tipo: titulo
+    texto: Plano Inclinado
+- fala: A rampa que a gente usa no dia a dia e o que na fisica chamamos de plano inclinado.
+    Vamos anotar a definicao.
+  quadro:
+    tipo: texto
+    texto: Superficie plana com pontos de inicio e fim em alturas diferentes.
+- fala: Essa rampa e uma maquina simples. O objetivo dela e diminuir a forca que voce precisa
+    fazer.
+  quadro:
+    tipo: topicos
+    texto: 'Vantagem do plano inclinado:'
+    itens:
+    - Reduz a forca F a ser aplicada
+    - Aumenta a distancia do percurso
+- fala: Mas nao existe milagre na fisica. A energia total para levantar o objeto e a mesma.
+  quadro:
+    tipo: texto
+    texto: 'Lei da Conservacao de Energia: a energia mecanica e a mesma na rampa ou na vertical.'
+- fala: Ou seja, o plano inclinado troca uma forca grande por uma forca menor aplicada ao
+    longo de uma distancia maior.
+  quadro:
+    tipo: formula
+    texto: Trabalho = Forca menor x Distancia maior
+- fala: Com isso fechamos o nosso estudo sobre o plano inclinado e como ele facilita o trabalho.
+  quadro:
+    tipo: limpar

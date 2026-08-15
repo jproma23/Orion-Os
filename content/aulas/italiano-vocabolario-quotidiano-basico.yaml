@@ -1,0 +1,63 @@
+id: italiano.vocabolario-quotidiano.basico
+materia: italiano
+titulo: Vocabulário do cotidiano
+nivel: basico
+resumo: Familia, casa, comida, cidade - e a comida, que em italiano e cultura.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Aprender sobre o idioma italiano e onde ele e falado no mundo
+  pre_requisitos:
+  - Curiosidade por linguas estrangeiras
+  duracao_min: 10
+  fixacao:
+  - Onde o italiano e lingua oficial?
+  - De qual lingua o italiano descende diretamente?
+  fechamento: Voce viu que o italiano e uma lingua muito importante na Europa e no mundo.
+passos:
+- fala: Fala pessoal! Imagine que voce vai viajar para a Italia e precisa pedir uma pizza
+    ou perguntar onde fica a rua. Vamos comecar a falar de italiano!
+  quadro:
+    tipo: titulo
+    texto: 'Vocabulario do Cotidiano: Italiano'
+- fala: Antes de ver as palavras, voce sabe de onde vem essa lingua?
+  quadro:
+    tipo: texto
+    texto: Origem da lingua
+- fala: O italiano e uma lingua românica, o que significa que ele descende direto do latim.
+  quadro:
+    tipo: texto
+    texto: Descendente direta do latim
+- fala: Entre as linguas nacionais que existem hoje, o italiano e a mais próxima do latim
+    de todas!
+  quadro:
+    tipo: texto
+    texto: A mais proxima do latim entre as nacionais
+- fala: Agora vamos ver onde essa lingua e oficial. Ela e a lingua oficial de quatro paises.
+  quadro:
+    tipo: texto
+    texto: 'Paises com italiano como lingua oficial (Total: 4)'
+- fala: Anota ai no quadro os quatro paises onde o italiano e oficial.
+  quadro:
+    tipo: topicos
+    texto: Paises oficiais
+    itens:
+    - Italia
+    - Suica
+    - San Marino
+    - Vaticano
+- fala: O italiano tambem e usado como lingua co-oficial em partes de outros quatro paises.
+  quadro:
+    tipo: topicos
+    texto: Paises co-oficiais
+    itens:
+    - Albania
+    - Eslovenia
+    - Croacia
+    - Monaco
+- fala: E nao para por ai. O italiano tambem e falado em regioes da Africa e por comunidades
+    nas Americas, incluindo o Brasil!
+  quadro:
+    tipo: texto
+    texto: 'Presenca: Africa e Americas (Brasil)'
+- fala: 'Para fechar, me responda: se voce viajar para a Europa, em quais quatro paises principais
+    o italiano e a lingua oficial?'

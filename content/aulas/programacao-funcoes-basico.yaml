@@ -1,0 +1,53 @@
+id: programacao.funcoes.basico
+materia: programacao
+titulo: Funções
+nivel: basico
+resumo: Definir, parametro, retorno, escopo; por que dividir o programa em pedacos.
+fonte: Wikipedia, artigos Retorno, Escopo, consultados em 2026-08-14
+plano:
+  objetivo: Definir funcoes, parametros, retorno, escopo e por que dividir o programa em pedacos.
+  pre_requisitos:
+  - Conceitos basicos de programacao
+  duracao_min: 10
+  fixacao:
+  - O que e uma funcao?
+  - Por que dividimos um programa em pedacos?
+  fechamento: Agora voce sabe que funcoes ajudam a organizar o codigo em pedacos menores.
+passos:
+- fala: 'Imagina que voce vai montar um movel grande. Se tentar fazer tudo de uma vez, vira
+    uma bagunca. O melhor e separar as partes: montar a gaveta, parafusar os pes, encaixar
+    a porta.'
+  quadro:
+    tipo: titulo
+    texto: Por que dividir o programa em pedacos?
+- fala: Na programacao, a gente faz a mesma coisa. Separamos o codigo em pequenos trechos
+    que fazem tarefas especificas.
+  quadro:
+    tipo: texto
+    texto: Organizar e reutilizar o codigo
+- fala: Esses pequenos pedacos com um nome e uma funcao especifica nos chamamos de funcoes.
+  quadro:
+    tipo: texto
+    texto: 'Funcao: um bloco de codigo reutilizavel'
+- fala: As vezes, para a funcao trabalhar, precisamos dar uma informacao para ela. Chamamos
+    isso de parametro.
+  quadro:
+    tipo: texto
+    texto: 'Parametro: informacao de entrada'
+- fala: Depois que a funcao faz o trabalho dela, ela pode devolver um resultado para a gente.
+    E o que chamamos de retorno.
+  quadro:
+    tipo: texto
+    texto: 'Retorno: o resultado da funcao'
+- fala: Mas cuidado! Nem tudo que esta dentro de uma funcao pode ser visto la fora. E o que
+    chamamos de escopo.
+  quadro:
+    tipo: texto
+    texto: 'Escopo: limite onde a variavel e valida'
+- fala: Pense no escopo como uma regra de limite. Na aritmetica, a ordem das operacoes importa
+    muito, como quando mistramos adicao com outras operacoes.
+  quadro:
+    tipo: texto
+    texto: Regras e limites de uso
+- fala: 'Para fechar, me diga: se voce tem uma tarefa repetitiva no seu codigo, por que criar
+    uma funcao em vez de repetir o codigo varias vezes?'

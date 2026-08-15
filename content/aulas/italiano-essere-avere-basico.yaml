@@ -1,0 +1,156 @@
+id: italiano.essere-avere.basico
+materia: italiano
+titulo: Essere e avere
+nivel: basico
+resumo: Os dois verbos que sustentam a lingua inteira; conjugacao e uso.
+fonte: Wikipedia, artigos Língua italiana, consultados em 2026-08-14
+plano:
+  objetivo: Aprender a conjugar e usar os verbos essere e avere no italiano basico.
+  pre_requisitos:
+  - Conceito basico de verbos em portugues
+  duracao_min: 10
+  fixacao:
+  - Como voce diz 'eu sou' em italiano?
+  - Qual verbo usamos para dizer 'eu tenho'?
+  fechamento: Essere e avere sao a base de todo o italiano. Pratique a conjugacao deles todos
+    os dias!
+passos:
+- fala: Fala, pessoal! Sabe quando a gente fala 'eu sou feliz' ou 'eu tenho um carro'? Em
+    italiano, esses dois verbos sao a base de tudo.
+  quadro:
+    tipo: titulo
+    texto: Essere e avere
+- fala: Primeiro, vamos olhar para o verbo essere, que significa ser ou estar.
+  quadro:
+    tipo: texto
+    texto: Essere = Ser / Estar
+- fala: Para dizer eu sou, voce fala io sono.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+- fala: Tu es em italiano e tu sei.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+    - - tu
+      - sei
+- fala: Ele e ou ela e fica lui e, lei e.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+    - - tu
+      - sei
+    - - lui / lei
+      - e
+- fala: Nos somos e noi siamo.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+    - - tu
+      - sei
+    - - lui / lei
+      - e
+    - - noi
+      - siamo
+- fala: Voz outros sois e voi siete.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+    - - tu
+      - sei
+    - - lui / lei
+      - e
+    - - noi
+      - siamo
+    - - voi
+      - siete
+- fala: E eles sao e loro sono.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Essere
+    linhas:
+    - - io
+      - sono
+    - - tu
+      - sei
+    - - lui / lei
+      - e
+    - - noi
+      - siamo
+    - - voi
+      - siete
+    - - loro
+      - sono
+- fala: Agora vamos limpar o quadro e ver o outro verbo fundamental, o avere, que significa
+    ter.
+  quadro:
+    tipo: limpar
+- fala: O verbo avere indica posse, o nosso ter.
+  quadro:
+    tipo: texto
+    texto: Avere = Ter
+- fala: Eu tenho em italiano se diz io ho.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Avere
+    linhas:
+    - - io
+      - ho
+- fala: Tu tens e tu hai.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Avere
+    linhas:
+    - - io
+      - ho
+    - - tu
+      - hai
+- fala: Ele ou ela tem fica lui ha, lei ha.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pronombre
+    - Avere
+    linhas:
+    - - io
+      - ho
+    - - tu
+      - hai
+    - - lui / lei
+      - ha
+- fala: 'Para terminar, me diga: como voce diria ''nos somos'' em italiano usando o que aprendeu
+    hoje?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Como dizer ''nos somos''?'

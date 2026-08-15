@@ -1,0 +1,73 @@
+id: geografia.brasil-regioes.basico
+materia: geografia
+titulo: Regiões do Brasil
+nivel: basico
+resumo: As cinco regioes, suas paisagens, economias e desigualdades.
+fonte: Wikipedia, artigos Regiões do Brasil, consultados em 2026-08-14
+plano:
+  objetivo: Aprender as cinco regiões do Brasil, suas origens e propósitos segundo o IBGE.
+  pre_requisitos:
+  - Estados do Brasil
+  - Noções básicas de geografia
+  duracao_min: 10
+  fixacao:
+  - Quem criou a divisão oficial das regiões do Brasil?
+  - Em que ano essa divisão foi feita?
+  fechamento: Se você pudesse criar uma nova política pública para a sua região baseada nas
+    necessidades locais, qual seria o foco principal dela?
+passos:
+- fala: Imagina que o governo precisa organizar a entrega de recursos e planejar o país inteiro.
+    Para facilitar o trabalho, ele junta os estados com características parecidas. Vamos ver
+    como isso funciona.
+  quadro:
+    tipo: titulo
+    texto: Regiões do Brasil
+- fala: Esses agrupamentos dos estados ajudam em interpretações estatísticas e na gestão de
+    funções públicas. Mas quem faz essa divisão oficial?
+  quadro:
+    tipo: texto
+    texto: 'Propósito: estatísticas, gestão pública e políticas públicas.'
+- fala: A divisão oficial que usamos hoje foi elaborada pelo IBGE em 1970. Anota aí na sua
+    cabeça essa sigla e a data.
+  quadro:
+    tipo: texto
+    texto: IBGE - 1970
+- fala: Com essa divisão de 1970, o Brasil passou a ser dividido exatamente em cinco regiões
+    oficiais. Vamos conhecê-las.
+  quadro:
+    tipo: limpar
+- fala: A primeira região é o Centro-Oeste. Guarda esse nome.
+  quadro:
+    tipo: texto
+    texto: 1. Centro-Oeste
+- fala: A segunda é o Nordeste, que tem uma história e paisagens muito marcantes.
+  quadro:
+    tipo: texto
+    texto: 2. Nordeste
+- fala: A terceira região é o Norte, famosa por sua vasta extensão e florestas.
+  quadro:
+    tipo: texto
+    texto: 3. Norte
+- fala: A quarta é o Sudeste, onde se concentram grandes centros urbanos e econômicos.
+  quadro:
+    tipo: texto
+    texto: 4. Sudeste
+- fala: E a quinta região é o Sul, fechando o grupo das cinco regiões oficiais do país.
+  quadro:
+    tipo: texto
+    texto: 5. Sul
+- fala: Essas regiões não são só um desenho no mapa. Elas possuem caráter legal e aparecem
+    em várias leis.
+  quadro:
+    tipo: limpar
+- fala: Para você ter uma ideia, a Constituição brasileira de 1988 trata essas áreas simplesmente
+    como 'regiões' ou como 'regiões macroeconômicas'.
+  quadro:
+    tipo: texto
+    texto: 'Constituição de 1988: Regiões ou Regiões Macroeconômicas'
+- fala: 'Para terminar, pense comigo: se o IBGE criou essas cinco regiões em 1970 para ajudar
+    a aplicar políticas públicas, qual delas você acha que recebe mais atenção na sua opinião
+    e por quê?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual a importância de dividir o país em regiões?'

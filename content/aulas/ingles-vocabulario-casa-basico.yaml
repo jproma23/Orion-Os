@@ -1,0 +1,42 @@
+id: ingles.vocabulario-casa.basico
+materia: ingles
+titulo: Vocabulário do dia a dia
+nivel: basico
+resumo: Familia, casa, comida, cores, roupa e partes do corpo.
+fonte: Wikipedia, artigos Língua inglesa, consultados em 2026-08-14
+plano:
+  objetivo: Familia, casa, comida, cores, roupa e partes do corpo.
+  pre_requisitos:
+  - Ingles basico
+  duracao_min: 10
+  fixacao:
+  - Identificar vocabulario do dia a dia
+  fechamento: Voce aprendeu que o ingles tem muitas palavras usadas no mundo todo.
+passos:
+- fala: Ola! Quando voce assiste a um filme ou joga videogame, ja reparou que muitas palavras
+    em ingles fazem parte do nosso dia a dia?
+  quadro:
+    tipo: titulo
+    texto: Vocabulario do dia a dia
+- fala: O ingles e uma lingua que surgiu na Inglaterra e hoje e falada no mundo todo.
+  quadro:
+    tipo: texto
+    texto: Lingua indo-europeia germânica ocidental
+- fala: atraves do Império Britânico e dos Estados Unidos, o ingles virou a principal lingua
+    do discurso internacional.
+  quadro:
+    tipo: topicos
+    texto: 'Expansao global:'
+    itens:
+    - 'Seculo XVIII: Imperio Britanico'
+    - 'Seculo XX: Estados Unidos'
+- fala: Por isso, ele se tornou uma lingua franca e o segundo idioma de muitas pessoas em
+    varios paises.
+  quadro:
+    tipo: texto
+    texto: Lingua franca e segundo idioma no mundo
+- fala: 'Para terminar, pense comigo: se o ingles esta tao presente nos filmes e na internet,
+    qual palavra em ingles voce mais usa no seu dia a dia?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixacao

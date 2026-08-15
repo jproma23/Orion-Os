@@ -1,0 +1,111 @@
+id: espanhol.presente-regulares.basico
+materia: espanhol
+titulo: Presente dos verbos regulares
+nivel: basico
+resumo: As tres conjugacoes AR, ER e IR, e o pronome que quase sempre se omite.
+fonte: Wikipedia, artigos Conjugação, consultados em 2026-08-14
+plano:
+  objetivo: As tres conjugacoes AR, ER e IR, e o pronome que quase sempre se omite.
+  pre_requisitos:
+  - Conceito basico de verbos e pessoas gramaticais
+  duracao_min: 10
+  fixacao:
+  - Identificar a conjugacao de verbos terminados em AR, ER e IR
+  - Saber quando omitir o pronome no espanhol
+  fechamento: Agora voce ja sabe como funcionam as tres conjugacoes e a omissao de pronomes
+    em espanhol.
+passos:
+- fala: 'Ola! Pense em como voce muda um verbo em portugues dependendo de quem fala: eu canto,
+    tu cantas, ele canta. Em espanhol, a ideia e a mesma, mas os finais mudam de um jeito
+    bem organizado.'
+  quadro:
+    tipo: titulo
+    texto: Presente dos Verbos Regulares em Espanhol
+- fala: 'Para comecar, em espanhol os verbos sao divididos em tres grupos, de acordo com as
+    letras que terminam no infinitivo: AR, ER e IR.'
+  quadro:
+    tipo: topicos
+    texto: As tres conjugacoes
+    itens:
+    - Terminados em -AR
+    - Terminados em -ER
+    - Terminados em -IR
+- fala: Vamos ver o primeiro grupo, os verbos terminados em AR. Como o verbo hablar, que significa
+    falar.
+  quadro:
+    tipo: texto
+    texto: 'Grupo 1: Verbos em -AR (ex: hablar)'
+- fala: 'Para o verbo hablar, as terminacoes no presente sao: yo hablo, tu hablas, el/ella
+    habla, nosotros hablamos, vosotros hablais, ellos hablan.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pessoa
+    - Hablar (falar)
+    linhas:
+    - - Yo
+      - hablo
+    - - Tu
+      - hablas
+    - - El / Ella
+      - habla
+    - - Nosotros
+      - hablamos
+    - - Vosotros
+      - hablais
+    - - Ellos
+      - hablan
+- fala: O segundo grupo sao os verbos terminados em ER, como o verbo comer.
+  quadro:
+    tipo: texto
+    texto: 'Grupo 2: Verbos em -ER (ex: comer)'
+- fala: 'Para o verbo comer, as terminacoes mudam um pouquinho para a vogal E: como, comes,
+    come, comemos, comeis, comen.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pessoa
+    - Comer
+    linhas:
+    - - Yo
+      - como
+    - - Tu
+      - comes
+    - - El / Ella
+      - come
+    - - Nosotros
+      - comemos
+    - - Vosotros
+      - comeis
+    - - Ellos
+      - comen
+- fala: O terceiro e ultimo grupo sao os verbos terminados em IR, como vivir, que significa
+    viver.
+  quadro:
+    tipo: texto
+    texto: 'Grupo 3: Verbos em -IR (ex: vivir)'
+- fala: 'Para o verbo vivir, usamos a vogal I nas pessoas do singular e plural, exceto no
+    nosotros e vosotros: vivo, vives, vive, vivimos, vivis, viven.'
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Pessoa
+    - Vivir (viver)
+    linhas:
+    - - Yo
+      - vivo
+    - - Tu
+      - vives
+    - - El / Ella
+      - vive
+    - - Nosotros
+      - vivimos
+    - - Vosotros
+      - vivis
+    - - Ellos
+      - viven
+- fala: 'Agora preste muita atencao nesta regra muito comum no espanhol: o pronome pessoal,
+    como yo, tu ou nosotros, quase sempre se omite.'
+  quadro:
+    tipo: texto
+    texto: Omissao do Pronome

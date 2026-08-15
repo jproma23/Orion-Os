@@ -1,0 +1,59 @@
+id: espanhol.alfabeto-pronuncia.basico
+materia: espanhol
+titulo: Alfabeto e pronúncia
+nivel: basico
+resumo: O J, o LL, o Ñ e o R; as vogais que nao mudam de som como no portugues.
+fonte: Wikipedia, artigos Língua castelhana, Alfabeto, consultados em 2026-08-14
+plano:
+  objetivo: O J, o LL, o Ñ e o R; as vogais que nao mudam de som como no portugues.
+  pre_requisitos:
+  - Conhecimento do alfabeto basico em portugues
+  duracao_min: 10
+  fixacao:
+  - Identificar a pronuncia de letras especificas em espanhol
+  fechamento: Qual letra em espanhol tem som parecido com o nosso 'nh' em 'aranha'?
+passos:
+- fala: Fala, pessoal! Sabe quando a gente tenta falar espanhol e parece que tem algo diferente?
+    Vamos ver algumas letras que mudam o jogo na hora de falar.
+  quadro:
+    tipo: titulo
+    texto: Alfabeto e Pronuncia no Espanhol
+- fala: 'Primeiro, uma otima noticia: em espanhol, as vogais A, E, I, O, U nunca mudam de
+    som. Elas sao sempre limpas, iguais ao portugues.'
+  quadro:
+    tipo: texto
+    texto: 'Vogais: A, E, I, O, U (som sempre limpo e fixo)'
+- fala: Agora vamos para a letra J. Em espanhol, o J tem um som forte de raspagem na garganta,
+    como o nosso RR.
+  quadro:
+    tipo: texto
+    texto: 'J = som forte na garganta (ex: jamón)'
+- fala: E o LL? Ele tem som de Lh em muitas regioes, ou de i/ch dependendo do pais. Mas pense
+    sempre no som de LH para comecar.
+  quadro:
+    tipo: texto
+    texto: 'LL = som de LH (ex: llave)'
+- fala: A terceira letra e o Ñ com esse chapeuzinho em cima, chamado tilde. Ele tem exatamente
+    o som do nosso NH.
+  quadro:
+    tipo: texto
+    texto: 'Ñ = som de NH (ex: niño)'
+- fala: Por fim, o R simples no meio da palavra e bem curtinho, batendo a lingua levemente.
+    Ja o duplo R, o RR, e vibrante.
+  quadro:
+    tipo: texto
+    texto: R = vibrante ou simples / RR = forte
+- fala: Vamos resumir essas quatro letras especiais que vimos hoje no quadro.
+  quadro:
+    tipo: topicos
+    texto: Letras Especiais
+    itens:
+    - 'J: som forte na garganta'
+    - 'LL: som de LH'
+    - 'Ñ: som de NH'
+    - 'R / RR: vibracao da lingua'
+- fala: Para fechar, quero ver se voce entendeu. Qual dessas letras tem o som igualzinho ao
+    nosso NH em portugues?
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual letra tem som de NH?'

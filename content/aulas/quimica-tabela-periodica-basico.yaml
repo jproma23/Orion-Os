@@ -1,0 +1,67 @@
+id: quimica.tabela-periodica.basico
+materia: quimica
+titulo: Tabela periódica
+nivel: basico
+resumo: Como ela e organizada, familias, periodos e as propriedades que se repetem.
+fonte: Wikipedia, artigos Tabela periódica, consultados em 2026-08-14
+plano:
+  objetivo: Entender como a tabela periodica e organizada em periodos e familias, e como as
+    propriedades se repetem.
+  pre_requisitos:
+  - Conceito basico de atomos e numeros atomicos
+  duracao_min: 10
+  fixacao:
+  - Em qual direcao ficam os elementos metalicos na tabela?
+  - Como sao chamadas as colunas e as linhas da tabela?
+  fechamento: A tabela periodica organiza os elementos por numero atomico, colocando na mesma
+    coluna aqueles que possuem comportamento parecido.
+passos:
+- fala: Pense em um armario cheio de gavetas onde cada objeto esta no seu lugar certo para
+    ser achado facil. A tabela periodica faz isso com os elementos quimicos.
+  quadro:
+    tipo: titulo
+    texto: Tabela Periodica
+- fala: Ela e uma organizacao sistematica de todos os elementos. Eles sao colocados em ordem
+    pelos seus numeros atomicos.
+  quadro:
+    tipo: texto
+    texto: Elementos ordenados por numero atomico
+- fala: As linhas horizontais da tabela recebem o nome de periodos.
+  quadro:
+    tipo: texto
+    texto: Linhas horizontais = Periodos
+- fala: Ja as colunas verticais sao chamadas de grupos ou familias.
+  quadro:
+    tipo: texto
+    texto: Colunas verticais = Grupos (Familias)
+- fala: 'Olhando uma linha, o periodo, os elementos mudam de tipo: os metais ficam na esquerda
+    e os nao metais na direita.'
+  quadro:
+    tipo: topicos
+    texto: Organizacao nos Periodos
+    itens:
+    - 'Esquerda: metais'
+    - 'Direita: nao metais'
+- fala: Os elementos que ficam na mesma coluna tem comportamentos parecidos entre si.
+  quadro:
+    tipo: texto
+    texto: Mesma coluna = comportamentos similares
+- fala: Alguns grupos tem nomes bem especificos, alem de numeros. O grupo 17, por exemplo,
+    e chamado de halogenios.
+  quadro:
+    tipo: texto
+    texto: 'Grupo 17: Halogenios'
+- fala: E o grupo 18 e o dos gases nobres.
+  quadro:
+    tipo: texto
+    texto: 'Grupo 18: Gases nobres'
+- fala: Por fim, a tabela tambem se divide em quatro blocos retangulares, agrupando elementos
+    com propriedades quimicas semelhantes.
+  quadro:
+    tipo: texto
+    texto: Quatro blocos retangulares com propriedades similares
+- fala: 'Para pensar e usar o que aprendeu: se um elemento esta na mesma coluna que outro,
+    o que podemos dizer sobre o comportamento deles?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: O que elementos na mesma coluna tem em comum?'

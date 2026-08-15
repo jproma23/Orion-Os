@@ -1,90 +1,96 @@
 materia: quimica
 nome: Química
-descricao: >
-  Do que as coisas sao feitas e por que elas se transformam. A tabela
-  periodica nao e para decorar - ela e um mapa que preve comportamento.
+descricao: 'Do que as coisas sao feitas e por que elas se transformam. A tabela periodica
+  nao e para decorar - ela e um mapa que preve comportamento.
 
+  '
 niveis:
   basico:
     descricao: Atomo, tabela e as ligacoes.
     topicos:
-      - id: qui.materia-estados
-        titulo: Matéria e seus estados
-        conteudo: Solido, liquido e gasoso, mudancas de estado, substancia pura e mistura.
-      - id: qui.separacao-misturas
-        titulo: Separação de misturas
-        conteudo: Filtracao, destilacao, decantacao, cromatografia - e onde se usa cada uma.
-      - id: qui.atomo
-        titulo: Estrutura atômica
-        conteudo: Proton, neutron, eletron, numero atomico e de massa, isotopos.
-      - id: qui.tabela-periodica
-        titulo: Tabela periódica
-        conteudo: Como ela e organizada, familias, periodos e as propriedades que se repetem.
-      - id: qui.ligacoes
-        titulo: Ligações químicas
-        conteudo: Ionica, covalente e metalica; por que a agua dissolve sal e nao dissolve oleo.
-      - id: qui.funcoes-inorganicas
-        titulo: Funções inorgânicas
-        conteudo: Acido, base, sal e oxido; nomenclatura e o que cada um faz.
-      - id: qui.reacoes
-        titulo: Reações químicas
-        conteudo: Tipos de reacao, balanceamento e o que a equacao esta dizendo.
-      - id: qui.seguranca
-        titulo: Segurança no laboratório
-        conteudo: O que nunca se mistura, rotulo, descarte e primeiros socorros.
-
+    - id: qui.materia-estados
+      titulo: Matéria e seus estados
+      conteudo: Solido, liquido e gasoso, mudancas de estado, substancia pura e mistura.
+      aula: quimica.materia-estados.basico
+    - id: qui.separacao-misturas
+      titulo: Separação de misturas
+      conteudo: Filtracao, destilacao, decantacao, cromatografia - e onde se usa cada uma.
+      aula: quimica.separacao-misturas.basico
+    - id: qui.atomo
+      titulo: Estrutura atômica
+      conteudo: Proton, neutron, eletron, numero atomico e de massa, isotopos.
+      aula: quimica.atomo.basico
+    - id: qui.tabela-periodica
+      titulo: Tabela periódica
+      conteudo: Como ela e organizada, familias, periodos e as propriedades que se repetem.
+      aula: quimica.tabela-periodica.basico
+    - id: qui.ligacoes
+      titulo: Ligações químicas
+      conteudo: Ionica, covalente e metalica; por que a agua dissolve sal e nao dissolve oleo.
+      aula: quimica.ligacoes.basico
+    - id: qui.funcoes-inorganicas
+      titulo: Funções inorgânicas
+      conteudo: Acido, base, sal e oxido; nomenclatura e o que cada um faz.
+      aula: quimica.funcoes-inorganicas.basico
+    - id: qui.reacoes
+      titulo: Reações químicas
+      conteudo: Tipos de reacao, balanceamento e o que a equacao esta dizendo.
+      aula: quimica.reacoes.basico
+    - id: qui.seguranca
+      titulo: Segurança no laboratório
+      conteudo: O que nunca se mistura, rotulo, descarte e primeiros socorros.
+      aula: quimica.seguranca.basico
   intermediario:
     descricao: Contar atomos e medir transformacao.
     topicos:
-      - id: qui.mol
-        titulo: Mol e cálculo estequiométrico
-        conteudo: Massa molar, numero de Avogadro, e como prever quanto se forma de produto.
-      - id: qui.solucoes
-        titulo: Soluções
-        conteudo: Concentracao, molaridade, diluicao e solubilidade.
-      - id: qui.termoquimica
-        titulo: Termoquímica
-        conteudo: Reacao que esquenta e que esfria, entalpia, e a energia guardada nas ligacoes.
-      - id: qui.cinetica
-        titulo: Cinética química
-        conteudo: Velocidade de reacao, catalisador, temperatura e superficie de contato.
-      - id: qui.equilibrio
-        titulo: Equilíbrio químico
-        conteudo: Reacao que vai e volta, constante de equilibrio e o principio de Le Chatelier.
-      - id: qui.acidos-bases
-        titulo: Ácidos, bases e pH
-        conteudo: Escala de pH, indicadores, neutralizacao e o pH do que se come.
-      - id: qui.eletroquimica
-        titulo: Eletroquímica
-        conteudo: Oxidacao e reducao, pilha, eletrolise, e o que acontece dentro de uma bateria.
-      - id: qui.gases
-        titulo: Estudo dos gases
-        conteudo: Leis dos gases, equacao geral, e o gas ideal contra o gas real.
-
+    - id: qui.mol
+      titulo: Mol e cálculo estequiométrico
+      conteudo: Massa molar, numero de Avogadro, e como prever quanto se forma de produto.
+    - id: qui.solucoes
+      titulo: Soluções
+      conteudo: Concentracao, molaridade, diluicao e solubilidade.
+    - id: qui.termoquimica
+      titulo: Termoquímica
+      conteudo: Reacao que esquenta e que esfria, entalpia, e a energia guardada nas ligacoes.
+    - id: qui.cinetica
+      titulo: Cinética química
+      conteudo: Velocidade de reacao, catalisador, temperatura e superficie de contato.
+    - id: qui.equilibrio
+      titulo: Equilíbrio químico
+      conteudo: Reacao que vai e volta, constante de equilibrio e o principio de Le Chatelier.
+    - id: qui.acidos-bases
+      titulo: Ácidos, bases e pH
+      conteudo: Escala de pH, indicadores, neutralizacao e o pH do que se come.
+    - id: qui.eletroquimica
+      titulo: Eletroquímica
+      conteudo: Oxidacao e reducao, pilha, eletrolise, e o que acontece dentro de uma bateria.
+    - id: qui.gases
+      titulo: Estudo dos gases
+      conteudo: Leis dos gases, equacao geral, e o gas ideal contra o gas real.
   avancado:
     descricao: A quimica do carbono e a do mundo.
     topicos:
-      - id: qui.organica-cadeias
-        titulo: Química orgânica - cadeias carbônicas
-        conteudo: Por que o carbono forma tudo; classificacao das cadeias e nomenclatura.
-      - id: qui.funcoes-organicas
-        titulo: Funções orgânicas
-        conteudo: Alcool, aldeido, cetona, acido carboxilico, ester, amina e amida.
-      - id: qui.isomeria
-        titulo: Isomeria
-        conteudo: Mesma formula, substancias diferentes; isomeria plana e espacial.
-      - id: qui.reacoes-organicas
-        titulo: Reações orgânicas
-        conteudo: Adicao, substituicao, eliminacao, oxidacao e a esterificacao.
-      - id: qui.polimeros
-        titulo: Polímeros
-        conteudo: Plasticos, borracha e fibras; reciclagem e o problema do descarte.
-      - id: qui.bioquimica
-        titulo: Bioquímica
-        conteudo: Carboidratos, lipidios, proteinas e enzimas - a quimica do que esta vivo.
-      - id: qui.ambiental
-        titulo: Química ambiental
-        conteudo: Chuva acida, efeito estufa, camada de ozonio e tratamento de agua.
-      - id: qui.analise
-        titulo: Análise química
-        conteudo: Como se descobre o que tem numa amostra; titulacao e espectroscopia.
+    - id: qui.organica-cadeias
+      titulo: Química orgânica - cadeias carbônicas
+      conteudo: Por que o carbono forma tudo; classificacao das cadeias e nomenclatura.
+    - id: qui.funcoes-organicas
+      titulo: Funções orgânicas
+      conteudo: Alcool, aldeido, cetona, acido carboxilico, ester, amina e amida.
+    - id: qui.isomeria
+      titulo: Isomeria
+      conteudo: Mesma formula, substancias diferentes; isomeria plana e espacial.
+    - id: qui.reacoes-organicas
+      titulo: Reações orgânicas
+      conteudo: Adicao, substituicao, eliminacao, oxidacao e a esterificacao.
+    - id: qui.polimeros
+      titulo: Polímeros
+      conteudo: Plasticos, borracha e fibras; reciclagem e o problema do descarte.
+    - id: qui.bioquimica
+      titulo: Bioquímica
+      conteudo: Carboidratos, lipidios, proteinas e enzimas - a quimica do que esta vivo.
+    - id: qui.ambiental
+      titulo: Química ambiental
+      conteudo: Chuva acida, efeito estufa, camada de ozonio e tratamento de agua.
+    - id: qui.analise
+      titulo: Análise química
+      conteudo: Como se descobre o que tem numa amostra; titulacao e espectroscopia.

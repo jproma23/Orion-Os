@@ -1,0 +1,43 @@
+id: biologia.divisao-celular.basico
+materia: biologia
+titulo: Divisão celular
+nivel: basico
+resumo: Mitose e meiose, para que serve cada uma, e o que da errado no cancer.
+fonte: Wikipedia, artigos Divisão celular, consultados em 2026-08-09
+plano:
+  objetivo: Mitose e meiose, para que serve cada uma, e o que da errado no cancer.
+  pre_requisitos:
+  - Conceito de celula
+  - Informacao genetica
+  duracao_min: 10
+  fixacao:
+  - Qual a diferenca no numero de celulas geradas entre mitose e meiose?
+  - Por que o cancer esta ligado a divisao celular?
+  fechamento: Vimos que a celula mae se divide para gerar novas celulas, e que quando esse
+    controle falha, temos o cancer.
+passos:
+- fala: Ola! Pense na sua pele se regenerando depois de um rascunho, ou em como voce cresceu
+    desde que era bebe. Tudo isso acontece porque nossas celulas se dividem.
+  quadro:
+    tipo: titulo
+    texto: Divisao Celular
+- fala: Esse processo e a divisao celular. Uma celula original, chamada de celula-mae, se
+    divide e da origem a novas celulas, chamadas de celulas-filhas.
+  quadro:
+    tipo: texto
+    texto: Celula-mae -> Celulas-filhas
+- fala: O mais importante e que essas novas celulas levam com elas toda a informacao genetica
+    da nossa especie.
+  quadro:
+    tipo: texto
+    texto: Informacao genetica preservada
+- fala: Segundo o material, a divisao celular pode dar origem a duas ou quatro celulas-filhas,
+    dependendo do tipo de processo que esta acontecendo.
+  quadro:
+    tipo: topicos
+    texto: Resultados da Divisao
+    itens:
+    - Origina 2 ou 4 celulas-filhas
+    - Contem toda informacao genetica
+- fala: 'Agora me responda: se voce machuca o joelho, suas celulas precisam se multiplicar
+    rapido para fechar o ferimento. Como voce acha que o corpo controla isso no dia a dia?'

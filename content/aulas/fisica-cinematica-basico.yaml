@@ -1,0 +1,62 @@
+id: fisica.cinematica.basico
+materia: fisica
+titulo: Cinemática
+nivel: basico
+resumo: Velocidade, aceleracao, movimento uniforme e uniformemente variado; graficos.
+fonte: Wikipedia, artigos Cinemática, Velocidade, Aceleração, Gráficos de videogame isométricos,
+  consultados em 2026-08-09
+plano:
+  objetivo: Velocidade, aceleracao, movimento uniforme e uniformemente variado; graficos.
+  pre_requisitos:
+  - Conceito basico de espaco e tempo
+  duracao_min: 10
+  fixacao:
+  - O que diferencia velocidade de aceleracao?
+  - Como a velocidade e medida no SI?
+  fechamento: Se um carro muda de velocidade a cada segundo, ele tem velocidade constante
+    ou aceleracao?
+passos:
+- fala: Fala, pessoal! Ja viram um carro correndo na estrada e pensaram em como a gente mede
+    o quanto ele anda rapido? A cinematica e a parte da fisica que cuida exatamente disso,
+    estudando o movimento sem se importar com o que causou ele.
+  quadro:
+    tipo: titulo
+    texto: Cinematica
+- fala: Para comecar, vamos falar de velocidade. Quando voce diz que um carro esta a 5 metros
+    por segundo para o leste, voce esta usando a velocidade vetorial, que tem tamanho e direcao.
+  quadro:
+    tipo: texto
+    texto: Velocidade Vetorial = magnitude + direcao
+- fala: Mas se a gente olha so para o valor da velocidade, como 5 metros por segundo, nos
+    temos a velocidade escalar. No Sistema Internacional, a unidade dela e metros por segundo.
+  quadro:
+    tipo: formula
+    texto: v = m/s
+- fala: Agora imagine que o motorista pisou fundo e o carro comecou a ganhar velocidade. Essa
+    mudanca da velocidade em relacao ao tempo e o que chamamos de aceleracao.
+  quadro:
+    tipo: limpar
+- fala: A aceleracao tambem e uma grandeza vetorial, ou seja, tem direcao e tamanho. E ela
+    depende diretamente da forca que empurra o objeto e da massa dele.
+  quadro:
+    tipo: titulo
+    texto: Aceleracao
+- fala: Segundo o material, a magnitude da aceleracao e a taxa de variacao da velocidade de
+    um objeto em relacao ao tempo.
+  quadro:
+    tipo: texto
+    texto: Aceleracao = variacao da velocidade / tempo
+- fala: Por fim, o texto cita graficos, mas focando em graficos isometricos usados em videojogos
+    para dar efeito tridimensional com projecao paralela.
+  quadro:
+    tipo: limpar
+- fala: Nesse tipo de grafico em jogos, a projecao dimetrica ou a proporcao de pixeis de 2
+    para 1 e a mais comum, mesmo que os eixos nao fiquem exatamente a 120 graus.
+  quadro:
+    tipo: texto
+    texto: 'Graficos Isometricos: efeito 3D em jogos'
+- fala: 'Para fechar: se um carro esta andando em linha reta a 5 metros por segundo para o
+    leste, qual conceito estamos descrevendo?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: 5 m/s para o leste e velocidade ou aceleracao?'

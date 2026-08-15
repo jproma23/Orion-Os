@@ -1,0 +1,83 @@
+id: ingles.plural-substantivos.basico
+materia: ingles
+titulo: Plural e substantivos contáveis
+nivel: basico
+resumo: Plurais regulares e irregulares; much, many, some, any.
+fonte: Wikipedia, artigos Plural, Substantivo, consultados em 2026-08-14
+plano:
+  objetivo: Plurais regulares e irregulares; much, many, some, any.
+  pre_requisitos:
+  - Substantivos em ingles
+  duracao_min: 10
+  fixacao:
+  - Como voce diz 'muitos livros' em ingles?
+  - Como fica o plural de 'child'?
+  fechamento: Voce aprendeu a contar e pluralizar em ingles!
+passos:
+- fala: Fala, pessoal! Imagina que voce tem uma maca na mao. Agora imagina que voce tem cinco.
+    Em ingles, a gente muda a palavra para mostrar que tem mais de uma.
+  quadro:
+    tipo: titulo
+    texto: Plural e Substantivos Contaveis
+- fala: 'Isso e o plural. Na maioria das palavras, a regra e facil: e so colocar um S no final.'
+  quadro:
+    tipo: texto
+    texto: 'Regra geral: Substantivo + s'
+- fala: Por exemplo, carro vira carros. Em ingles, car vira cars.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Singular
+    - Plural
+    linhas:
+    - - car
+      - cars
+    - - book
+      - books
+- fala: Mas nem tudo e perfeito. Tem palavras que sao rebeldes e mudam de forma no plural.
+    Elas sao os plurais irregulares.
+  quadro:
+    tipo: titulo
+    texto: Plurais Irregulares
+- fala: Olha so esses exemplos que nao usam S. Homem vira men, mulher vira women, e crianca
+    vira children.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Singular
+    - Plural
+    linhas:
+    - - man
+      - men
+    - - woman
+      - women
+    - - child
+      - children
+- fala: Agora que sabemos contar, vamos falar de substantivos contaveis. Sao aqueles que a
+    gente consegue contar um por um, tipo carros e livros.
+  quadro:
+    tipo: texto
+    texto: Contaveis = Coisas que podemos contar (1, 2, 3...)
+- fala: Quando temos muito de algo que da para contar, como muitas pessoas ou muitos livros,
+    a gente usa a palavra many.
+  quadro:
+    tipo: formula
+    texto: many + contavel no plural
+- fala: Mas e se a gente nao puder contar, tipo agua ou leite? Para coisas que nao contamos,
+    a gente usa much.
+  quadro:
+    tipo: formula
+    texto: much + incontavel
+- fala: E para frases afirmativas onde a quantidade nao e exata, a gente usa some, que significa
+    alguns ou um pouco.
+  quadro:
+    tipo: texto
+    texto: some = Algumas / Um pouco (afirmativas)
+- fala: Ja nas frases negativas e em perguntas, a gente troca o some por any.
+  quadro:
+    tipo: texto
+    texto: any = Algum / Nenhum (negativas e perguntas)
+- fala: 'Para fechar: como voce perguntaria se tem ''muito leite'' usando o que aprendeu hoje?'
+  quadro:
+    tipo: texto
+    texto: 'Desafio: Much ou Many para leite?'

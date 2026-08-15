@@ -1,0 +1,82 @@
+id: portugues.classes-palavras.basico
+materia: portugues
+titulo: Classes de palavras
+nivel: basico
+resumo: Substantivo, adjetivo, verbo, adverbio, pronome, preposicao e conjuncao.
+fonte: Wikipedia, artigos Substantivo, Adjetivo, Verbo, Advérbio, Pronome, consultados em
+  2026-08-14
+plano:
+  objetivo: 'Aprender as classes de palavras principais: substantivo, adjetivo, verbo, advérbio
+    e pronome.'
+  pre_requisitos:
+  - Saber ler frases simples
+  duracao_min: 10
+  fixacao:
+  - Identificar a classe de palavras em uma frase
+  - Reconhecer a diferenca entre verbo e substantivo
+  fechamento: Agora voce conhece as principais ferramentas para montar frases na nossa lingua!
+passos:
+- fala: 'Ola! Pense em como voce fala do mundo: voce nomeia as coisas, diz como elas sao e
+    o que elas fazem. Vamos ver como a gramatica divide essas palavras?'
+  quadro:
+    tipo: titulo
+    texto: Classes de Palavras
+- fala: 'Primeiro, vamos olhar para o substantivo. E a palavra que da nome aos seres, como
+    pessoas, animais e coisas. Olha so: ''a mulher'', ''o passaro''.'
+  quadro:
+    tipo: texto
+    texto: 'Substantivo: nomeia os seres (pessoas, animais e coisas).'
+- fala: O substantivo varia em genero, numero e grau. E ele e o nucleo principal de uma frase,
+    como o sujeito.
+  quadro:
+    tipo: topicos
+    texto: Flexoes do Substantivo
+    itens:
+    - Genero (masculino/feminino)
+    - Numero (singular/plural)
+    - Grau (aumentativo/diminutivo)
+- fala: Apagando o quadro. Agora vamos falar do adjetivo. E a palavra que da um atributo ou
+    qualidade ao substantivo.
+  quadro:
+    tipo: limpar
+- fala: Por exemplo, quando dizemos 'a mulher e bonita' ou 'a mae e inteligente', as palavras
+    bonita e inteligente sao adjetivos.
+  quadro:
+    tipo: texto
+    texto: 'Adjetivo: indica um atributo ou qualifica o substantivo.'
+- fala: Apagando o quadro. O proximo e o verbo. O verbo indica acao, estado, mudanca de estado
+    ou fenomeno da natureza.
+  quadro:
+    tipo: limpar
+- fala: 'O verbo muda de acordo com o tempo. Olha os exemplos: ele plantou milho, a professora
+    esta satisfeita, amanha chovera.'
+  quadro:
+    tipo: topicos
+    texto: Significados do Verbo
+    itens:
+    - 'Acao (ex: plantar)'
+    - 'Estado (ex: estar)'
+    - 'Mudanca de estado (ex: virar)'
+    - 'Fenomeno natural (ex: chover)'
+- fala: Apagando o quadro. Vamos ver o adverbio. Ele expressa uma circunstancia, como lugar,
+    tempo, modo ou intensidade.
+  quadro:
+    tipo: limpar
+- fala: O adverbio modifica o sentido de um verbo, de um adjetivo ou de outro adverbio.
+  quadro:
+    tipo: texto
+    texto: 'Adverbio: expressa circunstancias (lugar, tempo, modo, intensidade).'
+- fala: Apagando o quadro. Por fim, vamos falar do pronome. Ele e a palavra que pode substituir,
+    modificar ou retomar um substantivo.
+  quadro:
+    tipo: limpar
+- fala: Existem varios tipos de pronomes, como os interrogativos e os indefinidos. O contexto
+    nos ajuda a saber a quem o pronome se refere.
+  quadro:
+    tipo: texto
+    texto: 'Pronome: substitui, modifica ou retoma substantivos.'
+- fala: 'Para terminar, me diga: na frase ''O passaro lindo cantou'', qual palavra e o substantivo
+    e qual e o adjetivo?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: ''O passaro lindo cantou''. Quem e o substantivo?'

@@ -1,93 +1,99 @@
 materia: ingles
 nome: Inglês
-descricao: >
-  Do verbo to be a conversa de verdade: primeiro dizer quem se e e o que se
-  faz, depois falar do passado e do futuro, e por fim entender nativo falando.
+descricao: 'Do verbo to be a conversa de verdade: primeiro dizer quem se e e o que se faz,
+  depois falar do passado e do futuro, e por fim entender nativo falando.
 
+  '
 niveis:
   basico:
     descricao: Sobreviver numa conversa simples e ler frase curta.
     topicos:
-      - id: en.to-be
-        titulo: O verbo TO BE
-        conteudo: Am, is, are; contracoes; negativa e pergunta; respostas curtas.
-        aula: ingles.verbo-to-be.basico
-      - id: en.pronomes-artigos
-        titulo: Pronomes e artigos
-        conteudo: I, you, he, she, it, we, they; a, an, the e quando nao se usa artigo.
-        aula: ingles.pronomes-artigos.basico
-      - id: en.presente-simples
-        titulo: Presente simples
-        conteudo: Rotina e fato; o S da terceira pessoa; do e does na pergunta e na negativa.
-      - id: en.plural-substantivos
-        titulo: Plural e substantivos contáveis
-        conteudo: Plurais regulares e irregulares; much, many, some, any.
-      - id: en.numeros-horas
-        titulo: Números, horas e datas
-        conteudo: Contar, dizer as horas, dias da semana, meses e como se le uma data.
-      - id: en.vocabulario-casa
-        titulo: Vocabulário do dia a dia
-        conteudo: Familia, casa, comida, cores, roupa e partes do corpo.
-      - id: en.presente-continuo
-        titulo: Presente contínuo
-        conteudo: O que esta acontecendo agora; ING; diferenca para o presente simples.
-      - id: en.imperativo-pedidos
-        titulo: Imperativo e pedidos
-        conteudo: Dar instrucao, pedir com can e could, e ser educado em ingles.
-
+    - id: en.to-be
+      titulo: O verbo TO BE
+      conteudo: Am, is, are; contracoes; negativa e pergunta; respostas curtas.
+      aula: ingles.verbo-to-be.basico
+    - id: en.pronomes-artigos
+      titulo: Pronomes e artigos
+      conteudo: I, you, he, she, it, we, they; a, an, the e quando nao se usa artigo.
+      aula: ingles.pronomes-artigos.basico
+    - id: en.presente-simples
+      titulo: Presente simples
+      conteudo: Rotina e fato; o S da terceira pessoa; do e does na pergunta e na negativa.
+      aula: ingles.presente-simples.basico
+    - id: en.plural-substantivos
+      titulo: Plural e substantivos contáveis
+      conteudo: Plurais regulares e irregulares; much, many, some, any.
+      aula: ingles.plural-substantivos.basico
+    - id: en.numeros-horas
+      titulo: Números, horas e datas
+      conteudo: Contar, dizer as horas, dias da semana, meses e como se le uma data.
+      aula: ingles.numeros-horas.basico
+    - id: en.vocabulario-casa
+      titulo: Vocabulário do dia a dia
+      conteudo: Familia, casa, comida, cores, roupa e partes do corpo.
+      aula: ingles.vocabulario-casa.basico
+    - id: en.presente-continuo
+      titulo: Presente contínuo
+      conteudo: O que esta acontecendo agora; ING; diferenca para o presente simples.
+      aula: ingles.presente-continuo.basico
+    - id: en.imperativo-pedidos
+      titulo: Imperativo e pedidos
+      conteudo: Dar instrucao, pedir com can e could, e ser educado em ingles.
+      aula: ingles.imperativo-pedidos.basico
   intermediario:
     descricao: Falar do que ja aconteceu e do que vai acontecer, com naturalidade.
     topicos:
-      - id: en.past-simple
-        titulo: Passado simples
-        conteudo: ED dos regulares, os irregulares mais usados, e o DID que tira o passado do verbo.
-        aula: ingles.past-simple.intermediario
-      - id: en.past-continuo
-        titulo: Passado contínuo
-        conteudo: O que estava acontecendo quando algo interrompeu; was e were com ING.
-      - id: en.futuro
-        titulo: Futuro - will e going to
-        conteudo: Decisao na hora contra plano ja feito; previsao; presente continuo com valor de futuro.
-      - id: en.present-perfect
-        titulo: Present perfect
-        conteudo: O tempo que o portugues nao tem; for e since; already, yet e just.
-      - id: en.comparativos
-        titulo: Comparativos e superlativos
-        conteudo: Er e est, more e most, irregulares como good e bad, as... as.
-      - id: en.modais
-        titulo: Verbos modais
-        conteudo: Can, could, must, should, may, might - obrigacao, conselho e possibilidade.
-      - id: en.phrasal-verbs
-        titulo: Phrasal verbs essenciais
-        conteudo: Get up, look for, give up, turn on; por que o sentido muda com a preposicao.
-      - id: en.conectivos
-        titulo: Conectivos e ordem da frase
-        conteudo: But, because, so, although; a ordem sujeito-verbo-objeto e os adverbios.
-
+    - id: en.past-simple
+      titulo: Passado simples
+      conteudo: ED dos regulares, os irregulares mais usados, e o DID que tira o passado do
+        verbo.
+      aula: ingles.past-simple.intermediario
+    - id: en.past-continuo
+      titulo: Passado contínuo
+      conteudo: O que estava acontecendo quando algo interrompeu; was e were com ING.
+    - id: en.futuro
+      titulo: Futuro - will e going to
+      conteudo: Decisao na hora contra plano ja feito; previsao; presente continuo com valor
+        de futuro.
+    - id: en.present-perfect
+      titulo: Present perfect
+      conteudo: O tempo que o portugues nao tem; for e since; already, yet e just.
+    - id: en.comparativos
+      titulo: Comparativos e superlativos
+      conteudo: Er e est, more e most, irregulares como good e bad, as... as.
+    - id: en.modais
+      titulo: Verbos modais
+      conteudo: Can, could, must, should, may, might - obrigacao, conselho e possibilidade.
+    - id: en.phrasal-verbs
+      titulo: Phrasal verbs essenciais
+      conteudo: Get up, look for, give up, turn on; por que o sentido muda com a preposicao.
+    - id: en.conectivos
+      titulo: Conectivos e ordem da frase
+      conteudo: But, because, so, although; a ordem sujeito-verbo-objeto e os adverbios.
   avancado:
     descricao: Entender nativo, escrever bem e pegar o que esta implicito.
     topicos:
-      - id: en.condicionais
-        titulo: Condicionais
-        conteudo: Zero, primeira, segunda e terceira; o arrependimento do terceiro condicional.
-      - id: en.voz-passiva
-        titulo: Voz passiva
-        conteudo: Quando o importante e o que aconteceu, nao quem fez; todos os tempos.
-      - id: en.reported-speech
-        titulo: Discurso indireto
-        conteudo: Contar o que alguem disse; o recuo dos tempos verbais.
-      - id: en.relative-clauses
-        titulo: Orações relativas
-        conteudo: Who, which, that, whose; relativa que define e relativa que so acrescenta.
-      - id: en.expressoes-idiomaticas
-        titulo: Expressões idiomáticas
-        conteudo: O que nao se traduz palavra por palavra, e como perceber que e idiomatico.
-      - id: en.pronuncia-conectada
-        titulo: Pronúncia e fala conectada
-        conteudo: Por que nativo parece falar rapido - palavras que se colam, sons que somem.
-      - id: en.escrita-formal
-        titulo: Escrita formal e e-mail
-        conteudo: Registro formal e informal, estrutura de e-mail, conectivos de texto escrito.
-      - id: en.leitura-critica
-        titulo: Leitura de texto autêntico
-        conteudo: Estrategia para texto dificil - inferir pelo contexto em vez de traduzir tudo.
+    - id: en.condicionais
+      titulo: Condicionais
+      conteudo: Zero, primeira, segunda e terceira; o arrependimento do terceiro condicional.
+    - id: en.voz-passiva
+      titulo: Voz passiva
+      conteudo: Quando o importante e o que aconteceu, nao quem fez; todos os tempos.
+    - id: en.reported-speech
+      titulo: Discurso indireto
+      conteudo: Contar o que alguem disse; o recuo dos tempos verbais.
+    - id: en.relative-clauses
+      titulo: Orações relativas
+      conteudo: Who, which, that, whose; relativa que define e relativa que so acrescenta.
+    - id: en.expressoes-idiomaticas
+      titulo: Expressões idiomáticas
+      conteudo: O que nao se traduz palavra por palavra, e como perceber que e idiomatico.
+    - id: en.pronuncia-conectada
+      titulo: Pronúncia e fala conectada
+      conteudo: Por que nativo parece falar rapido - palavras que se colam, sons que somem.
+    - id: en.escrita-formal
+      titulo: Escrita formal e e-mail
+      conteudo: Registro formal e informal, estrutura de e-mail, conectivos de texto escrito.
+    - id: en.leitura-critica
+      titulo: Leitura de texto autêntico
+      conteudo: Estrategia para texto dificil - inferir pelo contexto em vez de traduzir tudo.

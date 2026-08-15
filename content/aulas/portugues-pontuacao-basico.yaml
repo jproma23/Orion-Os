@@ -1,0 +1,57 @@
+id: portugues.pontuacao.basico
+materia: portugues
+titulo: Pontuação
+nivel: basico
+resumo: A virgula que muda o sentido, ponto e virgula, dois-pontos e travessao.
+fonte: Wikipedia, artigos Pontuação, Ponto e vírgula, consultados em 2026-08-14
+plano:
+  objetivo: Aprender o uso da virgula que muda o sentido, ponto e virgula, dois-pontos e travessao.
+  pre_requisitos:
+  - Conceito basico de frases e oracoes
+  duracao_min: 10
+  fixacao:
+  - Como o ponto e virgula age em uma lista?
+  - O que acontece com a letra apos o ponto e virgula?
+  fechamento: Voce viu que a pontuacao da a melodia da fala para a escrita e organiza nossas
+    ideias.
+passos:
+- fala: Fala, pessoal! Ja viram como uma frase muda totalmente se a gente muda a virgula de
+    lugar? Pensem na frase 'nao, espere' e 'nao espere'. O sentido muda de salvar para abandonar.
+  quadro:
+    tipo: titulo
+    texto: A Pontuacao e o Sentido
+- fala: 'Na escrita, a pontuacao serve exatamente para isso: mostrar as pausas e a entonacao
+    que a gente faz quando esta falando.'
+  quadro:
+    tipo: texto
+    texto: Assinala pausas e entonacoes da fala na escrita.
+- fala: Agora vamos falar de um sinal medio, que nao e ponto final nem virgula simples. E
+    o ponto e virgula.
+  quadro:
+    tipo: titulo
+    texto: O Ponto e Virgula (;)
+- fala: O ponto e virgula serve para separar oracoes que sao independentes, mas que conversam
+    entre si, sem usar conjuncao.
+  quadro:
+    tipo: texto
+    texto: 'Uso 1: Separar clausulas independentes sem conjuncao.'
+- fala: 'Tem outro uso muito util dele: organizar listas longas.'
+  quadro:
+    tipo: topicos
+    texto: 'Uso 2: Separar itens em listas'
+    itens:
+    - Especialmente quando os itens ja tem virgulas
+    - Ajuda a nao misturar as ideias
+- fala: 'Fiquem atentos a esta regra de ouro: o ponto e virgula nunca encerra uma frase.'
+  quadro:
+    tipo: texto
+    texto: O ponto e virgula NUNCA encerra uma frase.
+- fala: Por causa disso, depois dele a gente escreve com letra minuscula.
+  quadro:
+    tipo: texto
+    texto: 'Depois dele: SEMPRE letra minuscula (exceto nomes proprios).'
+- fala: 'Para fechar, pensem comigo: se voce tem uma lista de mercado onde cada fruta tem
+    uma descricao com virgula, qual sinal voce usaria para separar uma fruta da outra?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fecho: Qual o sinal ideal para listas complexas?'

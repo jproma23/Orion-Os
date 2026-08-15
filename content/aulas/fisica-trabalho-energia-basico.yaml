@@ -1,0 +1,55 @@
+id: fisica.trabalho-energia.basico
+materia: fisica
+titulo: Trabalho e energia
+nivel: basico
+resumo: Energia cinetica e potencial, conservacao de energia, potencia e rendimento.
+fonte: Wikipedia, artigos Cinética, Lei da conservação da energia, consultados em 2026-08-09
+plano:
+  objetivo: Compreender a conservacao de energia com base no material fornecido.
+  pre_requisitos:
+  - Fisica basica
+  duracao_min: 10
+  fixacao:
+  - O que diz a lei da conservacao de energia?
+  - A energia pode ser criada ou destruida?
+  fechamento: Vimos que a energia total em um sistema isolado permanece constante e so se
+    transforma.
+passos:
+- fala: Fala, pessoal! Ja viram que, quando a gente joga um objeto para cima ou empurra algo,
+    parece que a energia passa de um lado para o outro?
+  quadro:
+    tipo: titulo
+    texto: Trabalho e Energia
+- fala: Vamos comecar falando sobre cinetica. Na fisica, ela esta ligada ao movimento e ao
+    trabalho feito sobre um objeto.
+  quadro:
+    tipo: texto
+    texto: 'Cinetica (fisica): estudo das forcas associadas ao movimento.'
+- fala: Mais especificamente, a energia cinetica e a quantidade de trabalho que teve que ser
+    realizado sobre um objeto.
+  quadro:
+    tipo: texto
+    texto: Energia cinetica = Trabalho realizado sobre o objeto.
+- fala: 'Agora vamos para outro ponto muito importante: a conservacao de energia.'
+  quadro:
+    tipo: titulo
+    texto: Conservacao de Energia
+- fala: Em fisica, a lei da conservacao de energia diz que a quantidade total de energia em
+    um sistema isolado permanece sempre constante.
+  quadro:
+    tipo: texto
+    texto: 'Sistema isolado: energia total constante.'
+- fala: De um jeito bem informal, a gente pode dizer que a energia nao pode ser criada e nem
+    destruida.
+  quadro:
+    tipo: texto
+    texto: A energia nao pode ser criada nem destruida.
+- fala: O que acontece entao? A energia pode apenas transformar-se de um tipo para outro.
+  quadro:
+    tipo: texto
+    texto: A energia transforma-se de um tipo a outro.
+- fala: 'Vamos pensar sobre isso: se a energia naoSome e nem e criada, para onde vai a energia
+    de um sistema isolado?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: o que acontece com a energia em sistema isolado?'

@@ -1,0 +1,73 @@
+id: quimica.funcoes-inorganicas.basico
+materia: quimica
+titulo: Funções inorgânicas
+nivel: basico
+resumo: Acido, base, sal e oxido; nomenclatura e o que cada um faz.
+fonte: Wikipedia, artigos Ácido, Base (química), consultados em 2026-08-14
+plano:
+  objetivo: Aprender o que sao acidos e bases, suas caracteristicas e diferencas.
+  pre_requisitos:
+  - Conceito basico de solucoes e ions
+  duracao_min: 10
+  fixacao:
+  - O que o acido faz com os ions H+?
+  - Qual e a diferenca entre hidracido e oxiacido?
+  fechamento: Acidos e bases sao fundamentais na quimica, atuando de formas opostas e estando
+    presentes no nosso dia a dia, desde produtos de limpeza ate medicamentos.
+passos:
+- fala: Fala, pessoal! Voce ja comeu aquela fruta bem acida que amarra a boca? Ou ja usou
+    leite de magnesias para azia? Hoje vamos ver como a quimica divide essas substancias nas
+    chamadas funcoes inorganicas.
+  quadro:
+    tipo: titulo
+    texto: Funções Inorgânicas
+- fala: Vamos comecar pelos acidos. Na quimica, um acido e um composto capaz de transferir
+    ions H+ numa reacao quimica. Eles diminuem o pH de uma solucao aquosa.
+  quadro:
+    tipo: texto
+    texto: 'Ácido: libera ou transfere íons H+'
+- fala: 'Os acidos sao divididos em dois tipos principais. Anota ai: existem os hidracidos
+    e os oxiacidos.'
+  quadro:
+    tipo: topicos
+    texto: Tipos de Ácidos
+    itens:
+    - Hidrácidos
+    - Oxiácidos (possuem oxigênio)
+- fala: 'Agora vamos para o oposto dos acidos: as bases, tambem chamadas de alcalis.'
+  quadro:
+    tipo: titulo
+    texto: Bases (Álcalis)
+- fala: Segundo a quimica classica, uma base e qualquer substancia que libera unica e exclusivamente
+    o anion OH- em solucao aquosa. Sao os ions hidroxila ou oxidrila.
+  quadro:
+    tipo: texto
+    texto: 'Base: libera o ânion OH- (hidroxila)'
+- fala: As solucoes basicas possuem pH acima de 7 a 25 graus Celsius e conduzem corrente eletrica,
+    assim como os acidos.
+  quadro:
+    tipo: formula
+    texto: pH > 7 (a 25 °C)
+- fala: Sabe aquela sensação que amarra a boca? É o sabor adstringente das bases. Popularmente
+    chamamos de cica, que diminui a salivação.
+  quadro:
+    tipo: texto
+    texto: Sabor adstringente ('amarra' a boca)
+- fala: Onde usamos as bases? Elas estao em produtos de limpeza e em medicamentos, como os
+    antiacidos.
+  quadro:
+    tipo: topicos
+    texto: Aplicações das Bases
+    itens:
+    - Produtos de limpeza
+    - Medicamentos (antiácidos)
+- fala: Um exemplo classico e o hidroxido de magnesio, conhecido como leite de magnesia. Ele
+    e uma base fraca que nao traz danos ao nosso corpo.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo: Hidróxido de magnésio (Leite de magnésia)'
+- fala: 'Para fechar, me responda: se uma substancia libera ions OH- em solucao aquosa e tem
+    pH acima de 7, estamos falando de um acido ou de uma base?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Ácido ou Base?'

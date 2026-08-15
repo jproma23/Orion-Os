@@ -1,0 +1,58 @@
+id: geografia.vegetacao-solos.basico
+materia: geografia
+titulo: Vegetação e solos
+nivel: basico
+resumo: Dominios morfoclimaticos brasileiros, tipos de solo e erosao.
+fonte: Wikipedia, artigos Domínio morfoclimático e fitogeográfico, consultados em 2026-08-14
+plano:
+  objetivo: Dominios morfoclimaticos brasileiros, tipos de solo e erosao.
+  pre_requisitos:
+  - Geografia basica do Brasil
+  - Clima e relevo
+  duracao_min: 10
+  fixacao:
+  - O que e um dominio morfoclimatico?
+  - Quem criou essa classificacao?
+  fechamento: Pense em como o clima e o relevo da sua regiao formam a paisagem ao seu redor.
+passos:
+- fala: Imagina que voce viaja pelo Brasil e percebe que o clima, o relevo e as plantas mudam
+    juntos, formando grandes paisagens unicas. Vamos estudar como os cientistas organizam
+    isso.
+  quadro:
+    tipo: titulo
+    texto: Vegetacao e Solos
+- fala: Para comecar, vamos entender o que significa essa grande unidade de paisagem que mistura
+    o relevo, o clima e as plantas.
+  quadro:
+    tipo: texto
+    texto: Dominio morfoclimatico e fitogeografico
+- fala: Esse termo tambem pode ser chamado de forma abreviada de dominio paisagistico.
+  quadro:
+    tipo: texto
+    texto: 'Tambem chamado de: Dominio paisagistico'
+- fala: Mas o que define exatamente essa divisao? Sao tres criterios principais.
+  quadro:
+    tipo: topicos
+    texto: 'Criterios de classificacao:'
+    itens:
+    - Criterios geomorfologicos (relevo)
+    - Criterios climaticos (clima)
+    - Criterios botanicos (plantas)
+- fala: Essa ideia nao surgiu do nada. Ela foi desenvolvida por um geografo muito importante.
+  quadro:
+    tipo: texto
+    texto: 'Criador: Geografo Aziz Ab''Saber'
+- fala: Anote ai o periodo em que ele desenvolveu esse trabalho ao longo de seus estudos.
+  quadro:
+    tipo: texto
+    texto: 'Epoca dos estudos: Anos 1960 e 1970'
+- fala: Depois dele, esse mesmo esquema de regionalizacao passou a ser empregado por varios
+    outros autores.
+  quadro:
+    tipo: texto
+    texto: Empregado tambem por outros autores
+- fala: 'Agora me responda: quais sao os tres criterios que o geografo Aziz Ab''Saber usou
+    para definir os dominios morfoclimaticos nos anos 1960 e 1970?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixacao

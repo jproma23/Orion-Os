@@ -1,0 +1,79 @@
+id: biologia.reinos.basico
+materia: biologia
+titulo: Classificação dos seres vivos
+nivel: basico
+resumo: Os grandes grupos, nomenclatura cientifica e criterios de classificacao.
+fonte: Wikipedia, artigos Reino (biologia), consultados em 2026-08-14
+plano:
+  objetivo: Os grandes grupos, nomenclatura cientifica e criterios de classificacao.
+  pre_requisitos:
+  - Diversidade dos seres vivos
+  duracao_min: 10
+  fixacao:
+  - O que e um reino na biologia?
+  - Quais eram os dois primeiros reinos criados por Lineu?
+  fechamento: Hoje vimos como a biologia organiza a vida em grandes grupos, gracas ao sistema
+    criado por Lineu no seculo XVIII.
+passos:
+- fala: Fala, pessoal! Imagina organizar todas as coisas vivas do planeta numa gigantesca
+    biblioteca. Como voce faria para nao se perder? E sobre isso que vamos falar hoje.
+  quadro:
+    tipo: titulo
+    texto: Classificacao dos Seres Vivos
+- fala: Para comecar a organizar essa bagunca, a biologia usa uma categoria chamada Reino.
+    E a categoria superior de classificacao dos organismos.
+  quadro:
+    tipo: texto
+    texto: 'Reino: a categoria superior da classificacao cientifica.'
+- fala: Quem inventou essa ideia foi um cara chamado Carlos Lineu, la no seculo dezoito, mais
+    exatamente em 1735.
+  quadro:
+    tipo: texto
+    texto: Criado por Carlos Lineu no seculo XVIII (1735).
+- fala: Quando Lineu criou o sistema, ele dividiu o mundo natural em apenas dois grandes reinos.
+    Vamos ver quais eram.
+  quadro:
+    tipo: limpar
+- fala: O primeiro reino era o Animalia, que reunia os animais, caracterizados por terem movimento
+    proprio.
+  quadro:
+    tipo: texto
+    texto: '1. Animalia: os animais (movimento proprio).'
+- fala: O segundo reino era o Plantae, reunindo as plantas, que se movimentam por um processo
+    chamado fototropismo.
+  quadro:
+    tipo: texto
+    texto: '2. Plantae: as plantas (fototropismo).'
+- fala: Alem de criar o reino, Lineu organizou a biologia em uma hierarquia. Depois do reino,
+    vinham outras quatro categorias principais.
+  quadro:
+    tipo: topicos
+    texto: Categorias principais de Lineu
+    itens:
+    - Reino
+    - Classe
+    - Ordem
+    - Genero
+    - Especie
+- fala: Com o passar do tempo, os cientistas descobriram novos seres, como os microrganismos
+    unicelulares, e tiveram que adapta-los dentro desses reinos.
+  quadro:
+    tipo: texto
+    texto: Organismos unicelulares foram divididos entre os reinos animal e vegetal.
+- fala: Para terminar, os reinos tambem sao divididos em outras partes. Nos animais, chamamos
+    de filos. Nas plantas, chamamos de divisoes.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Grupo
+    - Subdivisao
+    linhas:
+    - - Animais
+      - Filos
+    - - Plantas
+      - Divisoes
+- fala: 'Para pensar e usar o que aprendeu: se voce encontrasse um ser vivo totalmente novo
+    hoje, como decidiria se ele pertence ao reino Animalia ou Plantae?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Animal ou Planta?'

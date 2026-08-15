@@ -1,0 +1,64 @@
+id: tecnologia.eletronica-basica.basico
+materia: tecnologia
+titulo: Eletrônica básica
+nivel: basico
+resumo: Tensao, corrente, resistor, LED e protoboard; ler um esquema simples.
+fonte: Wikipedia, artigos Corrente, Resistor, consultados em 2026-08-14
+plano:
+  objetivo: Tensao, corrente, resistor, LED e protoboard; ler um esquema simples.
+  pre_requisitos:
+  - Noções básicas de energia
+  duracao_min: 10
+  fixacao:
+  - O que o resistor faz no circuito?
+  - O que e a corrente eletrica?
+  fechamento: Hoje vimos os conceitos fundamentais da eletronica basica, como a corrente e
+    o papel do resistor.
+passos:
+- fala: Fala, pessoal! Pensem na agua correndo por uma mangueira. Na eletronica, a eletricidade
+    tambem se movimenta pelos fios.
+  quadro:
+    tipo: titulo
+    texto: Eletrônica Básica
+- fala: 'A corrente eletrica e exatamente isso: o fluxo ordenado de eletrons passando por
+    um condutor.'
+  quadro:
+    tipo: texto
+    texto: 'Corrente elétrica: fluxo ordenado de elétrons em um condutor'
+- fala: Mas as vezes precisamos controlar essa passagem de eletricidade. E ai que entra o
+    resistor.
+  quadro:
+    tipo: texto
+    texto: Resistor (ou resistência)
+- fala: O resistor e um dispositivo que transforma energia eletrica em energia termica pelo
+    efeito joule.
+  quadro:
+    tipo: texto
+    texto: 'Efeito Joule: transforma energia elétrica em térmica'
+- fala: A principal funcao dele no circuito e limitar a corrente eletrica, oferecendo oposicao
+    a passagem dela.
+  quadro:
+    tipo: texto
+    texto: 'Finalidade: limitar a corrente elétrica'
+- fala: A essa oposição nos damos o nome de resistencia eletrica ou impedancia.
+  quadro:
+    tipo: texto
+    texto: Resistência elétrica / Impedância
+- fala: A unidade de medida dessa resistencia e o ohm.
+  quadro:
+    tipo: texto
+    texto: 'Unidade: ohm'
+- fala: 'Fiquem atentos: o resistor causa uma queda de tensao no circuito, mas ele nao causa
+    queda de corrente, apenas a limita.'
+  quadro:
+    tipo: topicos
+    texto: Efeitos do Resistor
+    itens:
+    - Causa queda de tensão
+    - Limita a corrente
+    - Não causa queda de corrente
+- fala: 'Para terminar, merespondam: se o resistor limita a passagem de eletricidade num circuito,
+    o que acontece com essa energia que ele segura?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixação

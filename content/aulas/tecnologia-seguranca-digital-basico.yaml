@@ -1,0 +1,76 @@
+id: tecnologia.seguranca-digital.basico
+materia: tecnologia
+titulo: Segurança digital
+nivel: basico
+resumo: Senha, dois fatores, golpe, phishing e o que nunca se manda por mensagem.
+fonte: Wikipedia, artigos Segurança digital, Senha, Golpe, consultados em 2026-08-14
+plano:
+  objetivo: Aprender sobre senha, dois fatores, golpe, phishing e o que nunca se manda por
+    mensagem.
+  pre_requisitos:
+  - Uso basico de celular ou computador
+  duracao_min: 10
+  fixacao:
+  - Por que nunca devemos mandar senhas por mensagem?
+  - O que e autenticacao de dois fatores?
+  fechamento: Proteger seus dados e sua identidade digital e essencial no dia a dia.
+passos:
+- fala: Fala, pessoal! Ja pararam para pensar no que acontece se alguem invadir o seu Instagram
+    ou seu banco?
+  quadro:
+    tipo: titulo
+    texto: Seguranca Digital
+- fala: A seguranca digital serve para proteger seus dados e garantir que ninguem roube sua
+    identidade ou suas informacoes.
+  quadro:
+    tipo: texto
+    texto: Protecao de documentos e dados pessoais
+- fala: O primeiro escudo que a gente usa e a senha. E aquela palavra secreta que so voce
+    conhece para provar quem e.
+  quadro:
+    tipo: titulo
+    texto: 1. Senha
+- fala: As senhas sao usadas nos computadores desde os anos 60, la no MIT, mas a ideia e muito
+    antiga e ja era usada ate na Roma Antiga.
+  quadro:
+    tipo: texto
+    texto: Palavra ou codigo secreto para autenticar usuarios
+- fala: Mas so a senha as vezes nao basta. Entra em cena a autenticacao de dois fatores, que
+    pede um segundo codigo, geralmente mandado por SMS ou aplicativo.
+  quadro:
+    tipo: titulo
+    texto: 2. Autenticacao de Dois Fatores
+- fala: 'Isso cria uma dupla checagem: mesmo se descobrirem sua senha, falta o segundo codigo
+    para entrarem na sua conta.'
+  quadro:
+    tipo: texto
+    texto: Senha + Codigo extra (SMS/App)
+- fala: Agora vamos falar de golpes. Na internet, criminosos tentam enganar voce para roubar
+    seus dados de varias formas.
+  quadro:
+    tipo: titulo
+    texto: 3. Golpes na Internet
+- fala: Um tipo muito comum e o phishing, que e quando se passam por uma empresa famosa para
+    voce clicar em links falsos e entregar sua senha.
+  quadro:
+    tipo: texto
+    texto: 'Phishing: Mensagem falsa fingindo ser empresa'
+- fala: 'Por isso, preste muita atencao: existem coisas que voce NUNCA deve mandar por mensagem
+    para ninguem.'
+  quadro:
+    tipo: titulo
+    texto: O que nunca mandar por mensagem
+- fala: Nunca envie sua senha, codigos de confirmacao do banco ou fotos de documentos pessoais
+    em chats.
+  quadro:
+    tipo: topicos
+    texto: Regras de ouro
+    itens:
+    - Senhas
+    - Codigos de dois fatores
+    - Fotos de documentos
+- fala: 'Para fechar: se voce recebe um link estranho de um banco dizendo que sua conta foi
+    bloqueada, qual e o nome desse tipo de golpe que tenta roubar seus dados?'
+  quadro:
+    tipo: texto
+    texto: Pergunta de fixacao

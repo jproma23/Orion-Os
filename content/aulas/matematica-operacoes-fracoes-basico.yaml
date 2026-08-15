@@ -1,0 +1,40 @@
+id: matematica.operacoes-fracoes.basico
+materia: matematica
+titulo: Frações e operações
+nivel: basico
+resumo: 'Somar, subtrair, multiplicar e dividir fracoes; simplificacao, fracao como divisao
+  e como parte do todo.
+
+  '
+fonte: Wikipedia, artigos Fração, consultados em 2026-08-14
+plano:
+  objetivo: Somar, subtrair, multiplicar e dividir fracoes; simplificacao, fracao como divisao
+    e como parte do todo.
+  pre_requisitos:
+  - Numeros inteiros
+  - Divisao
+  duracao_min: 10
+  fixacao:
+  - Entender fracao como parte de algo que foi quebrado
+  - Saber o significado dos termos da razao
+  fechamento: Se voce tem uma pizza dividida em partes iguais e come algumas, qual fracao
+    representa o que voce comeu?
+passos:
+- fala: Imagina que voce tem uma barra de chocolate e divide ela em pedacos iguais. Cada pedaco
+    desses e uma parte de algo que foi quebrado.
+  quadro:
+    tipo: titulo
+    texto: O que e uma Fracao?
+- fala: A palavra fracao vem do latim fractus, que significa partido, dividido ou quebrado.
+  quadro:
+    tipo: texto
+    texto: 'Do latim fractus: partido ou quebrado'
+- fala: Na matematica, a fracao e um modo de expressar uma quantidade usando uma razao de
+    dois numeros inteiros.
+  quadro:
+    tipo: formula
+    texto: a / b
+- fala: O material nos lembra que a palavra vem do verbo frangere, que significa quebrar.
+  quadro:
+    tipo: texto
+    texto: Verbo frangere = quebrar
