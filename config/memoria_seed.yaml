@@ -166,6 +166,12 @@ conhecimentos:
       O aniversario do dono e dia 03/10 (3 de outubro).
     fonte: dono (chat 2026-08-15)
     confianca: 0.9
+  - tipo: conceito
+    titulo: Onde moramos
+    corpo: >-
+      A familia mora em Barreiras, Bahia, Brasil.
+    fonte: dono (chat 2026-08-15)
+    confianca: 0.9
 procedimentos:
   - nome: Ativar o modo aula
     passos: >-
