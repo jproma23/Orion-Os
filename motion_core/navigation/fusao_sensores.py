@@ -166,6 +166,11 @@ class FusaoSensores:
         # so publica na borda de subida/descida (Cap 18 s.9)
         self._safe_mode_ativo = False
 
+        # None = ainda nao chegou telemetria nenhuma. Guarda o ultimo
+        # `imu_conectado` visto para logar so na BORDA (conectou/desconectou),
+        # nao a cada telemetria - mesmo motivo do `_safe_mode_ativo` acima.
+        self._imu_conectada_anterior: bool | None = None
+
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_receber_telemetria)
 
     @property
@@ -440,7 +445,24 @@ class FusaoSensores:
     # ---------- seguranca da IMU (Cap 12 s.8 paragrafo 2; Cap 18) ----------
 
     async def _checar_seguranca_imu(self, payload: dict[str, Any]) -> None:
-        if not payload.get("imu_conectado", False):
+        imu_conectada = bool(payload.get("imu_conectado", False))
+        if imu_conectada != self._imu_conectada_anterior:
+            # Antes disto o desconectar da IMU nao deixava rastro nenhum no
+            # log: o `return` abaixo saia calado, e "MPU6050 nao conectada"
+            # so dava pra descobrir olhando a telemetria bruta ou perguntando
+            # ao dono por que a seguranca de inclinacao/impacto parou de
+            # funcionar. A borda (True->False e False->True) e logada aqui,
+            # nao a cada telemetria (chega a cada 500ms) - mesmo motivo do
+            # `_safe_mode_ativo`.
+            if imu_conectada:
+                logger.info("IMU (MPU6050) conectada - seguranca de inclinacao/impacto ativa")
+            else:
+                logger.warning(
+                    "IMU (MPU6050) desconectada - sem deteccao de inclinacao/impacto ate reconectar"
+                )
+            self._imu_conectada_anterior = imu_conectada
+
+        if not imu_conectada:
             return  # sem IMU conectada nesta leitura - nada a avaliar
 
         inclinacao_graus = payload.get("inclinacao_graus")
