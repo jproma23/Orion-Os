@@ -112,6 +112,10 @@ class VoiceCore:
         )
         self._estado = EstadoVoz.IDLE
         self._executando = False
+        #: True enquanto a fonte de audio esta falhando. Guarda a BORDA para
+        #: o log nao repetir a mesma linha a cada ciclo - ver
+        #: `_publicar_erro_audio`.
+        self._audio_em_falha = False
 
     @property
     def estado(self) -> EstadoVoz:
@@ -122,10 +126,29 @@ class VoiceCore:
         await self._event_bus.publish("voice.status", {"estado": novo_estado.value})
 
     async def _publicar_erro_audio(self, erro: ErroAudio) -> None:
+        # Loga na BORDA (ficou surdo / voltou a ouvir), nao a cada ciclo: o
+        # ciclo repete a cada ~7s e em 2026-08-14 a surdez durou 3h35, o que
+        # seriam ~1800 linhas iguais num log que ainda nao tem rotacao. Mesmo
+        # padrao do `_safe_mode_ativo` e do aviso da IMU no Motion Core.
+        #
+        # Existe porque naquele dia o `journalctl` do avatar nao tinha UMA
+        # linha sobre a surdez - o unico sinal era um evento que nem
+        # atravessava o link. Quem for depurar isto de novo olha o log
+        # primeiro; ele tem que contar.
+        if not self._audio_em_falha:
+            self._audio_em_falha = True
+            logger.warning("audio de entrada FALHOU - o robo esta surdo: %s", erro)
         await self._definir_estado(EstadoVoz.ERROR)
         await self._event_bus.publish(
             "voice.audio_error", {"motivo": str(erro)}, prioridade=Prioridade.ALTA
         )
+
+    def _marcar_audio_ok(self) -> None:
+        """Fecha a borda aberta por `_publicar_erro_audio`. Chamado quando uma
+        janela de escuta chega inteira - a unica prova de que a fonte voltou."""
+        if self._audio_em_falha:
+            self._audio_em_falha = False
+            logger.info("audio de entrada voltou - o robo esta ouvindo de novo")
 
     async def falar(self, texto: str) -> None:
         """Fala um texto que NAO veio do ciclo de voz - hoje, a resposta do
@@ -200,6 +223,7 @@ class VoiceCore:
         except ErroAudio as erro:
             await self._publicar_erro_audio(erro)
             return False
+        self._marcar_audio_ok()
 
         if self._detector_atividade is not None and not self._detector_atividade.tem_som(
             audio_janela
