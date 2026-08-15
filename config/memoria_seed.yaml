@@ -1,0 +1,201 @@
+# Seed da memoria cognitiva ("Eu ja sei?") - fatos verificados de orion.yaml
+# e dos relatorios de sessao. Nada inventado: o que nao esta verificado nao
+# entra. Alimentado por tools/alimentar_memoria.py.
+
+conhecimentos:
+  - tipo: conceito
+    titulo: ORION
+    corpo: >-
+      O ORION, apelido Fofao, e um robo assistente domestico em tres camadas:
+      Mission Core (Notebook: visao, IA, voz e conversa), Motion Core
+      (Raspberry Pi 4: movimento, banco e web) e Hardware Core (Arduino Mega:
+      tempo real). O audio roda num ESP32. A configuracao unica vive em
+      orion.yaml.
+    fonte: ARQUITETURA.txt e orion.yaml
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Memoria cognitiva
+    corpo: >-
+      A memoria cognitiva e o "Eu ja sei?" do robo: ele responde do proprio
+      acervo antes de chamar a IA. Tem cinco categorias: conhecimentos,
+      experiencias, procedimentos, dispositivos e relacoes. O FTS5 procura;
+      a cobertura decide se vale responder.
+    fonte: journal 2026-08-09
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Banco de dados
+    corpo: >-
+      O banco principal fica no Raspberry em /mnt/ssd/orion/orion.db, com
+      backup diario as 3h e replica cruzada para o Notebook.
+    fonte: orion.yaml (database)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Grounding
+    corpo: >-
+      O modelo de IA recebe os fatos prontos em vez de deduzir. Sem contexto
+      o modelo pequeno inventa; com contexto os quatro modelos testados
+      acertaram. Com os fatos entregues, o modelo pequeno basta.
+    fonte: orion.yaml (ai) e journal 2026-07-19
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Aula
+    corpo: >-
+      O robo da aulas lendo um YAML, sem chamar modelo na hora. Cada aula e
+      uma chamada de IA na autoria, validada e publicada. O professor fala um
+      passo de cada vez e espera 4 segundos para ouvir.
+    fonte: tools/redigir_aula.py e journal 2026-08-07
+    confianca: 0.9
+  - tipo: conceito
+    titulo: O defeito que nao quebra
+    corpo: >-
+      A familia de defeito mais cara do projeto: o bug que nao levanta
+      excecao, nao derruba teste e parece funcionar. Status e afirmacao sobre
+      evidencia: log datado, teste nomeado, numero medido.
+    fonte: journal 2026-08-04
+    confianca: 0.9
+  - tipo: conceito
+    titulo: BME280
+    corpo: >-
+      Sensor de temperatura, pressao e umidade, com comunicacao I2C. Usado
+      para medir o ambiente.
+    fonte: tests/unit/test_saber_memoria.py e orion.yaml
+    confianca: 0.9
+  - tipo: conceito
+    titulo: MPU6050
+    corpo: >-
+      Unidade de medicao inercial (IMU) do robo: mede inclinacao e impacto.
+      A seguranca de inclinacao/impacto so funciona enquanto ela esta
+      conectada; quando desconecta, o log avisa na borda.
+    fonte: orion.yaml (fusao_sensores) e commit 637ab18
+    confianca: 0.9
+  - tipo: conceito
+    titulo: ESP32
+    corpo: >-
+      Microcontrolador do audio: capta os microfones e o wake word "Fofao" e
+      transmite por socket TCP (16 kHz) para o Notebook. O transporte e
+      correto; o ruido de captacao (SNR do mic) e o portao aberto do hardware.
+    fonte: orion.yaml (voice) e ROADMAP portao 1
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Servos pan e tilt
+    corpo: >-
+      Os servos da cabeca do robo: pan de -80 a 80 graus e tilt de -30 a 45,
+      ate 60 graus por segundo. A cabeca volta ao centro sozinha apos 3
+      minutos de ociosidade; em modo manual, o dono controla.
+    fonte: orion.yaml (vision) e journal 2026-08-04
+    confianca: 0.9
+  - tipo: conceito
+    titulo: TCRT5000
+    corpo: >-
+      Encoder de roda (sensor de reflexao): conta pulsos nos GPIO 15 e 16 do
+      Arduino para medir rotacao. O firmware ja conta pulso; o sensor ainda
+      nao esta montado na roda.
+    fonte: journal 2026-08-04 e orion.yaml (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Modo sentinela
+    corpo: >-
+      Vigilia do robo: ao receber um alerta (barulho estranho ou rosto
+      desconhecido), o maestro assume o controle por 8 segundos, orienta-se
+      para a origem, pede foto e notifica antes de liberar.
+    fonte: orion.yaml (behavior.vigilia)
+    confianca: 0.9
+
+procedimentos:
+  - nome: Ativar o modo aula
+    passos: >-
+      Diga "ativar modo aula". O robo apresenta o cardapio das materias e
+      pergunta por onde comecar. Sua proxima resposta vale como escolha,
+      mesmo sem a palavra "aula". A escuta dura um turno.
+  - nome: Desligar as duas maquinas
+    passos: >-
+      Abra o dashboard. No fim da pagina ha o botao de desligar, sozinho e
+      apagado. Confirme em dois cliques; a confirmacao expira em 5 segundos.
+  - nome: Configurar WiFi novo
+    passos: >-
+      Sem rede conhecida o robo vira ponto de acesso "Fofao-Setup". Conecte o
+      celular nele e abra http://10.42.0.1:8080/configuracao para cadastrar a
+      rede nova.
+  - nome: Mandar um recado
+    passos: >-
+      Peça para avisar alguem. O robo guarda o recado e entrega quando a
+      pessoa for cumprimentada. So entrega para a pessoa certa; apelidos da
+      Marah sao aceitos (Mara, Marisane).
+  - nome: Acessar o robo por SSH
+    passos: >-
+      Do Windows: ssh -i ~/.ssh/orion_pi_ed25519 jproma23@10.20.20.196 para o
+      Raspberry, ou jproma23@10.20.20.195 para o Notebook.
+  - nome: Conferir a IMU
+    passos: >-
+      No Raspberry, rode tools/testar_imu.py. O log avisa na borda quando a
+      MPU6050 conecta ou desconecta; enquanto desconectada, nao ha deteccao de
+      inclinacao/impacto.
+
+dispositivos:
+  - nome: Raspberry Pi 4
+    tipo: motion_core
+    localizacao: enlace WiFi 10.20.20.196
+    acesso: >-
+      SSH jproma23@10.20.20.196; SSD 500 GB em /mnt/ssd/orion; roda movimento,
+      banco e web
+
+  - nome: Notebook (Mission Core)
+    tipo: mission_core
+    localizacao: enlace WiFi 10.20.20.195
+    acesso: >-
+      SSH jproma23@10.20.20.195; roda avatar, voz e conversa; i3-10110U, 8 GB
+  - nome: Arduino Mega
+    tipo: hardware_core
+    localizacao: serial com o Raspberry
+    acesso: >-
+      Tempo real: TB6600 + motores de passo e servos; protocolo SX, 115200 baud
+  - nome: ESP32
+    tipo: audio
+    localizacao: enlace TCP por mDNS
+    acesso: >-
+      Microfones, wake word "Fofao"; socket TCP, 16 kHz; transmite 768000
+      bytes em 12 s
+  - nome: Webcam USB frontal
+    tipo: vision
+    localizacao: pan/tilt da cabeca
+    acesso: indice 2 (/dev/videoN); YOLOv8n; 640x480 a 15 fps
+  - nome: Camera do notebook
+    tipo: luminosidade
+    localizacao: integrada ao notebook
+    acesso: indice 0; estimativa de brilho
+  - nome: BME280
+    tipo: sensor
+    localizacao: na plataforma
+    acesso: I2C; temperatura, pressao e umidade
+  - nome: MPU6050
+    tipo: imu
+    localizacao: na plataforma
+    acesso: I2C; inclinacao e impacto; seguranca ativa enquanto conectada
+  - nome: Servos pan/tilt
+    tipo: motor
+    localizacao: cabeca do robo
+    acesso: pan -80..80 graus, tilt -30..45; 60 graus por segundo
+  - nome: Motores de passo TB6600
+    tipo: motor
+    localizacao: rodas
+    acesso: Arduino Mega; 4000 passos por metro (base de autocalibracao)
+  - nome: TCRT5000
+    tipo: encoder
+    localizacao: rodas (a montar)
+    acesso: GPIO 15/16; conta pulsos; sensor ainda nao montado
+  - nome: TV via HDMI
+    tipo: audio_out
+    localizacao: saida de audio do notebook
+    acesso: "HDA Intel PCH: Android TV; indice 2 do sounddevice"
+  - nome: Microfone USB (headset)
+    tipo: audio_in
+    localizacao: entrada de audio do notebook
+    acesso: indice 4; mic dedicado; candidatos [4, 0, 5]
+  - nome: Piper
+    tipo: voz
+    localizacao: TTS local
+    acesso: pt_BR-faber-medium; data/piper_voices
+  - nome: Whisper
+    tipo: voz
+    localizacao: STT local
+    acesso: modelo base; escuta desligada em 2026-07-20 por decisao do dono
