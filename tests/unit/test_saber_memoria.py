@@ -126,3 +126,50 @@ async def test_saber_stats_conta_quatro_categorias(contexto):
     assert stats["dispositivos"] == 1
     assert stats["relacoes"] == 1
     assert stats["total_conhecimento_local"] == 5
+
+
+@pytest.mark.asyncio
+async def test_contar_repeticoes_filtra_situacao_resultado_e_janela(contexto):
+    """O degrau do ciclo fechado conta so o desfecho que interessa: mesma
+    situacao, mesmo resultado, dentro da janela. Uma falha antiga fora da
+    janela, ou de outra situacao, NAO conta - senao o robo pararia por
+    qualquer coisa que aconteceu ha horas."""
+    api, _ = contexto
+    await api.saber_guardar("experiencias", {
+        "situacao": "avancar", "o_que_falhou": "obstaculo", "resultado": "falhou",
+    })
+    await api.saber_guardar("experiencias", {
+        "situacao": "avancar", "o_que_falhou": "obstaculo", "resultado": "falhou",
+    })
+    await api.saber_guardar("experiencias", {
+        "situacao": "seguir_pessoa", "o_que_falhou": "perdeu alvo", "resultado": "falhou",
+    })
+    await api.saber_guardar("experiencias", {
+        "situacao": "avancar", "o_que_falhou": "obstaculo", "resultado": "funcionou",
+    })
+
+    assert await api.contar_repeticoes("avancar", "falhou", 300) == 2
+    assert await api.contar_repeticoes("seguir_pessoa", "falhou", 300) == 1
+    assert await api.contar_repeticoes("avancar", "funcionou", 300) == 1
+    assert await api.contar_repeticoes("girar", "falhou", 300) == 0
+
+
+@pytest.mark.asyncio
+async def test_contar_repeticoes_respeita_a_janela_de_tempo(contexto):
+    """Uma falha antiga nao entra na janela: passada a janela, o numero zera.
+    E o que impede o degrau de travar o robo para sempre num corredor que um
+    dia esteve bloqueado."""
+    api, _ = contexto
+    from datetime import UTC, datetime, timedelta
+
+    antigo = (datetime.now(UTC) - timedelta(seconds=600)).isoformat()
+    await api.saber_guardar("experiencias", {
+        "situacao": "avancar", "o_que_falhou": "obstaculo", "resultado": "falhou",
+        "criado_em": antigo,
+    })
+    await api.saber_guardar("experiencias", {
+        "situacao": "avancar", "o_que_falhou": "obstaculo", "resultado": "falhou",
+    })
+
+    assert await api.contar_repeticoes("avancar", "falhou", 300) == 1
+    assert await api.contar_repeticoes("avancar", "falhou", 3600) == 2

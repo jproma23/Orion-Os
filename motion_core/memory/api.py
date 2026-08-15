@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
+from datetime import datetime, timedelta
 from typing import Any
 
+from motion_core.memory import saber
 from motion_core.memory.database import DatabaseManager, agora_iso
 from motion_core.memory.schema import TABELAS_POR_CATEGORIA
-from motion_core.memory import saber
 from orion.kernel.event_bus import EventBus
 
 #: Colunas de timestamp preenchidas automaticamente em remember(), quando o
@@ -155,6 +156,43 @@ class MemoryAPI:
             {"categoria": categoria, "filtro": filtro, "quantidade": len(resultado)},
         )
         return resultado
+
+    async def contar_repeticoes(
+        self, situacao: str, resultado: str, janela_s: float
+    ) -> int:
+        """Quantas experiencias da situacao com aquele resultado aconteceram
+        na janela de tempo (`criado_em` >= agora - janela).
+
+        O degrau do ciclo fechado da navegacao (Cap 12) usa este numero para
+        responder "a mesma situacao ja falhou varias vezes?" antes de repetir
+        um erro - o recall ESTRUTURADO (situacao/resultado/recencia), em vez
+        de busca por texto no FTS, porque aqui o que importa e contar
+        desfechos iguais, nao achar uma frase parecida.
+
+        `criado_em` e ISO-UTC em todas as categorias (agora_iso), entao a
+        comparacao de strings e lexicografica e correta.
+        """
+        desde = agora_iso()
+        # A janela usa o relogio do caller: subtrair aqui com UTC mantem o
+        # mesmo fuso do que o banco gravou. Ver contar_repeticoes nos testes.
+        desde_iso = (
+            datetime.fromisoformat(desde) - timedelta(seconds=janela_s)
+        ).isoformat()
+
+        def _contar() -> int:
+            return self._db.conexao.execute(
+                "SELECT COUNT(*) FROM experiencias "
+                "WHERE situacao = ? AND resultado = ? AND criado_em >= ?",
+                (situacao, resultado, desde_iso),
+            ).fetchone()[0]
+
+        async with self._db.lock:
+            contagem = await asyncio.to_thread(_contar)
+        await self._event_bus.publish(
+            "memory.recall_executed",
+            {"categoria": "experiencias", "situacao": situacao, "quantidade": contagem},
+        )
+        return contagem
 
     async def update(self, categoria: str, id: int, dados: dict[str, Any]) -> bool:
         """Atualiza um registro existente. Retorna False se o id nao existir."""

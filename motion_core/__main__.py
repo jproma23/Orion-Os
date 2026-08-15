@@ -368,7 +368,7 @@ async def principal() -> None:
     # de enviar, tratado normalmente pelo _ao_receber_comando existente.
     config_motion = config.secao("motion")
     config_navigation = config.secao("navigation")
-    NavigationCore(event_bus, comm, config_motion, config_navigation)
+    navigation = NavigationCore(event_bus, comm, config_motion, config_navigation)
     FusaoSensores(event_bus, config_motion)
 
     # Guardião de RAM do Notebook (EDR-0020): o Pi vigia a memória do Notebook
@@ -840,6 +840,14 @@ async def principal() -> None:
         # navigation.* nascem neste barramento, e e daqui que o produtor
         # transforma o que aconteceu em experiencias buscaveis pelo portao.
         registrador_experiencias = RegistradorExperiencias(event_bus, memory_api)
+        # Ciclo fechado (Camada 6): a navegacao nasceu sem memoria (passo 3,
+        # antes do SSD). Com a MemoryAPI no ar, liga o degrau que conta
+        # repeticoes de falha e evita que o robo repita um erro de frente.
+        navigation.registrar_consulta_repeticoes(
+            lambda situacao, janela_s: memory_api.contar_repeticoes(
+                situacao, "falhou", janela_s
+            )
+        )
     tarefa_manutencao = None
     tarefa_manutencao_task = None
     if memory_api is not None:

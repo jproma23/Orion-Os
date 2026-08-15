@@ -153,6 +153,8 @@ navigation:
   follow_lost_timeout_s: 10
   patrol_scan_before_segment: true
   obstacle_retry_max: 3
+  obstacle_recorrente_janela_s: 300
+  obstacle_recorrente_limite: 2
   reduced_speed_near_person_percent: 30
 
 vision:

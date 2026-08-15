@@ -33,12 +33,14 @@ class Cenario:
     e grava os eventos publicados no bus e os comandos enviados ao
     'hardware_core' para as asserções dos testes."""
 
-    def __init__(self) -> None:
+    def __init__(self, consulta=None) -> None:
         self.bus = EventBus()
         self.comm = ComunicacaoService("motion_core", self.bus, max_retries=2, ack_timeout_ms=100)
         self.transporte = FakeTransporte()
         self.comm.adicionar_link("hardware_core", self.transporte)
-        self.nav = NavigationCore(self.bus, self.comm, CONFIG_MOTION, CONFIG_NAVIGATION)
+        self.nav = NavigationCore(
+            self.bus, self.comm, CONFIG_MOTION, CONFIG_NAVIGATION, consultar_repeticoes=consulta
+        )
         self.leituras_scan: list[dict] = []
         self.eventos: list[Evento] = []
         for topico in (
@@ -48,6 +50,7 @@ class Cenario:
             "navigation.segment_started",
             "navigation.segment_completed",
             "navigation.obstacle_avoided",
+            "navigation.obstacle_recorrente",
             "navigation.target_lost",
             "navigation.risco_assumido",
         ):
@@ -284,6 +287,83 @@ async def test_patrol_para_apos_esgotar_tentativas_com_obstaculo(cenario):
     assert len(obstaculos) == CONFIG_NAVIGATION["obstacle_retry_max"]
     concluidos = [e for e in cenario.eventos if e.topico == "navigation.segment_completed"]
     assert len(concluidos) == 0  # nunca passou do primeiro segmento
+
+
+async def _iniciar_cenario_com_consulta(consulta):
+    c = Cenario(consulta=consulta)
+    await c.iniciar()
+    return c
+
+
+@pytest.mark.asyncio
+async def test_patrol_aborta_sem_repetir_quando_mesma_situacao_ja_falhou():
+    """Ciclo fechado: depois de UMA falha de avanco, a consulta diz que a
+    mesma situacao ja falhou (>= limite na janela). O robo NAO repete o erro:
+    aborta a rota na primeira tentativa e publica o relato para o dono."""
+    chamadas: list[tuple[str, float]] = []
+
+    async def consulta(situacao, janela_s):
+        chamadas.append((situacao, janela_s))
+        return 3  # >= limite
+
+    c = await _iniciar_cenario_com_consulta(consulta)
+    try:
+        await c.injetar_telemetria(distancia_frontal_cm=5)
+        rota = [{"graus": 0, "distancia_cm": 30}, {"graus": 90, "distancia_cm": 20}]
+        await c.nav.executar_patrol(rota)
+        await c.bus.aguardar_fila_vazia()
+        # Uma unica tentativa: nao houve retry cego.
+        obstaculos = [e for e in c.eventos if e.topico == "navigation.obstacle_avoided"]
+        assert len(obstaculos) == 1
+        assert len([e for e in c.eventos if e.topico == "navigation.segment_completed"]) == 0
+        # O relato para o dono saiu com os dados do degrau.
+        relatos = [e for e in c.eventos if e.topico == "navigation.obstacle_recorrente"]
+        assert len(relatos) == 1
+        assert relatos[0].dados["situacao"] == "avancar"
+        assert relatos[0].dados["repeticoes"] == 3
+        assert chamadas == [("avancar", 300.0)]
+    finally:
+        await c.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_patrol_repete_como_antes_quando_consulta_abaixo_do_limite():
+    """Repeticao abaixo do limite nao muda nada: a rajada de tentativas segue
+    o limite por segmento de sempre."""
+    async def consulta(situacao, janela_s):
+        return 1  # < limite
+
+    c = await _iniciar_cenario_com_consulta(consulta)
+    try:
+        await c.injetar_telemetria(distancia_frontal_cm=5)
+        rota = [{"graus": 0, "distancia_cm": 30}, {"graus": 90, "distancia_cm": 20}]
+        await c.nav.executar_patrol(rota)
+        await c.bus.aguardar_fila_vazia()
+        obstaculos = [e for e in c.eventos if e.topico == "navigation.obstacle_avoided"]
+        assert len(obstaculos) == CONFIG_NAVIGATION["obstacle_retry_max"]
+        assert len([e for e in c.eventos if e.topico == "navigation.obstacle_recorrente"]) == 0
+    finally:
+        await c.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_patrol_consulta_falhando_nao_muda_comportamento():
+    """Memoria fora nao pode travar o robo: consulta que levanta excecao vira
+    'siga como antes' - a mesma regra de todos os degraus locais do projeto."""
+    async def consulta(situacao, janela_s):
+        raise RuntimeError("banco fora")
+
+    c = await _iniciar_cenario_com_consulta(consulta)
+    try:
+        await c.injetar_telemetria(distancia_frontal_cm=5)
+        rota = [{"graus": 0, "distancia_cm": 30}]
+        await c.nav.executar_patrol(rota)
+        await c.bus.aguardar_fila_vazia()
+        obstaculos = [e for e in c.eventos if e.topico == "navigation.obstacle_avoided"]
+        assert len(obstaculos) == CONFIG_NAVIGATION["obstacle_retry_max"]
+        assert len([e for e in c.eventos if e.topico == "navigation.obstacle_recorrente"]) == 0
+    finally:
+        await c.encerrar()
 
 
 @pytest.mark.asyncio

@@ -65,6 +65,7 @@ TOPICOS_REPASSADOS = (
     "navigation.segment_started",
     "navigation.segment_completed",
     "navigation.obstacle_avoided",
+    "navigation.obstacle_recorrente",
     "navigation.target_lost",
     "navigation.error",
     "vision.person_detected",

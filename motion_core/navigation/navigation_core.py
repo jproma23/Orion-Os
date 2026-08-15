@@ -151,6 +151,7 @@ class NavigationCore:
         comm: ComunicacaoService,
         config_motion: dict[str, Any],
         config_navigation: dict[str, Any],
+        consultar_repeticoes=None,
     ) -> None:
         self._event_bus = event_bus
         self._comm = comm
@@ -163,6 +164,13 @@ class NavigationCore:
         self._velocidade_reduzida_perto_pessoa = config_navigation[
             "reduced_speed_near_person_percent"
         ]
+        #: Ciclo fechado de experiencias (Camada 6): consulta injetada que
+        #: conta quantas vezes a situacao ja falhou na janela. None = o degrau
+        #: fica desligado e o robô repete como antes (comportamento padrao).
+        #: Assinatura: `await consultar_repeticoes(situacao, janela_s) -> int`.
+        self._consultar_repeticoes = consultar_repeticoes
+        self._recorrente_janela_s = config_navigation.get("obstacle_recorrente_janela_s", 300.0)
+        self._recorrente_limite = config_navigation.get("obstacle_recorrente_limite", 2)
 
         self._modo = ModoNavegacao.HOLD
         self._distancia_frontal_atual_cm: float | None = None
@@ -199,6 +207,16 @@ class NavigationCore:
     @property
     def modo(self) -> ModoNavegacao:
         return self._modo
+
+    def registrar_consulta_repeticoes(self, consulta) -> None:
+        """Liga o degrau do ciclo fechado apos a memoria existir.
+
+        A navegacao nasce antes do banco de producao (o SSD so aparece no
+        passo 4 do __main__), entao a consulta e registrada aqui quando a
+        MemoryAPI esta no ar. Assinatura da consulta:
+        `await consulta(situacao, janela_s) -> int` (contagem de falhas).
+        """
+        self._consultar_repeticoes = consulta
 
     # ---------- telemetria / seguranca tatica ----------
 
@@ -797,11 +815,21 @@ class NavigationCore:
 
     async def executar_patrol(self, rota: list[dict[str, Any]]) -> None:
         """Percorre uma rota (lista de segmentos), com nova tentativa
-        limitada por segmento quando um obstaculo interrompe (Cap 12 s.4)."""
+        limitada por segmento quando um obstaculo interrompe (Cap 12 s.4).
+
+        Ciclo fechado (Camada 6): depois de UMA falha de avanco, o degrau
+        pergunta "a mesma situacao ja falhou varias vezes na janela?" - e se
+        sim, NAO repete o erro: aborta a rota e publica
+        `navigation.obstacle_recorrente` (o relato para o dono) em vez de
+        continuar batendo de frente. O limite por segmento (`obstacle_retry_max`)
+        continua cuidando da rajada de tentativas em segundos; este degrau
+        cuida do episodio que se repete ao longo dos minutos.
+        """
         await self._mudar_modo(ModoNavegacao.PATROL)
         for segmento in rota:
             tentativas = 0
             concluido = False
+            repeticoes = 0
             while not concluido and tentativas < self._tentativas_obstaculo_max:
                 concluido = await self._executar_segmento(
                     segmento.get("graus", 0.0),
@@ -809,12 +837,49 @@ class NavigationCore:
                     segmento.get("velocidade_percent"),
                 )
                 tentativas += 1
+                if not concluido:
+                    repeticoes = await self._avancar_repetidamente_bloqueado()
+                if not concluido and repeticoes >= self._recorrente_limite:
+                    logger.warning(
+                        "patrulha abortada: avancar ja falhou %d vezes na janela de %.0fs - nao vou repetir o erro",
+                        repeticoes,
+                        self._recorrente_janela_s,
+                    )
+                    await self._event_bus.publish(
+                        "navigation.obstacle_recorrente",
+                        {
+                            "situacao": "avancar",
+                            "repeticoes": repeticoes,
+                            "janela_s": self._recorrente_janela_s,
+                            "limite": self._recorrente_limite,
+                        },
+                    )
+                    return
             if not concluido:
                 logger.warning(
                     "Segmento de patrulha abortado apos %d tentativas: %s", tentativas, segmento
                 )
                 return
         await self._mudar_modo(ModoNavegacao.HOLD)
+
+    async def _avancar_repetidamente_bloqueado(self) -> int:
+        """Quantas vezes a situacao de avancar ja falhou na janela.
+
+        O degrau do ciclo fechado: em vez de repetir o erro de frente, o robo
+        para e reporta. Falha da consulta (memoria fora, banco travado) devolve
+        0 - o comportamento segue o padrao (repetir), porque preferir avancar
+        com duvida de memoria e melhor do que parar por um banco ausente.
+        Consulta nao injetada = degrau desligado (0).
+        """
+        if self._consultar_repeticoes is None:
+            return 0
+        try:
+            return int(await self._consultar_repeticoes("avancar", self._recorrente_janela_s) or 0)
+        except Exception:
+            logger.exception(
+                "falha ao consultar repeticoes de avanco - seguindo o comportamento padrao"
+            )
+            return 0
 
     # ---------- FOLLOW (versao minima - ver docstring do modulo) ----------
 
