@@ -7562,3 +7562,72 @@ datada, porque teste que muda sem explicação é como documento que mente.
 
 7 testes novos. Suítes: **1053 no Pi, 1123 no Notebook**. `orion-avatar`
 reiniciado, ativo. Commit `242fc67`.
+
+
+## Sessão de 2026-08-14 — alimentar o "Eu já sei?" e fechar o ciclo de experiências
+
+Pedido do dono: deixar o Fofão mais inteligente atacando os dois fios da memória
+cognitiva — alimentar o "Eu já sei?" (Camada 1) e fechar o ciclo
+"ler experiência → mudar decisão" (Camada 6).
+
+### "Eu já sei?" alimentado (seed + alimentador + teste)
+
+- `tools/alimentar_memoria.py` (novo): grava via `MemoryAPI.saber_guardar`
+  (regra 5 — nenhum módulo abre banco direto), idempotente (mesma chave não
+  duplica), reporta a contagem por categoria antes/depois. Só alimenta as
+  categorias que o portão busca por texto; `relacoes` (grafo) fica fora.
+- `config/memoria_seed.yaml` (novo): fatos verificados de orion.yaml/diário/
+  journal. Rodado no Pi: conhecimentos 6 → 12, procedimentos 0 → 6,
+  dispositivos 0 → 15.
+- **Achado que mordia de verdade**: `dispositivos` NÃO entra no FTS (decisão da
+  Camada 1) — "o que é um BME280?" não achava nada no acervo. A resposta: o
+  conceito de dispositivo vai em `conhecimentos` (o mesmo padrão do teste
+  `test_saber_guardar_e_buscar_pelo_conceito`). Verificado com consultas reais:
+  "o que é um BME280?" → conhecimento BME280; "como ativo o modo aula?" →
+  procedimento; "o que é o orion?" → conhecimento ORION.
+- Teste `test_alimentar_memoria.py` (2): grava pelo caminho oficial e não
+  duplica; categoria fora do escopo é ignorada.
+
+### Ciclo fechado de experiências (o produtor já gravava; ninguém lia para decidir)
+
+- `MemoryAPI.contar_repeticoes(situacao, resultado, janela_s)`: conta desfechos
+  iguais por situação/resultado/recência (ISO-UTC) — o recall estruturado do
+  degrau, diferente da busca por texto do portão.
+- `NavigationCore`: consulta injetada (`consultar_repeticoes`), registrada só
+  quando a memória nasce (`registrar_consulta_repeticoes` — a navegação nasce
+  antes do SSD no `__main__`). No PATROL, depois de UMA falha de avanço, se a
+  mesma situação já falhou ≥ `obstacle_recorrente_limite` (2) na janela de
+  `obstacle_recorrente_janela_s` (300 s), o robô NÃO repete o erro: aborta a
+  rota e publica `navigation.obstacle_recorrente` (o relato para o dono), em vez
+  de continuar batendo de frente. O `obstacle_retry_max` continua cuidando da
+  rajada de tentativas em segundos; o degrau cuida do episódio que se repete ao
+  longo dos minutos. Consulta fora/ausente → segue como antes (regra do projeto:
+  memória ausente não pode travar o robô).
+- Config nova: `obstacle_recorrente_janela_s`, `obstacle_recorrente_limite`.
+  WebUI passa a expor `navigation.obstacle_recorrente` no SSE.
+- Testes (5 novos: 2 memória + 3 navegação): conta por situação/resultado/
+  janela; falha antiga fora da janela não conta; o degrau aborta sem retry cego
+  e com o relato; repetição abaixo do limite se comporta como antes; consulta
+  que levanta exceção não muda o comportamento.
+
+### Deploy
+
+- `orion-motion` reiniciado às 21:31, ativo; boot limpo (banco conectado, ponte
+  de memória registrada, maestro ativo, Notebook conectado). O degrau roda SÓ no
+  Pi (é onde os desfechos `navigation.*` nascem e onde o banco de produção vive).
+- Commits: `72e61e4` (memória), `1eae515` (ciclo fechado) e o merge `c331c2d`
+  que trouxe o commit do outro agente `daee0e2` (socket mudo do ESP32 vira
+  queda). As duas máquinas ficaram em `c331c2d`.
+- Suítes (unit + boot): Pi **1050 passed, 11 skipped**; Notebook **1122 passed**.
+
+### Pendências, na ordem em que mordem
+
+1. Notebook: alimentar a memória dele esbarrou em `/mnt/ssd` (não existe lá; o
+   banco real daquele lado é outro). Como o portão "Eu já sei?" roda no Pi, o
+   impacto é baixo — confirmar com o dono.
+2. Fala proativa do relato: `navigation.obstacle_recorrente` sai no evento, no
+   diário e na WebUI, mas o avatar ainda não fala eventos de navegação sozinho
+   (hoje ele só narra o que a cascata de fala executa). Levar o relato à voz é o
+   próximo fio deste degrau.
+3. Fio 2 da Camada 6: extrair lição via IA de várias experiências cruas (padrão
+   `ExtratorFatos`) — custa cota, por isso ficou de fora desta sessão.
