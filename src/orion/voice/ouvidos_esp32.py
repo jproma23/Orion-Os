@@ -46,6 +46,13 @@ TAXA_ESP32 = 16000
 CANAIS_ESP32 = 2
 BYTES_POR_AMOSTRA = 2
 
+#: Silêncio máximo tolerado no socket antes de considerá-lo morto, em
+#: segundos. O ESP32 empurra 62,8 KB/s sem parar - a 8192 bytes por leitura,
+#: são ~8 leituras por segundo. Cinco segundos sem UM byte não é rede lenta,
+#: é aparelho que sumiu. Não pode ser muito curto: derrubar a conexão por um
+#: engasgo de WiFi custaria uma janela de escuta a cada engasgo.
+SILENCIO_MAXIMO_S = 5.0
+
 
 class OuvidosESP32:
     """Lê o áudio dos dois mics I2S do ESP32 e serve trechos sob demanda.
@@ -65,6 +72,7 @@ class OuvidosESP32:
         canais: int = CANAIS_ESP32,
         intervalo_reconexao_s: float = 3.0,
         timeout_conexao_s: float = 5.0,
+        silencio_maximo_s: float = SILENCIO_MAXIMO_S,
     ) -> None:
         self._host = host
         self._porta = porta
@@ -72,6 +80,7 @@ class OuvidosESP32:
         self._canais = canais
         self._intervalo_reconexao_s = intervalo_reconexao_s
         self._timeout_conexao_s = timeout_conexao_s
+        self._silencio_maximo_s = silencio_maximo_s
         self._executando = False
         self._conectado = False
         self._tarefa: asyncio.Task | None = None
@@ -140,7 +149,26 @@ class OuvidosESP32:
         logger.info("ouvidos do ESP32 conectados em %s:%d", self._host, self._porta)
         try:
             while self._executando:
-                pedaco = await leitor.read(8192)
+                # O `wait_for` é o coração desta função, e custou 3h35 de
+                # surdez em 2026-08-14 para existir. `read()` sozinho SÓ
+                # levanta quando o outro lado fecha o socket direito. Quando o
+                # ESP32 some sem fechar - queda de energia, WiFi que evapora,
+                # o que aconteceu às 17:24 daquele dia - o socket fica ESTAB
+                # para sempre, esta linha dorme para sempre, e o laço de
+                # reconexão logo acima nunca é acionado porque NADA levanta.
+                # O robô ficou surdo com `_conectado = True`, a tela dizendo
+                # "ouvindo", e nenhuma linha no log. A câmera e o link do
+                # Motion Core reconectaram sozinhos na mesma queda: os dois
+                # tinham timeout de leitura, este não tinha.
+                try:
+                    pedaco = await asyncio.wait_for(
+                        leitor.read(8192), timeout=self._silencio_maximo_s
+                    )
+                except TimeoutError as erro:
+                    raise ConnectionError(
+                        f"ESP32 mudo ha {self._silencio_maximo_s:.1f}s "
+                        f"(socket aberto, sem dados) - tratando como queda"
+                    ) from erro
                 if not pedaco:
                     raise ConnectionError("ESP32 fechou a conexão")
                 self._bruto.extend(pedaco)

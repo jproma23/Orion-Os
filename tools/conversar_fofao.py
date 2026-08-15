@@ -382,6 +382,18 @@ async def principal() -> None:
 
     bus.subscribe("voice.wake_detected", _repassar_ao_pi)
     bus.subscribe("voice.response_finished", _repassar_ao_pi)
+
+    # "Fiquei surdo" precisa CHEGAR ao painel do Pi, que é a única tela de
+    # diagnóstico do robô. O `voice.audio_error` nasce aqui (o VoiceCore roda
+    # no Notebook) e o painel do Pi JÁ o assina desde sempre
+    # (webui/server.py, TOPICOS_REPASSADOS) - só que ninguém o colocava no
+    # fio. Resultado medido em 2026-08-14: o ESP32 dos ouvidos sumiu às 17:24,
+    # o VoiceCore publicou este evento a cada ~7s por 3h35, e o painel do Pi
+    # registrou ZERO. O robô gritava que estava surdo e o grito morria no
+    # barramento local. Mesma família de "publicar no vazio" dos dois repasses
+    # logo abaixo - a 4ª vez que ela morde.
+    bus.subscribe("voice.audio_error", _repassar_ao_pi)
+
     # alerta de rosto desconhecido nasce aqui (Sentinela de visão) e vai ao
     # Pi, onde a Vigília (maestro) assume.
     bus.subscribe("sentinela.alerta", _repassar_ao_pi)

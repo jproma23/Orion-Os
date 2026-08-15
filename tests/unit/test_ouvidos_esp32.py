@@ -214,3 +214,71 @@ async def test_remove_o_dc_antes_de_escolher_o_canal():
         await ouvidos.encerrar()
         servidor.close()
         await servidor.wait_closed()
+
+
+class ESP32Zumbi(ESP32Falso):
+    """Aceita a conexão e NUNCA envia nada - nem fecha o socket.
+
+    É o ESP32 que sumiu da rede sem avisar: queda de energia, WiFi que
+    evaporou. Do lado do Notebook o socket segue `ESTAB` e o kernel não tem
+    o que entregar. Foi exatamente isto que aconteceu em 2026-08-14 17:24,
+    e o robô ficou 3h35 surdo com `conectado = True` e o log limpo.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        #: `wait_closed()` do Python 3.12+ espera os handlers TERMINAREM. Um
+        #: handler dormindo penduraria o teste no encerramento em vez de
+        #: testar coisa alguma - então quem manda parar é o teste, por aqui.
+        self._encerrar = asyncio.Event()
+
+    async def _atender(self, leitor, escritor):
+        self.conexoes += 1
+        await self._encerrar.wait()  # mudo, e sem fechar: o pior dos casos
+
+    async def parar(self):
+        self._encerrar.set()
+        await super().parar()
+
+
+@pytest.mark.asyncio
+async def test_socket_mudo_e_tratado_como_queda_e_reconecta():
+    """Sem timeout de leitura este teste pendura: `read()` só levanta quando
+    o outro lado FECHA, e o zumbi nunca fecha. É o teste que faltava."""
+    esp = await ESP32Zumbi().iniciar()
+    ouvidos = OuvidosESP32(
+        "127.0.0.1",
+        esp.porta,
+        intervalo_reconexao_s=0.05,
+        silencio_maximo_s=0.15,
+    )
+    await ouvidos.iniciar()
+    try:
+        await asyncio.sleep(1.0)
+        assert esp.conexoes >= 2, (
+            f"o cliente ficou preso no socket mudo ({esp.conexoes} conexão(ões) "
+            f"em 1s): sem timeout de leitura, nada levanta e o laço de "
+            f"reconexão nunca roda"
+        )
+        assert not ouvidos.conectado or esp.conexoes >= 2
+    finally:
+        await ouvidos.encerrar()
+        await esp.parar()
+
+
+@pytest.mark.asyncio
+async def test_stream_normal_nao_e_derrubado_pelo_timeout():
+    """A trava do zumbi não pode cortar quem está falando. O ESP32 real
+    entrega ~8 pacotes por segundo; o teto de silêncio é folgado de propósito
+    para um engasgo de WiFi não custar uma janela de escuta."""
+    esp = await ESP32Falso().iniciar()
+    ouvidos = OuvidosESP32("127.0.0.1", esp.porta, silencio_maximo_s=0.5)
+    await ouvidos.iniciar()
+    try:
+        await asyncio.sleep(0.3)
+        audio = await ouvidos.gravar(0.2)
+        assert audio.size > 0
+        assert esp.conexoes == 1, "reconectou sem motivo: o stream estava saudável"
+    finally:
+        await ouvidos.encerrar()
+        await esp.parar()
