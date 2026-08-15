@@ -7637,3 +7637,177 @@ agora — o portão "Eu já sei?" roda no Pi e é lá que ela importa; o caso
 `/mnt/ssd` do Notebook fica documentado como pendência do banco. (2) A fala
 proativa do relato `navigation.obstacle_recorrente` fica como próximo fio
 (o avatar ainda não narra eventos de navegação sozinhos).
+
+## Sessão de 2026-08-14 (noite) — auditoria elo a elo: o robô estava surdo havia 3h35 e nada denunciava
+
+Pedido do dono, nestas palavras: *"vamos realizar um teste linha a linha ponto
+a ponto e verificar se todos os sistemas estao interligados vision motion tods
+no cerebro se todos mecanismo recognificion esta funcionado de verdade"*.
+
+O método foi o da auditoria de 30/07: **medir no sistema vivo, não ler no
+código**. Nada entrou como ✅ sem um número atrás. Foi isso que fez a sessão
+render — o defeito grande estava exatamente onde todo estado aparente dizia
+"ok".
+
+### O que passou, com número
+
+| elo | prova |
+|---|---|
+| ESP32 → Pi (serial) | 20 pacotes em 20s no SSE = **1,0 Hz** |
+| Pi ↔ Notebook (5757) | +3.703 B / +3.191 B em 15s, **nos dois sentidos** |
+| Câmera 8091 → Visão | **177 KB/s**, 1,99 GB acumulados |
+| Rosto → `pessoa_id` → conversa | 19:18 reconheceu o dono (`pessoa_id=1`); 18:21 reconheceu a Marah e **entregou o recado guardado** |
+| Memória operacional | 1.038 conversas, 730 eventos, 9 recados |
+
+O `ss -tin` com duas amostras espaçadas foi a ferramenta da noite inteira.
+`ESTAB` não prova nada; contador que anda, prova.
+
+### O defeito: 3h35 surdo, com a tela dizendo "ouvindo"
+
+O socket dos ouvidos recebeu **0 bytes em 15 segundos** — travado em
+49.942.528. Último áudio processado às 17:23:26, medição às 20:58. O ESP32
+dos ouvidos não respondia a ping: tinha saído da rede.
+
+O log conta o resto. Às **17:24 a rede piscou** (`Failed to resolve hostname
+pi-os.local`). A câmera caiu por timeout de 30s e **reabriu sozinha** às
+17:24:57. O link do Motion Core caiu e **reconectou sozinho** às 17:24:52. Os
+ouvidos não voltaram, e não disseram uma palavra.
+
+A causa, em `src/orion/voice/ouvidos_esp32.py`:
+
+    pedaco = await leitor.read(8192)   # sem timeout
+
+`read()` só levanta quando o outro lado **fecha** o socket. O ESP32 sumiu sem
+fechar. Nada levantava, então o laço de reconexão — que existe, está correto e
+cujo docstring promete que *"o WiFi cai ... nada disso pode deixar o robô
+surdo de forma permanente"* — nunca rodava. E `_conectado` ficava `True`, o
+que fazia `gravar()` nem sequer recusar por fonte ausente.
+
+A câmera e o link do Motion Core sobreviveram à MESMA queda porque os dois
+tinham timeout de leitura. Este não tinha. É a diferença inteira.
+
+### O agravante: o robô gritava e o grito morria no Notebook
+
+O ciclo de voz **sabia**. Medido no bus do Notebook: alternava
+`LISTENING → ERROR`, 3 ciclos em 20s, publicando `voice.audio_error` a cada
+~7s desde as 17:23. O painel do Pi **assina esse tópico desde sempre**
+(`webui/server.py`, `TOPICOS_REPASSADOS`) e recebeu **ZERO** — porque a lista
+de repasse do Notebook (`conversar_fofao.py`) manda 5 tópicos e nenhum é de
+voz. Publicar no vazio pela 4ª vez.
+
+E no `journalctl` do avatar não havia **uma linha** sobre as 3h35. O evento
+era o único sinal, e ele não atravessava.
+
+Três buracos, um defeito só: o robô perdeu um sentido e não tinha como
+contar isso a ninguém — nem pela tela, nem pelo painel, nem pelo log.
+
+### O conserto (commit `daee0e2`, 1127 testes no Notebook)
+
+1. **`ouvidos_esp32.py`**: teto de silêncio de 5s na leitura. O ESP32 empurra
+   62,8 KB/s; 5s sem um byte não é rede lenta, é aparelho que sumiu. O
+   timeout vira `ConnectionError` e o laço de reconexão assume. Folgado de
+   propósito: derrubar a conexão por engasgo de WiFi custaria uma janela de
+   escuta a cada engasgo.
+2. **`conversar_fofao.py`**: `voice.audio_error` passa a ser encaminhado ao
+   Pi.
+3. **`voice_core.py`**: log na BORDA de ficar surdo / voltar a ouvir — não a
+   cada ciclo, senão seriam ~1800 linhas iguais num log que ainda não tem
+   rotação. Mesmo padrão do `_safe_mode_ativo` e do aviso da IMU.
+
+O teste novo (`test_socket_mudo_e_tratado_como_queda_e_reconecta`) sobe um
+servidor que **aceita a conexão e nunca fala** — o zumbi. Antes de aceitar o
+teste, **reverti o conserto de propósito** e confirmei que ele reprova: "1
+conexão em 1s". Teste que não pega o defeito não vale nada.
+
+Detalhe que quase estragou o teste: no Python 3.12+ o `wait_closed()` espera
+os *handlers* terminarem, e o handler zumbi dormia uma hora — o teste
+pendurava no encerramento em vez de testar. Quem manda parar passou a ser o
+teste, por um `Event`.
+
+### O erro da sessão: reiniciei e piorei
+
+Com o ESP32 ainda fora da rede, reiniciei o `orion-avatar` para subir o
+código novo. O robô **não passou do boot**: `conversar_fofao.py:193` espera os
+ouvidos **sem teto**.
+
+    while not ouvidos_esp32.conectado: ... await asyncio.sleep(3.0)
+
+Às 17:07 o ESP32 estava vivo, então aquele boot passou dali e o robô rodou o
+dia todo (surdo depois das 17:24, mas com corpo, câmera e reconhecimento).
+Reiniciado com o ESP32 ausente, ficou com a cara na tela e **sem link com o
+corpo, sem câmera, sem visão, sem reconhecer ninguém**. Troquei uma surdez por
+uma paralisia.
+
+A trava é proposital e a intenção é boa: cair para outro microfone depois de
+um reboot torna a falha invisível e faz o robô ouvir o cômodo errado. Mas ela
+vai longe demais — não usar outro mic é diferente de derrubar quatro sentidos
+sadios junto com o que faltou. **Fica aberta**: o dono preferiu religar o
+ESP32 na hora, e a mudança do boot ficou para depois.
+
+Também tive de me corrigir na cara do dono: mostrei o log de
+`ouvidos ... caíram - tentando de novo em 3.0s` como se fosse prova do
+conserto em produção. Não era — aquele é o timeout de **conexão**, que já
+existia. Com o ESP32 fora da rede a conexão nem se estabelece, então o teto de
+silêncio na **leitura** não chega a ser exercitado. O conserto está provado
+pelo teste, não pela produção.
+
+### Depois de religar
+
+Ouvidos a **64,2 KB/s** (+963.584 B em 15s), os três links de pé, e a
+conversa inteira funcionando:
+
+    21:27:48  Voce disse: boa noite
+    21:27:53  Fofao respondeu: Boa noite! Vi que você passou por aqui às 21h27.
+    21:28:12  sessao encerrada por silencio
+    21:28:54  tela APAGADA (prazo vencido) - 0 adiamentos
+
+Ouvido → Whisper → Gemini → voz, e a resposta puxou o diário para saber que o
+dono tinha passado ali. O descanso de tela apagou no prazo.
+
+### O que a auditoria achou e NÃO foi consertado
+
+**1. O corpo fala, mas não tem sentidos.** Telemetria: `i2c_total: 0`,
+`i2c_enderecos: []` — **nenhum dispositivo no barramento**, o que derruba IMU
+e bússola juntas. Ultrassons com `frontal_idade_ms: 4294967295`, o sentinela
+de "nunca houve eco desde o boot". Encoders 0, bateria não lida, DHT
+inválido. O único sentido vivo é a câmera.
+
+**2. O firmware recusa andar e a tela não conta.**
+`seguranca_parada_ativa: true`, motivo `frente_desconhecida`, enquanto a webui
+mostra `safe_mode_ativo: false`. São duas seguranças diferentes e o painel só
+mostra uma — quem olha a tela conclui que está tudo liberado.
+
+**3. O carimbo de saúde dos módulos é fóssil.** `_atualizar_saude_modulo` só
+roda em `comm.module_lost` / `comm.module_recovered`. O painel dizia "ok
+(visto há 3h47)" — e diria "ok" para sempre se um módulo morresse em silêncio.
+Não há batimento, só borda.
+
+**4. `voice.status` também nunca chega ao Pi.** `/estado` traz
+`voz.estado = null` depois de horas no ar. Mesma família do
+`voice.audio_error`, não consertado nesta sessão.
+
+**5. A memória de longo prazo está vazia — e não é bug.** `saber_fts` = 0,
+`experiencias` = 0. O registrador **está ligado** (`__main__.py:842`) e é o
+único alimentador do FTS5; ele assina 5 eventos `navigation.*` que nunca
+ocorreram, porque o robô nunca navegou. Sem sentidos ele não anda, sem andar
+não vive nada, e sem viver não tem o que lembrar. (A sessão paralela desta
+mesma noite atacou o outro lado disto, com seed de fatos verificados.)
+
+**6. `motion_core.log` em 16 MB**, ainda sem rotação — eram 14,8 MB em 06/08.
+
+**7. Ação falada nunca exercitada**: **0** ocorrências de `#acao:` no dia. E a
+cadeia visão→maestro foi provada (log das 20:41, `acompanhar_pessoa`
+preemptando `repouso`), mas **o servo não** — a telemetria não devolve posição
+de pan/tilt.
+
+### Duas coisas de processo
+
+O commit `daee0e2` ficou **só no Notebook**. Não puxei para o Pi porque ele
+estava com 7 arquivos modificados sem commit da sessão paralela, e mergear por
+cima de trabalho meio-feito é como as três linhas divergiram em 19/07.
+Funcionalmente não falta nada — o código de voz roda no Notebook —, mas as
+duas linhas precisam se encontrar.
+
+E a mudança da IMU que estava solta no Pi desde as 11:32 foi commitada
+separada (`637ab18`) antes de qualquer coisa minha, para não misturar autoria
+nem assunto. Ela estava rodando em produção sem commit.
