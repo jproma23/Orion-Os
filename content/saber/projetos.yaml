@@ -1,0 +1,55 @@
+# Saber do ORION - area: PROJETOS DO DONO
+# ORION OS e os outros projetos de Joao Paulo.
+conhecimentos:
+  - tipo: conceito
+    titulo: Orion OS (visao do dono)
+    corpo: >-
+      O ORION (antes Sentinela) e o principal projeto de Joao Paulo. A filosofia
+      separa IA e processamento pesado (Notebook: visao, audio, IA) do controle
+      de hardware em tempo real (Raspberry Pi: coordenacao, banco, comunicacao,
+      gerenciamento do Arduino; Arduino: sensores, motores, atuadores). Joao
+      quer um sistema que perceba, compreenda, memorize, decida, converse,
+      reconheca e acompanhe pessoas, patrulhe, detecte riscos, execute missoes,
+      mantenha historico, alimente dashboard e evolua.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: IA local
+    corpo: >-
+      Joao Paulo prefere IA local, evitando a nuvem sempre que possivel:
+      processamento no Raspberry/PC, com Whisper/WhisperX, Ollama, Llama, Phi,
+      Qwen, YOLO e FastAPI. Privacidade e autonomia importam: o ORION deve
+      continuar funcionando mesmo sem Internet.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Visao computacional (visao do dono)
+    corpo: >-
+      O ORION deve detectar, reconhecer e acompanhar pessoas, identificar
+      objetos, interpretar ambientes e detectar situacoes anormais, sabendo
+      responder "quem esta aqui?", "onde esta?", "o que esta acontecendo?" e
+      "isso e normal?". Joao ja trabalhou com ESP32-CAM, webcam USB, YOLO,
+      reconhecimento facial e Raspberry Pi.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Coleira inteligente para gado
+    corpo: >-
+      Projeto de Joao Paulo: coleiras inteligentes para bovinos com GPS, radar
+      de 60 GHz, acelerometros, sensores de movimento, comunicacao sem fio,
+      vibracao, buzzer e alertas. Logica de distancia planejada: distancias
+      diferentes do limite de seguranca geram niveis de alerta diferentes.
+      Dashboard com mapa para ver todos os animais, clicar em cada tag e ver
+      informacoes individuais e coletivas, comportamento, localizacao e
+      alertas.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Fazenda Arakatu
+    corpo: >-
+      Joao Paulo trabalha com problemas reais da Fazenda Arakatu: ordenha,
+      alimentacao, bombas, filtros, agua, motores, energia, automacao,
+      monitoramento e infraestrutura. Prefere desenvolver equipamentos
+      personalizados para a realidade da fazenda a comprar solucao pronta.
+    fonte: perfil do dono (chat 2026-08-15)
+    confianca: 0.9

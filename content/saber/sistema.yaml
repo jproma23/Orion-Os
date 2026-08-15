@@ -1,0 +1,91 @@
+# Saber do ORION - area: SISTEMA
+# O proprio ORION: arquitetura, memoria, ensinamento e o defeito que nao quebra.
+conhecimentos:
+  - tipo: conceito
+    titulo: ORION
+    corpo: >-
+      O ORION, apelido Fofao, e um robo assistente domestico em tres camadas:
+      Mission Core (Notebook: visao, IA, voz e conversa), Motion Core
+      (Raspberry Pi 4: movimento, banco e web) e Hardware Core (Arduino Mega:
+      tempo real). O audio roda num ESP32. A configuracao unica vive em
+      orion.yaml.
+    fonte: ARQUITETURA.txt e orion.yaml
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Memoria cognitiva
+    corpo: >-
+      A memoria cognitiva e o "Eu ja sei?" do robo: ele responde do proprio
+      acervo antes de chamar a IA. Tem cinco categorias: conhecimentos,
+      experiencias, procedimentos, dispositivos e relacoes. O FTS5 procura;
+      a cobertura decide se vale responder.
+    fonte: journal 2026-08-09
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Banco de dados
+    corpo: >-
+      O banco principal fica no Raspberry em /mnt/ssd/orion/orion.db, com
+      backup diario as 3h e replica cruzada para o Notebook.
+    fonte: orion.yaml (database)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Grounding
+    corpo: >-
+      O modelo de IA recebe os fatos prontos em vez de deduzir. Sem contexto
+      o modelo pequeno inventa; com contexto os quatro modelos testados
+      acertaram. Com os fatos entregues, o modelo pequeno basta.
+    fonte: orion.yaml (ai) e journal 2026-07-19
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Aula
+    corpo: >-
+      O robo da aulas lendo um YAML, sem chamar modelo na hora. Cada aula e
+      uma chamada de IA na autoria, validada e publicada. O professor fala um
+      passo de cada vez e espera 4 segundos para ouvir.
+    fonte: tools/redigir_aula.py e journal 2026-08-07
+    confianca: 0.9
+  - tipo: conceito
+    titulo: O defeito que nao quebra
+    corpo: >-
+      A familia de defeito mais cara do projeto: o bug que nao levanta
+      excecao, nao derruba teste e parece funcionar. Status e afirmacao sobre
+      evidencia: log datado, teste nomeado, numero medido.
+    fonte: journal 2026-08-04
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Acervo de aulas
+    corpo: >-
+      O robo tem uma grade de ensino com 13 materias, 24 topicos cada (8
+      basico, 8 intermediario, 8 avancado). Em 2026-08-15 o basico fechou com
+      113 aulas publicadas; a ementa aponta cada topico para sua aula.
+    fonte: content/ementas e journal 2026-08-15
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Publicacao de aula
+    corpo: >-
+      Aula nasce como rascunho com fonte Wikipedia, passa por redigir_aula
+      (1 chamada de IA, validada), e so e publicada com gerar_aula --publicar
+      e aulas.py construir. O modelo nao publica sozinho.
+    fonte: tools/ e journal 2026-08-15
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Ciclo fechado de experiencias
+    corpo: >-
+      Depois de UMA falha de avanco, se a mesma situacao ja falhou 2 vezes na
+      janela de 300 segundos, o robo aborta a rota e relata
+      navigation.obstacle_recorrente em vez de repetir o erro.
+    fonte: journal 2026-08-14
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Memoria do Notebook
+    corpo: >-
+      O portao "Eu ja sei?" roda no Pi; a memoria do Notebook NAO e
+      alimentada - decisao do dono em 2026-08-14.
+    fonte: journal 2026-08-14
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Surdez silenciosa
+    corpo: >-
+      Socket mudo do ESP32 vira queda detectada, nao silencio ignorado: o
+      robo passa a saber quando o audio parou de chegar.
+    fonte: commit daee0e2
+    confianca: 0.9

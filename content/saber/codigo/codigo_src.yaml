@@ -1,0 +1,498 @@
+# Saber do ORION - area: CODIGO (src)
+# Cada arquivo do codigo-fonte descrito para o robo se entender por dentro.
+conhecimentos:
+  - tipo: conceito
+    titulo: src/orion/__main__.py
+    corpo: >-
+      Ponto de entrada do ORION OS.. Funcoes: main.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/crc.py
+    corpo: >-
+      CRC16 usado no protocolo (Cap 5 s.5) e no enquadramento serial (Cap 14
+      s.3).. Funcoes: crc16.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/discovery.py
+    corpo: >-
+      Descoberta de dispositivos (Cap 14 secao 8).. Classes: ErroVersaoIncom
+      pativel, InformacaoDescoberta. Funcoes: descobrir.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/framing.py
+    corpo: >-
+      Camada de enquadramento (Cap 14 secao 3).. Classes: DecodificadorSeria
+      l, DecodificadorTcp. Funcoes: codificar_serial, codificar_tcp, aliment
+      ar, alimentar_bytes, alimentar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/heartbeat.py
+    corpo: >-
+      Heartbeat entre enlaces (Cap 14 secao 6).. Classes: MonitorHeartbeat.
+      Funcoes: monitorar, iniciar, parar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/protocol.py
+    corpo: >-
+      Protocolo de mensagens do ORION OS (Cap 5 secao 5; Cap 14 secoes 3-4).
+      . Classes: TipoMensagem, ErroProtocoloInvalido, Mensagem. Funcoes: nov
+      a, ack, nack, checksum_esperado, checksum_valido, to_dict, to_json, to
+      _bytes.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/service.py
+    corpo: >-
+      Camada de servico do Communication Core (Cap 14 secao 7): comm.send, c
+      omm.publish, comm.request, comm.status. Os modulos nunca acessam trans
+      portes diretamente - so por meio desta classe.. Classes: ErroComunicac
+      ao, ComunicacaoService. Funcoes: adicionar_link, send, publish, reques
+      t, responder, status, enviar_heartbeat, encerrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/communication/transport.py
+    corpo: >-
+      Transportes do Communication Core (Cap 14 secao 2-3).. Classes: ErroTr
+      ansporte, Transporte, TcpTransport, ConexaoTcp, SerialTransport. Funco
+      es: iniciar_servidor_tcp, conectado, enviar, receber, fechar, conectad
+      o, conectar, enviar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/diagnostics/sensores_termicos.py
+    corpo: >-
+      Leitura dos sensores de temperatura da propria maquina (Cap 16).. Clas
+      ses: LeituraTermica, EstadoTermico. Funcoes: ler_zonas, classificar, l
+      er_estado, como_dict.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/display/avatar_server.py
+    corpo: >-
+      Servidor local do avatar (Cap 13 secao 3, 7).. Classes: AvatarServer.
+      Funcoes: iniciar, encerrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/display/modulo.py
+    corpo: >-
+      Modulo do avatar/interface local do Mission Core (EDR-0023).. Classes:
+      ModuloDisplay. Funcoes: iniciar, encerrar, esta_saudavel.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/display/quadro.py
+    corpo: >-
+      O QUADRO: a tela como lousa do professor (Cap 13 s.3).. Classes: Bloco
+      Invalido, TipoBloco, Quadro. Funcoes: montar, bloco_para_prompt, escre
+      ver, limpar, apontar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/display/tela.py
+    corpo: >-
+      Descanso de tela do ORION (Cap 13 s.3).. Classes: ControleTela. Funcoe
+      s: acesa, ativo, acordar, adiar, apagar, conferir_prazo, ligar_no_bus,
+      iniciar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/display/versao.py
+    corpo: >-
+      Identificacao da build para a marca d'agua da tela.. Classes: Build. F
+      uncoes: descobrir, como_dict.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/ensino/autoconhecimento.py
+    corpo: >-
+      AUTOCONHECIMENTO - o robo respondendo sobre si mesmo, sem IA.. Classes
+      : Fato, FatoInvalido, Autoconhecimento. Funcoes: carregar_arquivo, fec
+      har, construir, responder.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/ensino/banco_aulas.py
+    corpo: >-
+      O BANCO DE AULAS - o conteudo que o robo ensina, sem IA nenhuma.. Clas
+      ses: AulaInvalida, Passo, Plano, Aula, BancoAulas. Funcoes: caminho_pa
+      drao, normalizar_nivel, carregar_arquivo, carregar_pasta, vazio, quant
+      os_passos, fechar, construir.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/ensino/ementa.py
+    corpo: >-
+      EMENTAS - o mapa de tudo o que o robo ensina (Cap 13, ensino).. Classe
+      s: EmentaInvalida, Topico, Ementa, BancoEmentas. Funcoes: carregar_arq
+      uivo, carregar_pasta, responder_pergunta, contar_cobertura, quantos_to
+      picos, quantas_aulas, fechar, construir.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/ensino/professor.py
+    corpo: >-
+      O PROFESSOR - quem conduz a aula, sem chamar modelo nenhum.. Classes:
+      Professor. Funcoes: dando_aula, aula_atual, procurar, oferecer_o_que_t
+      em, apresentar_cardapio, dar_aula, pausado, pausar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/boot.py
+    corpo: >-
+      Boot Manager do Kernel (Cap 6 secao 4).. Classes: SistemaOrion, BootMa
+      nager. Funcoes: encerrar, iniciar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/config.py
+    corpo: >-
+      Configuration Manager do Kernel (Cap 6 secao 3; Cap 17).. Classes: Err
+      oConfiguracaoInvalida, ConfigurationManager. Funcoes: caminho, carrega
+      r, secao, bruto.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/event_bus.py
+    corpo: >-
+      Event Bus assincrono do Kernel (Cap 6 secao 5).. Classes: Prioridade,
+      Evento, EventBus. Funcoes: subscribe, unsubscribe, publish, iniciar, p
+      arar, aguardar_fila_vazia.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/logger.py
+    corpo: >-
+      Logger estruturado do Kernel (Cap 6, secao 8; Cap 17).. Funcoes: confi
+      gurar_logger, format.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/modulo.py
+    corpo: >-
+      Contrato de modulo do Mission Core (EDR-0023).. Classes: ModuloOrion.
+      Funcoes: iniciar, encerrar, esta_saudavel.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/registry.py
+    corpo: >-
+      Service Registry do Kernel (Cap 6 secao 6).. Classes: EstadoModulo, Mo
+      duloRegistrado, ErroServiceRegistry, ServiceRegistry. Funcoes: registr
+      ar, atualizar_estado, obter, existe, todos, dependencias_satisfeitas,
+      por_estado.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/kernel/watchdog.py
+    corpo: >-
+      Health Monitor + Watchdog do Kernel (Cap 6 secao 8).. Classes: HealthM
+      onitor, Watchdog. Funcoes: timeout_s, timeout_de, registrar_modulo, re
+      ceber_heartbeat, modulos_com_heartbeat_perdido, estado_de, verificar_u
+      ma_vez, iniciar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/acoes_faladas.py
+    corpo: >-
+      O que o Fofao sabe FAZER quando alguem pede falando.. Classes: AcaoFal
+      ada. Funcoes: bloco_para_prompt, extrair, sem_marcador, partir_argumen
+      to.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/ai_manager.py
+    corpo: >-
+      AI Manager (Cap 7 secao 2-3) - a IA da conversa, remota (OpenAI/OpenRo
+      uter).. Classes: AiManager. Funcoes: responder, responder_em_frases, d
+      ecidir.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/alivio_carga.py
+    corpo: >-
+      Alívio de carga do Notebook (EDR-0020, Cap 16).. Classes: AlivioCarga.
+      Funcoes: aliviado.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/comando_local.py
+    corpo: >-
+      OBEDECER SEM IA - o caminho local ate o catalogo de acoes.. Classes: C
+      asamento. Funcoes: casar, combina_com_acao, pediu_para_guardar, pediu_
+      de_fato.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/conselheiro_comportamento.py
+    corpo: >-
+      Conselheiro de comportamento (camada 3 da integração cognitiva).. Clas
+      ses: Conselho, ConselheiroComportamento. Funcoes: aconselhar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/conselho_protocolo.py
+    corpo: >-
+      Protocolo do conselho de comportamento (compartilhado Pi <-> Notebook)
+      .. Classes: AtendenteConselhoIA.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/decisao_estrategica.py
+    corpo: >-
+      Ponte de decisao estrategica (Cap 7, EDR-0022) - lado Notebook.. Class
+      es: PonteDecisao. Funcoes: registrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/diario.py
+    corpo: >-
+      Diário do robô: o que o Fofão viu, gravado e recuperável (camada 2)..
+      Classes: DiarioObservacoes. Funcoes: hoje_ate, observacoes_de_hoje.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/extrator_fatos.py
+    corpo: >-
+      Destila FATOS duraveis a partir da conversa - a memoria que sobrevive.
+      . Classes: ExtratorFatos. Funcoes: agendar, encerrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/grounding.py
+    corpo: >-
+      Grounding: transforma o que o robô SABE num bloco de texto para a IA..
+      Funcoes: bloco_corpo, bloco_pessoas, bloco_observacoes, bloco_visao_a
+      gora, montar_contexto.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/historico_conversa.py
+    corpo: >-
+      A memoria de curto prazo da conversa falada.. Classes: HistoricoConver
+      sa. Funcoes: mensagens, registrar, limpar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/internet.py
+    corpo: >-
+      Consulta a internet quando o robo nao sabe - dizendo de onde tirou.. C
+      lasses: Achado, ConsultaInternet. Funcoes: parece_relacionado, como_di
+      ct, para_falar, palavras, consultar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/memory_client.py
+    corpo: >-
+      Cliente de memoria do Mission Core (Cap 7 secao 2, 5; Cap 11 secao 6).
+      . Classes: ErroMemoriaRemota, MemoryClient. Funcoes: remember, recall,
+      update, forget, context, stats, nota_escrever, projeto_buscar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/mission_planner.py
+    corpo: >-
+      Mission Planner (Cap 7 secao 4) - fluxo de decisao do Mission Core.. C
+      lasses: MissionPlanner. Funcoes: processar, responder_em_frases, regis
+      trar_consultar_visao, extrator, encerrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/modulo.py
+    corpo: >-
+      Modulo de missao/IA do Mission Core (EDR-0023).. Classes: ModuloMissao
+      . Funcoes: iniciar, processar, encerrar, esta_saudavel.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/ponte_conselho.py
+    corpo: >-
+      Ponte do Mentor de comportamento (lado Notebook), ligada em 2026-07-24
+      .. Classes: PonteConselho. Funcoes: registrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/ponte_conversa.py
+    corpo: >-
+      Ponte da conversa por TEXTO (lado Notebook), ligada em 2026-08-03.. Cl
+      asses: PonteConversa. Funcoes: registrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/quem_fala.py
+    corpo: >-
+      Quem esta falando com o robo agora - liga o rosto reconhecido a conver
+      sa.. Classes: QuemEstaFalando. Funcoes: pessoa_id, nome.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/recados.py
+    corpo: >-
+      Recados: guardar uma mensagem para alguem e entregar quando essa pesso
+      a vier.. Classes: Recados. Funcoes: definir_apelidos, mesmo_nome, deix
+      ar, pendentes, marcar_entregue.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/mission/saudacao.py
+    corpo: >-
+      Saudação espontânea: o Fofão fala primeiro ao reconhecer alguém.. Clas
+      ses: SaudacaoEspontanea.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/captura.py
+    corpo: >-
+      Captura de frames da camera (Cap 8 secao 2-3).. Classes: ErroCamera, C
+      apturaCamera. Funcoes: aberta, abrir, ler_frame, fechar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/deteccao.py
+    corpo: >-
+      Deteccao de pessoas e objetos via YOLO (Cap 8 secao 3-4).. Classes: De
+      teccao, DetectorYolo. Funcoes: detectar, pessoas.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/gestos.py
+    corpo: >-
+      Gestos de mão pela câmera (Cap 8; pedido do dono em 2026-07-20).. Clas
+      ses: DetectorGestos, LacoGestos, CameraCompartilhada. Funcoes: eh_join
+      ha, mao_aberta, alimentar, executar, preparar, processar_frame, aberta
+      , abrir.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/modulo.py
+    corpo: >-
+      Modulo de visao do Mission Core (EDR-0023).. Classes: ModuloVisao. Fun
+      coes: iniciar, encerrar, esta_saudavel, ver_agora, pausar, retomar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/pan_tilt.py
+    corpo: >-
+      Calculo de correcao Pan/Tilt (Cap 8 secao 8).. Classes: LimitesPanTilt
+      , CalculadoraPanTilt. Funcoes: sincronizar, calcular_correcao, alvo_ce
+      ntralizado.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/rastreamento.py
+    corpo: >-
+      Rastreamento de um alvo unico (Cap 8 secao 3, 6).. Classes: Alvo, Rast
+      reador. Funcoes: atualizar, alvo_atual, perdido.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/reconhecimento_facial.py
+    corpo: >-
+      Reconhecimento facial de pessoas autorizadas (Cap 8 secao 4; Cap 11)..
+      Classes: RostoReconhecido, ReconhecedorFacial. Funcoes: carregar_pess
+      oas_conhecidas, reconhecer, gerar_embedding.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/sentinela_visao.py
+    corpo: >-
+      Sentinela de visão (Cap 8; EDR-0020 Modo Sentinela): dispara o alerta
+      de ROSTO DESCONHECIDO que o maestro (Vigília) trata.. Classes: Sentine
+      laVisao. Funcoes: registrar, pausar, retomar, pausado.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/vision/vision_core.py
+    corpo: >-
+      Orquestrador do Vision Core (Cap 8).. Classes: VisionCore. Funcoes: sa
+      lvar_ultimo_frame, ver_agora, carregar_pessoas_conhecidas, iniciar_cam
+      era, registrar_observador_de_frame, processar_um_frame, executar, para
+      r.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/audio_utils.py
+    corpo: >-
+      Reamostragem de audio compartilhada entre captura e sintese (Cap 9)..
+      Funcoes: reamostrar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/captura_audio.py
+    corpo: >-
+      Captura de audio (Cap 9 secao 2-3, 6).. Classes: ErroAudio, SeletorMic
+      rofone. Funcoes: listar_dispositivos_entrada, gravar_trecho, calcular_
+      qualidade, escolher_melhor, indice_escolhido.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/localizacao.py
+    corpo: >-
+      De onde veio a voz: direcao de chegada por diferenca de tempo (GCC-PHA
+      T).. Classes: DirecaoEstimada, LocalizadorDirecao. Funcoes: lado, atra
+      so_maximo_amostras, estimar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/modulo.py
+    corpo: >-
+      Modulo de voz do Mission Core (EDR-0023).. Classes: ModuloVoz, Transcr
+      itorComLog. Funcoes: iniciar, encerrar, esta_saudavel, transcrever.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/ouvidos_esp32.py
+    corpo: >-
+      Ouvidos do Fofão: os dois microfones I2S do ESP32, por WiFi (Cap 9)..
+      Classes: OuvidosESP32. Funcoes: conectado, iniciar, encerrar, gravar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/sintese.py
+    corpo: >-
+      Sintese de voz com Piper (Cap 9 secao 3, passos 8-9).. Classes: Sintet
+      izador. Funcoes: falar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/timbre.py
+    corpo: >-
+      O timbre do Fofao - o que faz a voz dele ser DELE.. Funcoes: aquecer.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/transcricao.py
+    corpo: >-
+      Transcricao de fala com faster-whisper (Cap 9 secao 3, passo 5).. Clas
+      ses: Transcritor. Funcoes: razao_de_compressao, transcrever.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/vad.py
+    corpo: >-
+      Detector de atividade sonora (VAD) por energia, com piso de ruido adap
+      tativo (Cap 9 s.3).. Classes: DetectorAtividadeSonora. Funcoes: janela
+      s_puladas, piso_de_ruido, tem_som.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/voice_core.py
+    corpo: >-
+      Maquina de estados e orquestrador do Voice Core (Cap 9 secao 3-5).. Cl
+      asses: EstadoVoz, VoiceCore. Funcoes: estado, falar, ciclo_uma_vez, in
+      terromper_fala, executar, parar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: src/orion/voice/wake_word.py
+    corpo: >-
+      Deteccao da palavra de ativacao "Fofao" (Cap 9 secao 3-4).. Classes: D
+      etectorPalavraAtivacao. Funcoes: verificar.
+    fonte: codigo-fonte do ORION (src)
+    confianca: 0.9

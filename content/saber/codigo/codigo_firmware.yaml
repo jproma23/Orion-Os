@@ -1,0 +1,147 @@
+# Saber do ORION - area: CODIGO (firmware)
+# Cada arquivo do firmware descrito para o robo se entender por dentro.
+conhecimentos:
+  - tipo: conceito
+    titulo: firmware/hardware_core/src/encoder_manager.cpp
+    corpo: >-
+      Fila circular entre a ISR e o loop(), uma por roda.. Funcoes: _tratarB
+      orda, _isrEsquerdo, _isrDireito, iniciar, _consumir, perdeu, atualizar
+      , zerar.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/src/framing.cpp
+    corpo: >-
+      Funcoes: crc16, enviarQuadro, alimentar, finalizarQuadro.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/src/main.cpp
+    corpo: >-
+      Hardware Core - firmware completo (Cap 10).. Funcoes: escanearI2c, env
+      iarPayloadVazio, notificarTransicaoDeEstado, notificarFimDeVarredura,
+      responderWhoAreYou, responderReturnStatus, responderCalibrarImu, Raspb
+      erry.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/src/protocolo.cpp
+    corpo: >-
+      Funcoes: gerarIdMensagem, enviarMensagem.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/bateria_manager.h
+    corpo: >-
+      Bateria Manager (Cap 16) - tensao do pack por divisor resistivo em A0.
+      . Classes: BateriaManager, NivelBateria. Funcoes: iniciar, atualizar,
+      tensaoV, lida, percentualEstimado, nivel, nomeNivel.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/bussola_manager.h
+    corpo: >-
+      Bussola Manager (Cap 10 secao 7) - HMC5883L via I2C (GPIO 21/22 no ESP
+      32),. Classes: BussolaManager. Funcoes: begin, ImuManager, loop, conec
+      tado, calibrando, calibrada, rumoValido, rumoGraus.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/command_executor.h
+    corpo: >-
+      Command Executor (Cap 10 secao 10) - traduz COMMAND em acao nos manage
+      rs.. Classes: CommandExecutor. Funcoes: CommandExecutor, setup, comand
+      o, reativa, detectado, sozinho.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/dht_manager.h
+    corpo: >-
+      DHT Manager (Cap 10 secao 8) - temperatura/umidade (pino 24, CONFIRMAD
+      O).. Classes: DhtManager. Funcoes: iniciar, atualizarSeParado, tempera
+      turaC, umidadePercent, leituraValida, ausente.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/encoder_manager.h
+    corpo: >-
+      Quantas chapas ha em cada roda. Se o dono mudar a montagem, e AQUI.. C
+      lasses: EncoderManager. Funcoes: esquerdo, direito.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/estado.h
+    corpo: >-
+      Maquina de estados do Hardware Core (Cap 10 secao 4).. Classes: Estado
+      , MaquinaDeEstados. Funcoes: nomeEstado, atual, mudou, anterior.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/framing.h
+    corpo: >-
+      Camada de enquadramento (Cap 14 secao 3): STX/ETX + byte-stuffing + CR
+      C16.. Classes: DecodificadorQuadro. Funcoes: buffer, tamanho, quadrosI
+      nvalidos.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/imu_manager.h
+    corpo: >-
+      IMU Manager (Cap 10 secao 7) - MPU6050 via I2C (pinos 20/21, CONFIRMAD
+      O).. Classes: ImuManager. Funcoes: iniciar, atualizar, consumirPicoG,
+      aceleracaoG, limiteImpactoG, MEDIDA, calibrar, conectado.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/motor_manager.h
+    corpo: >-
+      Motor Manager (Cap 10 secao 10) - controle dos 2x NEMA17 via 2x TB6600
+      .. Classes: MotorManager, TipoMovimento. Funcoes: iniciar, habilitar,
+      desabilitar, loop, andarFrente, andarDistancia, girarContinuo, girarGr
+      aus.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/pins.h
+    corpo: >-
+      Niveis do modulo de rele da lanterna, nomeados para o codigo dizer o q
+      ue.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/protocolo.h
+    corpo: >-
+      Protocolo de mensagens (Cap 5 secao 5) do lado do firmware..
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/radar_manager.h
+    corpo: >-
+      Radar Manager (Cap 10 secao 6) - radar frontal (SCAN_FRONT).. Classes:
+      RadarManager. Funcoes: iniciar, atualizar, boa, iniciarVarredura, man
+      ual, varrendo, leituras, quantidadeLeituras.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/safety_manager.h
+    corpo: >-
+      Safety Manager (Cap 10 secao 9) - seguranca reativa.. Classes: SafetyM
+      anager. Funcoes: loop, dono, pararAtivo, motivo.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/sensor_ultrassonico.h
+    corpo: >-
+      Driver HC-SR04 nao bloqueante (Cap 10 secao 10).. Classes: Estagio, Se
+      nsorUltrassonico. Funcoes: iniciar, atualizar, REAL, frente, distancia
+      Cm, leituraValida, trigger, alcance.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: firmware/hardware_core/include/telemetry_manager.h
+    corpo: >-
+      Telemetry Manager (Cap 10 secao 8) - pacote periodico Radar Inteligent
+      e. Classes: TelemetryManager. Funcoes: TelemetryManager, movimento, ne
+      le, preencherPayload.
+    fonte: codigo-fonte do ORION (firmware)
+    confianca: 0.9

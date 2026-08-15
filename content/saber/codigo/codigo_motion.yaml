@@ -1,0 +1,211 @@
+# Saber do ORION - area: CODIGO (motion)
+# Cada arquivo do codigo-fonte descrito para o robo se entender por dentro.
+conhecimentos:
+  - tipo: conceito
+    titulo: motion_core/__main__.py
+    corpo: >-
+      Motion Core — processo principal do Raspberry Pi (Cap 6, 12, 13, 14)..
+      Funcoes: principal.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/behavior_core.py
+    corpo: >-
+      BehaviorCore: o maestro (EDR-0020) - arbitragem por prioridade.. Class
+      es: BehaviorCore. Funcoes: registrar, nomes_registrados, ativo_nome, p
+      edir_reavaliacao, modo_controle, tem_o_volante, definir_modo_controle,
+      executar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/comportamento.py
+    corpo: >-
+      Comportamento: a unidade plugável do Behavior Core (EDR-0020).. Classe
+      s: Comportamento. Funcoes: resolver_contexto, quer_rodar, executar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/comportamentos.py
+    corpo: >-
+      Comportamentos concretos do Fofão plugados no maestro (EDR-0020).. Cla
+      sses: Repouso, Ronda, AcompanharPessoa, Atender, Vigilia, IaEstrategic
+      a, AtenderGesto, VigilanciaObstaculo. Funcoes: quer_rodar, executar, p
+      edir, quer_rodar, executar, quer_rodar, executar, quer_rodar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/contrato.py
+    corpo: >-
+      Contrato de autoridade da IA sobre o Fofao (EDR-0026).. Classes: Acao.
+      Funcoes: resolver.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/estado_do_mundo.py
+    corpo: >-
+      Modelo de mundo unificado do Fofão (base da integração cognitiva).. Cl
+      asses: RetratoDoMundo, EstadoDoMundo. Funcoes: ler, escrever, resumo,
+      retrato, fmt, do_mega.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/goap.py
+    corpo: >-
+      GOAP - o Fofao planeja uma SEQUENCIA em vez de escolher um passo.. Cla
+      sses: Objetivo. Funcoes: estado_de, satisfeito, planejar, conferir_mod
+      elo.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/guardiao_ram.py
+    corpo: >-
+      Guardião de RAM do Notebook (EDR-0020; Cap 16 Diagnóstico).. Classes:
+      GuardiaoRamNotebook. Funcoes: em_alerta.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/impulsos.py
+    corpo: >-
+      Impulsos: de onde sai o objetivo do Fofao quando ninguem esta mandando
+      .. Classes: Impulso, ImpulsoMedido, Impulsos. Funcoes: nome, familia,
+      objetivo, forte, como_dict, marcar, avaliar, objetivo_interno.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/instintos.py
+    corpo: >-
+      Instintos do Fofão: perceber que a própria medida não está confiável..
+      Classes: InstintoBussola. Funcoes: dispersao_circular_graus, dispersa
+      o_atual_graus.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/memoria_decisoes.py
+    corpo: >-
+      O robo pergunta UMA VEZ por situacao, aprende, e nao pergunta de novo.
+      . Classes: MemoriaDeDecisoes. Funcoes: assinatura, lembrar, aprender,
+      esquecer, quantas, resumo.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/modelo_goap.py
+    corpo: >-
+      O que cada acao do contrato EXIGE e o que ela MUDA - o modelo do GOAP.
+      . Classes: AcaoPlanejavel. Funcoes: promessa_de, resolver_objetivo, no
+      me.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/behavior/ponte_conselho.py
+    corpo: >-
+      Ponte de conselho: o maestro (Pi) pergunta, a IA (Notebook) responde..
+      Classes: PonteConselhoIA. Funcoes: pedir.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/desligamento.py
+    corpo: >-
+      Desligar o robo inteiro pelo botao da interface.. Classes: Desligador.
+      Funcoes: desligar_notebook, desligar_raspberry, desligar_tudo, agenda
+      r.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/api.py
+    corpo: >-
+      API de memoria (Cap 11 secao 6) - unico ponto de acesso ao banco.. Cla
+      sses: ErroCategoriaInvalida, ErroColunaInvalida, MemoryAPI. Funcoes: r
+      emember, recall, contar_repeticoes, update, forget, context, stats, sa
+      ber_guardar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/bridge.py
+    corpo: >-
+      Ponte entre a API de memoria e o Communication Core (Cap 14 s.7; Cap 1
+      1 s.6).. Classes: PonteMemoria. Funcoes: registrar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/database.py
+    corpo: >-
+      Database Manager (Cap 15).. Classes: ErroBancoDeDados, DatabaseManager
+      . Funcoes: agora_iso, conexao, caminho_db, iniciar, fechar, fazer_back
+      up, restaurar_backup_mais_recente, limpar_retencao.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/experiencias.py
+    corpo: >-
+      Registrador de experiencias: o que aconteceu, o que funcionou, o que f
+      alhou.. Classes: RegistradorExperiencias.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/manutencao.py
+    corpo: >-
+      Orquestracao assincrona do Database Manager com o Event Bus (Cap 15 s.
+      6, s.9).. Classes: TarefaManutencao. Funcoes: iniciar_banco, executar_
+      backup_agora, iniciar, parar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/projeto.py
+    corpo: >-
+      Leitura da Mission Memory - o indice que o projeto tem de si mesmo.. C
+      lasses: Achado. Funcoes: consulta_fts, buscar, estado, como_dict.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/replica.py
+    corpo: >-
+      Replica cruzada do backup para o Notebook (Cap 15 secao 6).. Classes:
+      ReceptorReplica. Funcoes: replicar_backup, registrar, arquivo_completo
+      .
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/saber.py
+    corpo: >-
+      Memoria cognitiva do ORION (2026-08-09) - o que ele SABE e usa antes d
+      a IA.. Funcoes: sincronizar_fts, remover_fts, buscar, carregar, contar
+      .
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/schema.py
+    corpo: >-
+      Schema SQL do banco (Cap 15 secoes 3-4; Cap 11 secao 5)..
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/memory/vault.py
+    corpo: >-
+      Vault de conhecimento em Obsidian (Cap 11, EDR-0021).. Classes: VaultC
+      onhecimento. Funcoes: escrever_nota, ler_nota, buscar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/navigation/fusao_sensores.py
+    corpo: >-
+      Fusao de Sensores (Cap 12 secao 8) - roda no Raspberry Pi.. Classes: F
+      usaoSensores. Funcoes: pose_atual.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/navigation/navigation_core.py
+    corpo: >-
+      Motion Core / Navegação (Cap 12) — roda no Raspberry Pi.. Classes: Mod
+      oNavegacao, ErroNavegacao, NavigationCore. Funcoes: modo, registrar_co
+      nsulta_repeticoes, frente_desconhecida, definir_modo_hold, executar_ma
+      nual, girar, executar_goto, executar_patrol.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: motion_core/webui/server.py
+    corpo: >-
+      Interface Web (Cap 13 s.4-5, 7) — servida pelo Raspberry Pi.. Classes:
+      WebUIServer. Funcoes: modo_controle, operador_tem_o_volante, iniciar,
+      encerrar.
+    fonte: codigo-fonte do ORION (motion)
+    confianca: 0.9

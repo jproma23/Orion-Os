@@ -1,0 +1,36 @@
+# Saber do ORION - area: FAMILIA
+# As pessoas da casa, como o ORION as reconhece.
+conhecimentos:
+  - tipo: conceito
+    titulo: Marah
+    corpo: >-
+      Marah, Mara e Marisane sao a mesma pessoa. Tem 40 anos. E a
+      mae do Kamal.
+    fonte: dono (chat 2026-08-15) e memoria_seed (apelidos aceitos)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Kamal
+    corpo: >-
+      Kamal e um menino de 4 anos, filho de Mara (Marah). O pai dele e
+      Joao Paulo.
+    fonte: dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Joao Paulo
+    corpo: >-
+      Joao Paulo tem 45 anos e e o pai do Kamal, filho de Mara
+      (Marah).
+    fonte: dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Aniversario do dono
+    corpo: >-
+      O aniversario do dono e dia 03/10 (3 de outubro).
+    fonte: dono (chat 2026-08-15)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Onde moramos
+    corpo: >-
+      A familia mora em Barreiras, Bahia, Brasil.
+    fonte: dono (chat 2026-08-15)
+    confianca: 0.9

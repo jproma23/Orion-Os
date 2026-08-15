@@ -18,7 +18,7 @@ from orion.kernel.event_bus import EventBus
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "tools"))
 
-from alimentar_memoria import alimentar, _relatorio  # noqa: E402
+from alimentar_memoria import alimentar, _relatorio, _carregar_saber  # noqa: E402
 
 
 @pytest_asyncio.fixture
@@ -58,3 +58,45 @@ async def test_ignora_categoria_fora_do_escopo(contexto):
     seed = {"relacoes": [{"origem_tipo": "x", "origem_id": 1}]}
     await alimentar(seed, api, db)
     assert _relatorio(db)["conhecimentos"] == 0
+
+
+def test_carrega_pasta_inteira(tmp_path):
+    area1 = tmp_path / "area_dono.yaml"
+    area1.write_text(
+        "conhecimentos:\n"
+        "  - tipo: conceito\n"
+        "    titulo: Perfil do dono\n"
+        "    corpo: Tecnico em Eletromecanica.\n",
+        encoding="utf-8",
+    )
+    sub = tmp_path / "codigo"
+    sub.mkdir()
+    area2 = sub / "codigo_src.yaml"
+    area2.write_text(
+        "conhecimentos:\n"
+        "  - tipo: conceito\n"
+        "    titulo: src/orion/main.py\n"
+        "    corpo: Ponto de entrada.\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "ignorado.txt").write_text("nao e yaml", encoding="utf-8")
+
+    seed = _carregar_saber(tmp_path)
+
+    assert seed["conhecimentos"][0]["titulo"] == "Perfil do dono"
+    assert seed["conhecimentos"][1]["titulo"] == "src/orion/main.py"
+    assert len(seed["conhecimentos"]) == 2
+
+
+def test_carrega_arquivo_unico(tmp_path):
+    arquivo = tmp_path / "seed.yaml"
+    arquivo.write_text(
+        "procedimentos:\n"
+        "  - nome: Ativar o modo aula\n"
+        "    passos: Diga ativar modo aula.\n",
+        encoding="utf-8",
+    )
+
+    seed = _carregar_saber(arquivo)
+
+    assert seed["procedimentos"][0]["nome"] == "Ativar o modo aula"

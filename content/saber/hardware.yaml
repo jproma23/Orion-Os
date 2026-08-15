@@ -1,0 +1,50 @@
+# Saber do ORION - area: HARDWARE
+# Sensores e atuadores do proprio corpo.
+conhecimentos:
+  - tipo: conceito
+    titulo: BME280
+    corpo: >-
+      Sensor de temperatura, pressao e umidade, com comunicacao I2C. Usado
+      para medir o ambiente.
+    fonte: tests/unit/test_saber_memoria.py e orion.yaml
+    confianca: 0.9
+  - tipo: conceito
+    titulo: MPU6050
+    corpo: >-
+      Unidade de medicao inercial (IMU) do robo: mede inclinacao e impacto.
+      A seguranca de inclinacao/impacto so funciona enquanto ela esta
+      conectada; quando desconecta, o log avisa na borda.
+    fonte: orion.yaml (fusao_sensores) e commit 637ab18
+    confianca: 0.9
+  - tipo: conceito
+    titulo: ESP32
+    corpo: >-
+      Microcontrolador do audio: capta os microfones e o wake word "Fofao" e
+      transmite por socket TCP (16 kHz) para o Notebook. O transporte e
+      correto; o ruido de captacao (SNR do mic) e o portao aberto do hardware.
+    fonte: orion.yaml (voice) e ROADMAP portao 1
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Servos pan e tilt
+    corpo: >-
+      Os servos da cabeca do robo: pan de -80 a 80 graus e tilt de -30 a 45,
+      ate 60 graus por segundo. A cabeca volta ao centro sozinha apos 3
+      minutos de ociosidade; em modo manual, o dono controla.
+    fonte: orion.yaml (vision) e journal 2026-08-04
+    confianca: 0.9
+  - tipo: conceito
+    titulo: TCRT5000
+    corpo: >-
+      Encoder de roda (sensor de reflexao): conta pulsos nos GPIO 15 e 16 do
+      Arduino para medir rotacao. O firmware ja conta pulso; o sensor ainda
+      nao esta montado na roda.
+    fonte: journal 2026-08-04 e orion.yaml (motion)
+    confianca: 0.9
+  - tipo: conceito
+    titulo: Modo sentinela
+    corpo: >-
+      Vigilia do robo: ao receber um alerta (barulho estranho ou rosto
+      desconhecido), o maestro assume o controle por 8 segundos, orienta-se
+      para a origem, pede foto e notifica antes de liberar.
+    fonte: orion.yaml (behavior.vigilia)
+    confianca: 0.9
