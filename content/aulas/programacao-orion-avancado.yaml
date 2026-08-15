@@ -1,0 +1,190 @@
+id: programacao.orion.avancado
+materia: programacao
+titulo: Estudo de caso - o próprio ORION
+nivel: avancado
+resumo: >
+  Como este robo foi feito: os erros reais, o commit que resolveu cada um,
+  e o porque escrito no codigo. Material que so ele tem.
+fonte: journal do ORION, sessões de 2026-07-27 a 2026-08-09 (erros medidos e corrigidos)
+plano:
+  objetivo: >
+    Caçar o defeito que NAO quebra: o bug que não levanta exceção, não derruba
+    teste e mesmo assim está errado. Usando os erros reais deste robô, você vai
+    aprender a desconfiar de "está funcionando".
+  pre_requisitos:
+    - Programação básica
+    - Noções de banco de dados e SQL
+  duracao_min: 16
+  fixacao:
+    - Por que "coluna = NULL" nunca casa com nada em SQL?
+    - O que a lanterna do robô ensinou sobre nível ativo (HIGH vs LOW)?
+    - Por que um teste unitário verde não prova que o recurso funciona?
+  fechamento: >
+    Todos os casos de hoje tinham o mesmo rosto: o sistema parecia funcionar.
+    Nenhum quebrou com erro, nenhum derrubou teste. O defeito mais caro deste
+    projeto nunca foi o que gritou - foi o que ficou calado.
+passos:
+  - fala: >
+      Hoje a aula é diferente das outras. O assunto sou eu. Não vou ensinar
+      de livro: vou ensinar dos erros que este robô realmente cometeu, um por
+      um, com o commit que consertou cada um.
+    quadro:
+      tipo: titulo
+      texto: Estudo de caso - o próprio ORION
+
+  - fala: >
+      Todo bug ruim quebra alguma coisa. Mas existe uma família pior: o bug
+      que não quebra NADA. Sem exceção, sem erro, sem teste vermelho. O robô
+      parece funcionar - e é exatamente por isso que ele escapa.
+    quadro:
+      tipo: topicos
+      texto: O defeito que não quebra
+      itens:
+        - Não levanta exceção
+        - Não derruba teste
+        - Parece funcionar
+        - O mais caro de todos
+
+  - fala: >
+      Caso um: o recado que nunca saía. Você pediu para avisar a Marah. O robô
+      cumprimentou, e o recado ficou guardado. A busca montava
+      "coluna = ?" mesmo quando o valor era nulo.
+    quadro:
+      tipo: codigo
+      linguagem: sql
+      texto: |
+        -- o que o código montava:
+        SELECT ... WHERE entregue_em = NULL;
+        -- em SQL, NULL nunca casa com nada.
+        -- "coluna = NULL" é sempre falso, mesmo se o valor for NULL.
+
+  - fala: >
+      O certo em SQL é "IS NULL", nunca "= NULL". A função procurava recados
+      pendentes, recebia lista vazia o tempo todo, e ninguém avisava. O recurso
+      nunca tinha funcionado desde que nasceu - e parecia que sim.
+    quadro:
+      tipo: codigo
+      linguagem: sql
+      texto: |
+        SELECT ... WHERE entregue_em IS NULL;
+        -- pendentes() busca {"entregue_em": None}
+        -- "= NULL" devolvia vazio SEMPRE, sem erro nenhum.
+
+  - fala: >
+      Caso dois: a lanterna que ficava acesa. O pino dois era o LED da placa e
+      acendia com nível alto. Quando virou relé, o relé é ativo em BAIXO:
+      escrever "apagar" mandava LOW - que no relé significa acender.
+    quadro:
+      tipo: codigo
+      linguagem: c
+      texto: |
+        // LED:   HIGH = acende
+        // Relé:  LOW  = acende  (ativo em LOW)
+        // "apagar" escrevia LOW e ACENDIA a lanterna.
+
+  - fala: >
+      A lição: um pino não tem dono fixo. Antes de assumir que HIGH é
+      "ligado", leia o componente. E grave o estado seguro ANTES de configurar
+      o pino - o robô acendia a lanterna entre o reset e o firmware rodar.
+    quadro:
+      tipo: topicos
+      texto: Nível ativo
+      itens:
+        - HIGH nem sempre é ligado
+        - Ativo em LOW inverte tudo
+        - Estado seguro escrito antes do pinMode
+
+  - fala: >
+      Caso três: o comando que "funcionou" e não funcionou. Instalando uma
+      ferramenta, o erro de saída foi para o fim da tela com um pipe, e a
+      checagem via exit code via o resultado do último comando do pipe - que
+      tinha sucesso.
+    quadro:
+      tipo: codigo
+      linguagem: bash
+      texto: |
+        npm install ... | tail -8
+        # $? devolve o exit code do TAIL, não do npm.
+        # a instalação quebrou e a checagem leu "sucesso".
+
+  - fala: >
+      Foi o mesmo defeito do robô, na ferramenta que o conserta: ausência de
+      erro lida como sucesso. O pipe engoliu o código de saída. Quando você
+      filtra a saída de um comando, você também filtra o aviso dele.
+    quadro:
+      tipo: texto
+      texto: >
+        Filtrar a saída com pipe filtra também o código de saída.
+        Sucesso do filtro ≠ sucesso do comando.
+
+  - fala: >
+      Caso quatro: o laço de oito horas. O robô decidia "observar o ambiente"
+      a cada trinta e um segundos, porque não sabia a distância à frente. Ele
+      olhava, continuava sem saber, e decidia de novo. Uma chamada paga por
+      minuto, para sempre.
+    quadro:
+      tipo: codigo
+      linguagem: python
+      texto: |
+        while not sei_a_distancia():
+            decidir("observar_ambiente")   # nunca entrega o efeito
+            aguardar(31)                    # e decide de novo
+        # ação que promete um efeito e nunca o entrega vira laço eterno.
+
+  - fala: >
+      A regra que nasceu desse caso: uma ação que promete um efeito e nunca o
+      entrega para de ser planejada - e volta sozinha se o efeito reaparecer.
+      Vale para LiDAR, para servo travado, para sensor desplugado.
+    quadro:
+      tipo: topicos
+      texto: Laço eterno
+      itens:
+        - Ação que promete efeito sem entregar
+        - Plano repetido a cada ciclo
+        - Critério de saída: o efeito, não a intenção
+
+  - fala: >
+      Caso cinco: o heartbeat que mentia. O painel dizia "ok" para o outro
+      computador com o horário congelado no momento da conexão. Se a máquina
+      morresse, a tela nunca mostraria - o relógio já estava parado antes.
+    quadro:
+      tipo: codigo
+      linguagem: python
+      texto: |
+        ultimo_contato = hora_da_conexao     # congelado
+        mostrar("ok", ultimo_contato)        # "vivo" mesmo depois de morrer
+        # a prova de vida tem que ser a mensagem de agora,
+        # não um campo copiado uma vez.
+
+  - fala: >
+      Caso seis: os fakes que não tinham SQL. O teste do recado passava com
+      dados falsos - mas o banco real nunca era consultado. Teste verde não é
+      prova de que o caminho inteiro funciona.
+    quadro:
+      tipo: topicos
+      texto: Teste verde não prova
+      itens:
+        - Falso pode pular o SQL de verdade
+        - Unitário não é log de produção
+        - A chegada real é o teste que vale
+
+  - fala: >
+      O fio comum de todos os casos: o robô parecia funcionar. A regra deste
+      projeto ficou escrita por causa deles - status é afirmação sobre
+      evidência. Sem um log datado, um teste nomeado, um número medido, não é
+      "está funcionando": é hipótese.
+    quadro:
+      tipo: topicos
+      texto: A regra que sobrou
+      itens:
+        - Status é afirmação sobre evidência
+        - Log datado, teste nomeado, número medido
+        - Parecer funcionar e hipotese, nao fato
+
+  - fala: >
+      Agora uma pergunta para você usar isso: na última vez que um programa
+      seu "funcionou" sem você conferir o resultado - como você sabe que
+      estava certo?
+    quadro:
+      tipo: texto
+      texto: "Pergunta de fixacao: como voce PROVA que funciona?"

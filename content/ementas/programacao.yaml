@@ -95,6 +95,7 @@ niveis:
         titulo: IA aplicada
         conteudo: Chamar um modelo, prompt, cota, e por que o local sempre vem antes do remoto.
       - id: prog.orion
+        aula: programacao.orion.avancado
         titulo: Estudo de caso - o próprio ORION
         conteudo: >
           Como este robo foi feito: os erros reais, o commit que resolveu cada
