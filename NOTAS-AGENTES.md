@@ -6,6 +6,38 @@ no projeto e atualize ao terminar.** Entradas novas vão NO TOPO, com data e
 assinatura do agente. Não apague entradas antigas — marque como resolvidas.
 
 ---
+## 2026-08-16 — Ensino super avancado: 18 aulas novas (Python, JS, MQTT, C++, C e Assembly)
+
+**Agente:** opencode/DeepSeek
+**Estado:** concluído
+
+### O que foi feito
+
+- 18 topicos avancados adicionados a `content/ementas/programacao.yaml`
+  (3 por linguagem: Python, JavaScript, MQTT, C++, C e Assembly).
+- Rascunhos gerados na Wikipedia (12) + 6 escritos a mao pelo agente para os
+  termos que a Wikipedia devolveu errado ("moderno" filosofico, pilha, etc.).
+  Depois 4 rascunhos fracos reescritos com material tecnico correto.
+- `tools/redigir_aula.py` (IA, no Notebook, com chave do config/secrets.env)
+  redigiu os 18: 15 passos medio ~9, conteudo didatico e tecnico.
+- Publicadas em `content/aulas/` e indexadas: 131 aulas, 1231 passos.
+  Busca validada: "C++ moderno", "MQTT QoS", "pilha em assembly", "ponteiros em C".
+
+### Avisos para quem continuar
+
+- Redacao de aula usa UMA chamada de modelo por aula, no NOTEBOOK (que tem a
+  chave). Para rodar: `set -a; . ./config/secrets.env; set +a` e depois
+  `.venv/bin/python tools/redigir_aula.py <id>`.
+- Rascunhos ficam em `content/rascunhos/` (no .gitignore); so entram no git
+  as aulas publicadas em `content/aulas/`.
+- Termos com acento/hifen quebram a busca da Wikipedia (400) - para esses,
+  escrever o rascunho a mao com material tecnico e fonte "conhecimento do dono".
+- Aulas redigidas: `content/aulas/` tem 131 arquivos; as 18 novas sao
+  programacao-{python,javascript,mqtt,cpp,c,assembly}*-avancado.yaml.
+- Programacao tem 42 topicos, faltam 8 (nivel intermediario, nao escrito).
+
+---
+
 
 ## 2026-08-15 — Saber do robo em pasta por area + codigo do proprio robo na memoria
 
