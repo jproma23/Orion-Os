@@ -282,6 +282,15 @@ vision:
   # outra ordem - conferir com `v4l2-ctl --list-devices` se a visao parecer
   # estar usando a camera errada.
   camera_frontal_espelhada: false
+  # --- Vision Engine do Pi (motion_core/vision) -------------------------
+  # Caminho do modelo YOLO no Raspberry e URL do stream da propria camera.
+  yolo_model_path: "data/modelos/yolov8n.pt"
+  camera_url_pi: "http://127.0.0.1:8091/stream"
+  # FPS pedido ao laco do Pi (0 = sem limite, roda o mais rapido possivel).
+  fps_pi: 0
+  # YOLO principal do robo: todas as 80 classes nativas COCO.
+  pi_classes_interesse: [person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, traffic_light, fire_hydrant, stop_sign, parking_meter, bench, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack, umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sports_ball, kite, baseball_bat, baseball_glove, skateboard, surfboard, tennis_racket, bottle, wine_glass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, broccoli, carrot, hot_dog, pizza, donut, cake, chair, couch, potted_plant, bed, dining_table, toilet, tv, laptop, mouse, remote, keyboard, cell_phone, microwave, oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddy_bear, hair_drier, toothbrush]
+
   # Era `true` ate 2026-07-28, e estava CERTO enquanto a camera principal era
   # a INTEGRADA do notebook: aquela entrega o frame no efeito "selfie"
   # (espelhado), e `captura.py` desfazia com cv2.flip. Sem desfazer, o Pan/Tilt
@@ -596,6 +605,7 @@ security:
   child_safe_profile_on_detection: true
 
 behavior:                        # Behavior Core / maestro (EDR-0020)
+  ronda_automatica_intervalo_s: 90  # camera pan-tilt observa o ambiente em modo autonomo
   # Conselheiro de IA: o maestro pergunta ao Notebook o que fazer quando
   # esta ocioso. DESLIGADO por padrao desde 2026-07-19, e o motivo importa.
   #

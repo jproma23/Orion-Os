@@ -50,6 +50,7 @@ from motion_core.memory.replica import replicar_backup
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
+from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
 from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
 from orion.communication.discovery import ErroVersaoIncompativel, descobrir
 from orion.communication.heartbeat import MonitorHeartbeat
@@ -370,6 +371,38 @@ async def principal() -> None:
     config_navigation = config.secao("navigation")
     navigation = NavigationCore(event_bus, comm, config_motion, config_navigation)
     FusaoSensores(event_bus, config_motion)
+
+    # 3b. Vision Engine do Pi (câmera dedicada: pessoas + animais, YOLO).
+    #
+    # O Motion Core é dono da câmera FÍSICA do robô (EDR-0023 s.3) e publica
+    # detecções NO barramento do Pi com o ORION VISION PROTOCOL padronizado.
+    # Tolera ausência total (Cap 6 s.8): sem câmera ou sem modelo, o robô
+    # segue de pé e a visão só publica vision.camera_error.
+    try:
+        conf_vision = config.secao("vision")
+    except Exception:
+        conf_vision = {}
+        logger.warning("secao `vision` ausente no orion.yaml - Vision Engine desligado")
+    vision_engine = None
+    if conf_vision:
+        classes = conf_vision.get("pi_classes_interesse")
+        if classes is None:
+            classes = sorted(CLASSES_PESSOAS_ANIMAIS)
+        vision_engine = VisionEngine(
+            event_bus,
+            camera_url=conf_vision.get("camera_url_pi", "http://127.0.0.1:8091/stream"),
+            caminho_modelo=conf_vision.get("yolo_model_path", "data/modelos/yolov8n.pt"),
+            confianca_minima=conf_vision.get("confidence_threshold", 0.55),
+            imgsz=conf_vision.get("yolo_imgsz", 320),
+            fps_alvo=conf_vision.get("fps_pi", 0.0),
+            classes_interesse=frozenset(classes),
+        )
+        await vision_engine.iniciar()
+        logger.info(
+            "Vision Engine ativo (camera=%s, classes=%d)",
+            conf_vision.get("camera_url_pi", "http://127.0.0.1:8091/stream"),
+            len(classes),
+        )
 
     # Guardião de RAM do Notebook (EDR-0020): o Pi vigia a memória do Notebook
     # e pede alívio antes do crash. Só um monitor de eventos - sem task própria.
@@ -760,7 +793,8 @@ async def principal() -> None:
     )
     maestro.registrar(Repouso(event_bus))
     # Discricionario: e entre este e o repouso que a IA opina (EDR-0020).
-    maestro.registrar(Ronda(event_bus), discricionario=True)
+    ronda = Ronda(event_bus)
+    maestro.registrar(ronda, discricionario=True)
     maestro.registrar(Atender(event_bus))
     # Segura a cabeça enquanto a visão rastreia alguém, para o Repouso não
     # recentrar o pan/tilt por baixo do rastreamento (2026-07-28).
@@ -825,6 +859,25 @@ async def principal() -> None:
         )
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
+    intervalo_ronda_s = config.secao("behavior").get("ronda_automatica_intervalo_s", 90.0)
+
+    async def _pedir_ronda_periodica() -> None:
+        """Faz a camera principal observar o ambiente quando o robo esta livre.
+
+        A Ronda continua subordinada ao maestro: pessoa, voz, seguranca e o
+        operador a preemptam; no modo manual ela nem chega a ser pedida.
+        """
+        while True:
+            await asyncio.sleep(intervalo_ronda_s)
+            if maestro.modo_controle == MODO_AUTONOMO:
+                await event_bus.publish(
+                    Ronda.TOPICO_PEDIDO, {"origem": "varredura_visual_periodica"}
+                )
+
+    tarefa_ronda = None
+    if intervalo_ronda_s > 0:
+        tarefa_ronda = asyncio.create_task(_pedir_ronda_periodica())
+        logger.info("Ronda visual automatica ativa a cada %.0f s", intervalo_ronda_s)
     logger.info(
         "Behavior Core (maestro) ativo - comportamentos: %s",
         ", ".join(maestro.nomes_registrados),
@@ -935,11 +988,15 @@ async def principal() -> None:
     heartbeat.parar()
     tarefa_heartbeat.cancel()
     tarefa_recentragem.cancel()
+    if tarefa_ronda is not None:
+        tarefa_ronda.cancel()
     maestro.parar()
     tarefa_maestro.cancel()
     if tarefa_ia_estrategica is not None:
         ia_estrategica.parar()
         tarefa_ia_estrategica.cancel()
+    if vision_engine is not None:
+        vision_engine.parar()
     if tarefa_manutencao is not None:
         tarefa_manutencao.parar()
         tarefa_manutencao_task.cancel()

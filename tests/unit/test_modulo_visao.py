@@ -123,6 +123,7 @@ def test_confirmacao_de_alvo_vem_do_orion_yaml(monkeypatch):
     # quem mira o alvo. No Pi (sem o extra `vision`) isto falhava; skipar e o
     # mesmo tratamento que test_vision_core.py ja da.
     pytest.importorskip("cv2")
+    pytest.importorskip("face_recognition")
     capturado = {}
 
     class VisionCoreEspiao:
@@ -142,6 +143,7 @@ def test_confirmacao_de_alvo_default_e_1_nao_3(monkeypatch):
     """Config antiga sem a chave nao pode reintroduzir o impasse: o default
     tem que ser 1, o valor que alinha a tranca com o motor."""
     pytest.importorskip("cv2")  # mesmo motivo do teste acima
+    pytest.importorskip("face_recognition")
     capturado = {}
 
     class VisionCoreEspiao:
