@@ -1,0 +1,92 @@
+id: programacao.arquivos.intermediario
+materia: programacao
+titulo: Arquivos
+nivel: intermediario
+resumo: Ler e escrever texto, o with que fecha sozinho, CSV e JSON.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Aprender a ler e escrever arquivos em Python, usar o bloco with para fechar arquivos
+    com seguranca, e trabalhar com formatos CSV e JSON.
+  pre_requisitos:
+  - Conhecimento basico de Python
+  - Uso de funcoes e dicionarios
+  duracao_min: 12
+  fixacao:
+  - Como voce abre um arquivo para leitura sem risco de esquece-lo aberto?
+  - Qual a diferenca de uso entre o modulo csv e o modulo json?
+  fechamento: Dominar arquivos permite que seus programas guardem informacoes de verdade e
+    conversem com planilhas e sistemas web.
+passos:
+- fala: 'Imagina que voce esta jogando um game, fecha o jogo, e quando abre de novo seu personagem
+    sumiu. Frustrante, nao e? Arquivo serve justamente para isso: e o dado que sobrevive quando
+    o programa fecha.'
+  quadro:
+    tipo: titulo
+    texto: Manipulacao de Arquivos em Python
+- fala: Para mexer num arquivo em Python, a gente usa a funcao open. O primeiro argumento
+    e o caminho e o segundo e a letra que indica o modo de uso.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'arquivo = open("notas.txt", "r")
+
+      conteudo = arquivo.read()
+
+      # "r" significa leitura'
+- fala: Existem varias letras para abrir arquivos. O r e para leitura, o w escreve do zero
+    apagando o anterior, e o a acrescenta coisas no fim sem apagar o que ja estava la.
+  quadro:
+    tipo: topicos
+    itens:
+    - '"r": Leitura'
+    - '"w": Escrita do zero (apaga anterior)'
+    - '"a": Acrescenta no fim'
+    - '"rb" / "wb": Modos binarios'
+    texto: Modos de Abertura
+- fala: 'Mas tem um problema: se a gente abre o arquivo e o programa da um erro no meio, o
+    arquivo fica aberto na memoria do computador. Para evitar isso, usamos o comando with.'
+  quadro:
+    tipo: texto
+    texto: 'Problema: arquivo esquecido aberto trava recursos do sistema.'
+- fala: O with garante que, assim que o bloco de codigo acaba ou da erro, o arquivo e fechado
+    automaticamente para voce. Olha como fica limpo.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "with open(\"notas.txt\", \"r\") as arquivo:\n    conteudo = arquivo.read()\n#\
+      \ O arquivo fecha sozinho aqui!"
+- fala: E quando temos tabelas, como dados de uma planilha? Usamos o formato CSV, onde as
+    colunas sao separadas por virgula. O Python tem um modulo proprio para isso.
+  quadro:
+    tipo: texto
+    texto: 'CSV: Texto com colunas separadas por virgula (para planilhas).'
+- fala: O modulo csv lida com problemas chatos, como virgulas e aspas dentro do texto, coisa
+    que um simples split nao faz direito. Usamos csv.reader para ler.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "import csv\n\nwith open(\"dados.csv\", \"r\") as f:\n    leitor = csv.reader(f)\n\
+      \    for linha in leitor:\n        print(linha)"
+- fala: Ja para sistemas web e troca de dados complexos, o formato rei e o JSON. Ele transforma
+    arquivos de texto diretamente em dicionarios do Python.
+  quadro:
+    tipo: texto
+    texto: 'JSON: Formato padrao de troca de dados na web.'
+- fala: Para usar JSON, importamos o modulo json. A funcao json.load le o arquivo transformando
+    em dicionario, e json.dump faz o caminho inverso para gravar.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "import json\n\nwith open(\"config.json\", \"r\") as f:\n    dados = json.load(f)\n\
+      \nprint(dados[\"tema\"])"
+- fala: Para terminar, nunca se esqueca do encoding! Se voce abrir um arquivo UTF-8 como se
+    fosse latin-1, seus acentos vao quebrar todos. Declare sempre o encoding.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "with open(\"texto.txt\", \"r\", encoding=\"utf-8\") as f:\n    print(f.read())"
+- fala: 'Agora me diga: se voce precisa guardar as configuracoes de um usuario para que outro
+    sistema web consiga ler facilmente, qual formato voce escolheria: texto puro, CSV ou JSON?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de Fixacao: Qual formato usar para dados estruturados na web?'

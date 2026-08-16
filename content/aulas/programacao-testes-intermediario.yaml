@@ -1,0 +1,84 @@
+id: programacao.testes.intermediario
+materia: programacao
+titulo: Testes automatizados
+nivel: intermediario
+resumo: Por que testar, o que e um bom teste, e o teste que so passa por sorte.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender por que testar, o que e um bom teste, e o teste que passa por sorte.
+  pre_requisitos:
+  - Funcoes em Python
+  - Logica de programacao basica
+  duracao_min: 10
+  fixacao:
+  - Por que o teste que passa por sorte e pior do que nao ter teste?
+  - Quais sao as tres partes de um teste automatizado?
+  fechamento: Escreva um teste para uma funcao que subtrai dois numeros usando assert.
+passos:
+- fala: Imagine que voce mexe numa peca de um carrinho de montanha-russa. Como saber se o
+    resto ainda funciona? Sem teste, e uma aposta. Com teste automatizado, e uma verificacao
+    que roda em segundos.
+  quadro:
+    tipo: titulo
+    texto: Testes Automatizados
+- fala: 'Teste automatizado e justamente isso: codigo que roda o seu codigo e confere o resultado
+    sozinho, sem voce precisar digitar nada. Ele vira a sua rede de seguranca.'
+  quadro:
+    tipo: texto
+    texto: Codigo que confere codigo automaticamente.
+- fala: Em Python, usamos ferramentas como o unittest que ja vem na biblioteca padrao, ou
+    o pytest, que e o favorito de quem escreve muito.
+  quadro:
+    tipo: topicos
+    texto: Ferramentas em Python
+    itens:
+    - unittest (biblioteca padrao)
+    - pytest (favorito da comunidade)
+- fala: 'Todo teste e dividido em tres partes: voce primeiro prepara o cenario, depois executa
+    a acao, e por fim confere o resultado.'
+  quadro:
+    tipo: topicos
+    texto: As 3 partes de um teste
+    itens:
+    - 1. Prepara o cenario
+    - 2. Executa a acao
+    - 3. Confere o resultado
+- fala: Olha um exemplo simples com Python. Usamos a palavra assert para conferir. Se o resultado
+    nao for o esperado, o teste falha e aponta exatamente a linha.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "def test_soma():\n    assert soma(2, 3) == 5"
+- fala: Mas o que faz um teste ser bom? Um bom teste precisa ser deterministico, rapido, isolado,
+    e testar apenas uma unica coisa.
+  quadro:
+    tipo: topicos
+    texto: O que e um bom teste?
+    itens:
+    - Deterministico
+    - Rapido
+    - Isolado
+    - Testa UMA coisa
+- fala: Cuidado com o teste que passa por sorte! E aquele que depende de horario, da internet,
+    ou afirma coisas que nao verificam nada de verdade.
+  quadro:
+    tipo: texto
+    texto: 'Cuidado: testes que dependem de fatores externos.'
+- fala: Esse tipo de teste que passa hoje e falha amanha sem voce mudar nada se chama teste
+    flaky. Ele e pior do que nao ter teste, porque cria uma falsa confianca.
+  quadro:
+    tipo: texto
+    texto: 'Teste flaky: passa hoje, falha amanha = confianca falsa.'
+- fala: No nivel intermediario, aprendemos a testar na medida certa. Testar funcao pura e
+    barato e vale muito. Ja testar interface grafica e caro e vale menos.
+  quadro:
+    tipo: topicos
+    texto: Medida certa dos testes
+    itens:
+    - 'Funcao pura: barato e vale muito'
+    - 'Interface: caro e vale menos'
+- fala: 'Lembre-se: cada bug que acontece na sua aplicacao vira uma oportunidade. A regra
+    de ouro e testar primeiro o que ja quebrou!'
+  quadro:
+    tipo: texto
+    texto: 'Regra de ouro: Cada bug vira um teste.'

@@ -44,28 +44,36 @@ niveis:
     descricao: Organizar codigo que outra pessoa vai ler.
     topicos:
     - id: prog.dicionarios
+      aula: programacao.dicionarios.intermediario
       titulo: Dicionários e conjuntos
       conteudo: Chave e valor, quando usar dicionario em vez de lista, conjuntos sem repeticao.
     - id: prog.arquivos
+      aula: programacao.arquivos.intermediario
       titulo: Arquivos
       conteudo: Ler e escrever texto, o with que fecha sozinho, CSV e JSON.
     - id: prog.modulos
+      aula: programacao.modulos.intermediario
       titulo: Módulos e bibliotecas
       conteudo: Import, a biblioteca padrao, pip e ambiente virtual.
     - id: prog.classes
+      aula: programacao.classes.intermediario
       titulo: Classes e objetos
       conteudo: Atributo, metodo, self, construtor; quando classe ajuda e quando atrapalha.
     - id: prog.testes
+      aula: programacao.testes.intermediario
       titulo: Testes automatizados
       conteudo: Por que testar, o que e um bom teste, e o teste que so passa por sorte.
     - id: prog.git
+      aula: programacao.git.intermediario
       titulo: Controle de versão com Git
       conteudo: Commit, branch, merge, e a mensagem de commit que explica o porque.
     - id: prog.depuracao
+      aula: programacao.depuracao.intermediario
       titulo: Depuração
       conteudo: Log contra print, isolar o problema, e a falha silenciosa que nao levanta
         erro.
     - id: prog.estruturas-dados
+      aula: programacao.estruturas-dados.intermediario
       titulo: Estruturas de dados
       conteudo: Pilha, fila, arvore e grafo; custo de cada operacao.
   avancado:

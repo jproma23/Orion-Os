@@ -1,0 +1,81 @@
+id: programacao.modulos.intermediario
+materia: programacao
+titulo: Módulos e bibliotecas
+nivel: intermediario
+resumo: Import, a biblioteca padrao, pip e ambiente virtual.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender import, a biblioteca padrao, pip e ambiente virtual.
+  pre_requisitos:
+  - Sintaxe basica de Python
+  duracao_min: 10
+  fixacao:
+  - O que faz o comando import?
+  - Para que serve o ambiente virtual?
+  fechamento: Vimos que organizar codigo em modulos, usar a biblioteca padrao e isolar dependencias
+    com venv e pip deixa seus projetos profissionais e faceis de manter.
+passos:
+- fala: Imagina que voce constroi uma bicicleta. Em vez de fazer cada parafuso do zero, voce
+    compra parafusos prontos na loja. Na programacao, a gente faz a mesma coisa com codigo
+    pronto.
+  quadro:
+    tipo: titulo
+    texto: Modulos e Bibliotecas
+- fala: Em Python, um modulo e simplesmente um arquivo .py com codigo que a gente pode reutilizar
+    em outro lugar.
+  quadro:
+    tipo: texto
+    texto: Modulo = arquivo .py reutilizavel
+- fala: Para trazer esse codigo para dentro do nosso programa, a gente usa a palavra import.
+    Por exemplo, import math nos da acesso a funcoes matematicas.
+  quadro:
+    tipo: formula
+    texto: import math
+- fala: A gente tambem pode puxar so uma peca especifica do modulo usando o comando from.
+  quadro:
+    tipo: formula
+    texto: from datetime import datetime
+- fala: O melhor e que o Python ja vem com uma biblioteca padrao gigante, pronta para usar
+    sem instalar nada.
+  quadro:
+    tipo: topicos
+    itens:
+    - json
+    - csv
+    - sqlite3
+    - os
+    - sys
+    - datetime
+    - pathlib
+    texto: Biblioteca Padrao do Python
+- fala: Mas se a gente precisar de algo que nao vem instalado, usamos o gerenciador pip para
+    baixar novos pacotes.
+  quadro:
+    tipo: formula
+    texto: pip install requests
+- fala: Se a gente instala tudo no Python principal do computador, os projetos comecam a baguncar
+    e brigar entre si. Para evitar isso, criamos um ambiente virtual.
+  quadro:
+    tipo: texto
+    texto: Ambiente virtual isola as dependencias do projeto
+- fala: Para criar esse mundinho isolado, a gente roda esse comando no terminal.
+  quadro:
+    tipo: formula
+    texto: python -m venv .venv
+- fala: Depois de criar, precisamos ativar o ambiente antes de comecar a trabalhar.
+  quadro:
+    tipo: topicos
+    itens:
+    - .venv\Scripts\activate (Windows)
+    - source .venv/bin/activate (Linux/Mac)
+    texto: Ativacao do ambiente virtual
+- fala: Para saber exatamente o que esta instalado no projeto e poder reproduzir depois, usamos
+    o comando pip freeze.
+  quadro:
+    tipo: formula
+    texto: pip freeze
+- fala: 'Para pensar: se voce comecar um projeto novo amanha, qual e o primeiro comando que
+    voce deve rodar para isolar o seu ambiente de trabalho?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como isolar as dependencias do seu projeto?'

@@ -1,0 +1,99 @@
+id: programacao.classes.intermediario
+materia: programacao
+titulo: Classes e objetos
+nivel: intermediario
+resumo: Atributo, metodo, self, construtor; quando classe ajuda e quando atrapalha.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender atributo, metodo, self, construtor, e quando classe ajuda.
+  pre_requisitos:
+  - Funcoes em Python
+  - Variaveis
+  duracao_min: 10
+  fixacao:
+  - Explique a diferenca entre classe e objeto com um exemplo proprio.
+  - Para que serve o self nos metodos?
+  fechamento: Classes juntam dados e comportamento, mas so devem ser usadas quando ha estado
+    para guardar.
+passos:
+- fala: Pense numa forma de bolo e nos bolos que saem dela. A forma e o molde. O bolo pronto
+    e a coisa real.
+  quadro:
+    tipo: titulo
+    texto: Classes e Objetos
+- fala: Na programacao, a classe e o molde. O objeto, que chamamos de instancia, e a coisa
+    pronta que criamos a partir desse molde.
+  quadro:
+    tipo: texto
+    texto: 'Classe = molde
+
+      Objeto = instancia (coisa pronta)'
+- fala: Por exemplo, a palavra Carro e a classe. O seu carro na garagem, com placa e cor especificas,
+    e o objeto.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo:
+
+      Classe: Carro
+
+      Objeto: Meu carro da garagem'
+- fala: Uma classe junta dados e comportamento. Os dados viram os atributos, e o comportamento
+    vira os metodos.
+  quadro:
+    tipo: topicos
+    texto: 'O que a classe junta:'
+    itens:
+    - Dados = Atributos
+    - Comportamento = Metodos
+- fala: Vamos ver como isso se escreve em Python. Usamos a palavra class para criar o molde.
+  quadro:
+    tipo: limpar
+- fala: Dentro da classe, temos o construtor, que em Python se chama dunder init. Ele roda
+    sozinho na criacao e monta o estado inicial.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "class Carro:\n    def __init__(self, placa):\n        self.placa = placa"
+- fala: Repare nessa palavra estranha, o self. Ele e a referencia ao proprio objeto. Sem ele,
+    o metodo nao saberia em qual instancia mexer.
+  quadro:
+    tipo: texto
+    texto: self = referencia ao proprio objeto
+- fala: Podemos adicionar tambem um comportamento, que chamamos de metodo. Veja o metodo buzinar.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "class Carro:\n    def __init__(self, placa):\n        self.placa = placa\n   \
+      \ def buzinar(self):\n        return \"bi\""
+- fala: Para criar o objeto de fato, nos chamamos a classe passando os dados necessarios,
+    como a placa.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'carro = Carro("ABC-123")
+
+      carro.buzinar()'
+- fala: 'Mas atencao: classe ajuda quando voce tem estado e comportamento juntos, como um
+    sensor e sua leitura. Se nao ha estado, uma funcao simples resolve melhor.'
+  quadro:
+    tipo: topicos
+    texto: Quando usar?
+    itens:
+    - 'AJUDA: junta estado e comportamento'
+    - 'ATRAPALHA: codigo sem estado cheio de self'
+- fala: 'Para fechar, no nivel intermediario voce tambem aprende sobre heranca, metodos estaticos
+    e atributos de classe. Lembre-se: heranca e para relacao ''e um'', e composicao para ''tem
+    um''.'
+  quadro:
+    tipo: topicos
+    texto: 'Conceitos Avancados:'
+    itens:
+    - Heranca ('e um')
+    - Composicao ('tem um')
+    - Metodo estatico
+    - Atributo de classe
+- fala: 'Agora me diga: se voce fosse criar um sistema para uma biblioteca, o livro seria
+    uma classe ou um objeto?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Livro e classe ou objeto?'

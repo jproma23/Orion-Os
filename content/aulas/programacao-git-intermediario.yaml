@@ -1,0 +1,87 @@
+id: programacao.git.intermediario
+materia: programacao
+titulo: Controle de versão com Git
+nivel: intermediario
+resumo: Commit, branch, merge, e a mensagem de commit que explica o porque.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender commit, branch, merge, e a mensagem de commit que explica o porque.
+  pre_requisitos:
+  - Conhecimento basico de programacao
+  - Uso de terminal ou linha de comando
+  duracao_min: 12
+  fixacao:
+  - O que o comando git commit faz na linha do tempo?
+  - Por que e importante escrever o porquê na mensagem de commit?
+  fechamento: Dominar o Git com commits organizados e branches separadas e o que separa um
+    programador iniciante de um profissional.
+passos:
+- fala: Imagina que voce esta escrevendo um texto muito importante e vai salvando copias dele
+    a cada paragrafo novo. O Git funciona exatamente assim para a programacao. Vamos ver como
+    ele guarda a nossa historia.
+  quadro:
+    tipo: titulo
+    texto: Controle de Versao com Git
+- fala: 'No Git, cada ponto salvo do seu projeto e como uma foto na linha do tempo. Esse ponto
+    salvo tem um nome especial: commit. Vamos ver os passos para tirar essa foto.'
+  quadro:
+    tipo: texto
+    texto: 'Commit: foto do projeto em um ponto salvo.'
+- fala: Para tirar essa foto, usamos tres comandos basicos. O status mostra o que mudou, o
+    add junta as mudancas, e o commit grava a foto no historico com uma mensagem.
+  quadro:
+    tipo: topicos
+    texto: Passos do Commit
+    itens:
+    - 'git status: ve o que mudou'
+    - 'git add: junta as mudancas'
+    - 'git commit -m ''mensagem'': tira a foto'
+- fala: Mas cuidado com o que voce escreve na mensagem da foto. Nao basta dizer o que voce
+    fez, voce tem que explicar o PORQUE voce fez aquilo.
+  quadro:
+    tipo: texto
+    texto: A mensagem de commit deve explicar o PORQUE, nao so o que.
+- fala: Olha a diferenca. Um texto ruim diz apenas 'corrige bug'. Um texto bom explica a falha
+    e a causa exata do problema.
+  quadro:
+    tipo: topicos
+    texto: Exemplo de Mensagens
+    itens:
+    - 'Ruim: ''corrige bug'''
+    - 'Bom: ''corrige falha de autenticacao: token expirava sem renovar'''
+- fala: E se a gente quiser testar uma ideia maluca sem estragar o codigo que ja funciona?
+    A gente cria uma linha do tempo paralela chamada branch.
+  quadro:
+    tipo: limpar
+- fala: Para criar e entrar em uma branch nova, usamos esses comandos no terminal.
+  quadro:
+    tipo: topicos
+    texto: Trabalhando com Branches
+    itens:
+    - git branch nova-cadeia (cria)
+    - git checkout nova-cadeia (entra)
+- fala: Depois que a sua ideia paralela funcionou, voce junta ela de volta na linha principal
+    usando o comando merge.
+  quadro:
+    tipo: formula
+    texto: git merge
+- fala: O merge junta tudo sozinho se as mudancas foram em lugares diferentes. Mas se os dois
+    lados mexeram na exata mesma linha, surge um conflito e alguem precisa resolver.
+  quadro:
+    tipo: texto
+    texto: 'Conflito: quando os dois lados mudaram a mesma linha.'
+- fala: Para ver o que aconteceu no projeto, usamos o log para ver o historico e o diff para
+    ver o que mudou em cada commit.
+  quadro:
+    tipo: topicos
+    texto: Inspecionando o Codigo
+    itens:
+    - 'git log: mostra o historico'
+    - 'git diff: mostra o que mudou em cada commit'
+- fala: 'Para terminar, numa equipe a regra e clara: faca commits pequenos, escreva o porquê
+    na mensagem, e use o arquivo .gitignore para esconder senhas e arquivos gerados.'
+  quadro:
+    tipo: formula
+    texto: .gitignore (ignora banco, build e dependencias)
+- fala: 'Agora me diga: se voce escrevesse a mensagem de um commit corrigindo um botao que
+    nao abria a pagina, o que seria melhor colocar no lugar de ''conserta botao''?'

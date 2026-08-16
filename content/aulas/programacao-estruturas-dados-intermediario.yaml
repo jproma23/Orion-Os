@@ -1,0 +1,110 @@
+id: programacao.estruturas-dados.intermediario
+materia: programacao
+titulo: Estruturas de dados
+nivel: intermediario
+resumo: Pilha, fila, arvore e grafo; custo de cada operacao.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender pilha, fila, arvore e grafo, e o custo de cada operacao.
+  pre_requisitos:
+  - Conceitos basicos de programacao
+  - Listas e dicionarios
+  duracao_min: 10
+  fixacao:
+  - Identificar a estrutura ideal para um historico de navegacao
+  - Explicar a diferenca de custo entre O(1) e O(n)
+  fechamento: Qual estrutura de dados voce usaria para criar uma fila de atendimento de impressao
+    de documentos e por que?
+passos:
+- fala: Ja tentou organizar um monte de arquivos no computador e percebeu que alguns jeitos
+    deixam tudo lento? A estrutura de dados e exatamente a forma como guardamos os dados na
+    memoria. E isso define o custo de mexer neles.
+  quadro:
+    tipo: titulo
+    texto: Estruturas de Dados e Custos
+- fala: A mesma informacao guardada numa lista, num dicionario ou numa arvore tem custos totalmente
+    diferentes para procurar, inserir e apagar. Escolher a estrutura certa decide se o seu
+    programa aguenta o crescimento.
+  quadro:
+    tipo: texto
+    texto: A estrutura certa define quais operacoes ficam baratas.
+- fala: 'Vamos comecar pela pilha. Pense numa pilha de pratos: voce so consegue tirar o ultimo
+    que colocou. Por isso ela e chamada de LIFO: o ultimo a entrar e o primeiro a sair.'
+  quadro:
+    tipo: texto
+    texto: 'Pilha (LIFO): Ultimo a entrar, primeiro a sair.'
+- fala: A pilha aparece no botao de desfazer de um programa, no historico do navegador e ate
+    nas chamadas de funcao do seu codigo. Em Python, usamos uma lista comum com o metodo pop
+    para fazer uma pilha.
+  quadro:
+    tipo: topicos
+    texto: 'Onde usamos Pilha:'
+    itens:
+    - Botao Desfazer (Ctrl+Z)
+    - Historico do navegador
+    - Chamadas de funcao
+- fala: 'Depois temos a fila. Lembra da fila do banco? O primeiro a chegar e o primeiro a
+    ser atendido. Chamamos de FIFO: primeiro a entrar, primeiro a sair.'
+  quadro:
+    tipo: texto
+    texto: 'Fila (FIFO): Primeiro a entrar, primeiro a sair.'
+- fala: A fila e muito usada para trabalhos que precisam ser processados na ordem de chegada
+    ou em mensagens a enviar. Em Python, o collections.deque e ideal para criar uma fila eficiente.
+  quadro:
+    tipo: topicos
+    texto: 'Onde usamos Fila:'
+    itens:
+    - Trabalhos a processar
+    - Mensagens a enviar
+    - 'Python: collections.deque'
+- fala: Saindo da linha reta, chegamos na arvore. Ela organiza os dados em niveis, parecendo
+    um organograma de empresa, onde cada no tem filhos.
+  quadro:
+    tipo: texto
+    texto: 'Arvore: Dados em niveis com nos e filhos.'
+- fala: A arvore aparece em pastas do computador, menus de sites e buscas. A arvore de busca
+    ordena os filhos e procura pulando metade a cada passo, o que deixa a busca muito barata.
+  quadro:
+    tipo: topicos
+    texto: 'Exemplos de Arvore:'
+    itens:
+    - Pastas do computador
+    - Menus de sites
+    - Arvore de busca (metade a cada passo)
+- fala: E se os dados nao tiverem hierarquia? Entao usamos o grafo. Ele liga nos por arestas,
+    como um mapa de cidades ou uma rede social.
+  quadro:
+    tipo: texto
+    texto: 'Grafo: Nos conectados por arestas (sem hierarquia).'
+- fala: O grafo serve para modelar redes sociais, mapas de cidades e dependencias entre tarefas.
+    Cada problema exige um algoritmo proprio.
+  quadro:
+    tipo: topicos
+    texto: 'Exemplos de Grafo:'
+    itens:
+    - Rede social
+    - Mapa de cidades
+    - Dependencias de tarefas
+- fala: Para saber se a estrutura e boa, usamos a notacao O grande. Ela mede como o tempo
+    de execucao cresce conforme o tamanho dos dados aumenta.
+  quadro:
+    tipo: formula
+    texto: 'Notacao O: O(1) e constante, O(n) cresce reto, O(n^2) explode'
+- fala: Por exemplo, procurar um item em uma lista comum e O(n), ou seja, cresce junto com
+    o tamanho da lista. Ja procurar em um dicionario e O(1), ou seja, e sempre instantaneo.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Operacao
+    - Lista
+    - Dicionario
+    linhas:
+    - - Procurar
+      - O(n)
+      - O(1)
+- fala: 'A regra pratica do nivel intermediario e simples: identifique a estrutura certa pela
+    operacao dominante. Muito ''existe?'' pede conjunto, muito ''primeiro da fila'' pede fila,
+    e muito ''desfazer'' pede pilha.'
+  quadro:
+    tipo: texto
+    texto: 'Regra: Escolha a estrutura pela operacao dominante.'

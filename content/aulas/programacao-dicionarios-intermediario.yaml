@@ -1,0 +1,110 @@
+id: programacao.dicionarios.intermediario
+materia: programacao
+titulo: Dicionários e conjuntos
+nivel: intermediario
+resumo: Chave e valor, quando usar dicionario em vez de lista, conjuntos sem repeticao.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender chave e valor, quando usar dicionario em vez de lista, e conjuntos sem
+    repeticao.
+  pre_requisitos:
+  - Conhecimento basico de listas em Python
+  duracao_min: 10
+  fixacao:
+  - Como voce escolhe entre usar uma lista ou um dicionario?
+  - Como remover duplicatas de uma lista usando conjuntos?
+  fechamento: Vimos que dicionarios guardam chave e valor para buscas por nome, e conjuntos
+    eliminam repeticoes e aceleram buscas.
+passos:
+- fala: Imagine que voce tem uma agenda de contatos no celular. Para achar o telefone de um
+    amigo, voce busca pelo nome dele, e nao pela posicao da linha na tela, certo? Na programacao,
+    usamos uma estrutura chamada dicionario para isso.
+  quadro:
+    tipo: titulo
+    texto: 'Dicionarios: Chave e Valor'
+- fala: A diferenca basica para a lista e essa. A lista guarda valores em posicoes numeradas,
+    como indice 0, 1 ou 2. O dicionario guarda um par de chave e valor. Voce acha o valor
+    digitando a chave.
+  quadro:
+    tipo: texto
+    texto: 'Lista: posicao numerada (indices 0, 1, 2)
+
+      Dicionario: chave e valor (busca por nome)'
+- fala: 'Para decidir qual usar, faca a pergunta: voce precisa do elemento pelo numero ou
+    pelo nome? Se for pelo nome, use o dicionario.'
+  quadro:
+    tipo: texto
+    texto: 'Regra de ouro:
+
+      Precisa do elemento pelo NUMERO ou pelo NOME?'
+- fala: Em Python, criamos um dicionario usando chaves. Veja esse exemplo de um cadastro simples
+    de uma pessoa, guardando nome e idade.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'pessoa = {"nome": "Joao", "idade": 35}'
+- fala: Para acessar o valor, basta passar a chave entre colchetes, como fazemos com pessoa
+    entre colchetes nome. Tambem podemos usar o metodo ponto get para evitar erros caso a
+    chave nao exista.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'valor = pessoa["nome"]
+
+      # Retorna "Joao"
+
+
+      seguro = pessoa.get("telefone", "Nao encontrado")'
+- fala: 'Uma regra importante: a chave do dicionario tem que ser um dado imutavel, como uma
+    string, um numero ou uma tupla. Voce nunca pode usar uma lista como chave.'
+  quadro:
+    tipo: texto
+    texto: 'Chaves validas: string, numero, tupla
+
+      Proibido como chave: lista'
+- fala: Agora vamos falar de conjuntos, que em Python chamamos de set. Pense neles como um
+    dicionario que so tem as chaves, sem nenhum valor associado.
+  quadro:
+    tipo: limpar
+- fala: 'O conjunto tem duas grandes caracteristicas: ele nao guarda itens repetidos e nao
+    mantem ordem. Podemos criar um conjunto usando chaves com elementos unicos.'
+  quadro:
+    tipo: titulo
+    texto: Conjuntos (Sets)
+- fala: Se voce tem uma lista cheia de elementos duplicados, transforma-la em conjunto usando
+    a funcao set resolve seu problema em uma unica linha, apagando todas as repeticoes.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'lista_suja = [1, 2, 2, 3, 3, 3]
+
+      unicos = set(lista_suja)
+
+      # Resultado: {1, 2, 3}'
+- fala: Os conjuntos tambem trazem operacoes matematicas prontas, como a interseccao com o
+    E comercial, a uniao com a barra vertical e a diferenca com o sinal de menos.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: 'inter = conjunto_a & conjunto_b
+
+      uniao = conjunto_a | conjunto_b
+
+      dif = conjunto_a - conjunto_b'
+- fala: Por fim, pense no desempenho. Procurar algo em uma lista exige varrer tudo, item por
+    item, o que fica lento se a lista cresce. Ja procurar em um dicionario ou conjunto salta
+    direto ao resultado.
+  quadro:
+    tipo: texto
+    texto: 'Desempenho:
+
+      Lista: busca lenta (varre tudo)
+
+      Dicionario/Conjunto: busca rapida (salta direto)'
+- fala: Se o seu programa faz muitas perguntas do tipo 'sera que esse item existe?', nao use
+    lista. Use um conjunto ou um dicionario.
+  quadro:
+    tipo: texto
+    texto: 'Fazer muitas perguntas ''existe X?''
+
+      -> Use conjunto ou dicionario!'

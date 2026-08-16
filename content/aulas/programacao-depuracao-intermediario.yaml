@@ -1,0 +1,83 @@
+id: programacao.depuracao.intermediario
+materia: programacao
+titulo: Depuração
+nivel: intermediario
+resumo: Log contra print, isolar o problema, e a falha silenciosa que nao levanta erro.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender log contra print, isolar o problema, e a falha silenciosa.
+  pre_requisitos:
+  - Logica de programacao basica
+  - Uso de variaveis e funcoes
+  duracao_min: 10
+  fixacao:
+  - Por que usar log em vez de print para bugs que acontecem de novo?
+  - O que e uma falha silenciosa e por que ela e perigosa?
+  fechamento: 'Pense no seu ultimo codigo que deu erro: qual foi a ultima mudanca que voce
+    fez antes dele parar de funcionar?'
+passos:
+- fala: Imagina que voce esta montando um armario e uma porta nao fecha. Voce tem certeza
+    que seguiu o manual, mas nao encaixa. Na programacao, isso e um bug. Hoje vamos aprender
+    a achar e consertar esses erros com depuracao.
+  quadro:
+    tipo: titulo
+    texto: 'Depuracao: CaCando Erros'
+- fala: 'O primeiro passo e desconfiar da sua propria suposicao. O bug quase nunca esta onde
+    voce tem certeza absoluta que ele esta. A tecnica e simples: explique o que o codigo faz
+    em voz alta, linha por linha, comparando com a realidade.'
+  quadro:
+    tipo: texto
+    texto: 'Regra 1: Desconfie da sua suposicao. Fale o codigo em voz alta.'
+- fala: Agora, vamos falar de ferramentas. Todo mundo comeca usando o comando print para ver
+    o que esta acontecendo. O print serve para ver na hora, mas ele some quando o programa
+    fecha e nao tem niveis de gravidade.
+  quadro:
+    tipo: texto
+    texto: 'print(): Investigacao rapida. Some ao fechar.'
+- fala: Ja o log e diferente. Ele deixa tudo registrado, guarda data, tem niveis como informacao
+    ou erro, e vai direto para um arquivo. Para um bug que acontece de novo, o log e muito
+    melhor que o print.
+  quadro:
+    tipo: topicos
+    texto: 'Vantagens do Log:'
+    itens:
+    - Guarda historico em arquivo
+    - Tem niveis (debug, info, erro)
+    - Ideal para producao
+- fala: 'O proximo passo e isolar o problema. Isso significa encolher o suspeito: achar o
+    menor trecho de codigo que reproduz o erro e faze-lo rodar sozinho.'
+  quadro:
+    tipo: texto
+    texto: Isolar o problema = Achar o menor trecho que reproduz o bug.
+- fala: Para isolar, voce pode trocar uma variavel suspeita por um valor fixo, ou usar comentarios
+    em bloco para desligar metade do codigo. Bug que nao reproduz sozinho e bug que voce nao
+    consegue corrigir.
+  quadro:
+    tipo: topicos
+    texto: 'Tecnicas de Isolamento:'
+    itens:
+    - Trocar variavel por valor fixo
+    - Comentar metade do codigo
+    - Reproduzir o erro sempre
+- fala: O nosso grande inimigo intermediario e a falha silenciosa. E quando o codigo engole
+    o erro e continua rodando, fazendo o resultado errado aparecer la na frente sem deixar
+    nenhum rastro.
+  quadro:
+    tipo: texto
+    texto: 'Falha Silenciosa: O erro e engolido e o estrago aparece longe.'
+- fala: Um exemplo classico disso em Python e usar um bloco de tratamento que apenas passa
+    por cima do erro, como voce ve no quadro.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "try:\n    faz_algo()\nexcept Exception:\n    pass"
+- fala: Isso e um perigo! Cada falha silenciosa deveria virar pelo menos um registro de log
+    de erro, para sabermos que algo deu errado de verdade.
+  quadro:
+    tipo: texto
+    texto: Toda falha silenciosa precisa gerar um log de erro.
+- fala: 'Para terminar, guarde a pergunta de ouro de toda depuracao: o que foi que eu mudei
+    por ultimo? O bug novo quase sempre nasceu na ultima alteracao que voce fez no codigo.'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta final: O que eu mudei por ultimo?'
