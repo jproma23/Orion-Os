@@ -6,6 +6,87 @@ no projeto e atualize ao terminar.** Entradas novas vão NO TOPO, com data e
 assinatura do agente. Não apague entradas antigas — marque como resolvidas.
 
 ---
+## 2026-08-16 — Grade de programacao 42/42: 8 aulas intermediarias (dicionarios, arquivos, modulos, classes, testes, git, depuracao, estruturas de dados)
+
+**Agente:** opencode/DeepSeek
+**Estado:** concluído
+
+### O que foi feito
+
+- 8 topicos intermediarios de `content/ementas/programacao.yaml` sem aula
+  foram escritos a mao pelo agente (rascunho com material tecnico didatico,
+  fonte "conhecimento tecnico do dono"), redigidos com IA no Notebook
+  (`tools/redigir_aula.py`) e publicados em `content/aulas/`.
+- Indice reconstruido: 139 aulas, 1322 passos. Programacao: 42 topicos, faltam 0.
+- Busca validada no Pi: "dicionario chave valor", "git branch merge",
+  "pilha fila", "ambiente virtual pip" encontram as aulas certas.
+- Testes de ensino: 19 passed.
+
+### Avisos para quem continuar
+
+- Mesmo padrao das 18 avancadas: redigir no NOTEBOOK (chave de IA la).
+- `content/rascunhos/` nao vai para o git; so o que esta em `content/aulas/`.
+- NOTAS-AGENTES.md no Notebook esta com entrada do Kimi (ESP32/bussola
+  bloqueado) - nao sobrescrever.
+
+---
+
+---
+## 2026-08-16 — ESP32 com flash morrendo; troca de bússola SUSPENSA
+
+**Agente:** Kimi Code CLI
+**Estado:** BLOQUEADO em hardware — aguardando placa ESP32 nova.
+
+### Resumo executivo
+
+A flash do ESP32 (DevKit 38 pinos, CP2102) está **perdendo conteúdo**:
+gravou verificado uma vez, funcionou ~1 hora, depois `csum err` /
+`ets_main.c 384` no boot. Após `erase_flash` completo, a regravação falha
+com `MD5 of file does not match data in flash` (escreve mas não retém) e
+quedas de serial no meio da escrita. **Diagnóstico: flash da placa morrendo
+— problema de HARDWARE, não de firmware.**
+
+Contexto preocupante: o Mega 2560 morreu em 02/08 neste mesmo robô. Duas
+placas mortas em duas semanas = investigar a ALIMENTAÇÃO do chassi antes de
+ligar a placa nova (o próprio doc de pinagem já alertava: "medir o consumo
+ANTES de religar tudo").
+
+### Estado atual
+
+- **Firmware:** `bussola_manager.h` novo (autodetecção HMC5883L 0x1E / clone
+  QMC5883L 0x0D) compilado e FOI gravado com sucesso uma vez — funcionou:
+  boot limpo, telemetria 250000 baud OK. Mas a flash degradou depois.
+  Backup do manager antigo (QMC6310): `/tmp/bussola_manager.qmc6310.bak`.
+- **orion-motion:** ATIVO, WebUI no ar (http://10.20.20.196:8080), mas sem
+  hardware enquanto o ESP32 estiver morto.
+- **HMC5883L (módulo GY-271 novo):** NÃO INSTALADO. Fiação confirmada correta
+  (vermelho=3V3, preto=GND, verde=SCL→22, branco=SDA→21), mas o módulo
+  parecia derrubar o ESP32 em boot loop — teste fio a fio ficou pendente.
+  ATENÇÃO: esse "loop com módulo" pode ter sido só a flash morrendo —
+  reavaliar na placa nova antes de condenar o módulo.
+
+### Quando a placa nova chegar (ordem)
+
+1. Gravar o firmware com a placa NA BANCADA, só no USB:
+   `cd ~/orion-os/firmware/hardware_core && ~/.venv-pio/bin/pio run -t upload --upload-port /dev/ttyUSB0`
+   (se o auto-reset falhar, segurar BOOT + esptool, ver scripts em /tmp:
+   `pulsa_en.py` pulsa EN via DTR; a sequência completa está no histórico).
+2. Confirmar boot limpo + telemetria ANTES de ligar qualquer fio do robô.
+3. Ligar a fiação do robô AOS POUCOS, medindo consumo (doc de pinagem,
+   seção 5 — pendências de bancada). O Mega já morreu neste chassi.
+4. Só então instalar o HMC5883L (teste fio a fio: primeiro 3V3+GND, depois
+   SDA/SCL; scan de boot mostra 0x1E=HMC real ou 0x0D=clone QMC5883L).
+5. Calibrar bússola (giro de 25 s) — mágico EEPROM novo é 0x5883.
+6. Atualizar a doc de pinagem (seção I2C ainda cita QMC6310).
+
+### Lições registradas
+
+- O circuito de auto-reset desta placa NÃO controla GPIO0 via DTR/RTS —
+  modo download só pelo botão BOOT físico.
+- `Serial data stream stopped` + `MD5 does not match` em repetição =
+  flash/alimentação, não cabo nem baud (testado a 115200 com cabo novo).
+
+---
 ## 2026-08-16 — Ensino super avancado: 18 aulas novas (Python, JS, MQTT, C++, C e Assembly)
 
 **Agente:** opencode/DeepSeek
