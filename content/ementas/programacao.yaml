@@ -108,3 +108,75 @@ niveis:
         e o porque escrito no codigo. Material que so ele tem.
 
         '
+    - id: prog.python-objetos
+      aula: programacao.python-objetos.avancado
+      titulo: Python avançado - objetos e metaprogramação
+      conteudo: Classes, decoradores, geradores, o dunder __init__ e o que e metaprogramacao.
+    - id: prog.python-assincrono
+      aula: programacao.python-assincrono.avancado
+      titulo: Python avançado - assíncrono
+      conteudo: Asyncio, await, tarefas e o laco de eventos do proprio Python.
+    - id: prog.python-performance
+      aula: programacao.python-performance.avancado
+      titulo: Python avançado - performance
+      conteudo: O GIL, profiling, memoria e quando o Python lento basta.
+    - id: prog.javascript-nucleo
+      aula: programacao.javascript-nucleo.avancado
+      titulo: JavaScript avançado - núcleo da linguagem
+      conteudo: Tipos dinamicos, prototipos, closures, escopo e o this que muda.
+    - id: prog.javascript-assincrono
+      aula: programacao.javascript-assincrono.avancado
+      titulo: JavaScript avançado - assíncrono
+      conteudo: Promises, async/await, o laco de eventos e o callback que trava.
+    - id: prog.javascript-moderno
+      aula: programacao.javascript-moderno.avancado
+      titulo: JavaScript avançado - moderno
+      conteudo: ES6+, modulos, destructuring, spread e o codigo que roda no navegador.
+    - id: prog.mqtt-protocolo
+      aula: programacao.mqtt-protocolo.avancado
+      titulo: MQTT - o protocolo
+      conteudo: Publish, subscribe, broker, QoS e por que e leve para IoT.
+    - id: prog.mqtt-topicos
+      aula: programacao.mqtt-topicos.avancado
+      titulo: MQTT - tópicos e retenção
+      conteudo: Hierarquia de topicos, wildcards, mensagens retidas e sessao.
+    - id: prog.mqtt-aplicado
+      aula: programacao.mqtt-aplicado.avancado
+      titulo: MQTT - na prática
+      conteudo: Broker em casa, ESP32 publicando, Node-RED e os erros comuns.
+    - id: prog.cpp-moderno
+      aula: programacao.cpp-moderno.avancado
+      titulo: C++ avançado - moderno
+      conteudo: Ponteiros e referencias, smart pointers, move e RAII.
+    - id: prog.cpp-templates
+      aula: programacao.cpp-templates.avancado
+      titulo: C++ avançado - templates e STL
+      conteudo: Templates, a STL, vector, map e o custo escondido de cada container.
+    - id: prog.cpp-embarcado
+      aula: programacao.cpp-embarcado.avancado
+      titulo: C++ avançado - embarcado
+      conteudo: C++ em microcontrolador, sem excecoes e sem o que nao cabe na RAM.
+    - id: prog.c-ponteiros
+      aula: programacao.c-ponteiros.avancado
+      titulo: C avançado - ponteiros e memória
+      conteudo: Endereco, ponteiro, malloc e free, e o uso apos liberar.
+    - id: prog.c-embarcado
+      aula: programacao.c-embarcado.avancado
+      titulo: C avançado - embarcado
+      conteudo: C no microcontrolador, registradores, e o firmware que trava sem avisar.
+    - id: prog.c-sistemas
+      aula: programacao.c-sistemas.avancado
+      titulo: C avançado - sistemas
+      conteudo: Struct, union, bitwise, pre-processador e por que C roda perto do metal.
+    - id: prog.assembly-nucleo
+      aula: programacao.assembly-nucleo.avancado
+      titulo: Assembly - o núcleo
+      conteudo: Registradores, instrucoes, modo de enderecamento e a memoria de maquina.
+    - id: prog.assembly-pilha
+      aula: programacao.assembly-pilha.avancado
+      titulo: Assembly - pilha e chamadas
+      conteudo: A pilha, chamada de funcao, convencao de chamada e o que o compilador esconde.
+    - id: prog.assembly-pratica
+      aula: programacao.assembly-pratica.avancado
+      titulo: Assembly - na prática
+      conteudo: Ler assembly gerado, otimizar, e quando vale escrever assembly na mao.

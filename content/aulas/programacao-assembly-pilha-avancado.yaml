@@ -1,0 +1,88 @@
+id: programacao.assembly-pilha.avancado
+materia: programacao
+titulo: Assembly - pilha e chamadas
+nivel: avancado
+resumo: A pilha, chamada de funcao, convencao de chamada e o que o compilador esconde.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender a pilha, chamada de funcao, convencao de chamada e o que o compilador
+    esconde.
+  pre_requisitos:
+  - Conceito basico de memoria e registradores
+  duracao_min: 10
+  fixacao:
+  - O que acontece com o stack pointer quando chamamos uma funcao?
+  - Por que precisamos de uma convencao de chamada?
+  fechamento: Entender Assembly e a pilha tira a mascara do compilador e mostra exatamente
+    como o computador gerencia o fluxo e os dados.
+passos:
+- fala: 'Fala, pessoal! Imagina que voce guarda pratos empilhados na pia: o ultimo prato que
+    voce coloca e o primeiro que voce tira, certo? Na memoria do computador, a regiao de dados
+    chamada pilha funciona exatamente assim.'
+  quadro:
+    tipo: titulo
+    texto: 'Assembly: A Pilha e as Chamadas de Funcao'
+- fala: A pilha e uma regiao da memoria que cresce para baixo. O registrador SP, ou stack
+    pointer, aponta sempre para o topo dessa pilha.
+  quadro:
+    tipo: texto
+    texto: 'Registrador SP (stack pointer): aponta para o topo da pilha.'
+- fala: 'Toda vez que voce chama uma funcao, o programa empilha tres coisas: o endereco de
+    retorno, os argumentos e as variaveis locais.'
+  quadro:
+    tipo: topicos
+    texto: 'O que e empilhado numa chamada:'
+    itens:
+    - Endereco de retorno
+    - Argumentos
+    - Variaveis locais
+- fala: Quando a funcao termina, tudo isso e desempilhado na ordem inversa. E por isso que
+    as chamadas funcionam como caixas encaixadas.
+  quadro:
+    tipo: texto
+    texto: 'Desempilhamento: ocorre na ordem inversa do empilhamento.'
+- fala: As instrucoes que fazem isso sao o par CALL e RET. A instrucao CALL empilha o endereco
+    da proxima instrucao e pula para a funcao.
+  quadro:
+    tipo: texto
+    texto: 'CALL: empilha o endereco de retorno e pula para a funcao.'
+- fala: 'E a instrucao RET faz o oposto: ela desempilha aquele endereco guardado e volta o
+    programa para onde estava.'
+  quadro:
+    tipo: texto
+    texto: 'RET: desempilha o endereco e retorna ao fluxo anterior.'
+- fala: Cada chamada reserva um bloco chamado quadro de pilha, ou stack frame. A funcao acha
+    seus argumentos e locais usando deslocamentos a partir do SP ou do BP, que e o base pointer.
+  quadro:
+    tipo: texto
+    texto: 'Stack Frame: bloco reservado por deslocamentos do SP ou BP.'
+- fala: Mas como quem chama e quem e chamado combinam as coisas? Eles usam a convencao de
+    chamada, que e o contrato de quem passa os argumentos e quem limpa a pilha.
+  quadro:
+    tipo: texto
+    texto: 'Convencao de chamada: contrato entre chamador e chamado.'
+- fala: No padrao x86-64 System V, por exemplo, os primeiros argumentos inteiros vao nos registradores
+    RDI, RSI, RDX, RCX, R8 e R9. O que sobra vai para a pilha, e o valor de retorno vai em
+    RAX.
+  quadro:
+    tipo: topicos
+    texto: 'Padrao x86-64 System V:'
+    itens:
+    - 'Args inteiros: RDI, RSI, RDX, RCX, R8, R9'
+    - 'Excedente: vai na pilha'
+    - 'Retorno: RAX'
+- fala: O compilador esconde tudo isso da gente. Mas entender isso explica bugs reais, como
+    estourar a pilha com recursao infinita ou o perigoso buffer overflow que corrompe o endereco
+    de retorno.
+  quadro:
+    tipo: topicos
+    texto: 'Bugs revelados pela pilha:'
+    itens:
+    - Estouro de pilha (recursao infinita)
+    - Ponteiro pendurado
+    - Buffer overflow (corrupcao de retorno)
+- fala: 'Para terminar, pense comigo: se a funcao principal chama a funcao A, e a funcao A
+    chama a funcao B, qual endereco de retorno e o primeiro a ser desempilhado quando B termina?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual endereco sai primeiro da pilha?'

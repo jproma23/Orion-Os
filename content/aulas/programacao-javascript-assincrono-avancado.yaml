@@ -1,0 +1,75 @@
+id: programacao.javascript-assincrono.avancado
+materia: programacao
+titulo: JavaScript avançado - assíncrono
+nivel: avancado
+resumo: Promises, async/await, o laco de eventos e o callback que trava.
+fonte: Wikipedia, artigos Callback, consultados em 2026-08-15
+plano:
+  objetivo: Aprender callbacks, promises, async/await e o laco de eventos em JavaScript.
+  pre_requisitos:
+  - JavaScript basico
+  - funcoes
+  duracao_min: 10
+  fixacao:
+  - O que e um callback?
+  - Por que usar async/await?
+  fechamento: Como o JavaScript consegue fazer varias coisas ao mesmo tempo sem travar a pagina?
+passos:
+- fala: Fala, pessoal! Imagina que voce pede uma pizza no aplicativo. Voce nao fica olhando
+    so para a tela esperando chegar, voce continua mexendo no celular. O JavaScript faz algo
+    parecido.
+  quadro:
+    tipo: titulo
+    texto: JavaScript Assincrono
+- fala: Para comecar, vamos falar de callback. Na programacao, um callback e uma funcao que
+    voce passa como parametro para outro metodo.
+  quadro:
+    tipo: texto
+    texto: 'Callback: funcao passada como argumento para ser executada depois.'
+- fala: O material bruto nos diz que essa execucao pode ser imediata ou em outro momento.
+    Vamos ver como isso funciona na pratica.
+  quadro:
+    tipo: texto
+    texto: Invocacao pode ser imediata ou futura.
+- fala: O problema e que quando usamos muitos callbacks um dentro do outro, o codigo vira
+    uma bagunca. E o que chamamos de callback que trava ou callback hell.
+  quadro:
+    tipo: texto
+    texto: 'Callback Hell: excesso de callbacks aninhados.'
+- fala: Para resolver isso, criaram as Promises. Uma Promise e uma promessa de que algo vai
+    acontecer no futuro. Ela pode dar certo, que e o resolve, ou dar errado, que e o reject.
+  quadro:
+    tipo: topicos
+    texto: Estados da Promise
+    itens:
+    - Pendente (Pending)
+    - Realizada (Resolved)
+    - Rejeitada (Rejected)
+- fala: Com a Promise, o codigo fica mais limpo usando o .then e o .catch.
+  quadro:
+    tipo: formula
+    texto: minhaPromise.then(resultado => ...).catch(erro => ...)
+- fala: 'Mas o JavaScript ganhou uma forma ainda melhor de escrever isso: o async e o await.'
+  quadro:
+    tipo: texto
+    texto: 'Async / Await: acucar sintatico para Promises.'
+- fala: Quando colocamos 'async' antes de uma funcao, ela passa a retornar uma Promise.
+  quadro:
+    tipo: formula
+    texto: async function pegarDados() { ... }
+- fala: E dentro dela, usamos o 'await' para esperar a resposta de uma operacao demorada,
+    como buscar dados em um servidor, sem travar o resto do programa.
+  quadro:
+    tipo: formula
+    texto: const dados = await api.buscar();
+- fala: Por tras de tudo isso esta o laco de eventos, ou event loop. E ele que gerencia o
+    que vai ser executado agora e o que vai esperar na fila.
+  quadro:
+    tipo: texto
+    texto: 'Event Loop: gerencia a fila de tarefas assincronas.'
+- fala: 'Para fechar: se voce precisa esperar uma requisicao de rede terminar antes de continuar
+    o codigo, qual palavra-chave voce usa antes da chamada para pausar a funcao sem travar
+    o navegador?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual palavra-chave pausa a funcao assincrona?'

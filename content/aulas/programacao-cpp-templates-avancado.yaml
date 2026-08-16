@@ -1,0 +1,75 @@
+id: programacao.cpp-templates.avancado
+materia: programacao
+titulo: C++ avançado - templates e STL
+nivel: avancado
+resumo: Templates, a STL, vector, map e o custo escondido de cada container.
+fonte: Wikipedia, artigos Escondido, consultados em 2026-08-15
+plano:
+  objetivo: Templates, a STL, vector, map e o custo escondido de cada container.
+  pre_requisitos:
+  - Programacao basica em C++
+  duracao_min: 10
+  fixacao:
+  - O que sao templates?
+  - Qual a diferenca de custo entre vector e map?
+  fechamento: Se voce precisa de buscas rapidas por chave e valor, qual estrutura da STL deve
+    usar?
+passos:
+- fala: Ola! Hoje vamos falar de C++ avancado, focando em templates e na STL.
+  quadro:
+    tipo: titulo
+    texto: 'C++ Avancado: Templates e STL'
+- fala: Imagine que voce quer fazer uma funcao que soma dois numeros, mas precisa servir para
+    inteiros e para numeros com virgula. Fazer varias funcoes da trabalho. Os templates resolvem
+    isso.
+  quadro:
+    tipo: texto
+    texto: 'Problema: Repeticao de codigo para tipos diferentes.'
+- fala: No quadro, veja como criamos um molde usando a palavra template. O tipo vira uma variavel
+    T.
+  quadro:
+    tipo: codigo
+    linguagem: cpp
+    texto: "template <typename T>\nT soma(T a, T b) {\n    return a + b;\n}"
+- fala: Agora vamos falar da STL. STL significa Standard Template Library, ou Biblioteca Padrao
+    de Templates.
+  quadro:
+    tipo: texto
+    texto: STL = Standard Template Library
+- fala: A STL nos da estruturas prontas para guardar dados. A mais famosa e o vector.
+  quadro:
+    tipo: texto
+    texto: 'Containers prontos: vector, map, list...'
+- fala: O vector e como um array que cresce sozinho. Ele guarda os dados um do ladinho do
+    outro na memoria.
+  quadro:
+    tipo: topicos
+    texto: vector
+    itens:
+    - Array dinamico
+    - Elementos em sequencia na memoria
+    - Otimo para percorrer sequencialmente
+- fala: Mas cuidado com o custo escondido! Inserir elementos no meio de um vector exige mover
+    todo mundo para abrir espaco. Isso custa tempo.
+  quadro:
+    tipo: texto
+    texto: 'Custo escondido do vector: Inserir no meio e custoso O(n).'
+- fala: Outro container poderoso e o map. Ele guarda pares de chave e valor, como um dicionario.
+  quadro:
+    tipo: codigo
+    linguagem: cpp
+    texto: std::map<std::string, int>idades;
+- fala: O custo escondido do map e que ele usa arvores por tras dos panos. Cada insercao ou
+    busca gasta tempo logarithmicos, e os dados nao ficam grudados na memoria.
+  quadro:
+    tipo: topicos
+    texto: map
+    itens:
+    - Pares chave-valor
+    - Busca rapida por chave
+    - 'Custo de insercao: O(log n)'
+- fala: 'Para fechar: qual estrutura da STL voce usaria se precisasse apenas guardar uma lista
+    simples de precos e percorre-la do inicio ao fim?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual container usar para uma lista simples de precos?'

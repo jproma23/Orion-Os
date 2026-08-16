@@ -1,0 +1,70 @@
+id: programacao.python-assincrono.avancado
+materia: programacao
+titulo: Python avançado - assíncrono
+nivel: avancado
+resumo: Asyncio, await, tarefas e o laco de eventos do proprio Python.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender asyncio, await, tarefas e o laco de eventos em Python.
+  pre_requisitos:
+  - Python basico
+  - funcoes
+  duracao_min: 10
+  fixacao:
+  - O que o laco de eventos faz?
+  - Qual a diferenca entre async def e def?
+  fechamento: Se voce usa uma biblioteca que bloqueia a rede dentro do seu codigo assincrono,
+    o que acontece com o laco de eventos?
+passos:
+- fala: Fala, pessoal! Pensem num garcom de restaurante. O garcom ruim atende uma mesa, fica
+    parado na cozinha olhando a comida ficar pronta, e so depois vai para a proxima. O garcom
+    bom anota o pedido de dez mesas enquanto a cozinha trabalha. O codigo assincrono e esse
+    garcom bom.
+  quadro:
+    tipo: titulo
+    texto: Programacao Assincrona
+- fala: Em Python, o coracao disso e o laco de eventos. Ele roda em uma unica thread, guarda
+    uma fila de tarefas e alterna entre elas sempre que uma precisa esperar por rede, disco
+    ou teclado. Enquanto uma espera, outra avanca.
+  quadro:
+    tipo: texto
+    texto: 'Laco de eventos: uma unica thread alternando tarefas em espera de I/O.'
+- fala: Para criar uma funcao que pode ser pausada, usamos as palavras async def. Ela vira
+    uma corrotina.
+  quadro:
+    tipo: formula
+    texto: 'async def minha_corrotina():'
+- fala: E dentro dela, usamos a palavra await para ceder o controle de volta para o laco enquanto
+    a espera nao acaba.
+  quadro:
+    tipo: formula
+    texto: await operacao_lenta()
+- fala: Se voce quiser rodar varias corrotinas juntas, esperando todas terminarem em paralelo
+    de espera, voce usa o asyncio gather.
+  quadro:
+    tipo: formula
+    texto: await asyncio.gather(tarefa1(), tarefa2())
+- fala: Mas e se voce quiser disparar uma tarefa para rodar em segundo plano, sem travar o
+    fluxo principal naquele segundo? Voce usa create task.
+  quadro:
+    tipo: formula
+    texto: asyncio.create_task(background_job())
+- fala: 'Lembre-se sempre: toda espera de rede deveria ter um limite de tempo. Timeout e cancelamento
+    sao seus amigos. Para isso usamos o wait for.'
+  quadro:
+    tipo: formula
+    texto: asyncio.wait_for(corotina, timeout=5.0)
+- fala: Agora, cuidado com o erro que derruba muita gente boa. Se voce colocar codigo bloqueante,
+    como uma requisicao sincrona usando requests dentro de uma funcao async, voce trava o
+    laco inteiro!
+  quadro:
+    tipo: texto
+    texto: 'ERRO COMUM: Codigo bloqueante trava o laco inteiro!'
+- fala: Como nao ha outra thread para salvar voce, o programa para. Para trabalho pesado de
+    CPU ou bibliotecas bloqueantes, use asyncio to thread.
+  quadro:
+    tipo: formula
+    texto: await asyncio.to_thread(funcao_bloqueante)
+- fala: 'Para terminar, pensem comigo: se o laco de eventos roda numa unica thread fazendo
+    varias coisas esperando nenhuma, o que acontece se voce coloca uma operacao pesada de
+    CPU sem joga-la para outra thread?'

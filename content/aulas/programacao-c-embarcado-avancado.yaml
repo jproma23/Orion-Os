@@ -1,0 +1,64 @@
+id: programacao.c-embarcado.avancado
+materia: programacao
+titulo: C avançado - embarcado
+nivel: avancado
+resumo: C no microcontrolador, registradores, e o firmware que trava sem avisar.
+fonte: Wikipedia, artigos Microcontrolador, consultados em 2026-08-15
+plano:
+  objetivo: C no microcontrolador, registradores, e o firmware que trava sem avisar.
+  pre_requisitos:
+  - Linguagem C basica
+  - Conceito de hardware e memoria
+  duracao_min: 10
+  fixacao:
+  - O que e um microcontrolador?
+  - Quais tipos de memoria de programacao podem estar no chip?
+  fechamento: Agora voce sabe que um microcontrolador junta processador, memoria e perifericos
+    em um unico chip para rodar codigo embarcado.
+passos:
+- fala: Fala, pessoal! Imagina um computador inteiro, com processador e memoria, do tamanho
+    da unha do seu dedo. Ja viu isso em algum lugar?
+  quadro:
+    tipo: titulo
+    texto: 'C Avancado: Sistemas Embarcados'
+- fala: Isso existe, e o nome disso e microcontrolador. E um pequeno computador em um unico
+    circuito integrado.
+  quadro:
+    tipo: texto
+    texto: 'Microcontrolador: pequeno computador (SoC) num unico circuito integrado.'
+- fala: Dentro desse unico chip, a gente tem tres coisas principais juntas. Vamos listar quais
+    sao.
+  quadro:
+    tipo: topicos
+    texto: 'Componentes internos:'
+    itens:
+    - Nucleo de processador
+    - Memoria
+    - Perifericos programaveis de entrada e saida
+- fala: Esses perifericos servem para o chip conversar com o mundo externo, recebendo entradas
+    e mandando saidas.
+  quadro:
+    tipo: apontar
+    alvo: 2
+- fala: E onde fica guardado o nosso programa em C? A memoria de programacao pode ser de alguns
+    tipos especificos.
+  quadro:
+    tipo: texto
+    texto: 'Memoria de programacao:'
+- fala: O texto traz tres tecnologias usadas para essa memoria nos chips.
+  quadro:
+    tipo: topicos
+    itens:
+    - RAM
+    - NOR flash
+    - PROM
+- fala: Muitas vezes, essa memoria ja vem inclusa direto de fabrica dentro do proprio chip.
+  quadro:
+    tipo: texto
+    texto: 'Frequencia: a memoria e incluida no chip.'
+- fala: 'Para pensar e usar o que voce aprendeu: se o microcontrolador tem o processador,
+    a memoria e os perifericos todos no mesmo chip, qual e o nome tecnico dado a esse tipo
+    de sistema que aparece no material?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual e a sigla para sistema em um unico chip?'

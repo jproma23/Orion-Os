@@ -1,0 +1,84 @@
+id: programacao.cpp-embarcado.avancado
+materia: programacao
+titulo: C++ avançado - embarcado
+nivel: avancado
+resumo: C++ em microcontrolador, sem excecoes e sem o que nao cabe na RAM.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender C++ em microcontrolador, sem excecoes e dentro da RAM limitada.
+  pre_requisitos:
+  - C++ basico
+  - Conceito de hardware e memoria
+  duracao_min: 10
+  fixacao:
+  - Por que nao devemos usar try/catch em um microcontrolador?
+  - Como podemos tratar erros em C++ embarcado sem usar excecoes?
+  fechamento: C++ em embarcados e a arte de usar a linguagem com disciplina, abrindo mao de
+    excecoes e heap dinamico para ganhar velocidade e previsibilidade.
+passos:
+- fala: Imagine que voce comprou uma lampada inteligente ou um carrinho de controle remoto.
+    Dentro deles existe um pequeno chip, um microcontrolador, que precisa rodar codigo rapido
+    com pouquissima memoria. Isso e programacao embarcada.
+  quadro:
+    tipo: titulo
+    texto: C++ em Sistemas Embarcados
+- fala: Esses chips, como o ESP32 ou o STM32, nao tem a memoria gigante de um computador.
+    A memoria RAM deles varia de apenas dezenas de kilobytes a poucos megabytes. Cada byte
+    conta muito.
+  quadro:
+    tipo: topicos
+    texto: Recursos de um Microcontrolador
+    itens:
+    - 'Memoria RAM: Dezenas de KB a poucos MB'
+    - 'Memoria Flash: Poucos MB'
+    - 'Clock: Centenas de MHz'
+- fala: Como a memoria e restrita, a primeira regra de ouro no C++ embarcado e proibir o uso
+    de excecoes. Nada de try, catch ou throw.
+  quadro:
+    tipo: texto
+    texto: 'Regra 1: Proibido usar excecoes (try / catch)'
+- fala: Isso acontece porque o mecanismo de excecoes exige tabelas extras e suporte em tempo
+    de execucao que estouram a memoria flash e estragam o tempo real. Nos compilamos o codigo
+    com a flag que desliga isso.
+  quadro:
+    tipo: formula
+    texto: -fno-exceptions  e  -fno-rtti
+- fala: Sem excecoes, como voce avisa que deu erro? Voce usa codigos de retorno ou enums.
+    Se a leitura de um sensor falhar, a funcao devolve um codigo de falha e quem chamou decide
+    o que fazer.
+  quadro:
+    tipo: texto
+    texto: 'Tratamento de erro: Funcoes retornam codigos ou enums'
+- fala: A segunda regra importante e evitar o heap dinamico. Usar new, delete, malloc ou free
+    fragmenta uma RAM que ja e minuscula. Em sistemas embarcados, tudo deve ser previsivel.
+  quadro:
+    tipo: texto
+    texto: 'Regra 2: Evitar heap dinamico (new / delete)'
+- fala: Em vez de criar coisas na hora com o heap, nos usamos alocacao estatica em tempo de
+    compilacao. Criamos buffers globais e arrays com tamanho fixo.
+  quadro:
+    tipo: topicos
+    texto: Alternativas ao Heap
+    itens:
+    - Alocacao estatica em compile-time
+    - Buffers globais
+    - Arrays de tamanho fixo
+- fala: Mas calma, nem tudo do C++ moderno e proibido! Voce ainda pode usar classes, templates,
+    constexpr e RAII para controlar os perifericos do hardware.
+  quadro:
+    tipo: topicos
+    texto: O que e permitido e util
+    itens:
+    - Classes e Templates
+    - constexpr
+    - RAII para perifericos
+- fala: Por exemplo, voce pode transformar um pino da placa em um objeto. Ele se configura
+    sozinho no construtor e se desliga no destrutor, mexendo direto no registrador do chip.
+  quadro:
+    tipo: texto
+    texto: 'Exemplo RAII: Pino vira objeto que gerencia o hardware'
+- fala: No fim das contas, programar em C++ embarcado nao e deixar de usar a linguagem. E
+    saber escolher exatamente o que nao usar para o codigo ficar leve, rapido e seguro.
+  quadro:
+    tipo: texto
+    texto: C++ Embarcado = C++ escolhendo o que NAO usar

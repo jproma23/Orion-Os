@@ -1,0 +1,72 @@
+id: programacao.mqtt-topicos.avancado
+materia: programacao
+titulo: MQTT - tópicos e retenção
+nivel: avancado
+resumo: Hierarquia de topicos, wildcards, mensagens retidas e sessao.
+fonte: Wikipedia, artigos Hierarquia, consultados em 2026-08-15
+plano:
+  objetivo: Hierarquia de topicos, wildcards, mensagens retidas e sessao.
+  pre_requisitos:
+  - Redes de computadores
+  - Conceitos basicos de IoT e MQTT
+  duracao_min: 10
+  fixacao:
+  - Como voce organizaria os topicos de sensores de temperatura em tres andares de uma escola?
+  - Por que usar uma mensagem retida em um botao de emergencia?
+  fechamento: Com isso vimos como estruturar topicos e guardar estados no MQTT.
+passos:
+- fala: Fala, pessoal! Imagina que voce tem varios sensores espalhados pela casa e precisa
+    organizar as mensagens deles para que o sistema nao vire uma bagunca.
+  quadro:
+    tipo: titulo
+    texto: 'MQTT: Topicos e Retencao'
+- fala: No MQTT, a organizacao das mensagens e feita usando topicos. E eles funcionam como
+    pastas em um computador, separados por uma barra.
+  quadro:
+    tipo: texto
+    texto: Estrutura baseada em pastas usando barras (/)
+- fala: Isso cria uma hierarquia. Por exemplo, podemos ter casa, depois a sala, e finalmente
+    a temperatura.
+  quadro:
+    tipo: formula
+    texto: casa/sala/temperatura
+- fala: E quando a gente quer pegar informacoes de varios lugares de uma vez so? Ai entram
+    os coringas, ou wildcards.
+  quadro:
+    tipo: titulo
+    texto: Wildcards (Coringas)
+- fala: O sinal de mais substitui apenas um nivel na hierarquia. Se eu quiser a temperatura
+    de qualquer comodo da casa, eu uso casa/+/temperatura.
+  quadro:
+    tipo: formula
+    texto: casa/+/temperatura
+- fala: Ja o caractere sustenido pega varios niveis de uma vez so. Se eu quiser tudo o que
+    esta dentro da pasta casa, eu uso casa/#.
+  quadro:
+    tipo: formula
+    texto: casa/#
+- fala: Agora vamos falar de retencao. Sabe quando voce liga um dispositivo novo e quer saber
+    o ultimo estado dele imediatamente?
+  quadro:
+    tipo: limpar
+- fala: Para isso existe a mensagem retida, ou retained message. O broker guarda a ultima
+    mensagem enviada naquele topico.
+  quadro:
+    tipo: texto
+    texto: 'Retained Message: o broker guarda o ultimo valor'
+- fala: Assim, quando um novo cliente se conecta, ele recebe o ultimo estado na mesma hora,
+    sem precisar esperar o sensor mandar de novo.
+  quadro:
+    tipo: texto
+    texto: Novo cliente recebe o estado atual instantaneamente
+- fala: Por fim, temos a sessao persistente. Ela garante que o broker lembre das suas inscricoes
+    mesmo se voce cair da rede.
+  quadro:
+    tipo: topicos
+    itens:
+    - Clean Session = false
+    - Broker guarda inscricoes e mensagens perdidas
+    texto: Sessao Persistente
+- fala: 'Para pensar e usar o que aprendeu: Se voce tem lampadas em dez comodos diferentes,
+    que topico com coringa voce usaria para enviar um comando para apagar todas elas de uma
+    vez?'

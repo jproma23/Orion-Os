@@ -1,0 +1,60 @@
+id: programacao.c-ponteiros.avancado
+materia: programacao
+titulo: C avançado - ponteiros e memória
+nivel: avancado
+resumo: Endereco, ponteiro, malloc e free, e o uso apos liberar.
+fonte: Wikipedia, artigos Endereço IP, Ponteiro, consultados em 2026-08-15
+plano:
+  objetivo: Endereco, ponteiro, malloc e free, e o uso apos liberar.
+  pre_requisitos:
+  - Conceitos basicos de programacao em C
+  duracao_min: 10
+  fixacao:
+  - O que e um endereco de memoria?
+  - O que acontece se usamos um ponteiro apos dar free?
+  fechamento: Vimos como funcionam enderecos, ponteiros e alocacao dinamica em C!
+passos:
+- fala: Fala, pessoal! Imagina que a memoria do seu computador e um enorme predio com varios
+    apartamentos. Cada apartamento tem um numero unico para o carteiro saber onde entregar
+    a carta, certo? Na programacao, isso e a mesma coisa.
+  quadro:
+    tipo: titulo
+    texto: Ponteiros e Memoria em C
+- fala: Esse numero unico de cada apartamento da nossa memoria e o que chamamos de endereco.
+    Vamos ver o que diz o material sobre enderecos de rede, que usam a mesma ideia de identificacao
+    e localizacao.
+  quadro:
+    tipo: texto
+    texto: 'Endereco: Rotulo numerico para identificacao e localizacao.'
+- fala: No contexto de computadores, o IPv4 define um endereco como um numero de 32 bits.
+    Ja o IPv6 usa 128 bits, sendo padronizado em 1998.
+  quadro:
+    tipo: topicos
+    texto: versoes de IP na rede
+    itens:
+    - 'IPv4: 32 bits'
+    - 'IPv6: 128 bits (padronizado em 1998)'
+- fala: Agora vamos falar de ponteiro. No mundo real, um ponteiro aponta as horas num relogio,
+    o norte numa bussola, ou e o atacante de ponta-de-rede no voleibol na posicao 4.
+  quadro:
+    tipo: texto
+    texto: 'Ponteiro no mundo real: relogio, bussola, volei (posicao 4)'
+- fala: Na informatica, o ponteiro tambem e um apontador! Ele guarda o endereco de memoria
+    de outra variavel, em vez de guardar o valor diretamente.
+  quadro:
+    tipo: texto
+    texto: 'Na informatica: Ponteiro e um apontador para um endereco de memoria.'
+- fala: Para criar memoria dinamicamente durante a execucao do programa, usamos a funcao malloc.
+    E obrigatorio liberar essa memoria depois com o free para nao deixar o computador sem
+    espaco.
+  quadro:
+    tipo: codigo
+    linguagem: c
+    texto: 'int *p = malloc(sizeof(int));
+
+      free(p);'
+- fala: Muito cuidado aqui! O uso de ponteiros apos liberar a memoria com o free pode causar
+    erros graves no seu programa, porque aquela regiao de memoria ja nao pertence mais a voce.
+  quadro:
+    tipo: texto
+    texto: 'Atencao: Nunca use um ponteiro apos chamar free(p)!'

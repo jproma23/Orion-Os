@@ -1,0 +1,84 @@
+id: programacao.python-performance.avancado
+materia: programacao
+titulo: Python avançado - performance
+nivel: avancado
+resumo: O GIL, profiling, memoria e quando o Python lento basta.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender GIL, profiling, memoria e quando Python lento basta.
+  pre_requisitos:
+  - Python basico
+  - Conceitos de threads e processos
+  duracao_min: 10
+  fixacao:
+  - Por que o GIL atrapalha uso de multiplos nucleos para CPU?
+  - Qual a ferramenta certa para descobrir onde o programa gasta mais tempo?
+  fechamento: Se voce fosse otimizar um programa lento em Python amanha, qual seria o seu
+    primeiro passo antes de mexer em qualquer linha de codigo?
+passos:
+- fala: Imagina que voce tem uma cozinha cheia de cozinheiros, mas so existe uma unica faca
+    na gaveta. Nao importa quantas pessoas estao la, so uma consegue cortar a verdura por
+    vez. O Python faz parecido com a CPU.
+  quadro:
+    tipo: titulo
+    texto: Performance em Python
+- fala: Isso acontece por causa do GIL, o Global Interpreter Lock. Ele e um cadeado que deixa
+    so uma thread executando instrucoes de bytecode do Python por vez.
+  quadro:
+    tipo: texto
+    texto: 'GIL: Global Interpreter Lock'
+- fala: 'O GIL protege a memoria interna do interpretador. Mas ele tem um preco: limita threads
+    de CPU. Duas threads nao conseguem fazer dois nucleos trabalharem juntos em tarefas pesadas.'
+  quadro:
+    tipo: topicos
+    texto: O problema do GIL
+    itens:
+    - Protege a memoria do interpretador
+    - Limita threads de CPU
+    - Threads nao usam 2 nucleos
+- fala: Mas calma! Para operacoes de I/O, como ler um arquivo ou esperar a internet responder,
+    o GIL nao atrapalha. A thread solta o cadeado enquanto espera.
+  quadro:
+    tipo: texto
+    texto: 'I/O: a thread solta o GIL enquanto espera'
+- fala: Se a tarefa exige muita CPU, a saida nao sao mais threads. Voce deve usar multiprocessing
+    para criar varios processos ou escrever partes em C.
+  quadro:
+    tipo: topicos
+    texto: Solucoes para CPU
+    itens:
+    - Multiprocessing
+    - Codigo em C
+- fala: 'Antes de sair mudando tudo, a regra de ouro e: profiling primeiro, otimizacao depois.
+    Quem chuta onde esta o problema, otimiza o trecho errado.'
+  quadro:
+    tipo: limpar
+- fala: Para achar o problema, usamos ferramentas. O cProfile mostra exatamente onde o tempo
+    do programa vai.
+  quadro:
+    tipo: topicos
+    texto: Ferramentas de Medicao
+    itens:
+    - 'cProfile: onde o tempo vai'
+    - 'timeit: mede trechos isolados'
+    - 'tracemalloc: mede alocacao de memoria'
+- fala: 'Guarde esta regra pratica: meca, ache o gargalo, ataque so ele, e meca de novo. Geralmente,
+    noventa por cento do tempo esta em dez por cento do codigo.'
+  quadro:
+    tipo: formula
+    texto: 90% do tempo em 10% do codigo
+- fala: 'Mas vale lembrar: na maioria das vezes, o Python lento basta. A velocidade que mais
+    importa e a de desenvolvimento e a de I/O, nao a da CPU.'
+  quadro:
+    tipo: limpar
+- fala: Quando a velocidade do Python realmente nao basta, existe uma ordem certa a seguir
+    para nao perder tempo.
+  quadro:
+    tipo: topicos
+    texto: Ordem de otimizacao
+    itens:
+    - 1. Algoritmo melhor
+    - 2. Estruturas nativas
+    - 3. Numpy
+    - 4. Multiprocessing
+    - 5. Parte quente em C ou Rust

@@ -1,0 +1,86 @@
+id: programacao.python-objetos.avancado
+materia: programacao
+titulo: Python avançado - objetos e metaprogramação
+nivel: avancado
+resumo: Classes, decoradores, geradores, o dunder __init__ e o que e metaprogramacao.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender classes, decoradores, geradores, dunder __init__ e metaprogramação em
+    Python.
+  pre_requisitos:
+  - Conhecimento básico de funções e variáveis em Python
+  duracao_min: 12
+  fixacao:
+  - Use o dunder correto para tratar atributos ausentes
+  - Diferencie decoradores de geradores
+  fechamento: Se você precisasse criar um objeto que executa código quando tentamos ler um
+    atributo inexistente, qual método dunder você usaria?
+passos:
+- fala: Já tentou montar um sistema e precisou criar vários personagens ou itens parecidos?
+    Em Python, a gente usa moldes chamados classes para criar esses objetos.
+  quadro:
+    tipo: titulo
+    texto: Classes e Objetos em Python
+- fala: Todo objeto nasce a partir de um molde que chamamos de classe. A instância é o objeto
+    pronto que você usa no seu código.
+  quadro:
+    tipo: texto
+    texto: 'Classe = Molde
+
+      Instância = Objeto pronto'
+- fala: Para montar o estado inicial de um objeto logo na criação, a gente usa um método especial
+    chamado dunder init.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "class Personagem:\n    def __init__(self, nome):\n        self.nome = nome"
+- fala: Em Python, os atributos são resolvidos em tempo de execução. Isso significa que é
+    super normal adicionar ou remover atributos de um objeto na hora que você quiser.
+  quadro:
+    tipo: texto
+    texto: Atributos dinâmicos em tempo de execução
+- fala: Agora vamos falar de decoradores. Sabe aquela função que recebe outra função e devolve
+    uma nova versão melhorada? É isso. O property, por exemplo, transforma um método em um
+    atributo.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "@property\ndef vida(self):\n    return self._vida"
+- fala: Também temos o staticmethod e o classmethod, que mudam o comportamento do primeiro
+    argumento da função dentro da classe.
+  quadro:
+    tipo: topicos
+    texto: 'Outros decoradores úteis:'
+    itens:
+    - '@staticmethod'
+    - '@classmethod'
+- fala: Já passou pela situação de precisar gerar uma lista gigante e o programa travou por
+    falta de memória? O gerador resolve isso usando a palavra yield.
+  quadro:
+    tipo: codigo
+    linguagem: python
+    texto: "def conta_ate(max):\n    n = 1\n    while n <= max:\n        yield n\n       \
+      \ n += 1"
+- fala: O gerador produz um valor por vez e guarda o ponto exato onde parou, sem precisar
+    carregar a lista inteira na memória.
+  quadro:
+    tipo: texto
+    texto: Uso de memória sob demanda com yield
+- fala: 'E quando a gente entra no nível avançado de verdade, chegamos na metaprogramação:
+    código que escreve ou modifica outro código em tempo de execução.'
+  quadro:
+    tipo: titulo
+    texto: Metaprogramação
+- fala: O método dunder getattr responde quando tentamos acessar um atributo que não existe,
+    e o dunder call faz com que a própria instância do objeto possa ser chamada como função.
+  quadro:
+    tipo: topicos
+    texto: 'Métodos Dunder Avançados:'
+    itens:
+    - __getattr__ (atributo ausente)
+    - __call__ (instância como função)
+- fala: Para fechar, a função type() pode construir classes dinamicamente, e as metaclasses
+    conseguem interceptar a criação da própria classe.
+  quadro:
+    tipo: texto
+    texto: type() dinâmico e Metaclasses

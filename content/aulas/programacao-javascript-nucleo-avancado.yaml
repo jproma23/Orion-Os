@@ -1,0 +1,81 @@
+id: programacao.javascript-nucleo.avancado
+materia: programacao
+titulo: JavaScript avançado - núcleo da linguagem
+nivel: avancado
+resumo: Tipos dinamicos, prototipos, closures, escopo e o this que muda.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender tipos dinamicos, prototipos, closures, escopo e o this no JavaScript.
+  pre_requisitos:
+  - Conhecimentos basicos de programacao e funcoes em JavaScript
+  duracao_min: 12
+  fixacao:
+  - Explicar a diferenca de comportamento do this entre funcao normal e arrow function.
+  - Dizer o que acontece com a variavel const ao apontar para um objeto.
+  fechamento: Dominar o nucleo do JavaScript e o que separa um codigo cheio de bugs de um
+    codigo profissional.
+passos:
+- fala: Fala, pessoal! Ja viram voce comecar a guardar um numero numa variavel e, do nada,
+    colocar um texto la dentro? Em JavaScript, a variavel nao tem tipo, quem tem tipo e o
+    valor.
+  quadro:
+    tipo: titulo
+    texto: JavaScript Avancado - Nucleo
+- fala: Isso se chama tipagem dinamica. Olha so como o tipo muda na mesma variavel, mas cuidado
+    com a conversao implicita, como somar um numero com string.
+  quadro:
+    tipo: texto
+    texto: 'Tipagem dinamica: let x = 1; x = ''texto'';
+
+      Atencao: 1 + ''1'' vira ''11'' (conversao implicita)'
+- fala: 'Agora vamos falar de escopo. Ele e feito usando let, const e function. Lembre-se:
+    o const nao congela o objeto que esta dentro dele, ele apenas trava o nome da variavel.'
+  quadro:
+    tipo: texto
+    texto: 'Escopo: let, const, function
+
+      const trava o nome, nao o objeto!'
+- fala: Outro conceito forte e a closure. Closure e basicamente a funcao que lembra o escopo
+    onde ela nasceu. Usamos muito para criar fabricas de funcoes e estados privados.
+  quadro:
+    tipo: texto
+    texto: 'Closure = Funcao que lembra o escopo de nascimento
+
+      Uso: Factories e estado privado'
+- fala: Vamos falar de heranca. Em JavaScript nao existe copia de objeto, o nome disso e prototipo.
+    O objeto procura o atributo nele mesmo e, se nao achar, sobe a cadeia ate chegar no Object.
+    O 'class' que voce usa e so acucar sintatico.
+  quadro:
+    tipo: texto
+    texto: 'Prototipos:
+
+      - Heranca real por delegacao
+
+      - Busca na cadeia ate Object
+
+      - class = acucar sintatico'
+- fala: Para fechar, o temido 'this'. O 'this' no JavaScript muda conforme a chamada, e nao
+    conforme onde ele foi escrito. Na funcao normal, ele depende de quem chamou.
+  quadro:
+    tipo: texto
+    texto: 'O que e o this?
+
+      Muda conforme a chamada
+
+      Funcao normal: depende de quem chamou'
+- fala: 'Ja a arrow function e diferente: o this dela e o mesmo do escopo onde ela nasceu,
+    ela nao muda.'
+  quadro:
+    tipo: texto
+    texto: 'Arrow Function:
+
+      this e herdado do escopo de nascimento'
+- fala: E se voce precisar controlar isso manualmente? Temos o bind que amarra o this, alem
+    do call e do apply que trocam o this na hora da chamada.
+  quadro:
+    tipo: topicos
+    texto: 'Metodos do this:'
+    itens:
+    - 'bind: amarra o this permanentemente'
+    - 'call: troca o this na hora'
+    - 'apply: troca o this na hora com array de args'

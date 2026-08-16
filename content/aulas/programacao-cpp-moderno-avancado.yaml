@@ -1,0 +1,81 @@
+id: programacao.cpp-moderno.avancado
+materia: programacao
+titulo: C++ avançado - moderno
+nivel: avancado
+resumo: Ponteiros e referencias, smart pointers, move e RAII.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender ponteiros, referencias, smart pointers, move e RAII no C++ moderno.
+  pre_requisitos:
+  - Conceitos basicos de C++
+  - Variaveis e funcoes
+  duracao_min: 10
+  fixacao:
+  - Quando devemos usar o unique_ptr em vez do shared_ptr?
+  - O que a regra do RAII faz com os recursos quando saímos do escopo?
+  fechamento: O C++ moderno usa RAII e smart pointers para garantir que a memoria e os recursos
+    sejam limpos sozinhos, sem precisar de delete manual.
+passos:
+- fala: 'Fala, pessoal! Imagina que você aluga uma casa e tem que lembrar de trancar a porta,
+    apagar a luz e tirar o lixo toda vez que sai. Se esquecer, vira uma bagunça. No C++ antigo,
+    gerenciar memória era assim: manual. No C++ moderno, a partir da versão 11, a linguagem
+    passou a cuidar disso para a gente.'
+  quadro:
+    tipo: titulo
+    texto: 'C++ Moderno: Memória e Segurança'
+- fala: No C++ clássico, a gente usava 'new' para criar coisas na memória e 'delete' para
+    apagar. Mas se o programador esquecia o delete, ocorria vazamento de memória. Se desse
+    delete duas vezes, corrompia tudo. O C++ moderno evita ponteiros nus sempre que possível.
+  quadro:
+    tipo: texto
+    texto: 'Problema do C++ clássico: new / delete manuais (vazamentos e corrupção)'
+- fala: Para passar variáveis para funções sem precisar copiar dados pesados, usamos a referência.
+    Ela funciona como um apelido, sem precisar usar o asterisco dos ponteiros.
+  quadro:
+    tipo: formula
+    texto: void troca(int& a, int& b)
+- fala: A referência nunca é nula e não precisa de delete. E quando usamos a palavra const
+    na frente, garantimos que a função não vai alterar o valor, ganhando segurança e velocidade.
+  quadro:
+    tipo: formula
+    texto: void mostra(const string& s)
+- fala: Agora conheçam os smart pointers, os ponteiros espertos que se limpam sozinhos. O
+    primeiro é o unique_ptr. Ele é o dono único do objeto e não pode ser copiado, apenas movido.
+  quadro:
+    tipo: texto
+    texto: 'unique_ptr: Dono único, sem cópias permitidas'
+- fala: E se vários lugares precisarem apontar para o mesmo objeto? Aí entra o shared_ptr.
+    Ele divide a posse e só deleta o recurso quando o último ponteiro morre. Já o weak_ptr
+    apenas observa o objeto sem segurar a posse.
+  quadro:
+    tipo: topicos
+    texto: 'Outros ponteiros inteligentes:'
+    itens:
+    - 'shared_ptr: Posse compartilhada (deleta no último)'
+    - 'weak_ptr: Observa sem segurar'
+- fala: 'Anote a regra prática do dia a dia: use unique_ptr por padrão. Deixe o shared_ptr
+    apenas para quando a posse for realmente compartilhada.'
+  quadro:
+    tipo: texto
+    texto: 'Regra prática: unique_ptr por padrão; shared_ptr só se necessário'
+- fala: Por trás de tudo isso está o RAII, uma regra fundamental. O recurso é adquirido na
+    construção do objeto e liberado automaticamente na destruição.
+  quadro:
+    tipo: texto
+    texto: 'RAII: Recurso adquirido noconstrutor, liberado no destrutor'
+- fala: Com o RAII, arquivos, mutexes e memórias viram objetos que se desfazem sozinhos ao
+    sair do escopo, mesmo se acontecer um erro ou exceção no meio do caminho.
+  quadro:
+    tipo: apontar
+    alvo: 7
+- fala: Para fechar, temos a semântica de movimento, o move. Em vez de copiar um objeto inteiro,
+    o std::move transfere o conteúdo diretamente para outro, deixando o original vazio e com
+    custo zero.
+  quadro:
+    tipo: formula
+    texto: std::move(conteudo)
+- fala: 'Para pensar e usar o que aprendeu: se você tem um objeto que só pode ter um único
+    dono gerenciando sua vida útil na memória, qual dos ponteiros inteligentes você deve escolher?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual smart pointer usar para um dono único?'

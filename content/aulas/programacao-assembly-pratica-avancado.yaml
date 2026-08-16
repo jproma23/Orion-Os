@@ -1,0 +1,87 @@
+id: programacao.assembly-pratica.avancado
+materia: programacao
+titulo: Assembly - na prática
+nivel: avancado
+resumo: Ler assembly gerado, otimizar e saber quando vale escrever assembly na mao.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Ler assembly gerado, otimizar e saber quando vale escrever assembly na mao.
+  pre_requisitos:
+  - Linguagem C
+  - Conceitos basicos de arquitetura de computadores
+  duracao_min: 10
+  fixacao:
+  - Por que o objdump e util na pratica?
+  - Em quais casos especificos vale a pena escrever assembly na mao?
+  fechamento: Vimos que na pratica o assembly serve muito mais para ser lido do que escrito,
+    sendo util apenas em casos cirurgicos.
+passos:
+- fala: Imagine que voce terminou um programa em C e precisa saber exatamente o que o computador
+    esta executando linha por linha. Em vez de escrever tudo do zero, nos usamos ferramentas
+    para olhar o codigo de maquina gerado.
+  quadro:
+    tipo: titulo
+    texto: Assembly na Pratica
+- fala: A primeira ferramenta essencial e o objdump. Ele serve para desmontar binarios.
+  quadro:
+    tipo: texto
+    texto: 'objdump: desmonta binarios'
+- fala: Tambem podemos usar o compilador diretamente com uma flag especifica para ver o codigo
+    assembly que ele gerou.
+  quadro:
+    tipo: formula
+    texto: gcc -S
+- fala: Mas por que fazer isso? Ler o assembly gerado diz se o otimizador realmente ajudou
+    ou se o seu codigo esta pagando por algo que voce nem usa.
+  quadro:
+    tipo: topicos
+    texto: Por que ler assembly?
+    itens:
+    - Ver se o otimizador ajudou
+    - Descobrir custos ocultos do codigo
+- fala: 'Agora, uma regra importante da programacao moderna: otimizar direto em C costuma
+    ser muito mais eficaz do que mexer em assembly. O compilador moderno ja escolhe os registradores
+    muito melhor que um humano.'
+  quadro:
+    tipo: texto
+    texto: 'Regra: Otimizar em C e mais eficaz que em assembly'
+- fala: Entao, quando vale a pena escrever assembly na mao? Apenas em casos cirurgicos e muito
+    especificos.
+  quadro:
+    tipo: topicos
+    texto: Quando escrever assembly?
+    itens:
+    - Nucleo de driver
+    - Inicializacao de hardware
+    - Rotina critica em tempo real
+- fala: Fora desses casos, escrever assembly na mao e caro para manter e traz um ganho que
+    o compilador muitas vezes ja consegue entregar sozinho.
+  quadro:
+    tipo: texto
+    texto: 'Fora disso: alto custo de manutencao e pouco ganho'
+- fala: Para fechar, a pratica de trabalhar com assembly exige disciplina rigida.
+  quadro:
+    tipo: limpar
+- fala: 'Primeiro: assembly se escreve pouco e se le muito.'
+  quadro:
+    tipo: topicos
+    texto: Disciplina do Assembly
+    itens:
+    - Escrever pouco
+    - Ler muito
+    - Testar por contrato
+- fala: 'Segundo: voce deve isolar a rotina critica, medir o desempenho antes e depois, e
+    sempre manter o codigo equivalente em C funcionando como especificacao.'
+  quadro:
+    tipo: texto
+    texto: Isolar -> Medir -> Manter equivalencia em C
+- fala: 'Em resumo: fazer assembly na pratica e provar que o seu codigo ganha do que o compilador
+    escreveria, e principalmente, saber reconhecer quando ele nao ganha.'
+  quadro:
+    tipo: texto
+    texto: 'Objetivo final: Provar o ganho de desempenho (ou recuar)'
+- fala: 'Pense comigo: se o compilador ja faz um trabalho excelente organizando os registradores,
+    por que escrever codigo em assembly para uma aplicacao comum de cadastro de usuarios?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta de fixacao: Vale a pena usar assembly em um sistema comum de cadastro?'

@@ -1,0 +1,68 @@
+id: programacao.mqtt-protocolo.avancado
+materia: programacao
+titulo: MQTT - o protocolo
+nivel: avancado
+resumo: Publish, subscribe, broker, QoS e por que e leve para IoT.
+fonte: Wikipedia, artigos MQTT, Broker, consultados em 2026-08-15
+plano:
+  objetivo: Publish, subscribe, broker, QoS e por que e leve para IoT.
+  pre_requisitos:
+  - Redes de computadores basicas
+  - Conceito de cliente e servidor
+  duracao_min: 10
+  fixacao:
+  - O que faz um broker no MQTT?
+  - Por que o modelo Publicador-Subscritor e util para IoT?
+  fechamento: Hoje vimos como o MQTT usa o broker e o modelo publicador-subscritor para conectar
+    dispositivos leves de forma eficiente.
+passos:
+- fala: Fala, pessoal! Imagina que voce tem varios sensores espalhados pela casa inteligente,
+    medindo temperatura. Como eles mandam esses dados pro seu celular sem gastar toda a bateria?
+    E ai que entra o MQTT.
+  quadro:
+    tipo: titulo
+    texto: 'MQTT: O Protocolo para IoT'
+- fala: O nome completo dele e Message Queuing Telemetry Transport. Ele e um protocolo de
+    mensagens feito para ser leve, focado em sensores e pequenos dispositivos moveis usando
+    redes TCP/IP.
+  quadro:
+    tipo: texto
+    texto: 'Message Queuing Telemetry Transport
+
+      Leve para sensores e dispositivos móveis'
+- fala: A grande sacada dele e o esquema de troca de mensagens. Ele funciona no modelo chamado
+    Publicador-Subscritor, que e extremamente simples e leve.
+  quadro:
+    tipo: topicos
+    texto: Modelo de Comunicação
+    itens:
+    - Publicador
+    - Subscritor
+- fala: Mas quem organiza essa troca de mensagens entre quem publica e quem assina? Entra
+    em cena o broker.
+  quadro:
+    tipo: limpar
+- fala: No mundo real, um broker e um intermediario nas transacoes entre um comprador e um
+    vendedor, igual a um corretor no mercado imobiliario ou financeiro.
+  quadro:
+    tipo: titulo
+    texto: O que é um Broker?
+- fala: 'No MQTT, o broker faz exatamente isso: ele fica no meio do caminho, recebendo as
+    mensagens dos publicadores e entregando para os subscritores.'
+  quadro:
+    tipo: texto
+    texto: Intermediário entre publicador e subscritor
+- fala: E por que ele e tao usado na Internet das Coisas, a tal da IoT? Porque ele foi desenhado
+    do zero para gastar pouca rede e pouca energia em dispositivos pequenos.
+  quadro:
+    tipo: topicos
+    texto: Vantagens para IoT
+    itens:
+    - Protocolo leve
+    - Economia de rede
+    - Ideal para pequenos dispositivos
+- fala: 'Para pensar e responder: se o seu celular quer saber a temperatura da sala, ele publica
+    um dado, assina um topico ou age como o broker?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Qual o papel do celular ao monitorar a temperatura?'

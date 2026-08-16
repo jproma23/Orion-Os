@@ -1,0 +1,92 @@
+id: programacao.javascript-moderno.avancado
+materia: programacao
+titulo: JavaScript avançado - moderno
+nivel: avancado
+resumo: ES6+, modulos, destructuring, spread e o codigo que roda no navegador.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender ES6+, modulos, destructuring, spread e o codigo moderno.
+  pre_requisitos:
+  - Logica de programacao
+  - JavaScript basico
+  duracao_min: 12
+  fixacao:
+  - O que faz o operador spread?
+  - Como exportar e importar uma funcao num modulo?
+  fechamento: Com o JavaScript moderno, nosso codigo fica mais limpo, organizado em modulos
+    e sem repeticoes desnecessarias.
+passos:
+- fala: Fala, pessoal! Imagina que voce tem uma caixa cheia de objetos e precisa tirar so
+    o nome e a idade de uma pessoa, sem ter que escrever varias linhas para isso.
+  quadro:
+    tipo: titulo
+    texto: 'JavaScript Moderno: ES6+'
+- fala: Antes de 2015, o JavaScript era escrito de um jeito mais antigo, usando var e funcoes
+    soltas. A partir do ES6, ganhamos ferramentas novas que mudaram totalmente a nossa forma
+    de programar.
+  quadro:
+    tipo: texto
+    texto: ES6 (2015) trouxe let, const, arrow functions e classes nativas.
+- fala: A primeira grande facilidade e o Destructuring. Ele tira valores de um objeto ou array
+    numa linha so, guardando direto em variaveis.
+  quadro:
+    tipo: codigo
+    linguagem: javascript
+    texto: 'const pessoa = { nome: ''Ana'', idade: 20 };
+
+      const { nome, idade } = pessoa;'
+- fala: E para espalhar os dados de um array ou objeto em outro lugar, nos usamos o Spread,
+    representado por tres pontinhos.
+  quadro:
+    tipo: codigo
+    linguagem: javascript
+    texto: 'const listaOriginal = [1, 2, 3];
+
+      const copia = [...listaOriginal, 4];'
+- fala: Se a gente quiser fazer o oposto, ou seja, juntar o que sobrou dos argumentos numa
+    funcao so, nos usamos o Rest, tambem com tres pontinhos.
+  quadro:
+    tipo: codigo
+    linguagem: javascript
+    texto: "function soma(...numeros) {\n  return numeros.reduce((a, b) => a + b, 0);\n}"
+- fala: Antigamente, tudo no JavaScript vazava para o escopo global da pagina. Hoje, nos usamos
+    modulos com export e import para organizar o codigo em arquivos separados.
+  quadro:
+    tipo: codigo
+    linguagem: javascript
+    texto: '// arquivo dados.js
+
+      export function lerDado() { return ''ok''; }
+
+
+      // arquivo principal.js
+
+      import { lerDado } from ''./dados.js'';'
+- fala: Modulos tem escopo proprio, nome unico e carregamento explicito. Para juntar tudo
+    isso para a producao, usamos ferramentas modernas conhecidas como bundlers, como o Vite
+    e o Webpack.
+  quadro:
+    tipo: topicos
+    itens:
+    - Escopo proprio
+    - Carregamento explicito
+    - 'Bundlers: Vite e Webpack'
+    texto: Vantagens dos Modulos ES6
+- fala: No nivel moderno, tambem usamos recursos nativos poderosos do navegador, como o fetch
+    para buscar dados e o async/await para lidar com operacoes assincronas.
+  quadro:
+    tipo: codigo
+    linguagem: javascript
+    texto: "async function buscarDados() {\n  const resposta = await fetch('api/dados');\n\
+      \  const dados = await resposta.json();\n}"
+- fala: Para fechar, o codigo moderno deve ser legivel, organizado em modulos pequenos que
+    fazem uma unica coisa bem feita.
+  quadro:
+    tipo: texto
+    texto: 'Regra de ouro: Codigo limpo, legivel e modular.'
+- fala: 'Agora me responda: se voce tem um array chamado ''numeros'' e quer criar um novo
+    array com todos os elementos dele mais o numero 10 no final, qual operador do ES6 voce
+    deve usar?'
+  quadro:
+    tipo: texto
+    texto: 'Pergunta: Como adicionar um elemento usando Spread?'

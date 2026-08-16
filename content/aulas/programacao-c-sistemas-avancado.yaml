@@ -1,0 +1,73 @@
+id: programacao.c-sistemas.avancado
+materia: programacao
+titulo: C avançado - sistemas
+nivel: avancado
+resumo: Struct, union, bitwise, pre-processador e por que C roda perto do metal.
+fonte: Wikipedia, artigos Processador, Union, consultados em 2026-08-15
+plano:
+  objetivo: Struct, union, bitwise, pre-processador e por que C roda perto do metal.
+  pre_requisitos:
+  - Linguagem C basica
+  duracao_min: 10
+  fixacao:
+  - O que e um struct?
+  - Para que servem operadores bitwise?
+  fechamento: 'Pense: por que precisamos saber o tamanho exato de memoria que uma struct ocupa
+    quando programamos sistemas embarcados?'
+passos:
+- fala: Ola! Hoje vamos entender por que a linguagem C e tao usada em sistemas e roda tao
+    perto do hardware.
+  quadro:
+    tipo: titulo
+    texto: 'C Avancado: Sistemas'
+- fala: Para comecar, vamos falar de struct. Pense numa ficha de cadastro onde voce guarda
+    o nome, a idade e a nota de um aluno juntos.
+  quadro:
+    tipo: texto
+    texto: 'Struct: agrupa dados de tipos diferentes'
+- fala: No codigo, criamos uma struct assim. Declaramos a palavra struct, o nome dela, e dentro
+    das chaves colocamos as variaveis.
+  quadro:
+    tipo: codigo
+    linguagem: c
+    texto: "struct Aluno {\n    char nome[50];\n    int idade;\n    float nota;\n};"
+- fala: Agora vamos ver a union. Diferente da struct, onde cada variavel tem seu espaco, na
+    union todas compartilham o mesmo espaco de memoria.
+  quadro:
+    tipo: texto
+    texto: 'Union: mesmo espaco de memoria para variaveis'
+- fala: Isso significa que se voce altera um valor na union, o outro valor guardado ali muda
+    junto, porque eles usam o mesmo lugar.
+  quadro:
+    tipo: codigo
+    linguagem: c
+    texto: "union Dado {\n    int i;\n    float f;\n};"
+- fala: Outro recurso poderoso do C sao os operadores bitwise. Eles mexem direto nos bits
+    dos numeros, usando E, OU e deslocamentos.
+  quadro:
+    tipo: topicos
+    itens:
+    - '& (E bit a bit)'
+    - '| (OU bit a bit)'
+    - << (Deslocamento esquerda)
+    - '>> (Deslocamento direita)'
+    texto: Operadores Bitwise
+- fala: Por exemplo, deslocar os bits para a esquerda usando << dobra o valor do numero muito
+    mais rapido do que fazer uma multiplicacao.
+  quadro:
+    tipo: formula
+    texto: x << 1  // Equivale a multiplicar por 2
+- fala: Antes do codigo compilar, o pre-processador entra em acao. Ele substitui defines e
+    decide quais partes do codigo serao compiladas.
+  quadro:
+    tipo: codigo
+    linguagem: c
+    texto: "#define MAX 100\n#ifdef DEBUG\n    // codigo de teste\n#endif"
+- fala: E por que o C roda perto do metal? Porque ele permite gerenciar memoria manualmente
+    e conversar direto com os registradores do processador.
+  quadro:
+    tipo: texto
+    texto: 'C: controle direto de memoria e hardware'
+- fala: 'Para fechar nossa aula: se uma union compartilha o mesmo espaco de memoria para todas
+    as suas variaveis, o que acontece com o valor anterior quando voce guarda um dado novo
+    nela?'

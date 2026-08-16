@@ -1,0 +1,62 @@
+id: programacao.mqtt-aplicado.avancado
+materia: programacao
+titulo: MQTT - na prática
+nivel: avancado
+resumo: Broker em casa, ESP32 publicando, Node-RED e os erros comuns.
+fonte: Wikipedia, artigos MQTT, consultados em 2026-08-15
+plano:
+  objetivo: Broker em casa, ESP32 publicando, Node-RED e os erros comuns.
+  pre_requisitos:
+  - Redes TCP/IP
+  - Noções básicas de programação
+  duracao_min: 12
+  fixacao:
+  - Onde fica o broker MQTT na sua casa?
+  - Qual é o modelo de troca de mensagens do MQTT?
+  fechamento: Hoje vimos como o protocolo MQTT funciona na prática, usando o modelo Publicador-Subscritor
+    para ligar dispositivos de forma leve.
+passos:
+- fala: Fala, pessoal! Sabe quando a lâmpada inteligente acende pelo celular? Por trás dos
+    bastidores, muitas vezes quem manda o recado é um protocolo leve chamado MQTT.
+  quadro:
+    tipo: titulo
+    texto: MQTT - Na Prática
+- fala: O nome completo dele é Message Queuing Telemetry Transport. Mas relaxa, o importante
+    é saber que ele foi feito para sensores e pequenos dispositivos.
+  quadro:
+    tipo: texto
+    texto: Message Queuing Telemetry Transport
+- fala: Ele foi otimizado exatamente para rodar em cima de redes TCP/IP, aquelas que a gente
+    usa todo dia na nossa internet.
+  quadro:
+    tipo: texto
+    texto: Otimizado para redes TCP/IP
+- fala: A grande sacada do MQTT é o modelo de troca de mensagens. Ele é fundamentado no modelo
+    Publicador-Subscritor.
+  quadro:
+    tipo: topicos
+    texto: Modelo MQTT
+    itens:
+    - Publicador
+    - Subscritor
+- fala: Esse esquema é extremamente simples e muito leve, ideal para economizar bateria e
+    banda de dispositivos móveis e sensores.
+  quadro:
+    tipo: texto
+    texto: Esquema simples e leve
+- fala: 'Agora pensem comigo: se você tem um ESP32 na sua casa medindo a temperatura e quer
+    mandar isso para o Node-RED, como eles conversam?'
+  quadro:
+    tipo: texto
+    texto: ESP32 + Node-RED
+- fala: O ESP32 faz o papel de publicador, enviando o dado. E o Node-RED ou o seu broker local
+    recebem e organizam tudo.
+  quadro:
+    tipo: topicos
+    texto: Na Prática em Casa
+    itens:
+    - Broker local
+    - ESP32 publicando
+    - Node-RED
+- fala: 'Para fechar nossa aula de hoje, me responda: qual é o modelo fundamental de troca
+    de mensagens que o MQTT utiliza?'

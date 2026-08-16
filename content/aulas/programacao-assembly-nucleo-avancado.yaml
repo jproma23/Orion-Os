@@ -1,0 +1,94 @@
+id: programacao.assembly-nucleo.avancado
+materia: programacao
+titulo: Assembly - o núcleo
+nivel: avancado
+resumo: Registradores, instrucoes, modo de enderecamento e a memoria de maquina.
+fonte: conhecimento tecnico do dono (Joao Paulo)
+plano:
+  objetivo: Entender registradores, instrucoes, modos de enderecamento e memoria de maquina.
+  pre_requisitos:
+  - Conceito basico de programacao
+  - Logica de computador
+  duracao_min: 10
+  fixacao:
+  - 'O que e mais rapido: um registrador ou a memoria RAM?'
+  - Qual instrucao do Assembly usamos para copiar um dado?
+  fechamento: Entender Assembly revela como o hardware realmente executa nossos codigos mais
+    complexos.
+passos:
+- fala: Fala turma de quinze anos. Imagine que voce esta jogando um video game e precisa guardar
+    a pontuacao atual. Se voce anotar num papel na gaveta, demora para pegar. Se estiver na
+    ponta da sua lingua, e instantaneo. No computador, os registradores sao exatamente essa
+    ponta da lingua da CPU.
+  quadro:
+    tipo: titulo
+    texto: 'Assembly: O Nucleo'
+- fala: O Assembly e basicamente a linguagem da maquina com nomes que a gente consegue ler.
+    A CPU de um computador nao faz ideia do que seja um 'loop', um 'if' ou uma 'variavel'.
+    Ela so conhece instrucoes secas e memoria.
+  quadro:
+    tipo: texto
+    texto: 'CPU nao conhece variaveis: apenas instrucoes e memoria.'
+- fala: Para guardar dados, a CPU usa os registradores. Eles sao celulas de memoria ultrarrapidas
+    que ficam dentro da propria CPU.
+  quadro:
+    tipo: texto
+    texto: 'Registradores: Celulas rapidissimas dentro da CPU.'
+- fala: Existe uma hierarquia de velocidade na maquina que a gente precisa respeitar. O registrador
+    e o mais rapido de todos, ganhando do cache, que ganha da memoria RAM, que por sua vez
+    e muito mais rapida que o disco rigido.
+  quadro:
+    tipo: tabela
+    cabecalho:
+    - Velocidade
+    - Local
+    linhas:
+    - - Mais rapido
+      - Registrador
+    - - Intermediario
+      - Cache e RAM
+    - - Mais lento
+      - Disco
+    texto: Hierarquia de Velocidade
+- fala: 'E o que uma instrucao faz de verdade? Basicamente tres coisas: ela move dados de
+    um lugar para o outro, faz calculos matematicos e desvia o caminho do programa.'
+  quadro:
+    tipo: topicos
+    itens:
+    - Mover dado
+    - Calcular
+    - Desviar fluxo
+    texto: As 3 coisas basicas de uma Instrucao
+- fala: Por exemplo, a instrucao MOV copia dados entre um registrador e a memoria. As instrucoes
+    ADD e SUB fazem calculos de soma e subtracao.
+  quadro:
+    tipo: formula
+    texto: MOV, ADD, SUB
+- fala: E para controlar o fluxo do programa, temos instrucoes como JMP e CALL que mudam para
+    onde a CPU esta olhando. Ja o CMP compara valores e seta flags, enquanto o JE desvia o
+    fluxo apenas se os valores forem iguais.
+  quadro:
+    tipo: formula
+    texto: JMP, CALL, CMP, JE
+- fala: Quando escrevemos uma instrucao, precisamos dizer onde o dado esta guardado. Isso
+    se chama modo de enderecamento. O dado pode estar direto na instrucao, num registrador,
+    ou na memoria com algum deslocamento.
+  quadro:
+    tipo: topicos
+    itens:
+    - Imediato
+    - Registrador
+    - Memoria com deslocamento
+    texto: Modos de Enderecamento
+- fala: No nivel do nucleo, precisamos lembrar que qualquer linguagem de alto nivel, como
+    Python ou C, vira isso no final. O compilador traduz nossos ifs e fors em sequencias brutas
+    de MOV e JMP.
+  quadro:
+    tipo: texto
+    texto: Compilador traduz if/for em MOV e JMP
+- fala: 'Para fechar, pense nisso: uma comparacao na CPU nao custa quase nada de tempo, mas
+    ir buscar um dado na memoria RAM pode custar centenas de ciclos. Quem entende a maquina
+    por baixo escreve codigos muito mais eficientes.'
+  quadro:
+    tipo: texto
+    texto: Acesso a RAM custa centenas de ciclos de CPU.
