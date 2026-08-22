@@ -6,57 +6,343 @@ no projeto e atualize ao terminar.** Entradas novas vão NO TOPO, com data e
 assinatura do agente. Não apague entradas antigas — marque como resolvidas.
 
 ---
-## 2026-08-19 — Reconhecimento facial ATIVO (rostos recadastrados por foto) + protocolo anti-colisão
+## 2026-08-21 — jarvis_plugins: base.py CORROMPIDO no deploy + code_executor.py AUSENTE
 
-**Agente:** Kimi Code CLI (Windows)
-**Estado:** concluído e validado em produção. Nada commitado nesta sessão; working trees intactos.
+**Agente:** Kimi Code CLI (Windows) — revisão/monitoramento a pedido do dono
+**Estado:** BLOQUEANTE — nada em `jarvis_plugins` importa no Pi neste momento
 
-### Feito
+### Verificado no Pi (ssh 10.20.20.196)
 
-1. **Embeddings de João Paulo, Marah e Kamal regenerados A PARTIR DE FOTOS**
-   (o dono mandou as fotos; ninguém precisou ficar na frente da câmera).
-   Script temporário: `/tmp/gen_embeddings.py` (Notebook, tenta rotações -
-   a foto do Kamal estava inclinada 10°) e `/tmp/atualizar_faces.py` (Pi).
-   UPDATE direto na tabela `pessoas`, sem inserir duplicado.
-   **Backup ANTES de gravar:** `/mnt/ssd/orion/orion_backup_pre_faces_2026-08-18.db`.
-2. **Validado em produção (19/08 ~06:23):** avatar logou
-   `Vision Core: 3 rosto(s) conhecido(s) carregado(s)` e, com o dono na
-   frente da câmera, `diário: pessoa_vista {'nome': 'João Paulo'}` +
-   `conversa creditada a 'João Paulo' (pessoa_id=1)`.
+1. **`base.py` corrompido pelo heredoc via PowerShell.** Todos os `"""` viraram `"`
+   (grep por `"""` retorna 0) e aspas simples sumiram — linha 1 é `"Base classes...`
+   com aspa única, e `logger = logging.getLogger(orion.mission.jarvis_plugins)` ficou
+   SEM aspas (NameError). `python3 -m py_compile` falha na linha 1
+   (unterminated string literal). O arquivo inteiro está assim — não remende, REENVIE.
+2. **`code_executor.py` NÃO existe no Pi.** O `scp` do log não concluiu (ou falhou sem
+   saída visível). O diretório tem só `base.py` e `__init__.py`.
+3. **Causa raiz:** heredoc `ssh '... << "EOF"'` via PowerShell corrompe aspas.
+   Fluxo seguro: escrever arquivo local → `scp` → **rodar `py_compile` no Pi após
+   cada upload** (torne isso passo obrigatório do deploy).
 
-### Lições (corrigindo conclusões erradas que eu mesmo quase espalhei)
+### Bugs no `code_executor.py` (corrigir ANTES de reenviar)
 
-- **O banco fica em `/mnt/ssd/orion/orion.db`, não em `data/`.** A tabela
-  `pessoas` JÁ tinha embeddings válidos dos três (distância antigo→novo
-  0.18-0.33 = mesmos rostos). Quase concluí "zero rostos cadastrados"
-  procurando no lugar errado.
-- **A "câmera do Notebook" é o STREAM DO PI** (`http://pi-os.local:8091/stream`).
-  Pi fora do ar = Notebook sem visão E sem rostos (o `_insistir_familia`
-  do `modulo.py` cobre: retenta 30x a cada 10 s - hoje funcionou, carregou
-  na 3ª tentativa quando o Pi voltou de reboot).
-- **Saudação espontânea tem DUAS travas** (saudacao.py): 30 min entre
-  cumprimentos à mesma pessoa e janela de 15 min após qualquer conversa.
-  No teste do dono o wake word veio 6 s ANTES do reconhecimento - a
-  supressão foi correta, não bug. Teste limpo = aparecer em silêncio 15 min
-  depois da última conversa.
+1. **Output duplicado:** `_capturing_print` escreve no `file` (o `OutputCapture`,
+   que já atualiza `_last_output`) e depois concatena o mesmo texto em
+   `_last_output` de novo. Todo `print()` sai em dobro. Remova a segunda concatenação.
+2. **Sandbox quebrada:** sem `__import__` nos builtins, QUALQUER `import` no REPL
+   falha — o plugin fica inútil para código real. E ainda é contornável (não protege
+   nada). Decisão: ou builtins completos (executor de confiança, roda local no robô),
+   ou whitelist de módulos com `__import__` customizado.
+3. **Timeout ilusório:** `asyncio.wait_for` sobre `run_in_executor` cancela a espera,
+   mas a thread continua rodando — um `while True` vaza e come a CPU do Pi. Para
+   timeout real, execute em subprocesso separado.
+4. **Registro duplicado:** `register_plugin(CodeExecutorPlugin())` no import +
+   `get_code_executor()` registra de novo → warning de sobrescrita. Escolha um só.
 
-### PROTOCOLO ANTI-COLISÃO (pedido do dono, 2026-08-19: "tem outro agente trabalhando; se precisar reiniciar, não atrapalhar um ao outro")
+### Não mexi em nada
 
-Vale para TODOS os agentes a partir desta data:
+Não editei nem commitei os arquivos do plugin — a correção fica com o agente JARVIS.
+Depois de reenviar, valide com:
 
-1. **Antes de REINICIAR serviço** (orion-avatar / orion-motion /
-   orion-camera-stream): `git log --oneline -3` + `git status --short` na
-   máquina. Se houver commit novo de outro agente ou arquivo mexido há
-   minutos (`stat`), NÃO reiniciar - deixar nota aqui e aguardar.
-2. **Antes de COMMITAR:** `git log` primeiro; commitar SÓ os próprios
-   arquivos, nunca `git add -A` (lição da Mission Memory).
-3. **Ao terminar a sessão:** entrada aqui no topo + doc de estado no
-   Windows (`Desktop/ORION_estado_2026-08-09.md`), que hoje carrega a
-   TRILHA DE EVOLUÇÃO (auto-reparação em níveis + discernimento como
-   camada transversal - direção do dono de 2026-08-19, ler antes de
-   planejar trabalho novo).
-4. Reinício feito por MIM nesta sessão: `orion-avatar` ~06:18 (recarregar
-   rostos). Na ocasião não havia trabalho recente de outro agente no tree.
+    python3 -m py_compile base.py code_executor.py && \
+    python3 -c "from orion.mission.jarvis_plugins import get_registry; print(get_registry().list_plugins())"
+
+---
+## 2026-08-20 — STOP por lidar REMOVIDO do Motion Core (lidar vira informativo)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** aplicado e testado (114 unit passam). Fluxo agora segue a regra
+do dono: "nada de sistema bloqueante" - quem desvia de obstaculo e o Nav2
+(planejador), o lidar so alimenta o costmap.
+
+### O que mudou
+
+- `motion_core/navigation/navigation_core.py`:
+  - `_pode_avancar`: o bloco que mandava STOP quando `_obstaculo_no_lidar()`
+    foi substituido por publicar `navigation.obstacle_avoided` (motivo
+    `lidar_frontal`) SEM frear - o avanca continua.
+  - `_executar_segmento`: a condicao `or self._obstaculo_no_lidar()` saiu do
+    gate; o STOP so acontece agora por colisao iminente (varredura de
+    ultrassom `_obstaculo_na_varredura`, com a distancia minima real da
+    varredura no evento).
+  - `_pode_avancar` mantem o STOP por ultrassom frontal (`_obstaculo_a_frente`)
+    - colisao iminente, como decidido. O modo manual ja obedecia 100% desde
+    18/08 (nao vetava nada, so informava).
+- EXPLORE continua encerrando trecho por `_obstaculo_na_varredura`/`_obstaculo_a_frente`
+  (ultrassom) - intacto.
+
+### Validado
+
+- 114 unit tests passam (navigation_core 42, fusao_sensores, webui_server,
+  coin_d6, gerenciador, behavior_core).
+
+---
+## 2026-08-20 — Nav2 (NaviCore) dirigindo: bridge_goal + forwarder de goal no Motion Core
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** cadeia de GOAL validada no Pi ponta a ponta (webui -> bus ->
+Nav2Goal -> bridge_goal -> bt_navigator -> cancelamento -> resultado de volta
+no bus). Sem o COIN-D6 fisico o planejamento NAO progride (esperado: sem
+/scan nao ha /map), mas a infraestrutura de destino esta pronta.
+
+### O que foi feito
+
+- **Decisao de arquitetura (do dono, confirmada):** Nav2 (NaviCore) = UNICO
+  planejador (mapa, costmap, replanejamento, desvio). NavigationCore Python
+  vira EXECUTOR (para de navegar sozinho). LiDAR alimenta costmap/Nav2 e
+  NUNCA funciona como STOP bloqueante ("nada de sistema bloqueante"). O
+  Motion Core decide ONDE ir (BehaviorCore/IA), o Nav2 resolve COMO chegar.
+- **`nav2/src/orion_nav2/orion_nav2/bridge_goal.py`** (no container, nó
+  `orion_goal`): servidor HTTP 127.0.0.1:8081. `POST /goal` (x, y, yaw_rad)
+  -> acao NavigateToPose; `POST /cancelar` aborta. Corrigido hoje: o logger
+  do rclpy NAO aceita %-format (`TypeError: RcutilsLogger.info()`), os
+  Futures do rclpy NAO aceitam timeout em .result() (usar polling de
+  .done()), e o threading precisa de UM executor com spinner em thread
+  propria (nada de spin_until_future_complete de thread alheia nem executor
+  por request). Novo goal cancela o anterior.
+- **`motion_core/navigation/nav2_goal.py`** (novo, host): assina
+  `navigation.goal` (x_m, y_m, yaw_rad), faz POST ao bridge_goal e publica
+  `navigation.goal_resultado` (completado/falhou/cancelado/timeout) no bus.
+  Handler NAO bloqueante (dispara task propria: o despacho do EventBus faz
+  `await` no handler e travaria todos os outros eventos). Cooldown de 5 s
+  apos falha para evitar reenvio em laco.
+- **`motion_core/webui/server.py`**: novo endpoint `POST /goal_nav2`
+  (x_m/y_m/yaw_rad). Publica `navigation.goal` no bus. Mesma regra de
+  dirigir: exige senha (401) e o volante em MANUAL (409).
+- **`motion_core/__main__.py`**: `Nav2Goal(event_bus)` registrado junto com
+  FusaoSensores. Tolera ausencia do container (falha vira resultado no bus).
+- `nav2_params.yaml` ja aponta para a BT `navigate_to_pose_w_replanning_and_
+  recovery.xml` (a antiga `navigate_w_replanning_and_recovery.xml` NAO
+  existe na build e bloqueava todo goal - corrigido antes).
+
+### Validado no Pi
+
+- `docker compose up -d --build` OK; container `nav2-nav2-1` Up.
+- POST /goal aceito pelo bt_navigator (`Begin navigating from current
+  location (1.99, 0.62) to (1.00, 0.00)`); 2o goal cancela o 1o e o
+  resultado volta ao bus (smoke com EventBus real, 111 unit tests passam:
+  navigation_core, fusao_sensores, webui_server, coin_d6, gerenciador).
+- Sem o COIN-D6 o planner trava em compute_path_to_pose (costmap global
+  vazio, sem /map) - esperado; resolver ao conectar o sensor.
+
+### Pendente (proximos passos)
+
+- Fonte de destino x/y para a IA estrategica (hoje so publica acoes
+  discretas; GOTO e relativo graus+cm). Endpoint webui /goal_nav2 e o
+  caminho de teste manual.
+- Ao conectar o COIN-D6: validar goal real ate o controller emitir /cmd_vel
+  e o bridge_cmd_vel mover o robo.
+- Com Nav2 dirigindo, remover o STOP por lidar em `_pode_avancar`
+  (~linha 522) e `_executar_segmento` (~linha 882) do navigation_core.py
+  (lidar vira informativo; STOP so por ultrassom iminente).
+
+---
+## 2026-08-20 — LiDAR COIN-D6 substituindo LD06 (parser Python + config + udev)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** codigo pronto e testado no Pi (65 unit ok); sensor ainda NAO
+instalado (o COIN-D6 chegara e sera conectado depois).
+
+### O que foi feito
+
+- O LD06 que veio com defeito sera substituido pelo COIN-D6 (dToF, CH340
+  1a86:7523, baud fixo 230400, 36 bytes/quadro, 0.05-12 m). Fluxo final
+  confirmado pelo dono: COIN-D6 -> parser Python -> `lidar.scan` -> Seguranca
+  + Nav2 (bridge Docker) -> BehaviorCore -> /cmd_vel -> Motion Core -> ESP32.
+  **NAO** vamos para ROS2 nativo; mantemos parser Python + bridge + Docker.
+- `motion_core/lidar/coin_d6.py` (novo): parser do protocolo COIN-D6 validado
+  contra dados reais do software Windows (`.cspc`) e SDK ROS1 oficial:
+  - `HEADER_INICIO` = 55 AA 83 08, `TAMANHO_QUADRO` = 36 B (8 pontos x 3 B).
+  - Distancia em mm direto (`(d0 + d1*256) & 0x3FFF`), confianca `d2 >> 2`
+    (6 bits), angulo interpolado `(code - 0xA000)/64` entre start/stop em 7
+    passos (o ultimo ponto e o stop angle), checksum 17 words LE com rotacao
+    a esquerda + dobra dos 15 bits (0 falhas em 3058 frames).
+  - Envia `COMANDO_INICIAR` (AA 55 F0 0F) ao abrir a serial - sem ele o
+    sensor fica mudo.
+- `motion_core/lidar/gerenciador.py`: agora e driver-agnostico (registro
+  `DRIVERS = {"ld06": ..., "coin_d6": ...}`), le `lidar.driver` do config,
+  default `ld06` (retrocompativel). Backup do original: `gerenciador.py.bak_ld06`.
+- `config/orion.yaml` (`lidar:`): `driver: "coin_d6"`, `port: "/dev/lidar_d6"`,
+  `confianca_minima` comentario ajustado para 0..63.
+- udev: `/etc/udev/rules.d/99-orion-lidar.rules` cria `SYMLINK+="lidar_d6"`
+  para CH340 (`1a86:7523`), recarregado com `udevadm`.
+- Testes: `tests/unit/test_coin_d6.py` (12 casos: checksum, decodificacao,
+  wrap de 360, N-1 no ultimo ponto, scan). Suíte lidar/navigation no Pi:
+  65 passed. `tests/unit/test_ld06.py` e `test_navigation_core.py` seguem ok.
+
+### Pendente (quando o sensor chegar)
+
+- Conectar o COIN-D6; conferir se `ls -l /dev/lidar_d6` existe (se nao,
+  ajustar a regra udev / verificar CH340).
+- Teste real de varredura: `estado.lidar.setores` deve popular e a web
+  mostrar o scan; conferir ponte com Nav2 (`/scan`). `bridge_scan_odom.py`
+  nao precisa mudar (consome `estado.lidar.setores` genericamente).
+- Instalar/compatibilizar testes de hardware quando houver sensor.
+
+---
+## 2026-08-19 — Autoconhecimento sequestrando COMANDOS de movimento (fix + testes)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** corrigido, testado (1138 unit no Notebook), avatar reiniciado 13:56.
+
+### O defeito
+
+No chat real de hoje o dono pediu movimento e o robo explicou o proprio corpo
+em vez de obedecer — "peço pra ele fazer e nao faz":
+- 16:08 `As rodas, use suas rodas para se locomover` → palestra sobre as rodas
+- 16:26 `Deixe sua roda esquerda e depois diga a roda direita` → palestra sobre as rodas
+
+Causa: `Autoconhecimento.responder` (`src/orion/ensino/autoconhecimento.py`)
+deduplicava NÃO as palavras de conteudo. A regra de cobertura
+(`cobertas < min(2, len(palavras))` → segue para a cascata) foi criada em 08/08
+justamente para comando de movimento nao virar palestra — mas com a palavra do
+corpo REPETIDA na frase ("rodas" 2x), a cobertura era inflada para 2 e o
+`min(2, ...)` passava, devolvendo o COMANDO como pergunta sobre o corpo.
+
+### A correção
+
+- `palavras` agora e `dict.fromkeys(...)` (sem duplicata). Uma palavra repetida
+  nao e um segundo assunto.
+- Testes: `test_comando_que_repete_a_palavra_nao_vira_palestra` com as DUAS
+  frases reais do chat. Suíte completa: 1138 passando.
+
+### O que NÃO mudou (ainda)
+
+- `Vem até a mim` (16:07) → o modelo responde "não tenho braços nem pernas":
+  nao ha acao de navegacao/person-follow no catalogo (`acoes_faladas.py`) — por
+  design, pedido fora da lista vira "ainda nao consigo". Para o robo IR ate a
+  pessoa seria preciso amarrar Nav2/rastreio a uma acao do catalogo.
+- `gira o motor esquerdo` (16:27) → o modelo responde "os motores trabalham
+  juntos, nao consigo mexer um lado isolado": correto (diferencial), mas nao
+  oferece a acao parecida (`virar_esquerda`).
+
+### Avisos
+
+- Avatar reiniciado 13:56. Ficheiros mudados: `src/orion/ensino/autoconhecimento.py`,
+  `tests/unit/test_autoconhecimento.py` (synced nos dois repos).
+- Enrollment de voz da familia continua pendente (ver entrada do locutor abaixo).
+
+---
+## 2026-08-19 — Reconhecimento de LOCUTOR por voz (identificação por voz)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** código no ar e validado. **PENDENTE:** cadastrar a voz da família
+(`tools/enrolar_voz.py`) — sem voiceprint o recurso é um no-op.
+
+### O que foi construído
+
+- **Modelo:** SpeechBrain ECAPA (`spkrec-ecapa-voxceleb`), roda no Notebook,
+  192-dim float32, ~26s de carga (1ª vez baixa, fica em `.cache_speechbrain`).
+- **`src/orion/voice/identificador_locutor.py`**: compara a fala atual com os
+  voiceprints de `pessoas.embedding_voz` por COSSENO (limiar 0.5 no config).
+  Abaixo do limiar, ninguém é atribuído — mesma regra do rosto (atribuir
+  errado é pior que não atribuir).
+- **Schema:** migração 004 → `pessoas.embedding_voz BLOB` (aplicada no Pi,
+  schema_version=4, banco em `/mnt/ssd/orion/orion.db`).
+- **`voice_core.py`**: publica `voice.person_recognized` quando a voz casa —
+  no comando, na janela da ativação (comando junto do wake) e em cada fala
+  da sessão. Roda em PARALELO com a transcrição (gather) pra quase não
+  somar latência.
+- **`quem_fala.py`**: passou a assinar `voice.person_recognized` junto com o
+  rosto — a conversa ganha dono mesmo quando a câmera não vê.
+- **`tools/enrolar_voz.py`**: grava N trechos (padrão 3×5s) dos OUVIDOS do
+  ESP32, tira a média e grava o voiceprint da pessoa.
+- **Config:** `voice.identificacao_locutor` (habilitado, limiar 0.5, savedir).
+- **Testes:** +12 unit (identificador, voice_core, quem_fala). Total 1137.
+
+### Como ativar de verdade (falta)
+
+```
+cd ~/orion-os && .venv/bin/python tools/enrolar_voz.py "João Paulo"
+cd ~/orion-os && .venv/bin/python tools/enrolar_voz.py "Marah"
+cd ~/orion-os && .venv/bin/python tools/enrolar_voz.py "Kamal"
+```
+Quem falar perto do robô ganha conversa creditada. Se ele não reconhecer
+ninguém na prática, abaixar `limiar_cosseno` em passos de 0.05; se trocar
+a voz de uma pessoa pela de outra, subir.
+
+### Avisos ao próximo agente
+
+- NÃO sobrescrever `config/orion.yaml` sem conferir `git diff` primeiro: tem
+  edição não-commitada do outro agente (LiDAR LD06, encoder cancelado).
+- `/mnt/ssd/orion` EXISTE no Pi (banco real) mas NÃO no Notebook — não usar
+  esse caminho em syncs para o Notebook (o repo lá é `~/orion-os`).
+- Avatar reiniciado às 13:28 com `Identificacao de locutor por voz ativa`.
+
+---
+## 2026-08-19 — Saudação espontânea: correção (chegada não morre no wake)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** código pronto + testes verdes (36 saudação, 1125 unit no Notebook).
+**PENDENTE:** restart do `orion-avatar` para valer em produção — não reiniciei
+porque há trabalho não-commitado de outro agente (protocolo anti-colisão).
+
+### O que foi corrigido (auditoria a pedido do dono: "me viu e não falou")
+
+- **Sintoma:** 19/08 06:23 o dono disse "Bom dia!" e "...Fofão..." e a visão só
+  reconheceu às 06:23:40 (6 s DEPOIS do wake). O wake abria a janela de
+  conversa na hora → a saudação morria antes de nascer. Diário gravou
+  `pessoa_vista`, mas nenhum cumprimento no boot inteiro.
+- **Fix em `src/orion/mission/saudacao.py`:**
+  - O wake sozinho NÃO abre mais a janela de 15 min (só a resposta terminada
+    marca `_ultima_conversa`). Quem chega enquanto o robô acorda é CHEGADA.
+  - Se a pessoa é reconhecida no meio da própria fala do robô
+    (`voice.response_started` → `_falando`), a saudação fica pendente
+    (`_pendente`) e sai assim que o turno termina (`response_finished`).
+  - Regras anti-repetição INTACTAS: intervalo de 30 min entre saudações e a
+    janela de 15 min pós-conversa real continuam (dono: "não pode tá toda
+    hora me saudando").
+- **Arquivos:** `src/orion/mission/saudacao.py`, `tests/unit/test_saudacao.py`,
+  `tests/unit/test_saudacao_na_conversa.py` (sincronizados Pi+Notebook).
+
+### Para o próximo que assumir
+
+- Reiniciar `orion-avatar` no Notebook para ativar. Teste sugerido: chegar na
+  frente do robô em silêncio (deve saudar na hora) e depois dizer "Fofão"
+  (deve saudar mesmo assim; a visão reconhece com atraso).
+
+---
+## 2026-08-19 — Nav2 ativo: stack validado (controller/planner/BT/costmaps/slam)
+
+**Agente:** opencode/DeepSeek (Windows)
+**Estado:** stack completo NO AR — falta só o teste de goal com o robô no chão.
+
+### Validação (2026-08-19)
+
+- `/map`, `/map_metadata`, `/scan`, `/odom`, `/tf` (map→odom ativo), `/pose`
+  publicando.
+- Nodes: controller_server, planner_server, bt_navigator, behavior_server,
+  smoother_server, waypoint_follower, velocity_smoother, slam_toolbox — todos
+  **active** no lifecycle manager. Ações `/navigate_to_pose`,
+  `/compute_path_to_pose`, `/follow_path`, `/backup`, `/spin` disponíveis.
+- Costmaps global e local ativos (voxel_layer no local; sem mapa estático —
+  o SLAM é o fornecedor do mapa).
+- Correções desta rodada (build do Humble do repo oficial difere do esperado):
+  - plugin do planner: `nav2_navfn_planner/NavfnPlanner` (com BARRA, não `::`);
+    behaviors `nav2_behaviors/Spin|BackUp|DriveOnHeading|Wait` (idem);
+    controller trocado de DWB (classe sumiu desta build) para
+    `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`
+    (com `::`, que funciona — a lista de classes reais veio do erro do DWB).
+  - `general_goal_checker` precisou de `plugin:` explícito.
+  - `wait` plugin adicionado ao behavior_server (o BT de replanejamento usa).
+- Ponte `/cmd_vel`: `/cmd_vel` com 5 publishers + 1 subscriber (a ponte);
+  só pega o volante (`/controle manual`) com cmd_vel de movimento REAL.
+- Compose já tem `restart: unless-stopped` → sobe com o boot do Pi.
+
+### Regras de coordenação (mexer com cuidado se houver outro agente)
+
+- A ponte **só pega o volante** (`/controle manual`) quando chega um
+  `/cmd_vel` de movimento REAL — subir o container não disputa o robô.
+- Este agente **evita** reiniciar `orion-motion`, gravar firmware ou mover o
+  robô sem aviso. Se você for testar o robô (joystick/manual/voz), **avise
+  aqui** antes — o Nav2 não deve mandar goals enquanto isso.
+- Docker build pesa a CPU do Pi por alguns minutos (esperado).
+
+### Falta (ordem)
+
+1. **Teste de goal** (`navigate_to_pose`) com o robô no chão — só com ninguém
+   dirigindo. Decidir se o Nav2 fica ativo permanente (compose já `restart:
+   unless-stopped`).
 
 ---
 ## 2026-08-16 — Próxima sessão: encoder único no pino 32 (pull-up interno)
