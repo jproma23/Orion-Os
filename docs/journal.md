@@ -272,7 +272,7 @@ passo.
   (nada de motor está conectado) - seguro de rodar sem risco.
 - **Enviado para o usuário:** rascunho de e-mail (Gmail) com o guia de
   ligação elétrica completo, e o mesmo conteúdo salvo em
-  `docs/hardware/wiring_arduino.md` (esse caminho era citado no PDF do
+  `docs/hardware/wiring_esp32.md` (esse caminho era citado no PDF do
   Sentinela mas nunca tinha sido criado de fato).
 - **Pendência real, não é código:** o critério de "pronto" da Fase 4
   ("bancada executa cada comando com rodas suspensas; obstáculo para o
@@ -7858,3 +7858,117 @@ publicados.
 2. Próximo degrau do ensino: intermediário/avançado (16 tópicos por matéria sem
    aula).
 3. `programacao.orion.avancado` (FINO) quando o avançado entrar no escopo.
+
+## Sessão de 2026-09-12 — o rosto do ESP32-S3 ganhou cara (e quase ganhou voz)
+
+Continuação do bring-up parado em [[project-orion-face-bringup-esp-idf]]
+(11/09, madrugada). Build compilava mas a tela mostrava listras horizontais
+em vez da barra de cores.
+
+### Display: causa raiz era a tabela de init, não hardware
+
+Testado a 40MHz e depois a 10MHz de QSPI — mesmo resultado, o que descartou
+sinal/fiação. A tabela de inicialização padrão que vem na lib
+`esp32_display_panel` para o ST77922 é genérica (o próprio header avisa:
+"vendor init commands may vary between manufacturers"), e os registros de
+timing/gate-scan dela não batem com este painel específico.
+
+Achei a sequência de init real vasculhando o site do fabricante
+(lcdwiki.com, board ES3C35P — confirmado pela ficha técnica do produto, não
+pelo repositório genérico "CrowPanel" da Elecrow que o dono tinha à mão
+primeiro, que é de outra placa/driver). O pacote com o projeto ESP-IDF de
+exemplo (`3.5inch_ESP32-S3_LVGL/components/esp_bsp/bsp_display.c`) tinha a
+tabela `lcd_init_cmds[]` certa, com o MESMO pinout e frequência (80MHz) que
+já estávamos usando — confirmando que fiação/pinout nunca foram o problema,
+só os registros do controlador. Copiada para `src/main.cpp` via
+`lcd->configVendorCommands()`. Resultado: barra de cores perfeita.
+
+### O rosto: uma versão 2D do mascote Fofão do avatar 3D
+
+O dono pediu "um rosto estilo emo" e depois "igual o Fofão da tela kiosk".
+O avatar do kiosk (`avatar_server.py` + `avatar.js`) é 3D (Three.js,
+WebGL) — impossível de rodar num ESP32-S3 sem GPU. Solução: recriei em 2D
+puro (raster, sem framebuffer completo — desenha em tiras de 320×40 direto
+por `drawBitmap`, evitando precisar de PSRAM) usando a MESMA paleta e
+proporções do modelo 3D (`matCasco=0xe8ecf5`, `matVisor=0x0a0f24`,
+`CORES.ambar=0xffb340`, `CORES.ciano=0x4fd8eb`): capacete, viseira, dois
+olhos âmbar com brilho, bochechas, sorriso em arco (não retângulo — fica com
+cara de "boca" de verdade) e antena ciano. Pisca sozinho a cada ~3s.
+
+**Achado que quase levou a mexer no lugar errado**: a placa está montada
+com o vidro em paisagem, mas o rosto foi desenhado pensando em retrato — o
+resultado saiu girado 90° (antena e "corpo" trocados de lugar, olhos
+empilhados). Cheguei a reescrever o layout todo pra paisagem e confirmar a
+transformação exata comparando pixel a pixel com uma foto real do
+hardware — mas o dono, ao ver a foto do resultado girado, preferiu **manter
+como estava** (`prefiro assim`). Fica registrado: o código atual (portrait,
+320×480 lógico) é o que está gravado e é o que o dono escolheu, mesmo
+sabendo que não é a orientação "correta" da montagem física. Não
+"consertar" isso sem confirmar de novo com ele.
+
+### A ponte pro cérebro já existe — só faltava abrir a porta
+
+Pedido do dono: "vamos inserir agora o cérebro, voz, visão e fala". Antes
+de inventar protocolo novo, procurei o que já existe: `avatar_server.py`
+já é **consumidor puro do Event Bus** e repassa por SSE (`/eventos`)
+exatamente os eventos que precisamos — `voice.response_started` /
+`voice.response_finished` (início/fim de fala) e `motion.pan_tilt` (para
+onde a câmera de rastreamento de rosto está olhando, já em graus, com os
+limites em `config/orion.yaml: pan_limits_degrees/tilt_limits_degrees`).
+O mesmo canal que já move boca e olhar do avatar 3D no kiosk.
+
+Único problema: o servidor só escutava em `127.0.0.1` (só o navegador
+local do kiosk alcançava). Mudado em `src/orion/display/modulo.py` para
+`host="0.0.0.0"` — mesmo padrão já usado pelo dashboard web (porta 8080).
+Testes de `test_avatar_server.py` continuam passando (8/8).
+
+No lado do ESP32 (`orion_face`, ainda sem git — inicializado nesta sessão):
+novo `net.cpp`/`net.hpp` com WiFi (estação) + cliente HTTP lendo o SSE
+linha a linha (parser simples "event: X" / "data: {json}", cJSON pro
+parse) e um estado compartilhado (`g_falando`, `g_eye_shift_x/y`) que o
+`face.cpp` já consome: boca abre/fecha em ciclo enquanto `g_falando`, olhos
+deslocam conforme `pan/tilt` normalizado igual o `avatar.js` faz
+(`pan/limitePan`, `-tilt/limiteTilt`).
+
+**Bug sério pego e corrigido antes de fechar a sessão**: a primeira versão
+do `net_start()` chamava `wifi_init()` (que bloqueia esperando conectar)
+*antes* do loop de desenho — sem WiFi, o rosto nunca chegava a aparecer na
+tela, travado pra sempre. Corrigido: WiFi + SSE rodam numa task de fundo
+própria; o rosto desenha normalmente independente do estado da rede.
+
+### Pendência: WiFi do ESP32 não autentica na rede de casa
+
+SSID/senha conferidos duas vezes com o dono, rede 2.4GHz confirmada. O log
+serial mostra o mesmo padrão sempre: `auth -> init` depois de ~1s de
+silêncio (timeout, não rejeição) — nunca chega a errar senha, nunca recebe
+resposta. Testado e sem efeito:
+1. `pmf_cfg.capable=true` (PMF é comum em roteadores WPA2/WPA3 mistos).
+2. `sae_pwe_h2e=WPA3_SAE_PWE_BOTH` (H2E é exigido por muitos roteadores
+   WPA3 mais novos) — confirmado que a rede realmente é WPA2/WPA3-Personal
+   misto (print do Windows: um painel mostra WPA3-Personal, outro
+   WPA2-Personal, adaptador é Wi-Fi 6/802.11ax).
+
+Suspeita mais forte agora: bloqueio temporário do roteador por tentativas
+repetidas de auth (mesmo MAC `7c:e8:b1:b2:93:7c`, dezenas de tentativas em
+poucos minutos ao longo da sessão) — padrão comum de proteção
+anti-brute-force. O dono decidiu adiar a investigação. **Não repetir os
+mesmos dois fixes acima sem antes reiniciar o roteador ou checar
+dispositivos bloqueados no painel dele.**
+
+### Pendências, na ordem em que mordem
+
+1. Resolver o WiFi do `orion_face` (reiniciar o roteador é o primeiro
+   passo mais barato antes de qualquer nova tentativa de config).
+2. Com WiFi ok: subir o `avatar_server.py` de verdade (nada do stack de
+   voz/avatar estava rodando nesta sessão — só `motion_core`) e confirmar
+   ponta a ponta: SSE conecta, boca sincroniza com fala, olhos seguem
+   pan/tilt.
+3. `orion_face` não tinha `.git` — inicializado e commitado nesta sessão,
+   mas ainda não sincronizado com nenhum remoto. Decidir se entra no
+   monorepo do `orion-os` ou fica separado.
+4. O rosto está fixo em retrato (decisão consciente do dono, ver acima) —
+   se algum dia quiser mudar pra paisagem, a transformação de coordenadas
+   já foi derivada e testada, só recuperar do histórico desta sessão.
+5. Sem áudio de verdade ainda: a boca hoje só abre/fecha em ciclo fixo
+   enquanto fala (sem amplitude real) — o `avatar_server.py` também não
+   expõe isso, então não é regressão, é o que o kiosk já faz.

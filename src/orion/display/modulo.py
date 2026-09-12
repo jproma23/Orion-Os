@@ -42,6 +42,9 @@ class ModuloDisplay:
                     "pan_limits_degrees": self._conf_visao["pan_limits_degrees"],
                     "tilt_limits_degrees": self._conf_visao["tilt_limits_degrees"],
                 },
+                # 0.0.0.0: alem do kiosk local, o rosto do ESP32-S3 (orion_face)
+                # tambem assina o SSE por WiFi para sincronizar boca e olhar.
+                host="0.0.0.0",
             )
         await self._servidor.iniciar()
         self._no_ar = True
