@@ -64,7 +64,12 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 
 ## Pendências de dado (confirmar antes da F1)
 
-- [ ] Redução do JGB37-520 (varia de 1:9 a 1:270) — define ticks/volta e velocidade máxima
+- [x] Redução do JGB37-520: **1:90** (decisão provisória 2026-09-13 - peça ainda não
+  chegou, confirmar quando chegar). Nessa redução: ~55 rpm sem carga, torque nominal na
+  faixa de poucos kg.cm - compatível com um robô de 1 kg.
+- [ ] PPR do encoder (pulsos por volta no eixo do motor, antes da redução) — não veio na
+  ficha técnica enviada. Sem isso não dá pra calcular ticks/volta na roda. Medir na chegada
+  (girar o eixo 1 volta à mão e contar pulsos) se não vier especificado.
 - [x] Peso do Fofão montado: **1 kg** (2026-09-13)
 - [ ] Ambiente do mapa: interno estável ou externo com terreno mudando — define se AMCL basta
 
