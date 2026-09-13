@@ -1,7 +1,7 @@
 # EDR-0032 — Distribuição ROS2
 
 **Data:** 13/09/2026
-**Status:** ⚠️ **PENDENTE — decisão do desenvolvedor**
+**Status:** ✅ **Decidido**
 **Bloqueia:** F3 (base ROS2) e tudo acima
 
 ---
@@ -37,9 +37,20 @@ este documento foi escrito com informação que pode ter envelhecido.
 
 ## Decisão
 
-> **A preencher.**
->
-> Distro escolhida:
-> Data:
-> Justificativa:
-> Forma de instalação no Pi (nativa / Docker / fonte):
+> Distro escolhida: **ROS2 Jazzy Jalisco**
+> Data: 2026-09-13
+> Justificativa: o Pi roda Debian 13 (trixie), não Ubuntu — nem Humble (alvo
+> 22.04) nem Jazzy (alvo 24.04) instalam nativo aqui, então a instalação via
+> Docker se paga para as duas igualmente e o fator "SO do Pi" empata. O
+> fator que decide é o SDK do LiDAR: o driver oficial da Slamtec
+> (`sllidar_ros2`) já suporta Jazzy, com tutorial documentado especificamente
+> para "Slamtec lidar + ROS2 Jazzy + Raspberry Pi" — mesma combinação de
+> hardware deste projeto. Sem essa restrição, o horizonte de suporte decide:
+> Jazzy (EOL 2029) dá mais fôlego que Humble (EOL mai/2027) para um projeto
+> que já roda continuamente há meses.
+> Forma de instalação no Pi: **Docker** (imagem `osrf/ros:jazzy-desktop` ou
+> equivalente aarch64). Docker também isola o ROS2 de atritos como o que já
+> mordeu este projeto nesta mesma semana — Debian trixie (rolling/recente
+> demais) quebrando ferramentas que esperam um SO mais estável (o Python
+> 3.13 quebrou o component manager do ESP-IDF durante o bring-up do
+> orion_face).
