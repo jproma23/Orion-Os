@@ -65,8 +65,19 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 ## Pendências de dado (confirmar antes da F1)
 
 - [ ] Redução do JGB37-520 (varia de 1:9 a 1:270) — define ticks/volta e velocidade máxima
-- [ ] Peso do Fofão montado (com Pi, LiDAR, bateria, chassi) — define se o torque fecha
+- [x] Peso do Fofão montado: **1 kg** (2026-09-13)
 - [ ] Ambiente do mapa: interno estável ou externo com terreno mudando — define se AMCL basta
+
+**Driver de motor confirmado (2026-09-13):** L298N (hardware que o dono já tem, não vai
+trocar para TB6612FNG). PWM já suportado pela placa (dono confirmou) - o alerta do plano
+sobre remover jumpers ENA/ENB não se aplica a este módulo. Falta confirmar antes de ligar
+de verdade: jumper "ATIVA 5V" removido e o pino 5V alimentado por fora (o regulador 78M05
+da placa precisa de ~7V de entrada, e esse mesmo rail alimenta a lógica do L298N), e a
+ponte alimentada com 8V (não 6V) para compensar a queda de ~1,5-2V e entregar os 6V
+nominais ao motor - dissipador obrigatório (~2W de calor a 1A).
+
+**Controle confirmado (2026-09-13):** PID de velocidade por roda usando o encoder de
+quadratura como realimentação, alvo em rad/s - exatamente como o plano descreve.
 
 ---
 
