@@ -55,7 +55,7 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 | 0029 | Papel da IA local | ✅ |
 | 0030 | Mapa persistente | ✅ |
 | 0031 | Contrato do ESP32 de motor | ✅ |
-| 0032 | Distro ROS2 | ⚠️ pendente |
+| 0032 | Distro ROS2 | ✅ (Jazzy via Docker) |
 | 0033 | Provisionamento de rede | ✅ |
 | 0034 | ControleManual × PAUSED_MANUAL | ⚠️ pendente, bloqueia F7 |
 | 0035 | Rosto expressivo em camadas | ✅ independente das fases |
@@ -77,8 +77,9 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 (`b40a86a`, `4ce90d3`); tag `pre-migracao-ros2` criada em `b40a86a`. Suíte
 completa rodada como baseline: **1148 passed, 4 skipped, 222.67s** - nenhuma
 falha registrada hoje.
-**Próximo passo:** backup do SSD do Pi (ainda não feito); dono precisa
-preencher EDR-0032 (distro) e EDR-0034 (ControleManual) antes do Gate 0 fechar.
+**Próximo passo:** backup do SSD do Pi (ainda não feito); EDR-0032 decidido
+(Jazzy via Docker, 2026-09-13) - falta só EDR-0034 (ControleManual) para o
+Gate 0 fechar.
 
 **Achado fora do plano:** o working tree do orion-os tinha 92 arquivos
 modificados/untracked ANTES desta sessão (motion_core/behavior, webui,
@@ -90,5 +91,4 @@ anterior) foram commitados nesta sessão.
 
 **Bloqueios conhecidos:**
 - EDR-0034 (ControleManual) precisa ser fechado antes da F1, porque muda a forma da ponte
-- EDR-0032 (distro) precisa ser fechado antes da F3
 - Backup do SSD do Pi (item do Gate 0) ainda não foi feito
