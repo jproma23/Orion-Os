@@ -72,12 +72,23 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 
 ## Estado atual
 
-**Fase:** F0 — não iniciada
-**Último trabalho:** documentação de migração criada (plano + EDRs 0028 a 0034)
-**Status dos testes:** não levantado ainda — é a primeira tarefa da F0
-**Próximo passo:** criar a tag `pre-migracao-ros2`, fazer backup do SSD, rodar a suíte e
-registrar o que passa e o que falha hoje
+**Fase:** F0 — em andamento
+**Último trabalho (2026-09-13):** plano + EDR-0028 a 0035 commitados
+(`b40a86a`, `4ce90d3`); tag `pre-migracao-ros2` criada em `b40a86a`. Suíte
+completa rodada como baseline: **1148 passed, 4 skipped, 222.67s** - nenhuma
+falha registrada hoje.
+**Próximo passo:** backup do SSD do Pi (ainda não feito); dono precisa
+preencher EDR-0032 (distro) e EDR-0034 (ControleManual) antes do Gate 0 fechar.
+
+**Achado fora do plano:** o working tree do orion-os tinha 92 arquivos
+modificados/untracked ANTES desta sessão (motion_core/behavior, webui,
+firmware/hardware_core com arquivos deletados como encoder_manager.cpp/.h,
+imu_manager.h - entre outros), sem relação com a migração. Não foram
+commitados nem descartados - ficam como decisão do dono. Só os arquivos da
+própria migração (docs) e os 3 da ponte serial do orion_face (sessão
+anterior) foram commitados nesta sessão.
 
 **Bloqueios conhecidos:**
 - EDR-0034 (ControleManual) precisa ser fechado antes da F1, porque muda a forma da ponte
 - EDR-0032 (distro) precisa ser fechado antes da F3
+- Backup do SSD do Pi (item do Gate 0) ainda não foi feito
