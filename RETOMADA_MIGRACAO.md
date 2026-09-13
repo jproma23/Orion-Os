@@ -37,7 +37,7 @@ reconstruir o contexto do zero — foi exatamente o problema que originou o prot
 | Fase | Assunto | Gate | Status |
 |---|---|---|---|
 | F0 | Dívida técnica e baseline | Testes no nível registrado, EDR-0032 e EDR-0034 fechados | ⬜ |
-| F1 | ESP32 de motor e odometria | 2 m < 5 % erro, 360° < 10°, watchdog | ⬜ |
+| F1 | ESP32 de motor e odometria | 2 m < 5 % erro, 360° < 10°, watchdog | 🟡 firmware escrito, sem bancada |
 | F2 | LiDAR no Pi | Teste de handedness no RViz | ⬜ |
 | F3 | Base ROS2 (URDF, TF, ponte) | Teleop coerente, árvore TF completa | ⬜ |
 | F3.5 | Provisionamento de rede | 2,4 e 5 GHz, falha não derruba AP | ⬜ |
@@ -93,9 +93,18 @@ quadratura como realimentação, alvo em rad/s - exatamente como o plano descrev
 (`b40a86a`, `4ce90d3`); tag `pre-migracao-ros2` criada em `b40a86a`. Suíte
 completa rodada como baseline: **1148 passed, 4 skipped, 222.67s** - nenhuma
 falha registrada hoje.
-**Próximo passo:** backup do SSD do Pi (ainda não feito); EDR-0032 decidido
-(Jazzy via Docker, 2026-09-13) - falta só EDR-0034 (ControleManual) para o
-Gate 0 fechar.
+**Próximo passo:** backup do SSD do Pi (ainda não feito); EDR-0034
+(ControleManual) segue pendente por escolha do dono (adiado para depois,
+seguindo com F0/F1 no que não depende dele).
+
+**Firmware motor_core adiantado (2026-09-13, commit `4b1c697`):** ESP32
+dedicado ao motor (EDR-0031) escrito e compilando limpo (esp32dev, Arduino,
+0 warnings) - PCNT em quadratura 4x para os 2 encoders, PID de velocidade
+por roda com feedforward de zona morta, driver L298N via LEDC, watchdog de
+200ms autônomo, protocolo cmd_vel/odom reaproveitando o framing
+STX/ETX+CRC16 do hardware_core. **NÃO TESTADO em hardware real** - motor
+JGB37-520 + encoder ainda não chegaram. Redução (1:90) e PPR do encoder
+(11, chute) são placeholders até a bancada confirmar.
 
 **Achado fora do plano:** o working tree do orion-os tinha 92 arquivos
 modificados/untracked ANTES desta sessão (motion_core/behavior, webui,
