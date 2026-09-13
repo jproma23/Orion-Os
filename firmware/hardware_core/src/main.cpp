@@ -20,10 +20,8 @@
 #include "bussola_manager.h"
 #include "command_executor.h"
 #include "dht_manager.h"
-#include "encoder_manager.h"
 #include "estado.h"
 #include "framing.h"
-#include "imu_manager.h"
 #include "motor_manager.h"
 #include "pins.h"
 #include "protocolo.h"
@@ -43,17 +41,15 @@ namespace {
 orion::DecodificadorQuadro decodificador;
 orion::MaquinaDeEstados estados;
 orion::MotorManager motores;
-orion::EncoderManager encoders;
 orion::RadarManager radar;
-orion::ImuManager imu;
 orion::DhtManager dht;
 orion::BateriaManager bateria;
 orion::SafetyManager safety;
 orion::SensorUltrassonico ultrassomTraseiro;
 orion::BussolaManager bussola;
 orion::CommandExecutor comandos(motores, radar, estados, safety);
-orion::TelemetryManager telemetria(motores, radar, imu, dht, estados, ultrassomTraseiro,
-                                  bateria, bussola, safety, encoders);
+orion::TelemetryManager telemetria(motores, radar, dht, estados, ultrassomTraseiro,
+                                  bateria, bussola, safety);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 // DOIS REGIMES DE TELEMETRIA (2026-07-27, pedido do usuario a partir da
@@ -67,11 +63,9 @@ constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
 //            a cegueira longa.
 constexpr unsigned long INTERVALO_TELEMETRIA_PARADO_MS = 1000;
 constexpr unsigned long INTERVALO_TELEMETRIA_MOVENDO_MS = 200;
-constexpr unsigned long INTERVALO_IMU_MS = 50;
 
 unsigned long ultimoHeartbeat = 0;
 unsigned long ultimaTelemetria = 0;
-unsigned long ultimoImu = 0;
 unsigned long ultimoComandoRecebido = 0;
 
 // Instrumentacao do tempo de volta do loop (2026-07-25). Motivo real: o
@@ -80,8 +74,8 @@ unsigned long ultimoComandoRecebido = 0;
 // termina entre duas leituras do pino e a distancia nunca fica valida.
 // Medido ao vivo: zero leituras validas em 18 s com obstaculo a ~1 m.
 // Estes numeros vao na telemetria para achar o culpado com dado, em vez
-// de palpite (suspeitos: I2C do IMU com timeout de 25 ms, e o Serial.write
-// da telemetria, que bloqueia quando o buffer de 64 bytes enche).
+// de palpite (suspeito principal: o Serial.write da telemetria, que
+// bloqueia quando o buffer de saida enche).
 unsigned long loopAnteriorUs = 0;
 unsigned long loopMaxUs = 0;
 unsigned long loopSomaUs = 0;
@@ -95,18 +89,11 @@ unsigned long loopVoltas = 0;
 //
 // Em vez de chutar de novo, cada suspeito passa a ser cronometrado
 // separadamente. `t_envio_us` mede a telemetria ANTERIOR (nao da para um
-// pacote informar o proprio tempo de envio); `t_i2c_us` acumula o que IMU e
-// bussola gastaram desde o ultimo pacote.
+// pacote informar o proprio tempo de envio); `t_bussola_us` acumula o que a
+// bussola gastou desde o ultimo pacote (o IMU saiu em 2026-08-18 e levou o
+// contador `t_imu_us` junto).
 unsigned long tempoEnvioAnteriorUs = 0;
-// Separados desde a terceira rodada: `t_i2c_us` junto acusava 99,4 ms por
-// janela de 500 ms, mas subir o barramento de 100 kHz para 400 kHz nao
-// mudou NADA (99,3 ms) - logo nao e tempo de transferencia, e espera. Com
-// IMU e bussola no mesmo numero nao dava para saber de quem era: 99,4/10
-// leituras da IMU = 9,94 ms, mas 99,4/5 leituras da bussola = 19,9 ms, e
-// os dois sao plausiveis. Contadores separados resolvem em uma gravacao.
-unsigned long tempoImuAcumuladoUs = 0;
 unsigned long tempoBussolaAcumuladoUs = 0;
-uint16_t leiturasImu = 0;
 uint16_t leiturasBussola = 0;
 orion::Estado estadoAnterior = orion::Estado::BOOT;
 bool varrendoAnterior = false;
@@ -114,11 +101,13 @@ bool varrendoAnterior = false;
 JsonDocument g_payloadVazio;  // reutilizado para ACK/HEARTBEAT (sempre {})
 
 // DIAGNOSTICO DE I2C (2026-07-27). Motivo: a MPU6050 e a bussola QMC6310
-// dividem os pinos 20/21 e as duas apareceram mudas na telemetria
-// (`imu_conectado` e `bussola_conectada` ambos false). Sem enxergar o
+// dividiam os pinos 20/21 e as duas apareceram mudas na telemetria
+// (`bussola_conectada` false). Sem enxergar o
 // barramento, "o modulo esta quebrado", "o endereco e outro" e "o barramento
 // nao sobe" sao indistinguiveis de fora - e cada um pede um conserto
-// diferente. Uma varredura unica no boot resolve a duvida com dado.
+// diferente. Uma varredura unica no boot resolve a duvida com dado. Hoje so
+// a bussola resta no barramento (a MPU6050 saiu em 2026-08-18), mas a
+// varredura continua valendo como diagnostico de presenca dela.
 constexpr uint8_t I2C_MAX_ENCONTRADOS = 4;
 uint8_t g_i2cEncontrados[I2C_MAX_ENCONTRADOS] = {0, 0, 0, 0};
 uint8_t g_i2cTotal = 0;
@@ -182,21 +171,7 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
   payload["estado"] = orion::nomeEstado(estados.atual());
   payload["uptime_ms"] = millis();
   payload["em_movimento"] = motores.emMovimento();
-  payload["imu_conectado"] = imu.conectado();
-  payload["imu_calibrado"] = imu.calibrado();
-  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
-}
-
-// Congela a orientacao atual como "nivelado" (grava na EEPROM). O robo
-// precisa estar parado e nivelado na hora - ver imu_manager.h.
-void responderCalibrarImu(const char* origem, const char* idMsg) {
-  JsonDocument payload;
-  bool ok = imu.calibrar();
-  payload["ok"] = ok;
-  payload["inclinacao_graus"] = imu.inclinacaoGraus();
-  if (!ok) {
-    payload["erro"] = imu.conectado() ? "leitura_invalida" : "imu_desconectado";
-  }
+  payload["bussola_conectada"] = bussola.conectado();
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
@@ -228,20 +203,6 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   }
   if (strcmp(comando, "RETURN_STATUS") == 0) {
     responderReturnStatus(origem, idMsg);
-    return;
-  }
-  if (strcmp(comando, "SET_IMPACT_THRESHOLD") == 0) {
-    JsonDocument payload;
-    float limite = msg["payload"]["limite_g"] | 0.0f;
-    bool ok = imu.definirLimiteImpacto(limite);
-    payload["ok"] = ok;
-    payload["limite_g"] = imu.limiteImpactoG();
-    if (!ok) payload["erro"] = "fora_da_faixa_valida_1.05_a_7.5";
-    orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
-    return;
-  }
-  if (strcmp(comando, "CALIBRATE_IMU") == 0) {
-    responderCalibrarImu(origem, idMsg);
     return;
   }
   if (strcmp(comando, "CALIBRATE_COMPASS") == 0) {
@@ -339,34 +300,32 @@ void setup() {
   //    duas), mas o motivo 1 continua valendo e a taxa continua sendo 250000
   //    porque o OUTRO LADO ja fala nessa velocidade.
   //
-  // O outro lado (communication.arduino.baud_rate em config/orion.yaml) TEM
+  // O outro lado (communication.hardware_core.baud_rate em config/orion.yaml) TEM
   // que bater - se um lado mudar sozinho, a placa fica muda. Varias
   // ferramentas de bancada em tools/ ficaram para tras em 115200 e falham
   // parecendo hardware morto; conferir isso ANTES de suspeitar da placa.
   Serial.begin(250000);
 
-  // Timeout no barramento I2C do IMU (Cap 18 s.9, achado real da vistoria
-  // de 2026-07-24): sem isso, um travamento de I2C (clock stretching
-  // infinito por fio solto/ruido) prendia Wire.requestFrom() para sempre
-  // dentro de imu.atualizar() - e como isso roda ANTES de safety.avaliar()
-  // no mesmo loop(), a seguranca reativa inteira parava junto. 25ms e
-  // generoso (uma leitura normal do MPU6050 leva bem menos que isso) mas
-  // pequeno o suficiente pra nao atrasar o loop de forma perceptivel;
-  // "true" reinicia o periferico I2C automaticamente apos o timeout, sem
-  // exigir reset do chip inteiro.
+  // Timeout no barramento I2C da bussola (Cap 18 s.9, achado real da
+  // vistoria de 2026-07-24): sem isso, um travamento de I2C (clock
+  // stretching infinito por fio solto/ruido) prendia Wire.requestFrom()
+  // para sempre dentro de um atualizar() de sensor - e como isso roda
+  // ANTES de safety.avaliar() no mesmo loop(), a seguranca reativa inteira
+  // parava junto. 25ms e generoso mas pequeno o suficiente pra nao atrasar
+  // o loop de forma perceptivel; "true" reinicia o periferico I2C
+  // automaticamente apos o timeout, sem exigir reset do chip inteiro.
   // OS PINOS SAO OBRIGATORIOS AQUI (2026-08-02). No Mega o I2C morava em
   // pinos fixos de silicio (20/21) e Wire.begin() sem argumento acertava
   // sozinho. No ESP32 qualquer par de GPIO serve, entao o begin() sem
   // argumento assume o padrao da placa - e se ele nao for o par que esta
   // soldado, o barramento fica MUDO sem erro nenhum: nenhuma excecao,
-  // nenhum retorno ruim, so `imu_conectado: false` e `bussola_conectada:
-  // false` na telemetria, exatamente o sintoma que ja custou uma
-  // investigacao em 2026-07-27.
-  Wire.begin(pinos::IMU_SDA, pinos::IMU_SCL);
+  // nenhum retorno ruim, so `bussola_conectada: false` na telemetria,
+  // exatamente o sintoma que ja custou uma investigacao em 2026-07-27.
+  Wire.begin(pinos::BUSSOLA_SDA, pinos::BUSSOLA_SCL);
   // 400 kHz em vez dos 100 kHz padrao (2026-07-27). MEDIDO: com 100 kHz o
   // I2C consumia 99,4 ms a cada 500 ms de telemetria (t_i2c_us) - 20% de
-  // todo o tempo do robo, com uma leitura da IMU levando ~10 ms. Tanto a
-  // MPU6050 quanto o QMC6310 suportam 400 kHz (fast mode) por datasheet.
+  // todo o tempo do robo. A bussola (HMC5883L/QMC5883L) suporta 400 kHz
+  // (fast mode) por datasheet.
   // Enquanto o loop esta preso no I2C ele nao olha o pino ECHO do ultrassom,
   // e o eco de um obstaculo a 30 cm dura 1,7 ms - perder essas janelas faz o
   // sensor concluir "nada refletiu" e reportar caminho LIVRE (fail-open, o
@@ -379,8 +338,8 @@ void setup() {
   //
   // O que este timeout impede (Cap 18 s.9, achado real da vistoria de
   // 2026-07-24): sem ele, um travamento de I2C - fio solto ou ruido segurando
-  // o clock - prendia Wire.requestFrom() PARA SEMPRE dentro de
-  // imu.atualizar(). E como isso roda ANTES de safety.avaliar() no mesmo
+  // o clock - prendia Wire.requestFrom() PARA SEMPRE dentro de um
+  // bussola.atualizar(). E como isso roda ANTES de safety.avaliar() no mesmo
   // loop(), a seguranca reativa inteira parava junto.
   Wire.setTimeOut(25);
 
@@ -389,17 +348,16 @@ void setup() {
   escanearI2c();
 
   // EEPROM.begin() TEM que vir antes de qualquer manager iniciar, porque
-  // imu.iniciar() e bussola.iniciar() ja fazem EEPROM.get() das calibracoes
-  // guardadas. No Mega isso nao existia: a EEPROM era memoria de verdade,
-  // sempre disponivel. No ESP32 ela e emulada em flash e precisa ser
-  // "montada" primeiro - sem esta linha, o get() le lixo e as duas
-  // calibracoes aparecem como ausentes (o teste de numero magico salva de
-  // usar o lixo, mas o robo perde a calibracao a cada boot).
+  // bussola.iniciar() ja faz EEPROM.get() da calibracao guardada. No Mega
+  // isso nao existia: a EEPROM era memoria de verdade, sempre disponivel. No
+  // ESP32 ela e emulada em flash e precisa ser "montada" primeiro - sem esta
+  // linha, o get() le lixo e a calibracao aparece como ausente (o teste de
+  // numero magico salva de usar o lixo, mas o robo perde a calibracao a cada
+  // boot).
   //
-  // 128 bytes cobre os tres blocos com folga: IMU no endereco 0 (14 bytes),
-  // limiar de impacto no 32 (6 bytes) e bussola no 64 (26 bytes) = 90 no
-  // total. Aumentar isto e barato; diminuir corrompe silenciosamente o
-  // bloco de cima.
+  // 128 bytes sobra folgado para o UNICO bloco restante: a bussola no
+  // endereco 64 (26 bytes). Aumentar isto e barato; diminuir corrompe
+  // silenciosamente o bloco de cima.
   EEPROM.begin(128);
 
   // Reserva os quatro timers de PWM para os servos ANTES de qualquer
@@ -414,16 +372,14 @@ void setup() {
   ESP32PWM::allocateTimer(3);
 
   motores.iniciar();
-  encoders.iniciar();
   radar.iniciar();
-  imu.iniciar();
-  // Depois da IMU de proposito: as duas dividem o barramento I2C (20/21) e
-  // a bussola usa o acelerometro dela para compensar inclinacao. Ausente e
-  // tolerado (Cap 6 s.8) - o retorno so vira `bussola_conectada: false` na
-  // telemetria.
   bussola.iniciar();
   dht.iniciar();
-  bateria.iniciar(pinos::BATERIA_SENSE);
+  // BATERIA_SENSE (GPIO36) foi realocado pro encoder do motor DC em
+  // 2026-09-13 - o divisor de tensao nunca chegou a ser montado nesse pino
+  // (ver pins.h), entao nada fisico foi perdido. Desligado ate escolher um
+  // novo pino ADC1 livre e recalcular o divisor para 3,3V.
+  // bateria.iniciar(pinos::BATERIA_SENSE);
   ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
 
   // AUTOTESTE DE PRESENCA DO ULTRASSOM (2026-07-25).
@@ -502,41 +458,20 @@ void loop() {
   }
 
   motores.atualizar();
-  // Consome os pulsos que as interrupcoes dos encoders deixaram na fila e faz
-  // a analise da chapa-marca aqui, FORA da ISR (ver encoder_manager.cpp).
-  //
-  // Esta linha NAO EXISTIA ate 2026-08-02, e nao era esquecimento: a versao
-  // antiga do EncoderManager era so um contador dentro da interrupcao, sem
-  // nada para consumir. O resultado era pior que nao ter encoder - o firmware
-  // contava pulsos que NUNCA SAIAM da placa, porque tambem nao havia campo de
-  // encoder na telemetria. Contagem perfeita, guardada para ninguem: a mesma
-  // familia de "publicar num topico sem assinante" que ja mordeu este projeto
-  // tres vezes.
-  encoders.atualizar();
   radar.atualizar();
   ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
-  bateria.atualizar();
+  // bateria.atualizar();  // ver nota em setup() - pino virou encoder
 
   unsigned long agora = millis();
 
-  if (agora - ultimoImu >= INTERVALO_IMU_MS) {
-    ultimoImu = agora;
-    unsigned long inicioUs = micros();
-    imu.atualizar();
-    tempoImuAcumuladoUs += micros() - inicioUs;
-    leiturasImu++;
-  }
-
   {
-    // Fora do bloco do IMU: a bussola tem ritmo proprio (100 ms) e ela mesma
-    // controla isso. Reaproveita a ultima leitura do acelerometro em vez de
-    // ler a MPU6050 de novo pelo I2C. A maioria das chamadas retorna na hora
-    // (ainda nao deu o intervalo) - por isso `leituras_bussola` conta so as
-    // que custaram algo, senao a media ficaria diluida por milhares de
-    // retornos imediatos.
+    // A bussola tem ritmo proprio (100 ms) e ela mesma controla isso. A
+    // maioria das chamadas retorna na hora (ainda nao deu o intervalo) - por
+    // isso `leituras_bussola` conta so as que custaram algo, senao a media
+    // ficaria diluida por milhares de retornos imediatos.
     unsigned long inicioUs = micros();
-    bussola.atualizar(imu.acelX(), imu.acelY(), imu.acelZ());
+    bussola.atualizar();
     unsigned long custo = micros() - inicioUs;
     if (custo > 100) {  // 100us: separa leitura de verdade de retorno imediato
       tempoBussolaAcumuladoUs += custo;
@@ -544,7 +479,7 @@ void loop() {
     }
   }
 
-  bool acionouParadaAgora = safety.avaliar(motores, radar, imu, ultimoComandoRecebido);
+  bool acionouParadaAgora = safety.avaliar(motores, radar, ultimoComandoRecebido);
   if (acionouParadaAgora) {
     // "frente_desconhecida" tambem bloqueia o movimento, mas nao e a mesma
     // coisa que ver um obstaculo - e o radar estar olhando pro lado sem
@@ -561,9 +496,9 @@ void loop() {
               estados.atual() == orion::Estado::SAFE_MODE)) {
     // SAFE_MODE entrou nesta lista em 2026-07-26. Antes disso ele era um
     // estado SEM SAIDA: o robo entrava e nunca mais voltava a IDLE sozinho,
-    // mesmo com todos os gatilhos limpos (medido na bancada: inclinacao 8 de
-    // 20 graus, frontal 245 de 25 cm, radar em 90, sem impacto, motores
-    // parados - e ainda assim preso). Bastava UM ciclo de leitura ruim do
+    // mesmo com todos os gatilhos limpos (medido na bancada: frontal 245 de
+    // 25 cm, radar em 90, motores parados - e ainda assim preso). Bastava UM
+    // ciclo de leitura ruim do
     // ultrassom, dos que a vibracao do motor de passo provoca, para travar o
     // robo ate alguem reiniciar na mao - inviavel para as 72h de operacao
     // continua que o projeto persegue.
@@ -615,19 +550,15 @@ void loop() {
     payload["loop_max_us"] = loopMaxUs;
     payload["loop_media_us"] = loopVoltas > 0 ? (loopSomaUs / loopVoltas) : 0;
     // Quanto o envio ANTERIOR desta mesma telemetria custou, e quanto o I2C
-    // (IMU + bussola) gastou desde entao. Somados ao resto do loop, dizem
-    // onde os ~50ms sem explicacao estao - ver o bloco das globais.
+    // (bussola) gastou desde entao. Somados ao resto do loop, dizem onde os
+    // ~50ms sem explicacao estao - ver o bloco das globais.
     payload["t_envio_us"] = tempoEnvioAnteriorUs;
-    payload["t_imu_us"] = tempoImuAcumuladoUs;
-    payload["n_imu"] = leiturasImu;
     payload["t_bussola_us"] = tempoBussolaAcumuladoUs;
     payload["n_bussola"] = leiturasBussola;
     loopMaxUs = 0;
     loopSomaUs = 0;
     loopVoltas = 0;
-    tempoImuAcumuladoUs = 0;
     tempoBussolaAcumuladoUs = 0;
-    leiturasImu = 0;
     leiturasBussola = 0;
 
     unsigned long inicioEnvioUs = micros();

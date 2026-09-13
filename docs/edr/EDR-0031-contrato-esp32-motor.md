@@ -19,6 +19,26 @@ O ESP32 existente já cuida de ToF, servos e sensores, e fala com o Pi por WebSo
 **Um ESP32 dedicado ao motor, separado do ESP32 de sensores.** Ele é o dono exclusivo da
 fronteira `cmd_vel` ↔ `odom` — é o nó do outro lado do que o Nav2 espera.
 
+> **REVISADO 2026-09-13 (mesmo dia, à tarde) — decisão do dono.** O motor DC entra no
+> MESMO ESP32 que já tem bússola e pan/tilt (`firmware/hardware_core`), não num ESP32
+> dedicado separado. Motivo do dono: o projeto já tem hardware o bastante rodando nesse
+> chip, e não faz sentido físico/de custo abrir um quarto microcontrolador quando este já
+> fala com o Pi por UART cabeada (CP2102) - a exigência de nunca WiFi continua satisfeita,
+> só a separação física de chip é que caiu.
+>
+> **Consequência de pinagem que quase mordeu**: os únicos pinos input-only livres pra
+> encoder colidiam com o ECHO do ultrassom frontal (GPIO34), que alimenta o
+> `SafetyManager` de verdade (parada por obstáculo). Resolvido descendo pra **encoder de
+> canal único** por roda (GPIO 36 e 39, os dois totalmente livres) em vez de quadratura
+> completa - o sentido de giro vem do que foi comandado, não do hardware. Nenhum
+> ultrassom foi tocado. Ver `firmware/hardware_core/include/motor_manager.h` e
+> `pins.h`.
+>
+> Firmware compilado e testado no ESP32 real (2026-09-13): boot limpo, bússola lendo de
+> verdade (I2C 0x0D), segurança intacta (`seguranca_parada_ativa` continua reagindo à
+> falta de eco do ultrassom, sem interferência do encoder). Motor em si **ainda não
+> testado** - a peça (JGB37-520) não chegou.
+
 ### Transporte
 
 **UART cabeada com o Pi. Nunca WiFi.**
