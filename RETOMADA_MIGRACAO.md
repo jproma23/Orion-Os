@@ -97,14 +97,15 @@ falha registrada hoje.
 (ControleManual) segue pendente por escolha do dono (adiado para depois,
 seguindo com F0/F1 no que não depende dele).
 
-**Firmware motor_core adiantado (2026-09-13, commit `4b1c697`):** ESP32
-dedicado ao motor (EDR-0031) escrito e compilando limpo (esp32dev, Arduino,
-0 warnings) - PCNT em quadratura 4x para os 2 encoders, PID de velocidade
-por roda com feedforward de zona morta, driver L298N via LEDC, watchdog de
-200ms autônomo, protocolo cmd_vel/odom reaproveitando o framing
-STX/ETX+CRC16 do hardware_core. **NÃO TESTADO em hardware real** - motor
-JGB37-520 + encoder ainda não chegaram. Redução (1:90) e PPR do encoder
-(11, chute) são placeholders até a bancada confirmar.
+**Firmware motor_core (2026-09-13, commit `4b1c697`) - SUPERADO no mesmo
+dia.** Foi escrito como ESP32 dedicado ao motor (EDR-0031 original),
+compilava limpo, mas nunca chegou a ser testado em hardware. À tarde o
+dono revisou o EDR-0031: o motor consolida no ESP32 que já tem
+bússola+pan/tilt (`firmware/hardware_core`), não num chip dedicado
+separado. `firmware/motor_core` fica no repo como histórico/referência,
+mas NÃO é mais o caminho ativo - o `motor_manager.h` do
+`hardware_core` (commit `ce3987e`) é quem vale agora. Não reativar
+`motor_core` sem antes reler a revisão do EDR-0031.
 
 **Achado fora do plano:** o working tree do orion-os tinha 92 arquivos
 modificados/untracked ANTES desta sessão (motion_core/behavior, webui,
