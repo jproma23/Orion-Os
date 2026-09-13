@@ -7972,3 +7972,264 @@ dispositivos bloqueados no painel dele.**
 5. Sem áudio de verdade ainda: a boca hoje só abre/fecha em ciclo fixo
    enquanto fala (sem amplitude real) — o `avatar_server.py` também não
    expõe isso, então não é regressão, é o que o kiosk já faz.
+
+### WiFi abandonado, ponte por USB serial no lugar (mesmo dia)
+
+Continuação da sessão acima. Pendência 1 ("resolver o WiFi do orion_face")
+levou a uma investigação mais funda do que o esperado, e terminou **descartando
+WiFi de vez**, não consertando-o.
+
+**Diagnóstico do WiFi, na ordem:**
+1. Reinício do roteador de casa (KAMALL) não mudou nada — mesmo padrão
+   `auth -> init` a cada ~1s. Isso já descartava bloqueio temporário por
+   tentativas.
+2. Log mostrava `<6,1>` alternando com `<6,0>` (HT40 vs HT20) durante a auth
+   — forçado `esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20)`. Canal
+   estabilizou (`<6,0>` fixo), mas o timeout de auth continuou idêntico —
+   não era a causa.
+3. Instrumentado o handler de desconexão pra logar `reason`/`rssi` (antes só
+   se via o estado indo e voltando). Resultado: `reason=2` (AUTH_EXPIRE) com
+   RSSI bom (-47/-48) alternando com `reason=205` (NO_AP_FOUND) — sinal
+   forte descartava alcance.
+4. Testado um hotspot novo (celular do dono, SSID diferente, roteador
+   diferente) pra isolar se o problema era do roteador de casa
+   especificamente — o ESP32 nem achou essa rede (`reason=201`,
+   `scan: 0 redes encontradas`, rádio não via NADA no ar). Isso descartou de
+   vez a teoria de firmware/protocolo (SAE, HT40, etc.) — o sintoma é mais
+   fundo que qualquer config de rede testada.
+5. O dono então apontou o caminho certo, que já era a arquitetura original
+   (ver [[project-orion-notebook-removido-tela-esp32]]): a placa já está
+   ligada ao Pi por um cabo USB-C físico — não precisa de rede nenhuma pra
+   trocar eventos com o cérebro. **A tela é só periférico de saída** (rosto +
+   voz), decisão do dono nesta sessão.
+
+**Implementado (WiFi removido, ponte serial no lugar):**
+- `orion_face/src/net.cpp`: removido WiFi/HTTP/SSE inteiro (`esp_wifi.h`,
+  `esp_netif.h`, `esp_http_client.h`). No lugar, usa
+  `driver/usb_serial_jtag.h` — a MESMA porta USB-CDC que já serve pra
+  flash/log (`/dev/ttyACM0`), lendo linhas JSON (`{"evento": "...", ...}`)
+  que o Pi escreve. O console de log só ESCREVE nessa porta, nunca lê —
+  ler não interfere. `CMakeLists.txt` do firmware atualizado (trocado
+  `esp_wifi esp_netif esp_event nvs_flash esp_http_client` por
+  `esp_driver_usb_serial_jtag`).
+- Novo `src/orion/display/ponte_serial.py` (`PonteSerial`): assina
+  `voice.response_started`/`voice.response_finished`/`motion.pan_tilt` no
+  Event Bus e escreve cada evento como uma linha JSON na porta serial —
+  mesmo formato que `net.cpp` consome. Nunca levanta (porta ausente só
+  registra e segue, padrão Cap 6 s.8).
+- `ModuloDisplay` (`orion/display/modulo.py`) ganhou a `PonteSerial` no seu
+  ciclo de vida (sobe depois do `AvatarServer`, desce antes dele) —
+  parâmetro `ponte_serial` injetável pros testes, mesmo padrão do
+  `servidor`. Comentário desatualizado sobre "SSE por WiFi" removido.
+- Testes novos: `tests/unit/test_ponte_serial.py` (3 casos, serial fake via
+  monkeypatch — sem porta real). `test_avatar_server.py` e o resto de
+  `display`/`avatar` seguem passando (13 passed, 2 skipped).
+- **Validado com hardware real**: script usando o caminho de produção
+  (`EventBus` + `PonteSerial` de verdade contra `/dev/ttyACM0`) publicou
+  `voice.response_started`/`motion.pan_tilt`/`voice.response_finished` e o
+  ESP32 respondeu na hora (`falando: inicio` / `falando: fim` no log serial
+  da placa). Ponta a ponta, sem rede nenhuma.
+
+### Pendências, na ordem em que mordem
+
+1. `avatar_server.py`/Mission Core (`python -m orion`, sem `--sim`) nunca
+   rodou de verdade no Pi nesta sessão — só testado com `EventBus` sintético
+   isolado. Rodar o Mission Core real vai tentar conectar no Motion Core via
+   TCP e ligar IA/voz de verdade (gasta cota, abre microfone) — decisão do
+   dono antes de fazer isso.
+2. `orion_face` ainda sem remoto (só `git init` local, commit inicial) —
+   decidir se entra no monorepo do `orion-os` ou fica separado.
+3. Sem áudio de verdade ainda: a boca abre/fecha em ciclo fixo enquanto
+   `g_falando`, sem amplitude real — pendência que já vinha de antes, agora
+   dobrada de importância já que a placa É o periférico de voz. Hardware do
+   codec (ES8311+FM8002E, I2S) do ES3C35P ainda não tem bring-up nenhum.
+4. O `--sim` do Boot Manager retorna lista de módulos VAZIA (nenhum
+   simulador de verdade existe ainda) — não serve pra testar
+   display/voz/visão isoladamente, só confirma que o kernel sobe. Achado
+   nesta sessão, não é regressão.
+
+### Migração ROS2 iniciada, motor_core escrito, e o robô ouve pela primeira vez (mesmo dia, tarde/noite)
+
+Continuação da sessão acima. O dono trouxe um pacote de planejamento pronto
+(`PLANO_MIGRACAO_ORION_ROS2.md` + EDR-0028 a 0035) para migrar navegação para
+ROS2/Nav2 mantendo o EventBus para comportamento/voz/visão, ligados por um
+único nó-ponte. Commitado (`b40a86a`, `4ce90d3`) e tag `pre-migracao-ros2`
+criada. **92 arquivos alheios ficaram não commitados de propósito** — o dono
+pediu para ignorar o débito antigo por ora e resolver numa substituição geral
+depois; não commitei nem descartei nada deles.
+
+**Fase 0 em andamento:**
+- Suíte rodada como baseline: 1148 passed, 4 skipped, nenhuma falha.
+- **EDR-0032 (distro) decidido: Jazzy via Docker** — o Pi é Debian trixie
+  (nem Humble nem Jazzy instalam nativo, então Docker empata esse fator); o
+  SDK da Slamtec (`sllidar_ros2`) já suporta Jazzy com tutorial específico
+  pra Raspberry Pi; horizonte de suporte maior (2029 x mai/2027) para um
+  projeto que já roda continuamente há meses.
+- EDR-0034 (ControleManual x PAUSED_MANUAL) **adiado por escolha do dono** -
+  fica pendente, não bloqueia o resto.
+- Backup do SSD do Pi: **ainda não feito**, sem destino definido.
+
+**Dados da F1 confirmados com o dono:** motor JGB37-520, redução **1:90**
+(provisória — a peça ainda não chegou, confirmar quando chegar), PPR do
+encoder **ainda desconhecido** (não veio na ficha técnica enviada, medir na
+chegada), peso do Fofão montado **1 kg**, driver **L298N** (já em mãos, PWM
+confirmado suportado pela placa), controle **PID de velocidade via
+encoder**.
+
+**Firmware `motor_core` escrito e compilando** (commit `4b1c697`): ESP32
+dedicado só ao motor (EDR-0031, separado do ESP32 de sensores que continua
+como está) - PCNT em quadratura 4x pros dois encoders, PID de velocidade
+com feedforward de zona morta, driver L298N via LEDC, watchdog de 200ms
+autônomo, protocolo `cmd_vel`/`odom` reaproveitando o mesmo enquadramento
+STX/ETX+CRC16 que o `hardware_core` já usa (não inventei transporte novo).
+**Compila limpo, mas NUNCA RODOU em hardware real** - motor e encoder ainda
+não chegaram. Reducao/PPR são placeholders marcados no código.
+
+### LiDAR COIN-D6: testado, wiring corrigido, motor ainda não gira
+
+Testado direto no Windows (USB-serial CH340, `/dev` local, COM4) antes de ir
+pro Pi. Comando de partida `AA 55 F0 0F` (confirmado depois pela manual
+oficial da WitMotion, baixada durante a sessão) não trazia resposta alguma -
+0 bytes, em qualquer baud. TX/RX invertidos foi tentado (o próprio FAQ do
+fabricante lista isso como causa nº1), trouxe 1 byte de ruído, não resolveu.
+Testado com hotspot novo (celular do dono) pra isolar rede - mesmo resultado,
+**scan não achava nenhuma rede nem** (isso era o WiFi da S3, não o LiDAR -
+duas investigações correram em paralelo nesta sessão e não devem ser
+confundidas).
+
+**Causa raiz encontrada na manual**: motor do LiDAR não gira - `alimentação`
+insuficiente. O adaptador CH340 provavelmente não entrega corrente
+suficiente pro motor (a manual confirma VCC=5V/GND/TXD/RXD, TX e RX devem
+ser cruzados). Fio do dono veio em cores diferentes da manual
+(amarelo/verde/preto/vermelho, não amarelo/branco/vermelho/preto) - **não
+adivinhei o mapeamento por cor** (perigoso, pode inverter alimentação e
+queimar o sensor). Dono vai medir com multímetro antes de prosseguir -
+pendência aberta, sem urgência (LiDAR só entra na Fase 2, depois da F1).
+
+### Áudio da tela ES3C35P: bring-up completo, mic da placa é hardware morto
+
+Continuação da Fase 2 do áudio (mic → Pi). Implementado, na ordem, com
+achado real em cada parada:
+
+1. **Fase 2 (streaming mic→Pi)**: substituído o eco local (Fase 1) por
+   quadros binários `0xFE`+tamanho+PCM na mesma porta USB do `net.cpp`.
+2. **Achado 1 - race condition**: `audio_start()` roda ANTES de
+   `net_start()` (chamado de dentro de `face_run()`) - o `capture_task`
+   tentava escrever antes do driver USB Serial JTAG existir
+   (`usb_serial_jtag_write_bytes: driver hasn't been initialized`, em loop).
+   Corrigido com uma flag `g_serial_pronto` que o `capture_task` espera.
+3. **Achado 2 - buffer TX pequeno demais**: só o cabeçalho de 3 bytes
+   chegava ao Pi, o payload de 1024 bytes sumia silenciosamente (buffer TX
+   do driver ficou no padrão de 256 bytes). Corrigido: `tx_buffer_size =
+   4096` + laço de escrita que repete até esgotar (`write_bytes` pode
+   escrever menos que pedido).
+4. **Achado 3 - o mais caro: sem byte-stuffing**. Depois do fix acima, uma
+   janela inteira de áudio saía com valor fixo `1278 = 0x04FE` em TODA
+   janela de 250ms, com ou sem fala - o começo do próprio cabeçalho (`0xFE
+   0x04`) vazando pro meio do PCM, porque nenhum protocolo (nem o
+   ESP32 nem o script Python) fazia escape do byte de marca quando ele
+   aparecia por acaso nos dados reais (PCM é binário puro, 1 em 256 chances
+   por byte). Corrigido com o mesmo princípio de byte-stuffing que
+   `orion.communication.framing` já usa (STX/ETX) - `0xFD` como escape,
+   XOR 0x20.
+5. Depois do fix 4: **silêncio absoluto, sempre, com ou sem fala** - achado
+   mais sério. Baixado o pacote de recursos do fabricante (RAR de 237MB) e
+   com ele:
+   - **Achado 4**: `AUDIO_EN` (GPIO1) estava em HIGH; a planilha oficial de
+     IO diz "habilita em nível BAIXO" - corrigido, sem efeito no mic (mas
+     correto e deve ficar).
+   - **Achado 5**: o dono lembrava de um mic "digital, I2S" - a datasheet
+     do MEMS real da placa (`LMA2718B381-OA7`) prova que é **analógico**
+     (pinos OUT/GND/VDD/GND, sem clock nem linha de dados). O mic digital
+     que o dono lembrava era de OUTRO projeto (ver abaixo). Confirmado
+     `es8311_microphone_config(es, false)` (analógico) estava certo desde
+     o início.
+   - **Achado 6**: `es8311_register_dump()` (função do próprio driver,
+     nunca chamada antes) + a datasheet completa do ES8311 (baixada nesta
+     sessão) revelaram que o driver escreve `REG0D=0x01` (VMIDSEL="iniciando
+     carga" da referência de tensão) e **nunca avança para VMIDSEL=2**
+     ("operação normal") em lugar nenhum do código - bug real do driver
+     vendor. Corrigido escrevendo o registro direto via I2C depois do
+     tempo de power-up. **Sem efeito** - continuou zero.
+   - Todo o resto do registro conferido contra a datasheet estava correto:
+     PGA ligado, modulador ligado, bias/referência do ADC ligados, LINSEL
+     selecionando o mic diferencial, mute em zero nos dois lados, ganho
+     alto (30dB analógico + 18dB digital).
+6. **Conclusão**: com toda a configuração de software/registro provadamente
+   correta e ainda assim zero sinal, o problema é físico - mic sem solda,
+   defeituoso, ou rede de acoplamento com problema nesta placa específica.
+   **Ninguém tentou consertar isso com multímetro ainda** - fica pendente,
+   sem bloquear o resto.
+
+### O robô ouve de verdade pela primeira vez
+
+O dono lembrou de um ESP32 antigo separado ("ouvidos do Fofão", projeto de
+03/08 - dois mics I2S reais, streaming por WiFi/TCP) e plugou na USB do Pi
+(apareceu como `/dev/ttyUSB0`, CH340). Firmware já estava rodando: **"OUVIDOS
+DO FOFAO"**, WiFi conectado em `10.20.20.101`, TCP na porta 9100, PCM int16
+LE estéreo 16kHz. Testado direto (socket TCP) - **sinal real, variando
+positivo/negativo, RMS ~300-360** - nada parecido com os artefatos mortos da
+tela nova. O dono confirmou que "sempre funcionou".
+
+**Achado que fechou o círculo**: `src/orion/voice/ouvidos_esp32.py` **já
+existia**, já testado (`test_ouvidos_esp32.py`), com docstring própria
+dizendo exatamente como plugar no `VoiceCore`, e o `config/orion.yaml` já
+tinha `voice.ouvidos_esp32.habilitado: true` desde 29/07 - com um comentário
+no próprio config já diagnosticando o problema ("o robô ouvia os microfones
+locais do Notebook enquanto o dono falava no ESP32... estava surdo por dois
+caminhos ao mesmo tempo"). **Mas `ModuloVoz._construir()` nunca instanciava
+essa classe.** Mesma categoria de bug que já mordeu este projeto várias
+vezes (peça construída e testada isolada, nunca ligada de verdade).
+
+**Corrigido em `src/orion/voice/modulo.py`**: `_construir()` agora lê
+`ouvidos_esp32.habilitado`, sobe o `OuvidosESP32`, espera até
+`timeout_boot_s` ele conectar, e só cai pro microfone local
+(`SeletorMicrofone`) se ele não aparecer a tempo - exatamente o
+comportamento que o config já documentava, só faltava o código. `encerrar()`
+agora também solta a conexão dos ouvidos. Testes de voz: 57 passed, 2
+skipped, sem regressão.
+
+**Validado com o Mission Core rodando de verdade** (não simulado): módulo
+`voice` subiu saudável pela PRIMEIRA VEZ - "Voz ativa - diga a palavra de
+ativação", "Modulo voice iniciado", e RMS real chegando (`ouvi (rms=0.14):
+'Forfone!'`). A palavra de ativação ainda não disparou de verdade
+(transcrições como "Forfone"/"4,5" não bateram com "Fofão" na tolerância
+fonética) - ajuste fino de reconhecimento, não é mais bug de encanamento.
+
+### Achados soltos, sem investigar a fundo
+
+- **Tela não apaga**: o log disse "tela APAGADA (prazo vencido)" mas o
+  dono confirmou que a tela continuava acesa - bate com o bug já registrado
+  em `project_orion_tela_descanso` (config promete dormir, algo garante que
+  nunca dorme). Não é regressão de hoje, não investigado agora.
+- **Vision segue degradado**: falta o pacote `face_recognition` no venv do
+  Pi (nunca foi instalado aqui - Vision sempre rodou no Notebook antes).
+  Não é bloqueio de voz/áudio, fica pra depois.
+
+### Estado ao fechar a sessão
+
+Mission Core **rodando em background no Pi** (`nohup python -m orion`,
+log em `/tmp/orion_boot2.log`) com `display` + `mission` + `voice` saudáveis,
+`vision` degradado. Não foi encerrado de propósito - o dono pode continuar
+testando a palavra de ativação sem precisar subir tudo de novo.
+
+### Pendências, na ordem em que mordem
+
+1. **Afinar a palavra de ativação** - "Fofão" não bateu em duas tentativas
+   reais; ver se o fator de tolerância fonética do `DetectorPalavraAtivacao`
+   precisa abaixar, ou se é distância/clareza da fala.
+2. **Mic da tela nova (ES3C35P) é hardware morto** - precisa de multímetro
+   no pino de saída do MEMS ou inspeção de solda antes de mais qualquer
+   coisa de software. Não é mais prioridade agora que os ouvidos antigos
+   resolvem a voz.
+3. **LiDAR (COIN-D6) não gira** - motor sem alimentação suficiente pelo
+   adaptador CH340; dono vai medir com multímetro qual fio é qual (cores
+   vieram diferentes da manual). Só entra na Fase 2 da migração, sem pressa.
+4. **PPR do encoder do JGB37-520** - ainda não confirmado, placeholder no
+   firmware `motor_core`. Bloqueia o Gate 1 de verdade.
+5. **EDR-0034 (ControleManual)** - adiado por escolha do dono, mas
+   continua bloqueando a Fase 1/7 do roadmap ROS2 quando chegar a hora.
+6. **Backup do SSD do Pi** (item do Gate 0) - sem destino definido ainda.
+7. **92 arquivos de débito não commitados** - o dono decidiu ignorar por
+   ora; entram numa substituição geral "tudo novo por tudo velho" mais
+   pra frente, não resolver sozinho antes disso.

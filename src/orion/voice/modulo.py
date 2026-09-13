@@ -49,6 +49,12 @@ class ModuloVoz:
         self._nucleo = nucleo
         self._sintetizador: Any | None = None
         self._tarefa: asyncio.Task | None = None
+        #: Ouvidos do ESP32 (2026-09-13): a classe ja existia testada desde
+        #: 2026-07-29, com o config ouvidos_esp32.habilitado=true, mas nunca
+        #: foi instanciada aqui - o robo continuava surdo procurando
+        #: microfone local no Pi, que nunca teve nenhum. Guardado para
+        #: encerrar() poder soltar a conexao.
+        self._ouvidos: Any | None = None
 
     async def iniciar(self) -> None:
         if self._nucleo is None:
@@ -75,9 +81,39 @@ class ModuloVoz:
         from orion.voice.voice_core import VoiceCore
         from orion.voice.wake_word import DetectorPalavraAtivacao
 
-        logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")
-        seletor = SeletorMicrofone(self._conf["microfones_candidatos_indices"])
-        indice_mic = await seletor.escolher_melhor()
+        gravar_audio = None
+        indice_mic = -1  # nao usado quando gravar_audio vem dos ouvidos do ESP32
+
+        conf_ouvidos = self._conf.get("ouvidos_esp32", {})
+        if conf_ouvidos.get("habilitado"):
+            from orion.voice.ouvidos_esp32 import OuvidosESP32
+
+            self._ouvidos = OuvidosESP32(conf_ouvidos["host"], conf_ouvidos["porta"])
+            await self._ouvidos.iniciar()
+            # timeout_boot_s: quanto se espera o ESP32 aparecer no boot antes
+            # de cair pro microfone local (config ja documentava a intencao;
+            # so faltava este laco existir).
+            prazo_s = conf_ouvidos.get("timeout_boot_s", 6.0)
+            loop = asyncio.get_event_loop()
+            limite = loop.time() + prazo_s
+            while not self._ouvidos.conectado and loop.time() < limite:
+                await asyncio.sleep(0.2)
+            if self._ouvidos.conectado:
+                logger.info(
+                    "Ouvindo pelos ouvidos do ESP32 (%s:%d)",
+                    conf_ouvidos["host"], conf_ouvidos["porta"],
+                )
+                gravar_audio = self._ouvidos.gravar
+            else:
+                logger.warning(
+                    "Ouvidos do ESP32 nao apareceram em %.1fs - caindo pro microfone local",
+                    prazo_s,
+                )
+
+        if gravar_audio is None:
+            logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")
+            seletor = SeletorMicrofone(self._conf["microfones_candidatos_indices"])
+            indice_mic = await seletor.escolher_melhor()
 
         # Whisper le o modelo do disco no construtor e bloqueia por dezenas de
         # segundos. Fora da thread do event loop, senao o boot inteiro
@@ -121,11 +157,17 @@ class ModuloVoz:
             frase_ativacao="Oi? Pode falar!",
             transcritor_ativacao=transcritor_ativacao,
             detector_atividade=detector_atividade,
+            gravar_audio=gravar_audio,
         )
 
     async def encerrar(self) -> None:
         # contrato do EDR-0023: nunca levanta. Solta o microfone mesmo que
         # algo ja tenha quebrado antes.
+        if self._ouvidos is not None:
+            try:
+                await self._ouvidos.encerrar()
+            except Exception:  # noqa: BLE001
+                logger.warning("Falha ao encerrar os ouvidos do ESP32", exc_info=True)
         if self._nucleo is not None:
             try:
                 self._nucleo.parar()
