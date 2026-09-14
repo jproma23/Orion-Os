@@ -8233,3 +8233,144 @@ testando a palavra de ativação sem precisar subir tudo de novo.
 7. **92 arquivos de débito não commitados** - o dono decidiu ignorar por
    ora; entram numa substituição geral "tudo novo por tudo velho" mais
    pra frente, não resolver sozinho antes disso.
+
+## Sessão de 2026-09-13 — o chat respondia no vazio, e a câmera estava olhando pro teto
+
+Continuação direta da sessão de 12/09 (bring-up do `orion_face`). O Pi tinha
+reiniciado sozinho (dono mexendo nos cabos pra plugar a caixa de som) -
+`orion-motion.service` e `orion-camera-stream.service` voltaram sozinhos
+(systemd), mas o Mission Core (`python -m orion`, não é serviço) precisou
+subir na mão de novo várias vezes ao longo do dia.
+
+### Áudio de saída: a caixa de som era só energia por USB
+
+O dono relatou "não ouvi nada" depois de plugar uma caixa de som USB.
+`lsusb`/`aplay -l` não mostravam nenhum dispositivo de áudio USB - só CP210x,
+JTAG do Espressif e a ponte SATA do SSD. Pergunta direta resolveu: a caixa
+tem um cabo P2 separado, e só o USB (energia) tinha sido plugado. Com o P2 na
+saída de fone do Pi (`bcm2835 Headphones`, card 2) e o volume em 100%,
+`speaker-test` confirmou som saindo de verdade.
+
+### Bug real: `PonteConversa` nunca foi registrada
+
+O dono digitou "oi" na aba Conversa da webui (`motion_core`, porta 8080) e
+ficou "só pensando" pra sempre. Sem nenhum erro em lugar nenhum - **mesmo
+padrão de sempre** ([[project-orion-publicar-no-vazio]]): o handler
+`PonteConversa` (`src/orion/mission/ponte_conversa.py`) existe, tem teste
+próprio, e o lado do `motion_core` (`webui/server.py:_handler_conversa_mensagem`)
+já mandava `comm.request("mission_core", {"comando": "mission.conversa", ...})`
+certinho - mas `ModuloMissao.iniciar()` nunca instanciava `PonteConversa`.
+Publish sem assinante, silêncio total, timeout de 60s do lado do
+`motion_core` fazendo a página parecer travada.
+
+**Corrigido em `src/orion/mission/modulo.py`**: `PonteConversa(self._processar_chat,
+self._comm).registrar(self._event_bus)` dentro de `iniciar()`. Testado e
+confirmado ao vivo - "chat: oi" / "chat, resposta: Oi! Tudo bem por aí?"
+no log, resposta aparecendo na página.
+
+### Chat também passou a falar em voz alta
+
+Pedido do dono: "antes ele respondia por voz" - o chat digitado nunca
+passava pelo `VoiceCore`, então nunca disparava o Piper. Adicionado
+`ModuloMissao._processar_chat()` (usado só pelo `PonteConversa`, não pela
+voz - `processar()` puro continua servindo os dois) que publica
+`mission.conversa_resposta` depois de responder. `ModuloVoz` assina esse
+tópico e chama `self._nucleo.falar(texto)` - o mesmo `falar()` público que
+já existia desde 03/08 pra exatamente esse fim (docstring de
+`voice_core.py` já dizia isso, só não estava ligado).
+
+**Achado no meio do caminho, corrigido antes de virar problema**: a primeira
+versão chamava `await self._nucleo.falar(texto)` direto dentro do handler do
+Event Bus. `EventBus._despachar()` processa um evento de cada vez e **espera
+o handler terminar** antes do próximo - ou seja, a fala (vários segundos de
+Piper + playback) travava a fila inteira: tela, telemetria, qualquer outro
+evento. Corrigido para `asyncio.create_task(...)` (fire-and-forget) - a
+fila do lock de verdade já mora dentro de `Sintetizador.falar()` (proteção
+contra o SIGSEGV de 05/08 de duas falas simultâneas), então não precisa
+bloquear o dispatcher pra isso.
+
+### `face_recognition`/`dlib` finalmente instalado no Pi
+
+Nunca tinha sido instalado aqui (Vision sempre rodou no Notebook antes,
+agora aposentado). `pip install face_recognition` compilou o `dlib` do
+zero por ~50 minutos (load average bateu 14, 1.1GB de swap - Pi realmente
+sobrecarregado enquanto isso rodava, chat/voz ficaram bem mais lentos nesse
+meio tempo, mas o dono preferiu deixar terminar a interromper).
+
+Depois de instalado, `import face_recognition` ainda falhava:
+`face_recognition_models` (pacote antigo) importa `pkg_resources`, que o
+`setuptools` moderno (84.0.0, veio por padrão no venv do Python 3.13) não
+inclui mais. **Fixado com `pip install "setuptools<81"`** (baixou 80.10.2,
+que ainda vem com `pkg_resources`, com aviso de deprecação - sem problema).
+
+Com isso, `vision` subiu saudável pela primeira vez no Pi: "Vision Core: 3
+rosto(s) conhecido(s) carregado(s)".
+
+### YOLO: já estava tudo pronto, só faltava isso
+
+O dono desconfiou de inversão de canal RGB ("o YOLO nunca funcionou bem").
+Conferido no código-fonte instalado (`ultralytics/engine/predictor.py:173`,
+`im = im[..., ::-1]  # BGR to RGB`): a lib já converte BGR->RGB sozinha, e
+`orion/vision/captura.py` usa `cv2.VideoCapture` (que entrega BGR) sem
+nenhuma conversão manual - ou seja, a entrada está exatamente como a lib
+espera. `DetectorYolo` (`orion/vision/deteccao.py`) já existia, já era o
+detector padrão do `VisionCore`, e a lib `ultralytics` (8.4.120) já estava
+instalada - só faltava o `face_recognition` pra completar o par
+detecção+identificação. `yolov8n.pt` baixou sozinho (6.2MB) no primeiro
+boot do `vision` depois do fix.
+
+**Teste isolado (fora da cadeia voz/IA) confirmou zero detecções** mesmo
+com `conf=0.15`. A foto salva do frame (`/tmp/teste_yolo_frame.jpg`) mostrou
+o motivo real: a câmera do pan/tilt estava apontada pro **teto** (luminária
+e canto do teto na imagem), não pra altura de pessoa. Não é bug de YOLO,
+RGB ou código - é só o ângulo físico do pan/tilt.
+
+### Achado solto: Vision Core não acompanha a taxa da câmera
+
+Com YOLO + voz + mission tudo rodando junto no Pi, apareceu
+`"descartei 30 quadros atrasados numa leitura só - o Vision Core não está
+acompanhando a taxa da câmera"` repetidas vezes. Esperado dado tudo que
+roda ao mesmo tempo agora (voz, Whisper, YOLO, `motion_core`, pilha
+ROS2/Nav2 completa como root) - não investigado a fundo hoje, mas é sinal
+de que o Pi está no limite de CPU com essa carga toda ligada de uma vez.
+
+### Achado solto: stack ROS2/Nav2 rodando como root
+
+`ps aux` mostrou `ros2 launch .../nav.launch.py`, `slam_toolbox` e três
+pontes (`bridge_scan_odom.py`, `bridge_cmd_vel.py`, `bridge_goal.py`)
+rodando como **root**, não como `jproma23` - e usando ROS2 **Humble**, não
+Jazzy (que foi o decidido em EDR-0032, "Jazzy via Docker"). Não investigado
+hoje - fica para conferir se isso é resquício de teste antigo ou se o
+Gate 0 da migração ROS2 já está rodando por fora do que ficou registrado.
+
+### Estado ao fechar a sessão
+
+Mission Core rodando em background no Pi (`nohup python -m orion`, log em
+`/tmp/orion_boot11.log`) com os quatro módulos saudáveis: `display`,
+`mission`, `voice` (ouvidos ESP32), `vision` (YOLO + 3 rostos conhecidos).
+`gestos` seguem desativados (falta `mediapipe`/`cv2`, não bloqueia nada).
+
+### Pendências, na ordem em que mordem
+
+1. **Reapontar o pan/tilt da câmera** - está olhando pro teto, não pra
+   altura de pessoa. Sem isso, YOLO/reconhecimento facial não vêem ninguém,
+   por melhor que estejam configurados.
+2. **Palavra de ativação por voz segue não confiável** - mesmo com "Fofão"
+   dito claramente, o portão anti-invenção (`log_prob_threshold=-1.0`)
+   descartou por confiança bem no limite (-1.01, -1.04) várias vezes hoje.
+   Piora visivelmente sob carga de CPU alta (dlib compilando) - vale
+   reconferir com o Pi ocioso antes de mexer no limiar.
+3. **Vision Core não acompanha a câmera** com toda a carga atual ligada -
+   ver se dá pra baixar o `imgsz` do YOLO (documentado em `deteccao.py`:
+   320 já é suficiente pra ambiente interno) ou reduzir FPS da câmera.
+4. **ROS2/Nav2 rodando como root em paralelo, versão Humble** - conferir
+   se é resquício de outra sessão de teste ou parte real do Gate 0, e se
+   bate com a decisão de Jazzy via Docker (EDR-0032).
+5. **`gestos` (mediapipe/cv2) seguem fora** - não crítico, mas seguem
+   como dívida.
+6. **92+ arquivos de débito não commitados seguem intocados** de propósito
+   (ver `git status` no repo) - entram na substituição geral "tudo novo
+   por tudo velho" mais pra frente, não mexer agora.
+7. **face_recognition/dlib**: se o venv for recriado no futuro, lembrar do
+   fix `setuptools<81` - sem ele `face_recognition_models` quebra na cara
+   sem avisar por que.

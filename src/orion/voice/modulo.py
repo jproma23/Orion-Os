@@ -19,7 +19,7 @@ import logging
 from typing import Any
 from collections.abc import Awaitable, Callable
 
-from orion.kernel.event_bus import EventBus
+from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("orion.voice.modulo")
 
@@ -60,6 +60,12 @@ class ModuloVoz:
         if self._nucleo is None:
             self._nucleo = await self._construir()
         self._tarefa = asyncio.create_task(self._nucleo.executar())
+        # O chat digitado (webui) nunca passa pelo VoiceCore, entao a
+        # resposta de texto so chega aqui por evento - ver
+        # ModuloMissao._processar_chat. Pedido do dono, 2026-09-13: o Fofao
+        # respondia por voz mesmo quando a pergunta era por voz, e digitar
+        # devia ter o mesmo efeito.
+        self._event_bus.subscribe("mission.conversa_resposta", self._ao_receber_resposta_chat)
         if self._frase_saudacao and self._sintetizador is not None:
             # falar DEPOIS de a escuta subir: se falarmos antes, o robo pode
             # perder o usuario que responde logo em seguida.
@@ -71,6 +77,31 @@ class ModuloVoz:
                 # 2026-07-24: erro transitorio de saida derrubava tudo junto)
                 logger.warning("Falha ao falar a saudacao - seguindo mudo", exc_info=True)
         logger.info("Voz ativa - diga a palavra de ativacao")
+
+    async def _ao_receber_resposta_chat(self, evento: Evento) -> None:
+        if self._nucleo is None:
+            return
+        texto = str(evento.dados.get("texto", "")).strip()
+        if not texto:
+            return
+        # NAO fazer `await` direto aqui: o EventBus despacha um evento de
+        # cada vez, esperando o handler terminar antes do proximo (ver
+        # `EventBus._despachar`). Falar demora vários segundos (Piper +
+        # playback) - segurar o dispatcher inteiro por isso travaria tela,
+        # telemetria e qualquer outro evento no meio de uma fala. A fila
+        # dentro de `Sintetizador.falar` (2026-08-05, mesma protecao contra
+        # o SIGSEGV de duas falas simultaneas) ja garante que isto nao pisa
+        # em outra fala em andamento.
+        asyncio.create_task(self._falar_resposta_chat(texto))
+
+    async def _falar_resposta_chat(self, texto: str) -> None:
+        try:
+            await self._nucleo.falar(texto)
+        except Exception:  # noqa: BLE001
+            # mesmo raciocinio da saudacao: audio de saida quebrado nao pode
+            # derrubar nada - o chat de texto ja respondeu na tela de qualquer
+            # jeito, falar em voz alta e um extra.
+            logger.warning("Falha ao falar a resposta do chat", exc_info=True)
 
     async def _construir(self) -> Any:
         # imports locais: puxam sounddevice, faster-whisper e piper, pesados
@@ -163,6 +194,7 @@ class ModuloVoz:
     async def encerrar(self) -> None:
         # contrato do EDR-0023: nunca levanta. Solta o microfone mesmo que
         # algo ja tenha quebrado antes.
+        self._event_bus.unsubscribe("mission.conversa_resposta", self._ao_receber_resposta_chat)
         if self._ouvidos is not None:
             try:
                 await self._ouvidos.encerrar()

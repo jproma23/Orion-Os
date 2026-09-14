@@ -2,11 +2,12 @@
 
 Reune o que estava espalhado dentro de tools/conversar_fofao.py: o AiManager
 (IA remota - a reserva local saiu em 2026-08-05), o MissionPlanner (Cap 7) e as
-duas pontes que atendem pedidos vindos do Pi - PonteDecisao (EDR-0022, a IA
-estrategica) e PonteConselho (o Mentor).
+tres pontes que atendem pedidos vindos do Pi - PonteDecisao (EDR-0022, a IA
+estrategica), PonteConselho (o Mentor) e PonteConversa (o chat de texto da
+webui).
 
 Depende do ComunicacaoService porque o planner precisa mandar comando ao
-Hardware Core e consultar a memoria, e porque as duas pontes atendem pedidos
+Hardware Core e consultar a memoria, e porque as pontes atendem pedidos
 que chegam pelo enlace com o Pi. Continua sem conhecer outros modulos: tudo
 que sai daqui sai pelo Event Bus (regra 1 do CLAUDE.md).
 """
@@ -44,6 +45,7 @@ class ModuloMissao:
         from orion.mission.decisao_estrategica import PonteDecisao
         from orion.mission.memory_client import MemoryClient
         from orion.mission.mission_planner import MissionPlanner
+        from orion.mission.ponte_conversa import PonteConversa
 
         if self._ia is None:
             self._ia = self._construir_ia()
@@ -58,6 +60,13 @@ class ModuloMissao:
         # enlace com o Pi; sem esta ponte registrada o pedido chega e ninguem
         # responde - o comportamento fica mudo sem dar erro.
         PonteDecisao(self._ia, self._comm).registrar(self._event_bus)
+
+        # O chat de texto da webui manda "mission.conversa" pelo mesmo
+        # enlace; sem isto registrado o pedido tambem cai no vazio (mesmo
+        # defeito recorrente do projeto: publish() sem assinante nao falha e
+        # nao aparece em log nenhum - achado ao vivo em 2026-09-13, a webui
+        # ficava "pensando" para sempre porque ninguem respondia).
+        PonteConversa(self._processar_chat, self._comm).registrar(self._event_bus)
 
         self._registrar_mentor()
         self._pronto = True
@@ -117,6 +126,20 @@ class ModuloMissao:
         if self._planner is None:
             raise RuntimeError("ModuloMissao.iniciar() ainda nao foi chamado")
         return await self._planner.processar(texto)
+
+    async def _processar_chat(self, texto: str) -> str:
+        """So para o PonteConversa (chat da webui).
+
+        `processar()` tambem e chamado pela voz (VoiceCore ja fala a
+        resposta sozinho por ali - ver voice_core.py); publicar aqui de novo
+        faria o robo falar duas vezes por comando de voz. O chat digitado
+        nunca passa por VoiceCore, entao publica "mission.conversa_resposta"
+        para quem quiser falar a resposta em voz alta tambem (ModuloVoz
+        assina, 2026-09-13: pedido do dono - "antes ele respondia por voz").
+        """
+        resposta = await self.processar(texto)
+        await self._event_bus.publish("mission.conversa_resposta", {"texto": resposta})
+        return resposta
 
     async def encerrar(self) -> None:
         self._pronto = False
