@@ -8374,3 +8374,308 @@ Mission Core rodando em background no Pi (`nohup python -m orion`, log em
 7. **face_recognition/dlib**: se o venv for recriado no futuro, lembrar do
    fix `setuptools<81` - sem ele `face_recognition_models` quebra na cara
    sem avisar por que.
+
+## Sessão de 2026-09-16 — o LiDAR nunca foi hardware: dois bugs mudos e o mapa que acordou sozinho
+
+Sessão que começou com "o Raspberry está conectado à internet" e terminou com
+o robô enxergando 360° pela primeira vez. O LiDAR **funciona dentro do robô**,
+e o que o impedia não tinha nada a ver com sensor, cabo ou alimentação.
+
+### Antes de tudo: não era o Pi, era o Windows
+
+O SSH não abria e o `fofao-pi` não resolvia. O Pi estava certo o tempo todo
+(Wi-Fi `ARAKATU-PATIO`, 10.0.80.178, mais ethernet em 192.168.1.199) — a
+máquina de trabalho é que estava noutra rede (`AP SOCIAL ALOJAMENTO`,
+192.168.200.x). Trocar o Windows para a mesma Wi-Fi resolveu na hora.
+
+Fica registrado: o Tailscale **não está instalado no Windows**, só no Pi. Com
+ele dos dois lados, o IP da rede local deixaria de importar. O `winget` não
+acha o pacote; teria que ser baixado do site.
+
+### O LiDAR STL-50B2 entrou no repo
+
+O parser escrito na bancada em 15/09 vivia solto em
+`C:\Users\jproma\Desktop\orion_lidar\` porque o Pi não bootava naquele dia.
+Agora é `motion_core/lidar/stl50b2.py`, terceiro driver de verdade do
+`gerenciador.py`, com 18 testes em `tests/unit/test_stl50b2.py`.
+
+Ele **não é o COIN-D6**, apesar dos dois usarem CH340 a 230400. São sensores
+diferentes e a confusão custou tempo nesta sessão:
+
+| | COIN-D6 | STL-50B2 |
+|---|---|---|
+| Quadro | 36 bytes | **85 bytes** |
+| Cabeçalho | `55 AA 83 08` | **`AA 55`** |
+| Pontos/quadro | 8 | **25** |
+| Comando de start | `AA 55 F0 0F` | **nenhum - gira sozinho** |
+| Família | Gouke | **3iRobotix Delta-2** |
+
+### Bug 1 — um `ValueError` morrendo numa task solta
+
+O gerenciador chamava:
+
+```python
+serial.Serial(caminho, baud, timeout=0.2, rtscts=False, dsrdtr=False,
+              dtr=False, rts=False)
+```
+
+No pyserial, `dtr` e `rts` são **propriedades, não parâmetros do construtor**.
+Isso levanta `ValueError: unexpected keyword arguments`. O `except` de
+`_tentar_abrir` só pegava `SerialException` e `OSError`, então o `ValueError`
+subia por `_rodar()` — uma task criada com `asyncio.create_task` que ninguém
+aguarda — e **morria sem uma linha de log**.
+
+Consequência: o LiDAR nunca abriu a porta, **em nenhum driver, desde agosto**.
+Isso reescreve a pendência de 12/09 que dizia "COIN-D6 não gira, motor sem
+alimentação pelo CH340": o Motion Core jamais chegou a abrir a porta dele.
+O diagnóstico de hardware foi feito em cima de um sintoma de software.
+
+Corrigido construindo a porta fechada e só então `open()` — que é o que de
+fato evita o pulso em DTR/RTS que se queria evitar (setar depois de abrir
+geraria justamente o pulso).
+
+O `_rodar()` ganhou um `except Exception` que **grita** no log e tenta de
+novo. É o único lugar do módulo onde catch-all se justifica: numa task solta,
+o silêncio é o pior resultado possível.
+
+### Bug 2 — publicar no vazio, a quarta vez
+
+Com a porta aberta, o LiDAR lia lindamente e **nada** chegava na navegação, na
+web ou no Nav2. O log entregou:
+
+```
+RuntimeWarning: coroutine 'EventBus.publish' was never awaited
+```
+
+`EventBus.publish` é corrotina. O gerenciador chamava sem `await` em **três**
+lugares. Sem `await`, cria-se o objeto coroutine e joga-se fora: `lidar.scan`,
+`lidar.status` e `lidar.error` nunca saíram, desde que o módulo nasceu. Todos
+os outros módulos do projeto usam `await` — só este esqueceu.
+
+Mesma família de `project_orion_publicar_no_vazio`. A diferença é que aqui nem
+assinante faltava: o evento não existia.
+
+### Por que os testes não pegaram — a parte que interessa
+
+Os dois bugs tinham teste "cobrindo" o caminho. Os fakes é que eram mais
+permissivos que as dependências reais:
+
+- `monkeypatch.setattr(serial, "Serial", lambda *a, **k: Fake())` aceita
+  qualquer argumento — inclusive os que o pyserial de verdade rejeita;
+- `EventBusFake.publish` era **síncrono**, então `publish` sem `await`
+  passava verde.
+
+**Um fake mais permissivo que a dependência real deixa o teste verde enquanto
+a produção está morta.** Os testes de regressão novos usam a classe REAL do
+pyserial (só com `open()` neutralizado, sem tocar hardware) e um `publish`
+**async**. Se alguém tirar o `await` ou voltar os kwargs, eles falham.
+
+### A regra udev também estava corrompida
+
+`/etc/udev/rules.d/99-orion-lidar.rules` tinha as aspas viradas em barras
+invertidas (escaping quebrado de quem a escreveu) — sintaxe inválida, **nunca
+criou symlink nenhum**, enquanto `config/orion.yaml` apontava para
+`/dev/lidar_d6`. Reescrita com heredoc; agora cria `/dev/lidar`.
+
+Aviso que ficou no arquivo: o CH340 (1a86:7523) é genérico e os **ouvidos
+ESP32 usam o mesmo VID/PID**. Com os dois plugados, o symlink aponta para
+qualquer um, e o sintoma seria o gerenciador abrindo a porta "com sucesso" e
+lendo lixo para sempre. Se acontecer, amarrar pela porta física do hub.
+
+### Medido no robô, não suposto
+
+Com o serviço rodando e o sensor na bancada:
+
+```
+pontos: 257   ~9,5 voltas/s (369 quadros em 3 s)
+  0- 30   116.3 cm      180-210   554.5 cm
+ 30- 60   116.7 cm      210-240   647.4 cm
+ 60- 90   171.1 cm      240-270   307.9 cm
+ 90-120   272.7 cm      270-300   400.3 cm
+120-150   273.9 cm      300-330   392.9 cm
+150-180   310.3 cm      330-360   763.9 cm
+```
+
+A prova de que a decodificação está certa não é o desenho bonito: é a
+**repetibilidade**. Dois caminhos de código independentes (script direto e
+gerenciador) leram os mesmos setores dentro de poucos milímetros
+(381,1 vs 381,5 · 105,8 vs 105,8 · 240,7 vs 240,7). Decodificação errada daria
+ruído diferente a cada volta.
+
+O dono mudou o cenário no meio do teste (de "encostado no armário" para "40 cm
+da parede, resto bem maior") e as medidas acompanharam — que é o teste mais
+barato de que o sensor mede o mundo, e não repete lixo.
+
+### O mapa 2D já existia e acordou sozinho
+
+`motion_core/webui/static/mapa.js` está escrito desde 16/08: círculo 360°,
+rosa dos ventos girando com a bússola, consumindo `lidar.scan` por SSE. Nunca
+tinha recebido um ponto — por causa do bug 2. Assim que os eventos passaram a
+sair, o mapa começou a desenhar sem uma linha de código nova.
+
+### Achados menores, todos com número
+
+- **Log que mentia o modelo**: `__main__.py` imprimia `"LiDAR LD06 ativo"`
+  fixo, com qualquer driver. E `_nome_driver` era um `if/else` sobre dois
+  drivers, que reportaria errado para o terceiro. Os dois corrigidos — log de
+  sensor mentindo o modelo manda quem procura defeito para o lado errado.
+- **`rpm` sai 0.0 de propósito**: o campo `+8..9` do quadro salta demais
+  (22, 509, 1511, 2226, 2438, 2565) para ser velocidade de motor — é quase
+  certamente checksum. Preencher seria inventar número num campo que a
+  navegação lê como medido. Sinal de LiDAR vivo neste modelo é quadro válido
+  chegando, não rpm. `rpm_maximo` na config **não é lido por ninguém**.
+- **30% dos quadros são rejeitados** (156 em 525): é o parser barrando `AA 55`
+  que cai por acaso dentro dos dados — este protocolo não tem checksum para
+  conferir. Funciona, mas o `_consumir_buffer` descarta **85 bytes** num
+  cabeçalho falso em vez de andar 1 byte, e pode estar comendo quadro real.
+  Não medido ainda.
+- **Cobertura incompleta = robô cego, agora com aviso**: `_montar_scan` só
+  publica com os 12 setores cheios. Um setor sem eco (espaço aberto, vidro,
+  ângulo rasante) e não sai nada. Era mudo; agora avisa no log, na borda.
+  Mudar a política envolve a navegação tratar "não sei" como vazio — decisão
+  do dono, não mexida sozinha.
+- **`tools/medir_lidar.py`**: ferramenta nova que mostra o que o robô enxerga
+  AGORA, lendo o estado publicado (não disputa a serial com o serviço).
+
+### Estado ao fechar
+
+- Suíte do Pi: **1185 passando**, zero falhas.
+- `orion-motion.service` no ar com o LiDAR conectado e publicando.
+- Nav2 rodando (`bridge_scan_odom`, `bridge_cmd_vel`, `bridge_goal`) — agora
+  com `lidar.scan` real para consumir pela primeira vez.
+- Hardware Core **desconectado** (procura um CP2102 que não está plugado): o
+  corpo do robô não foi ligado nesta sessão, de propósito.
+
+### Pendências
+
+1. **Mic da tela ES3C35P** continua hardware morto — falta multímetro no pino
+   do MEMS. Nesta sessão apareceu uma discrepância que vale checar antes:
+   o firmware tem `AUDIO_I2S_DO 16 / DI 15` e o mapa de pinos do fabricante
+   diz **DOUT=15, DIN=16**. Se o mapa estiver certo, o DIN está no pino
+   errado e explicaria o zero absoluto com todos os registradores corretos.
+   Não foi verificado contra a planilha original (`ESP32-S3_IO资源分配表.xlsx`
+   dentro do RAR do fabricante) — o dono pediu foco no LiDAR.
+2. **Quadros descartados de 85 em 85** no `_consumir_buffer` (acima).
+3. **Colisão de CH340** entre LiDAR e ouvidos ESP32 no mesmo symlink.
+4. **Tracebacks de `memory/experiencias.py`** em laço no log
+   (`_validar_colunas` recusando coluna) — não investigado.
+5. **88 arquivos não commitados** no Pi — decisão de 12/09 mantida: entram
+   numa substituição geral, não resolver isoladamente. O trabalho do LiDAR
+   de hoje entrou por cima desse débito.
+
+### Adendo da mesma sessão — até onde o LiDAR chega hoje, elo a elo
+
+Depois de fechar o LiDAR, o dono colocou a pergunta certa: *"o importante é o
+robô se guiar com os dados reais do LiDAR, e não o que chega na webui"*.
+Rastreado até o fim, com número em cada elo.
+
+**Correção de uma suposição minha**: a webui NÃO é a ponta decorativa desta
+cadeia. O `bridge_scan_odom.py` lê `http://127.0.0.1:8080/estado` e tira
+`estado.lidar.setores` para montar o `LaserScan`. Provar o `/estado` foi
+provar o canal por onde o Nav2 recebe o LiDAR.
+
+**Outra correção**: `/opt/ros/humble` e `/opt/orion_nav2` não existem no host,
+e cheguei a concluir que o ROS 2 tinha sumido. Errado - **o ROS 2 e o Nav2
+rodam num container Docker** (`orion-nav2` / `nav2-nav2-1`, no ar há 2 dias).
+Os caminhos existem dentro do container e os processos aparecem no `ps` do
+host. Para inspecionar: `docker exec nav2-nav2-1 bash -lc "source
+/opt/ros/humble/setup.bash && ros2 ..."`.
+
+#### O que está provado
+
+`/scan` publica a **10,00 Hz** (desvio padrão 0,001 s) com **12 raios** - os
+12 setores reais, não o fallback de raio único do bridge. Os valores batem um
+a um com o `/estado` medido minutos antes:
+
+| setor | /estado | /scan (ROS2) |
+|---|---|---|
+| 330-360 | 763,9 cm | 7,639 m |
+| 210-240 | 647,4 cm | 6,470 m |
+| 180-210 | 554,5 cm | 5,541 m |
+| 90-120 (frente) | 272,7 cm | 2,727 m |
+| 0-30 | 116,3 cm | 1,163 m |
+
+Cadeia completa e medida: LiDAR → serial 230400 → parser `stl50b2` →
+gerenciador → EventBus → `/estado` → bridge → `/scan` → Nav2.
+
+#### Onde para, e por quê
+
+O Nav2 **descarta 100% do `/scan`**:
+
+```
+local_costmap: Timed out waiting for transform from base_link to odom
+slam_toolbox:  Message Filter dropping message: frame 'base_link'
+```
+
+Falta a TF `odom → base_link`. O bridge até tem `TransformBroadcaster`, mas
+`_montar_odom()` devolve `None` logo na primeira linha:
+
+```python
+pos = estado.get("posicao")
+if not pos:
+    return None
+```
+
+E `estado["posicao"]` está **null** porque o **hardware_core (ESP32) não está
+conectado** - todo o bloco `hardware` veio null. Sem corpo, sem pose; sem
+pose, sem TF; sem TF, o Nav2 não coloca o scan no mapa. Não é regressão: o
+corpo não foi ligado nesta sessão, de propósito.
+
+**Sequência real para o Nav2 andar** (nesta ordem, e nenhuma etapa pula a
+anterior):
+
+1. Religar o ESP32 → `estado.posicao` deixa de ser null → `/odom` e TF saem →
+   o Nav2 passa a usar o `/scan` que já está pronto.
+2. Mas a pose de hoje vem de **passos comandados**, não de encoder (ver
+   `project_orion_odometria_mentirosa`: afirmou 85 cm e 80° com os motores
+   desconectados). Ou seja, o passo 1 destrava o Nav2 com uma odometria que
+   mente - o robô planejaria sobre uma posição inventada.
+3. O encoder é o que faz a odometria parar de mentir. O **PPR do JGB37-520
+   continua não confirmado** - já era pendência de 12/09 e agora é ele que
+   segura o Nav2 de verdade.
+
+Resumo honesto: **o LiDAR está pronto e o Nav2 está esperando odometria**, não
+o contrário.
+
+#### Container: decisão adiada, com critério
+
+O dono levantou migrar o projeto inteiro para Docker. Não feito, e a razão
+ficou registrada para não ser rediscutida do zero: o Nav2 é o caso ideal de
+container (dependências pesadas, zero hardware direto - e de fato é o que
+funciona melhor hoje). O `motion_core` é o oposto: é dono da serial
+(`/dev/lidar`), da câmera e do áudio. Containerizar trocaria um problema
+resolvido por `--device`, udev dentro e fora, e permissões. O ganho clássico -
+deploy reproduzível entre máquinas - perdeu o sentido quando o Notebook foi
+aposentado e só sobrou o Pi. Revisitar se voltar a existir mais de uma máquina.
+
+#### Próxima sessão: tela (mic + alto-falante)
+
+Pedido explícito do dono ao encerrar. Ponto de partida, **antes** de pegar o
+multímetro:
+
+O firmware (`~/orion_face/src/audio.cpp`, linhas 28-29) declara:
+
+```c
+#define AUDIO_I2S_DO    16   // ESP -> codec (playback)
+#define AUDIO_I2S_DI    15   // codec -> ESP (mic)
+```
+
+O mapa de pinos do fabricante diz o **contrário**: DOUT=15, DIN=16. Se o mapa
+estiver certo, o DIN está no pino errado e o ESP nunca receberia o áudio do
+mic - o que explicaria **zero sinal com todos os registradores do ES8311
+provadamente corretos** (a conclusão de 12/09 que mandou o caso para "hardware
+morto"). Todo o resto do pinout do firmware confere com o mapa (SDA 38,
+SCL 39, WS 21, MCLK 17, BCLK 18, AUDIO_EN 1 ativo baixo).
+
+Desempate: a planilha oficial `ESP32-S3_IO资源分配表.xlsx`, dentro do RAR do
+fabricante em `~/Downloads/3.5inch ESP32-S3 Display等1个文件.rar` (o 7-Zip
+está instalado no Windows). O arquivo `~/Downloads/pinout_esp32s3_3.5inch.md`
+**não serve como fonte** - foi escrito em 16/09 a partir da mesma alegação.
+
+Trocar dois `#define` e regravar custa minutos; multímetro em MEMS custa uma
+tarde. Checar a planilha primeiro.
+
+O **alto-falante** não foi testado nesta sessão. O firmware tem um tom de
+teste de 440 Hz pronto (`audio.cpp` ~linha 207-221, com comentário "remover
+depois") - é o caminho mais curto para separar "playback funciona" de "mic
+morto", e vale rodar antes de qualquer conserto.

@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from motion_core.behavior import contrato
-from motion_core.behavior.behavior_core import MODO_MANUAL, BehaviorCore
+from motion_core.behavior.behavior_core import MODO_AUTONOMO, MODO_MANUAL, BehaviorCore
 from motion_core.behavior.comportamentos import (
     AcompanharPessoa,
     Atender,
@@ -41,15 +41,20 @@ from motion_core.behavior.instintos import InstintoBussola
 from motion_core.behavior.memoria_decisoes import MemoriaDeDecisoes
 from motion_core.behavior.ponte_conselho import PonteConselhoIA
 from motion_core.desligamento import Desligador
+from motion_core.lidar.gerenciador import LidarManager
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
 from motion_core.memory.experiencias import RegistradorExperiencias
 from motion_core.memory.manutencao import TarefaManutencao
-from motion_core.memory.replica import replicar_backup
+from motion_core.memory.replica_pendente import (
+    FilaReplicaPendente,
+    ReplicadorAutoRegenerativo,
+)
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
+from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
 from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
 from orion.communication.discovery import ErroVersaoIncompativel, descobrir
@@ -248,9 +253,13 @@ def _iniciar_manutencao(
     logger: logging.Logger,
 ) -> TarefaManutencao:
     """Agenda o backup diario (Cap 15 s.5) e, se configurado, replica o
-    backup para o Notebook (Cap 15 s.6) assim que ele terminar. A replica
-    tolera o Notebook estar desconectado no momento - tenta de novo no
-    proximo backup (Cap 6 s.8)."""
+    backup para o Notebook (Cap 15 s.6) assim que ele terminar.
+
+    Auto-regeneracao (2026-08-16): se o Notebook (Mission Core) estiver
+    dormindo na hora do backup, a replica NAO se perde - o caminho entra
+    numa fila persistente e e reenviado sozinho assim que o Notebook
+    voltar (evento `comm.module_recovered` do heartbeat). Nada do robô
+    depende de o Notebook estar acordado na hora certa."""
     conf_retencao = conf_db["retention"]
     tarefa = TarefaManutencao(
         db,
@@ -265,20 +274,16 @@ def _iniciar_manutencao(
     )
 
     if conf_db.get("replica_to_notebook"):
-
-        async def _ao_backup_completar(evento: Evento) -> None:
-            caminho = Path(evento.dados["arquivo"])
-            try:
-                await replicar_backup(caminho, comm, destino="mission_core")
-                logger.info("Backup replicado para o Notebook: %s", caminho.name)
-            except ErroComunicacao as erro:
-                logger.warning(
-                    "Notebook indisponivel para replica do backup (%s) - tenta de novo "
-                    "no proximo backup diario",
-                    erro,
-                )
-
-        event_bus.subscribe("database.backup_completed", _ao_backup_completar)
+        # Fila persistente: sobrevive a reinicios do Motion Core.
+        fila = FilaReplicaPendente(Path(conf_db["backup_dir"]) / "replica_pendente.json")
+        fila.carregar()
+        replicador = ReplicadorAutoRegenerativo(event_bus, comm, fila)
+        replicador.registrar()
+        if fila.pendentes():
+            logger.info(
+                "Auto-regeneracao: %d replica(s) pendente(s) da ultima vez",
+                len(fila.pendentes()),
+            )
 
     return tarefa
 
@@ -371,6 +376,34 @@ async def principal() -> None:
     config_navigation = config.secao("navigation")
     navigation = NavigationCore(event_bus, comm, config_motion, config_navigation)
     FusaoSensores(event_bus, config_motion)
+    # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
+    # COMO chegar (mapa, costmap, replanejamento); o Motion Core decide ONDE.
+    # Tolera ausencia do container (falha vira navigation.goal_resultado).
+    Nav2Goal(event_bus)
+
+    # 3c. LiDAR LD06 (Motion Core, USB serial) - publica setores no barramento
+    # para a navegacao e a web (decisao do dono 2026-08-17). Tolera ausencia
+    # total (Cap 6 s.8): sem LiDAR o robo segue com o ultrassom frontal.
+    try:
+        conf_lidar = config.secao("lidar")
+    except Exception:
+        conf_lidar = {}
+    lidar_manager = None
+    if conf_lidar and conf_lidar.get("habilitado", True):
+        lidar_manager = LidarManager(event_bus, conf_lidar)
+        await lidar_manager.iniciar()
+        # O nome do driver vem da CONFIG, nao fixo no texto: ate 16/09 esta
+        # linha dizia "LiDAR LD06 ativo" com qualquer driver selecionado, e
+        # log que mente o modelo manda quem procura defeito para o lado
+        # errado. "ativo" aqui significa so "a task subiu" - quem confirma a
+        # serial de verdade e o "LiDAR <driver> conectado em ..." do
+        # gerenciador.
+        logger.info(
+            "LiDAR %s ativo (port=%s, setores=%d)",
+            conf_lidar.get("driver", "ld06"),
+            conf_lidar.get("port", "auto"),
+            conf_lidar.get("setores", 12),
+        )
 
     # 3b. Vision Engine do Pi (câmera dedicada: pessoas + animais, YOLO).
     #
@@ -494,7 +527,6 @@ async def principal() -> None:
                 # `distancia_tras_cm`, nome que o RetratoDoMundo nunca teve, e
                 # "espaco atras de mim" saia como "nao sei" SEMPRE.
                 "obstaculo_tras_cm": r.obstaculo_tras_cm,
-                "inclinacao_graus": r.inclinacao_graus,
                 "bateria_nivel": r.bateria_nivel,
                 "estado_hardware": r.estado_hardware,
                 "telemetria_viva": r.telemetria_viva,
@@ -526,8 +558,8 @@ async def principal() -> None:
         # o motivo e redacao dela, nao evidencia: ele diz o que ela acredita,
         # nao o que lhe foi dito.
         #
-        # Sem esta linha, perguntas como "sera que a inclinacao esta alta e ela
-        # esta com medo de andar?" nao tem resposta possivel - viram opiniao.
+        # Sem esta linha, perguntas como "sera que ele viu obstaculo e ficou
+        # com medo de andar?" nao tem resposta possivel - viram opiniao.
         # As quebras viram " | " para caber num registro so e dar para
         # acompanhar com `grep`.
         #
@@ -1000,6 +1032,8 @@ async def principal() -> None:
     if tarefa_manutencao is not None:
         tarefa_manutencao.parar()
         tarefa_manutencao_task.cancel()
+    if lidar_manager is not None:
+        await lidar_manager.parar()
     await webui.encerrar()
     await comm.encerrar()
     servidor_tcp.close()

@@ -40,7 +40,7 @@ communication:
     # aponta para a PLACA e nao para a ordem de enumeracao: com dois
     # conversores ligados ao mesmo tempo, so o certo casa. Mesma licao que a
     # camera ja tinha aprendido (ver camera_url mais abaixo).
-    # Se a porta nao existir, _conectar_arduino apenas devolve False e loga -
+    # Se a porta nao existir, _conectar_hardware_core apenas devolve False e loga -
     # nao levanta excecao (Cap 6 s.8), entao o robo sobe sem corpo em vez de
     # nao subir.
     # Voltar para "auto" so faz sentido quando houver UMA unica serial no Pi.
@@ -117,32 +117,14 @@ motion:
   # TEM que bater com PASSOS_POR_METRO em firmware/.../motor_manager.h.
   steps_per_meter: 2546          # base; ajustado pela autocalibracao
 
-  # Quantos PULSOS de encoder valem um metro percorrido pela roda.
-  #
-  # null = AINDA NAO MEDIDO, e esse e o valor honesto ate alguem empurrar o
-  # robo um metro com fita metrica e ler o contador. Nao da para deduzir de
-  # catalogo: depende do diametro real da roda com o peso do robo em cima, e
-  # a conta teorica erra justo no que a odometria mais sente.
-  #
-  # Enquanto for null a pose continua vindo dos passos comandados (marcada
-  # como NAO MEDIDA), mas os pulsos ja servem para desmentir: passo subindo
-  # com pulso parado = roda travada, e a pose deixa de avancar.
-  #
-  # Montagem: sensor indutivo NPN + 6 chapas por roda, uma delas MAIOR
-  # (marca de volta). Ordem de grandeza esperada com roda de ~6,5 cm:
-  # ~29 pulsos/m, ou seja 3,4 cm por pulso.
-  #
-  # COMO MEDIR: marque o chao, empurre o robo 1 metro em linha reta com os
-  # motores desligados e leia `pulsos_esquerdo`/`pulsos_direito` na
-  # telemetria antes e depois. A diferenca E o numero. Empurrar a mao e
-  # melhor que andar com motor: absorve o escorregamento real da roda.
-  encoder_pulses_per_meter: null
+  # ENCODER FISICO CANCELADO (decisao do dono 2026-08-17). A odometria e
+  # feita por passos comandados + bussola (fusao_sensores.py); nao ha mais
+  # sensor de roda. GPIO 15/16 que seriam do encoder estao livres em pins.h.
   odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
   autocalibrate_on_first_boot: true
   min_front_distance_cm: 25      # parada reativa (Camada 1)
   min_rear_distance_cm: 20
   mission_timeout_s: 30
-  tilt_limit_degrees: 20         # inclinação máxima antes de SAFE_MODE
   wheel_base_m: 0.30             # distância entre as rodas (bitola), usada na
   # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
   # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
@@ -157,6 +139,53 @@ navigation:
   obstacle_recorrente_limite: 2
   reduced_speed_near_person_percent: 30
 
+  # LiDAR LD06 (Motion Core, USB serial) na checagem tatica de obstaculo.
+  # `lidar_frontal_angulos_graus` e a janela em torno da FRENTE do robo
+  # (convencao do mapa da web: 0° = esquerda, 90° = frente, 180° = direita):
+  # [-60, 60] cobre os 120° a frente. `lidar_min_obstaculo_cm` e a menor
+  # distancia em algum setor frontal que bloqueia o avanco.
+  lidar_frontal_angulos_graus: [-60, 60]
+  lidar_min_obstaculo_cm: 25
+
+# LiDAR STL-50B2 (familia 3iRobotix Delta-2) - o unico dos tres que foi
+# TESTADO COM O HARDWARE NA MAO (bancada 2026-09-15: varredura 360° coerente,
+# duas voltas seguidas batendo dentro de poucos milimetros em 36 setores).
+# Leitor dToF de 360° ligado no Raspberry via USB CH340, baud fixo 230400.
+#
+# NAO tem comando de start: ao energizar, o motor gira e os dados fluem
+# sozinhos (o anuncio dizia o contrario; foi medido). Quadro de 85 bytes com
+# cabecalho AA 55 - nada a ver com o LD06 (54 2C) nem com o COIN-D6
+# (55 AA 83 08, esse sim precisa de start).
+#
+# Historico: o COIN-D6 (decisao de 2026-08-20) substituiria o LD06, que veio
+# com defeito, mas o motor dele nunca girou com a corrente do CH340. Os dois
+# parsers continuam no repo e valem pela config `driver` abaixo.
+#
+# O Motion Core le a serial e publica `lidar.scan` com setores para a
+# navegacao, a web e o bridge ROS2 (Nav2). O ESP32 nao le o LiDAR.
+lidar:
+  habilitado: true
+  driver: "stl50b2"            # ld06 | coin_d6 | stl50b2
+  # "auto" procura /dev/ttyUSB* e /dev/ttyACM*. O alias /dev/lidar vem da
+  # regra udev 99-orion-lidar.rules (reescrita em 16/09 - a anterior estava
+  # com a sintaxe corrompida e nunca criou symlink nenhum).
+  # CUIDADO: o CH340 e generico e os ouvidos ESP32 usam o mesmo VID/PID. Com
+  # os dois plugados, /dev/lidar pode apontar para o ESP32 errado; nesse caso
+  # fixe aqui a porta real (ex.: /dev/ttyUSB1) ou amarre a regra udev a porta
+  # fisica do hub.
+  port: "/dev/lidar"
+  baud_rate: 230400           # MEDIDO: em 115200 nao sai um byte sequer
+  setores: 12                 # numero de leques de 360/setores graus
+  min_distancia_mm: 50        # abaixo disso e poeira/no proprio robo
+  max_distancia_mm: 12000     # limite do sensor (12 m)
+  # Intensidade do retorno. O COIN-D6 usa 0..63; o STL-50B2 usa 0..255. Com 0
+  # aceita tudo nos dois - nao subir sem medir, a escala e diferente.
+  confianca_minima: 0
+  # DECORATIVO com o driver stl50b2: nenhum codigo le este campo hoje, e o
+  # `rpm` publicado em lidar.scan sai 0.0 porque o campo de velocidade do
+  # quadro (bytes +8..9) nunca foi decifrado. Sinal de LiDAR vivo neste
+  # modelo e a chegada de quadros validos, nao o rpm.
+  rpm_maximo: 20
 vision:
   resolution: [640, 480]
   # Quadros por segundo PEDIDOS ao laco de visao - vira o orcamento de tempo
@@ -346,7 +375,7 @@ voice:
   # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
-  saida_audio_indice: 4
+  saida_audio_indice: 0  # Pi: bcm2835 Headphones (hw:2,0) - antes era 4 (HDMI do notebook)
   # indices de entrada (sounddevice) reconferidos em 2026-07-24: 2a webcam
   # (USB Composite Device) desconectada fisicamente hoje, sobrou PC Camera
   # (indice 3) e USB Audio Device (indice 4) - indices de audio mudam
