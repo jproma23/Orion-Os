@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import io
 import wave
+from typing import Awaitable, Callable
 
 import numpy as np
 import sounddevice as sd
@@ -52,6 +53,7 @@ class Sintetizador:
         noise_scale: float = VOZ_NOISE_SCALE,
         noise_w_scale: float = VOZ_NOISE_W_SCALE,
         aplicar_timbre: bool = True,
+        tocar_na_tela: Callable[[np.ndarray, int], Awaitable[None]] | None = None,
     ) -> None:
         #: UMA FALA DE CADA VEZ - e isto e o que impede o robo de MORRER.
         #:
@@ -89,6 +91,11 @@ class Sintetizador:
         self._voz = PiperVoice.load(caminho_modelo)
         self._indice_dispositivo_saida = indice_dispositivo_saida
         self._aplicar_timbre = aplicar_timbre
+        #: Quando presente, a fala sai pelo alto-falante da CABECA (a tela
+        #: ESP32-S3) em vez do dispositivo de audio do Pi - e nao pelos dois,
+        #: senao o robo fala em duplicado, com eco de meio segundo entre as
+        #: duas saidas. Ver orion.display.ponte_serial (2026-09-16).
+        self._tocar_na_tela = tocar_na_tela
         # Import tardio e tolerante: versoes antigas do piper nao tem
         # SynthesisConfig. Sem ele a voz sai no padrao, que e o que acontecia
         # ate hoje - nunca deixa de falar por causa de um ajuste de timbre.
@@ -103,26 +110,31 @@ class Sintetizador:
         except Exception:
             self._config = None
 
+    def _sintetizar(self, texto: str) -> tuple[np.ndarray, int]:
+        """Texto -> PCM 16-bit na taxa nativa do Piper, ja com o timbre."""
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_out:
+            if self._config is not None:
+                self._voz.synthesize_wav(texto, wav_out, syn_config=self._config)
+            else:
+                self._voz.synthesize_wav(texto, wav_out)
+        buffer.seek(0)
+        with wave.open(buffer, "rb") as wav_in:
+            dados = wav_in.readframes(wav_in.getnframes())
+            taxa = wav_in.getframerate()
+        audio = np.frombuffer(dados, dtype=np.int16)
+
+        # O TIMBRE ANTES DA REAMOSTRAGEM, de proposito: a equalizacao e
+        # feita em cima da taxa NATIVA do Piper, onde o espectro esta
+        # intacto. Reamostrar primeiro e equalizar depois trabalharia sobre
+        # um sinal que ja passou por interpolacao.
+        if self._aplicar_timbre:
+            audio = _timbre.aquecer(audio, taxa)
+        return audio, taxa
+
     async def falar(self, texto: str) -> None:
         def _sintetizar_e_reproduzir() -> None:
-            buffer = io.BytesIO()
-            with wave.open(buffer, "wb") as wav_out:
-                if self._config is not None:
-                    self._voz.synthesize_wav(texto, wav_out, syn_config=self._config)
-                else:
-                    self._voz.synthesize_wav(texto, wav_out)
-            buffer.seek(0)
-            with wave.open(buffer, "rb") as wav_in:
-                dados = wav_in.readframes(wav_in.getnframes())
-                taxa = wav_in.getframerate()
-            audio = np.frombuffer(dados, dtype=np.int16)
-
-            # O TIMBRE ANTES DA REAMOSTRAGEM, de proposito: a equalizacao e
-            # feita em cima da taxa NATIVA do Piper, onde o espectro esta
-            # intacto. Reamostrar primeiro e equalizar depois trabalharia sobre
-            # um sinal que ja passou por interpolacao.
-            if self._aplicar_timbre:
-                audio = _timbre.aquecer(audio, taxa)
+            audio, taxa = self._sintetizar(texto)
 
             # o dispositivo de saida pode nao suportar a taxa nativa do
             # Piper (ex.: USB Audio Device so aceita 44100Hz) - reamostra
@@ -141,4 +153,21 @@ class Sintetizador:
         # `synthesize_wav` deixaria dois `sd.play()` se cruzarem, que e a
         # metade do problema que mata o processo. Ver `_trava_fala`.
         async with self._trava_fala:
+            if self._tocar_na_tela is not None:
+                await self._falar_na_tela(texto)
+                return
             await asyncio.to_thread(_sintetizar_e_reproduzir)
+
+    async def _falar_na_tela(self, texto: str) -> None:
+        """Manda a fala para o alto-falante da cabeca (tela ESP32-S3).
+
+        Roda DENTRO da `_trava_fala` (chamada por `falar`), entao duas falas
+        continuam nao se cruzando - pelo mesmo motivo de sempre, so que aqui o
+        recurso disputado e a porta serial, nao o stream do sounddevice.
+        """
+        audio, taxa = await asyncio.to_thread(self._sintetizar, texto)
+        # Entrega na taxa NATIVA do Piper: quem converte para a taxa que a tela
+        # toca e a ponte serial, que e quem conhece o firmware. A taxa mora num
+        # lugar so - duas copias do mesmo numero em modulos diferentes e o tipo
+        # de coisa que diverge no dia em que uma delas muda.
+        await self._tocar_na_tela(audio, taxa)

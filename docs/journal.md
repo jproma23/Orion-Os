@@ -8679,3 +8679,133 @@ O **alto-falante** não foi testado nesta sessão. O firmware tem um tom de
 teste de 440 Hz pronto (`audio.cpp` ~linha 207-221, com comentário "remover
 depois") - é o caminho mais curto para separar "playback funciona" de "mic
 morto", e vale rodar antes de qualquer conserto.
+
+## Sessão de 2026-09-16 (noite) — a tela fala, e o microfone "morto" nunca esteve morto
+
+Pedido do dono ao abrir: *"vamos agora partir para tela"*, depois
+*"implementar áudio fala tudo na tela de acordo com o mapa"*.
+
+### O achado: dois `#define` trocados explicavam tudo
+
+O `orion_face/src/audio.cpp` declarava:
+
+```c
+#define AUDIO_I2S_DO 16   // ESP -> codec
+#define AUDIO_I2S_DI 15   // codec -> ESP
+```
+
+Está invertido. O certo é **DO=15, DI=16**.
+
+A suspeita já estava anotada no fim da sessão anterior, e o desempate foi
+como estava previsto: a planilha oficial (`ESP32-S3_IO资源分配表.xlsx`, dentro
+do RAR do fabricante) **não resolve sozinha** — ela descreve os dois pinos
+como "pino de entrada / pino de saída de dados de áudio" do ponto de vista do
+periférico, não do ESP32, e lida ao pé da letra confirma o firmware errado.
+
+Quem resolveu foi o **código do próprio fabricante**, no mesmo pacote:
+`1-示例程序_Demo/Arduino/Demo/Example_16_music` e `Example_17_echo`, arquivo
+`ESP_Panel_Board_Custom.h` → `I2S_DOUT=15`, `I2S_DINT=16`. E o `echo.ino`
+monta o **mesmo** `i2s_std_config_t` que o nosso, com
+`.dout = GPIO_NUM_15, .din = GPIO_NUM_16`. Não sobra ambiguidade.
+
+**As duas consequências do erro, que pareciam dois defeitos de hardware
+diferentes:**
+
+1. O playback escrevia no pino que é *entrada* do ESP → o alto-falante nunca
+   recebeu nada. Nem o tom de teste de 440 Hz, que por isso "nunca foi
+   testado" — ele tocava num pino que não vai ao codec.
+2. A captura lia no pino que é *saída* do ESP → zero sinal, com todos os
+   registradores do ES8311 provadamente corretos. Foi exatamente essa
+   combinação que levou à conclusão de 12/09 de **"MEMS morto, próximo passo é
+   multímetro"**. Errada. Nenhum ferro de solda era necessário.
+
+Trocar os dois números, recompilar e gravar levou minutos. O dono confirmou o
+tom no alto-falante na primeira tentativa: *"escutando ok"*.
+
+### O microfone, medido
+
+Com o `din` no pino certo, `~/orion_face/ouvir_mic.py` (novo, lê os quadros e
+mede o pico):
+
+| condição | pico (de 32768) |
+|---|---|
+| silêncio | 50 |
+| tom de 440 Hz tocando (o mic ouvindo o próprio alto-falante) | 177 |
+| dono falando baixo e afastado, ganho 18 dB | 423 |
+| mesma fala, ganho 30 dB | 967 |
+
+Ganho fixado em `ES8311_MIC_GAIN_42DB` — pedido explícito do dono: *"quero que
+capte o som mesmo de longe"*. O tom de teste foi desligado (fica compilado,
+comentado): ligado, ele abafa qualquer medição do mic.
+
+**Fica aberto:** este mic agora é um caminho de áudio viável, e ninguém
+decidiu ainda se ele substitui ou complementa os ouvidos ESP32 separados
+(TCP 9100), que continuam sendo quem escuta hoje.
+
+### A fala saindo pela cabeça
+
+Caminho completo: Piper (no Pi) → PCM 16-bit **mono 16 kHz** → quadros
+binários pela USB → firmware → ES8311 → FM8002E → alto-falante.
+
+O enquadramento é o **mesmo nos dois sentidos** do cabo, e é o que já existia
+do mic para o Pi:
+
+```
+0xFE  <tam_hi> <tam_lo>  <payload PCM>      (0xFD = escape, byte seguinte XOR 0x20)
+```
+
+O `0xFE` nunca aparece em JSON válido (ASCII), e por isso serve de divisor
+entre "linha de texto" e "quadro de áudio" na mesma porta que também carrega o
+log do `ESP_LOG`.
+
+**Três armadilhas, todas já tratadas no código:**
+
+1. **Ritmo de envio.** Quem manda tem que mandar no ritmo em que o alto-falante
+   consome. Sem isso a fila de 16 KB do firmware enche, o excedente é
+   descartado (com `ESP_LOGW`, não em silêncio) e a frase sai cortada no meio.
+2. **Byte ímpar.** O StreamBuffer entrega *bytes*, não amostras. Um byte solto
+   no fim de um bloco precisa esperar o próximo — senão todo o resto da fala
+   sai deslocado em 1 byte, o que vira ruído branco, não voz baixa.
+3. **O EventBus é serializado** (a mesma armadilha de 13/09). O assinante de
+   `voice.audio_pcm` solta o envio em `asyncio.create_task` e volta na hora;
+   com `await` direto, o rosto pararia de receber pan/tilt durante a fala
+   inteira. Tem teste cobrindo exatamente isso.
+
+**Uma dona só para a porta.** A `PonteSerial` (do `ModuloDisplay`) continua
+sendo a única que abre `/dev/ttyACM0`; o `Sintetizador` não conhece serial
+nenhuma — recebe um callback opcional e publica o PCM no barramento. Era o
+jeito de não repetir o padrão de dois donos do mesmo recurso que já mordeu no
+pan/tilt.
+
+**Uma saída OU a outra**, nunca as duas: `voice.falar_pela_tela: true` no
+`orion.yaml` desliga o `sd.play()`. Com as duas ligadas o robô fala em
+duplicado, com eco entre elas. `false` volta tudo para o dispositivo do Pi.
+
+### O que foi medido de verdade
+
+- Tom de 440 Hz no alto-falante da tela — confirmado pelo dono de ouvido.
+- `falar_na_tela.py "Boa noite, João Paulo"` → 44952 bytes, 1,40 s de fala.
+  Confirmado pelo dono: *"falou"*.
+- Caminho de **produção** (mesmas classes `EventBus` + `PonteSerial` +
+  `Sintetizador`, mesma config, só sem o BootManager):
+  *"Boa noite, João Paulo. Agora eu falo pela minha própria cabeça."* —
+  confirmado pelo dono.
+- Suíte no Pi: **1178 passam, 0 falham**. Dois testes de `test_voice_sintese.py`
+  quebraram no caminho e foram corrigidos: o helper monta o `Sintetizador` com
+  `__new__` e setava só `_trava_fala`, então todo atributo novo do `__init__`
+  o quebra.
+
+### Ferramentas novas em `~/orion_face`
+
+- `grava.sh` — compila e grava em um comando só.
+- `ouvir_mic.py` — mede o nível do microfone.
+- `falar_na_tela.py` — faz a tela falar uma frase avulsa, sem subir o sistema.
+
+### Não feito nesta sessão
+
+- O Mission Core completo (`python -m orion`) **não foi subido** — segue não
+  sendo serviço systemd, e a verificação de ponta a ponta foi feita montando
+  as classes reais à mão.
+- O mic da tela **não** foi ligado ao `VoiceCore`; quem ouve continua sendo os
+  ouvidos ESP32 separados.
+- Nada foi commitado (o dono não pediu).

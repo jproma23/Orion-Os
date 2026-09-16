@@ -74,6 +74,9 @@ def _sintetizador_sem_hardware() -> Sintetizador:
     """
     sintetizador = Sintetizador.__new__(Sintetizador)
     sintetizador._trava_fala = asyncio.Lock()
+    # sem saida pela tela: estes testes exercitam o caminho do sounddevice
+    # (ver orion.display.ponte_serial para o outro caminho)
+    sintetizador._tocar_na_tela = None
     return sintetizador
 
 

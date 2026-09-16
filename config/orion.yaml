@@ -375,6 +375,12 @@ voice:
   # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
+  # A fala sai pelo alto-falante da TELA (cabeca ESP32-S3) em vez do
+  # dispositivo de audio do Pi - ligado em 2026-09-16, quando o alto-falante
+  # da tela passou a funcionar (os pinos DOUT/DIN do I2S estavam trocados no
+  # firmware). E uma saida OU a outra: com as duas o robo fala em duplicado.
+  # false volta tudo para saida_audio_indice abaixo.
+  falar_pela_tela: true
   saida_audio_indice: 0  # Pi: bcm2835 Headphones (hw:2,0) - antes era 4 (HDMI do notebook)
   # indices de entrada (sounddevice) reconferidos em 2026-07-24: 2a webcam
   # (USB Composite Device) desconectada fisicamente hoje, sobrou PC Camera

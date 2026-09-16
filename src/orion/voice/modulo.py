@@ -156,9 +156,24 @@ class ModuloVoz:
             _TranscritorComLog, self._conf["whisper_model_ativacao"]
         )
 
+        # A fala pode sair pela CABECA (alto-falante da tela ESP32-S3) em vez
+        # do dispositivo de audio do Pi - 2026-09-16, quando o alto-falante da
+        # tela passou a funcionar. Uma saida OU a outra, nunca as duas: o robo
+        # falaria em duplicado, com eco entre elas. Quem escreve na serial e a
+        # ponte do ModuloDisplay, dona da porta; aqui so se publica o PCM.
+        tocar_na_tela = None
+        if self._conf.get("falar_pela_tela"):
+            async def tocar_na_tela(audio, taxa: int) -> None:
+                await self._event_bus.publish(
+                    "voice.audio_pcm", {"audio": audio, "taxa": taxa}
+                )
+
+            logger.info("A fala vai sair pelo alto-falante da tela (orion_face)")
+
         self._sintetizador = Sintetizador(
             self._conf["piper_voice_path"],
             indice_dispositivo_saida=self._conf["saida_audio_indice"],
+            tocar_na_tela=tocar_na_tela,
         )
 
         detector_atividade = None
