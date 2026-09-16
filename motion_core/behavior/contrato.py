@@ -83,8 +83,9 @@ class Acao:
 #:   `TIMEOUT_COMANDO_MS = 5000` em safety_manager.h para os motores sozinho
 #:   se nenhum comando novo chegar em 5s. Minha objecao original - "so para
 #:   se alguem lembrar de mandar STOP" - estava errada: o Mega lembra.
-#: - `CALIBRATE_IMU` e `CALIBRATE_COMPASS` sao o robo refazer a referencia dos
-#:   proprios sensores, que e auto-ajuste - exatamente o que foi pedido.
+#: - `CALIBRATE_COMPASS` e o robo refazer a referencia da bussola, que e
+#:   auto-ajuste - exatamente o que foi pedido. O `CALIBRATE_IMU` saiu junto
+#:   com a MPU6050 (descartada em 2026-08-18).
 #:
 #: `MOVE_DISTANCE` (a RE) continua fora, mas por decisao do usuario e nao por
 #: risco: *"na verdade ele nao precisa dar re, so basta girar no seu proprio
@@ -93,20 +94,13 @@ class Acao:
 #: o radar frontal, Cap 18), entao evita-la de graca e o melhor negocio que
 #: aparece aqui.
 #:
-#: Os outros dois nao sao teimosia, sao categorias diferentes do que foi
-#: liberado:
-#:
-#: - `SET_IMPACT_THRESHOLD` nao e calibrar, e mexer no LIMIAR da propria
-#:   seguranca. Calibrar e o sensor se reorientar; afrouxar o limiar e o
-#:   vigiado ajustando o vigia. Se for para liberar, que seja dito com todas
-#:   as letras, e nao de carona numa frase sobre calibracao.
-#: - `DOCK` existe no firmware e nunca foi usado por ninguem, nem a mao. Nao
-#:   se estreia comando de acoplamento por decisao autonoma: a primeira vez
-#:   tem que ter alguem olhando.
+#: O que resta nao e teimosia, e outra categoria: `DOCK` existe no firmware e
+#: nunca foi usado por ninguem, nem a mao. Nao se estreia comando de
+#: acoplamento por decisao autonoma: a primeira vez tem que ter alguem
+#: olhando.
 PROIBIDO_PARA_IA = frozenset(
     {
         "MOVE_DISTANCE",
-        "SET_IMPACT_THRESHOLD",
         "DOCK",
     }
 )
@@ -180,12 +174,6 @@ _CATALOGO: tuple[Acao, ...] = (
         descricao="refazer a referencia da bussola",
         topico="navigation.comando",
         dados={"acao": "MANUAL", "comando": "CALIBRATE_COMPASS"},
-    ),
-    Acao(
-        nome="calibrar_inclinacao",
-        descricao="refazer a referencia do sensor de inclinacao",
-        topico="navigation.comando",
-        dados={"acao": "MANUAL", "comando": "CALIBRATE_IMU"},
     ),
     Acao(
         nome="seguir_pessoa",

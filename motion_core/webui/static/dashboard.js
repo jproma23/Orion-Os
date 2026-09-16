@@ -10,10 +10,9 @@ const listaEventos = $('lista-eventos');
 // A tela mostrava `4.872143°` de inclinação e `199.8621 cm` de distância - seis
 // casas decimais que vêm da conta em float, não do sensor. Duas mentiras num
 // número só: sugere precisão de micrômetro, e faz o ruído de fundo aparecer como
-// se o valor estivesse MUDANDO a cada leitura, com o robô imóvel. Foi o que o
-// dono viu no MPU.
+// se o valor estivesse MUDANDO a cada leitura, com o robô imóvel.
 //
-// Uma casa decimal: o MPU6050 e o HC-SR04 não entregam melhor que isso, e um
+// Uma casa decimal: o HC-SR04 não entrega melhor que isso, e um
 // número estável na tela é o que permite notar quando ele muda de verdade.
 function formatar(valor, sufixo = '', casas = 1) {
   if (valor === null || valor === undefined) return '—';
@@ -164,21 +163,8 @@ function renderizarEstado(estado) {
   segEl.className = estado.seguranca.safe_mode_ativo ? 'valor-alerta' : 'valor-ok';
   $('seg-motivo').textContent = formatar(estado.seguranca.motivo);
 
-  $('tel-distancia').textContent = formatar(estado.hardware.distancia_frontal_cm, ' cm');
-  $('tel-distancia-tras').textContent = formatar(estado.hardware.distancia_traseira_cm, ' cm');
-  // "sem eco" NAO e uma medida: o pulso saiu e nada voltou, e o firmware
-  // reporta o teto de alcance no lugar (ver sensor_ultrassonico.h). Mostrar
-  // 517 cm como se fosse parede engana quem le a tela.
-  if (estado.hardware.frontal_sem_eco) $('tel-distancia').textContent = 'sem eco (nada por perto)';
-  if (estado.hardware.traseiro_sem_eco) $('tel-distancia-tras').textContent = 'sem eco (nada por perto)';
   $('tel-temp').textContent = formatar(estado.hardware.temperatura_c, ' °C');
   $('tel-umidade').textContent = formatar(estado.hardware.umidade_percent, ' %');
-  $('tel-inclinacao').textContent = formatar(estado.hardware.inclinacao_graus, '°');
-  // aceleração é a exceção: perto de 1 G, a segunda casa é o que distingue
-  // repouso de solavanco leve.
-  $('tel-aceleracao').textContent = formatar(estado.hardware.aceleracao_g, ' G', 2);
-  const imp = estado.hardware.impacto_detectado;
-  $('tel-impacto').textContent = imp === null ? '—' : (imp ? 'IMPACTO!' : 'ok');
 
   atualizarBussola(estado.hardware);
 
@@ -243,11 +229,13 @@ function atualizarBussola(hardware) {
   const rosa = document.getElementById('rosa-ventos');
   const agulha = document.getElementById('rosa-agulha');
   const aviso = $('bus-aviso');
+  const rumoTexto = $('bus-rumo');
   if (!rosa || !agulha) return;
 
   const conectada = hardware.bussola_conectada;
   rosa.classList.remove('crua', 'ausente');
   aviso.classList.remove('alerta');
+  if (rumoTexto) rumoTexto.textContent = '';
 
   if (conectada === undefined || conectada === null) {
     rosa.classList.add('ausente');
@@ -262,22 +250,23 @@ function atualizarBussola(hardware) {
     return;
   }
 
-  // A AGULHA SÓ GIRA COM RUMO VÁLIDO (2026-07-30).
+  // A AGULHA MOSTRA O RUMO MESMO SEM CALIBRAÇÃO (2026-08-16, a pedido do dono).
   //
-  // Antes ela girava sempre, e o aviso "não calibrada" ficava do lado. Só que
-  // uma agulha que se mexe é uma afirmação sobre para onde o robô está virado -
-  // e com o robô PARADO na bancada ela oscilava 6°, porque carrega o offset dos
-  // ímãs dos motores. O dono viu e chamou pelo nome: *"orientaçao da bussola e
-  // angulo mudnado mentidno tb"*. Está certo: texto de ressalva não desfaz o que
-  // o desenho afirma, e quem olha de longe vê a agulha, não o aviso.
-  //
-  // Com rumo inválido a agulha fica PARADA no zero e apagada pela classe
-  // `crua` - um desenho que não diz nada, que é exatamente o que se sabe.
+  // Entre 30/07 e hoje a agulha só girava com `rumo_valido`, porque com o robô
+  // parado na bancada o rumo cru oscila ~6° (offset dos ímãs dos motores) e o
+  // dono tinha visto a agulha "mentindo". Mas isso escondia a telemetria
+  // inteira: sem calibração o navegador não dizia nem para onde o robô aponta.
+  // Pedido do dono (16/08): *"telemetria da bussola na web mesmo sem calibrar
+  // deve aparecer"*. A agulha volta a girar sempre que existe `rumo_graus` - é
+  // o dado cru do sensor. A cor de alerta e o aviso "não calibrada" continuam
+  // dizendo que a direção não é confiável, mas a medição deixa de ficar oculta.
   const rumo = hardware.rumo_graus;
-  if (hardware.rumo_valido && rumo !== undefined && rumo !== null) {
+  if (rumo !== undefined && rumo !== null) {
     agulha.setAttribute('transform', `rotate(${rotacaoContinua(rumo).toFixed(1)})`);
+    if (rumoTexto) rumoTexto.textContent = `${Number(rumo).toFixed(1)}°`;
   } else {
     agulha.setAttribute('transform', 'rotate(0)');
+    if (rumoTexto) rumoTexto.textContent = '—';
   }
 
   if (hardware.bussola_calibrando) {

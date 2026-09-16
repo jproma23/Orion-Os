@@ -20,7 +20,7 @@ import logging
 import os
 
 import pytest
-from conftest import arduino_simulado
+from conftest import esp32_simulado
 
 from motion_core import __main__ as motion_main
 from motion_core.__main__ import _criar_reconexao_hardware_core
@@ -76,7 +76,7 @@ async def test_reconexao_insiste_ate_a_porta_voltar(monkeypatch):
         # O cabo volta: a porta passa a existir. `_conectar_hardware_core` le
         # o dicionario a cada tentativa, entao mexer nele E replugar.
         master_fd, escravo_fd = os.openpty()
-        tarefa_arduino = asyncio.create_task(arduino_simulado(master_fd))
+        tarefa_esp32 = asyncio.create_task(esp32_simulado(master_fd))
         await asyncio.sleep(0.05)
         config["port"] = os.ttyname(escravo_fd)
 
@@ -94,9 +94,9 @@ async def test_reconexao_insiste_ate_a_porta_voltar(monkeypatch):
         assert heartbeat._reconectar.get("hardware_core") is ao_perder
 
         await comm.encerrar()
-        tarefa_arduino.cancel()
+        tarefa_esp32.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await tarefa_arduino
+            await tarefa_esp32
         os.close(master_fd)
 
 

@@ -96,6 +96,31 @@ async def test_saber_nao_responde_palavra_solta_sem_cobertura(contexto):
 
 
 @pytest.mark.asyncio
+async def test_saber_nao_responde_comando_de_acao_sozinho(contexto):
+    """Achado real (2026-08-16): "der uma olha" casava com "Pensamento
+    sistemico do dono" porque "olha" virava termo util e o texto do registro
+    continha a palavra no corpo - o "Eu ja sei?" despejava texto cru fora de
+    contexto. Verbos de acao/comando nao sao temas de conhecimento: pedido
+    para o robo FAZER algo nao pode responder do acervo."""
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "Pensamento sistemico do dono",
+         "corpo": "Joao nao olha so o componente: enxerga a cadeia causal."},
+    )
+
+    # Comando de acao sozinho ("der uma olha", "olha isso") nao responde.
+    assert await api.saber_buscar("der uma olha", limite=3) == []
+    assert await api.saber_buscar("olha isso", limite=3) == []
+
+    # Pergunta legitima sobre o MESMO registro ainda responde.
+    achados = await api.saber_buscar(
+        "como e o pensamento sistemico do dono", limite=3
+    )
+    assert len(achados) == 1
+
+
+@pytest.mark.asyncio
 async def test_saber_contador_de_consultas_ia(contexto):
     api, _ = contexto
 

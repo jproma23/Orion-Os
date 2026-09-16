@@ -11,7 +11,7 @@ import logging
 import os
 
 import pytest
-from conftest import arduino_simulado
+from conftest import esp32_simulado
 
 from motion_core.__main__ import _abrir_memoria, _conectar_hardware_core
 from orion.communication.service import ComunicacaoService
@@ -27,7 +27,7 @@ _LOGGER_TESTE = logging.getLogger("test_motion_core_main")
 async def test_conectar_hardware_core_com_sucesso_via_pty():
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
-    tarefa_arduino = asyncio.create_task(arduino_simulado(master_fd))
+    tarefa_esp32 = asyncio.create_task(esp32_simulado(master_fd))
 
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
@@ -40,9 +40,9 @@ async def test_conectar_hardware_core_com_sucesso_via_pty():
     assert conectado is True
 
     await comm.encerrar()
-    tarefa_arduino.cancel()
+    tarefa_esp32.cancel()
     with contextlib.suppress(asyncio.CancelledError):
-        await tarefa_arduino
+        await tarefa_esp32
     os.close(master_fd)
     bus.parar()
     tarefa_bus.cancel()

@@ -143,7 +143,6 @@ async def principal() -> None:
         "retrato": {
             "obstaculo_frente_cm": 120.0,
             "obstaculo_tras_cm": 98.0,
-            "inclinacao_graus": 5.0,
         },
         "observacoes": [
             {"quando": "12:05", "o_que": "vi João Paulo"},

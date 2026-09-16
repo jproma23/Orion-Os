@@ -27,7 +27,7 @@ def test_campo_ausente_vira_nao_sei_explicito() -> None:
     olhar, e não como a parede que o rótulo antigo sugeria.
     """
     texto = bloco_corpo({})
-    assert texto.count(SEM_DADO) == 4  # traseira, inclinação, bateria, estado
+    assert texto.count(SEM_DADO) == 3  # traseira, bateria, estado
     assert "NÃO SEI a distância" in texto
 
 
@@ -36,7 +36,6 @@ def test_corpo_com_dados_mostra_valores() -> None:
         {
             "obstaculo_frente_cm": 34.0,
             "obstaculo_tras_cm": 21.0,
-            "inclinacao_graus": 0.4,
             "bateria_nivel": "ok",
             "estado_hardware": "IDLE",
             "telemetria_viva": True,
@@ -46,7 +45,6 @@ def test_corpo_com_dados_mostra_valores() -> None:
     # ate 2026-07-29 saia como "obstáculo à frente: 34.0 cm" e a IA parava.
     assert "CAMINHO LIVRE por 34 cm" in texto
     assert "21.0 cm" in texto
-    assert "0.4 graus" in texto
     assert SEM_DADO not in texto
 
 

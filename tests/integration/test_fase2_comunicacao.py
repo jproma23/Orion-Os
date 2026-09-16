@@ -66,14 +66,14 @@ async def test_notebook_conversa_com_raspberry_via_tcp_real():
 
 
 @pytest.mark.asyncio
-async def test_raspberry_conversa_com_arduino_via_serial_pty():
+async def test_raspberry_conversa_com_esp32_via_serial_pty():
     """SerialTransport real (Raspberry) <-> ponta mestre de um pty
     respondendo como o firmware (WHO_ARE_YOU/ACK) - equivalente ao que
     tools/sim_hardware_core.py expoe, mas inline para nao depender de subprocesso."""
     master_fd, escravo_fd = os.openpty()
     caminho_escravo = os.ttyname(escravo_fd)
 
-    async def arduino_simulado() -> None:
+    async def esp32_simulado() -> None:
         # loop.add_reader (nao run_in_executor+os.read bloqueante) para a
         # task ser cancelavel de verdade: um os.read() bloqueante numa
         # thread do executor nao e interrompido por task.cancel().
@@ -115,7 +115,7 @@ async def test_raspberry_conversa_com_arduino_via_serial_pty():
         finally:
             loop.remove_reader(master_fd)
 
-    tarefa_arduino = asyncio.create_task(arduino_simulado())
+    tarefa_esp32 = asyncio.create_task(esp32_simulado())
 
     bus = EventBus()
     tarefa_bus = asyncio.create_task(bus.iniciar())
@@ -130,9 +130,9 @@ async def test_raspberry_conversa_com_arduino_via_serial_pty():
     assert info.nome == "hardware_core"
 
     await servico.encerrar()
-    tarefa_arduino.cancel()
+    tarefa_esp32.cancel()
     try:
-        await tarefa_arduino
+        await tarefa_esp32
     except asyncio.CancelledError:
         pass
     os.close(master_fd)

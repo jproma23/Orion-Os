@@ -595,7 +595,7 @@ class IaEstrategica(Comportamento):
 
         plano = goap.planejar(estado, objetivo, self._acoes_confiaveis())
         if plano is None:
-            # Abstencao legitima e frequente: com o corpo mudo, tombado ou com
+            # Abstencao legitima e frequente: com o corpo mudo ou com
             # a bateria no fim nao existe caminho ate a maioria dos objetivos.
             self._registrar_plano(
                 f"maestro: sem caminho ate '{objetivo.nome}' no mundo atual - abstendo"

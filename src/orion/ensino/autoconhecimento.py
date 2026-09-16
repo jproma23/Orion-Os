@@ -172,10 +172,17 @@ class Autoconhecimento:
         # casava com a resposta sobre a VOZ - porque "qual" e "sua" aparecem
         # nas perguntas indexadas de varios fatos, e uma delas ganhava por
         # acaso. Palavra de pergunta nao diz sobre O QUE se pergunta.
-        palavras = [
+        #
+        # SEM DUPLICATA (2026-08-19). Achado no chat real: "As rodas, use suas
+        # rodas para se locomover" e "Deixe sua roda esquerda e depois diga a
+        # roda direita" eram respondidas com a palestra sobre as rodas - a
+        # palavra "rodas" repetida inflava a cobertura para duas e passava no
+        # `min(2, len(palavras))` abaixo, devolvendo o COMANDO como pergunta
+        # sobre o corpo. Uma palavra repetida nao e um segundo assunto.
+        palavras = list(dict.fromkeys(
             p for p in re.sub(r"[^\w\s]", " ", normalizada).split()
             if len(p) > 2 and p not in _PALAVRAS_DE_PERGUNTA
-        ]
+        ))
         if not palavras:
             return None
         # SO nas colunas curadas: o titulo e as PERGUNTAS esperadas, nunca a

@@ -84,7 +84,6 @@ def bloco_corpo(
         # Mesmo padrão de produtor e consumidor com contratos diferentes que
         # mordeu o diário, o FOLLOW e o EstadoDoMundo neste mesmo dia.
         _linha("espaço atrás de mim", r.get("obstaculo_tras_cm"), " cm"),
-        _linha("inclinação", r.get("inclinacao_graus"), " graus"),
         _linha("bateria", r.get("bateria_nivel")),
         _linha("estado do corpo", r.get("estado_hardware")),
     ]

@@ -1,38 +1,40 @@
-// Bussola Manager (Cap 10 secao 7) - QMC6310 via I2C (pinos 20/21), no
-// MESMO barramento da MPU6050.
+// Bussola Manager (Cap 10 secao 7) - HMC5883L via I2C (GPIO 21/22 no ESP32).
 //
-// Portado do projeto de bancada `~/Desktop/bussola_orion` (validado em
-// 2026-07-27 numa WeMos D1 R1: ~25 uT de amplitude, contra ~23 uT reais do
-// Brasil). Tres coisas MUDARAM na portagem, e todas por exigencia deste
-// firmware:
+// *** TROCA DE MODULO EM 2026-08-15. ***
+// Ate aqui este arquivo falava com um QMC6310 (endereco 0x1C). O modulo foi
+// substituido por uma placa GY-271 vendida como HMC5883L. O problema: boa
+// parte das GY-271 "HMC5883L" do mercado vem com um CHIP CLONE, o QMC5883L -
+// outro endereco (0x0D), outros registradores, outra ordem de bytes. Por
+// fora as placas sao identicas; so o barramento distingue. Por isso o
+// iniciar() faz AUTODETECCAO: tenta o HMC5883L de verdade (0x1E, identidade
+// "H43") e cai para o QMC5883L (0x0D) se nao achar. A varredura de I2C do
+// boot (escanearI2c em main.cpp) mostra na telemetria qual dos dois esta la.
 //
-//   1. Nenhum Serial.print. A serial dos pinos 0/1 e exclusiva do protocolo
-//      com o Raspberry - um print aqui corromperia o enquadramento binario.
-//   2. Calibracao NAO BLOQUEANTE. O original girava 25 s dentro de um
-//      `while` com delay(20); aqui isso seria reset garantido, porque o
-//      watchdog de 2 s armado em main.cpp reinicia o chip se o loop() nao
-//      der sinal de vida. Virou maquina de estados: quem pede a calibracao
-//      volta na hora, e cada volta do loop acumula um pouco.
-//   3. EEPROM sem `commit()`. *** ESTE ITEM SE INVERTEU EM 2026-08-02. ***
-//      Ele dizia: "commit() e coisa de ESP8266 (flash emulando EEPROM); no
-//      AVR a escrita e direta". Estava certo enquanto a placa era o Mega.
-//      Agora a placa E um ESP32, onde a EEPROM tambem e flash emulada - e
-//      portanto o commit() passou a ser OBRIGATORIO. Sem ele a calibracao
-//      some no proximo reset, sem erro nenhum. Ver a chamada em
-//      _finalizarCalibracao().
+// O que NAO mudou com a troca (e por que):
 //
-// A compensacao de inclinacao reaproveita o acelerometro que a ImuManager JA
-// le a cada 50 ms - nao ha segunda leitura I2C da MPU6050 aqui. Sem essa
-// compensacao a direcao so vale com o robo perfeitamente nivelado; numa
-// rampa ela erra feio.
+//   1. Nenhum Serial.print. A serial e exclusiva do protocolo com o
+//      Raspberry - um print aqui corromperia o enquadramento binario.
+//   2. Calibracao NAO BLOQUEANTE. Girar 25 s dentro de um `while` seria
+//      reset garantido pelo watchdog de 2 s armado em main.cpp. Continua
+//      maquina de estados: quem pede volta na hora, e cada volta do loop
+//      acumula um pouco.
+//   3. EEPROM.commit() OBRIGATORIO no ESP32 (flash emulando EEPROM). Sem ele
+//      a calibracao some no proximo reset, sem erro nenhum.
+//   4. O MAGICO da EEPROM mudou (0x6310 -> 0x5883) DE PROPOSITO: a
+//      calibracao gravada pelo QMC6310 nao serve para o chip novo (offsets e
+//      escalas sao de outro sensor, em outra escala). O magico novo faz a
+//      calibracao velha ser ignorada em vez de aplicada caladamente.
 //
-// TENSAO: RISCO RESOLVIDO PELA TROCA DE PLACA (2026-08-02).
-// O alerta antigo dizia que o QMC6310 e um componente de 3,3 V, que tinha
-// sido testado numa WeMos (I2C de 3,3 V), e que o I2C do Mega era de 5 V com
-// pull-ups internos para 5 V - exigindo conferir regulador/level shifter
-// antes de ligar. Com o ESP32 no lugar do Mega, o barramento I2C passou a
-// ser 3,3 V nativo: e exatamente a mesma tensao da WeMos onde o modulo foi
-// validado. A ligacao agora e direta e sem conversor.
+// A compensacao de inclinacao foi REMOVIDA em 2026-08-18: ela reaproveitava
+// o acelerometro da MPU6050, que foi descartada desta placa. Sem ela, o rumo
+// so vale com o robo perfeitamente nivelado (plano X/Y) - numa rampa ele
+// erra. O custo foi aceito: era um comportamento de bancada, e a odometria
+// de rotacao se apoia no rumo com o robo nivelado.
+//
+// TENSAO: o I2C do ESP32 e 3,3 V nativo, exatamente o nivel do HMC5883L.
+// Ligacao direta, sem level shifter. A placa GY-271 costuma ter regulador
+// proprio e aceitar 5 V no VCC, mas aqui o VCC vai no 3V3 do ESP32 - um
+// caminho so, sem depender do regulador da plaquinha.
 #pragma once
 
 #include <Arduino.h>
@@ -42,18 +44,37 @@
 
 namespace orion {
 
-constexpr uint8_t BUSSOLA_ENDERECO = 0x1C;
-constexpr uint8_t BUSSOLA_CHIPID_ESPERADO = 0x80;
+// --- Os dois chips que esta plaquinha pode ter ----------------------------
 
-// Registradores do QMC6310 (datasheet QST Rev. C).
-constexpr uint8_t BUSSOLA_REG_CHIPID = 0x00;
-constexpr uint8_t BUSSOLA_REG_DADOS = 0x01;
-constexpr uint8_t BUSSOLA_REG_STATUS = 0x09;
-constexpr uint8_t BUSSOLA_REG_CTRL1 = 0x0A;
-constexpr uint8_t BUSSOLA_REG_CTRL2 = 0x0B;
-constexpr uint8_t BUSSOLA_REG_SINAL = 0x29;
+// HMC5883L verdadeiro (Honeywell). Endereco fixo de fabrica.
+constexpr uint8_t HMC5883L_ENDERECO = 0x1E;
+// Registradores de identidade: leem 'H', '4', '3' em 0x0A/0x0B/0x0C. E o
+// teste que separa o HMC de verdade do clone - o clone nao tem esses
+// registradores.
+constexpr uint8_t HMC5883L_REG_ID_A = 0x0A;
+constexpr uint8_t HMC5883L_ID_ESPERADA_0 = 'H';
+constexpr uint8_t HMC5883L_ID_ESPERADA_1 = '4';
+constexpr uint8_t HMC5883L_ID_ESPERADA_2 = '3';
+constexpr uint8_t HMC5883L_REG_CFG_A = 0x00;     // media de 8 amostras, 15 Hz
+constexpr uint8_t HMC5883L_REG_CFG_B = 0x01;     // ganho
+constexpr uint8_t HMC5883L_REG_MODO = 0x02;      // continuo / single-shot
+constexpr uint8_t HMC5883L_REG_DADOS = 0x03;     // 6 bytes: X, Z, Y (!)
+constexpr uint8_t HMC5883L_REG_STATUS = 0x09;    // bit0 = RDY
+// Ganho +-1,3 Gauss = 1090 LSB/Gauss (default de datasheet). O campo da
+// Terra fica entre 0,25 e 0,65 Gauss - sobra margem mesmo com o hard-iron
+// do robo somado.
+constexpr float HMC5883L_LSB_POR_GAUSS = 1090.0f;
 
-constexpr float BUSSOLA_LSB_POR_GAUSS = 3750.0f;  // escala +-8 Gauss
+// QMC5883L (QST) - o clone que vem em muita GY-271 "HMC5883L".
+constexpr uint8_t QMC5883L_ENDERECO = 0x0D;
+constexpr uint8_t QMC5883L_REG_DADOS = 0x00;     // 6 bytes: X, Y, Z (little-endian)
+constexpr uint8_t QMC5883L_REG_STATUS = 0x06;    // bit0 = DRDY
+constexpr uint8_t QMC5883L_REG_CTRL1 = 0x09;
+constexpr uint8_t QMC5883L_REG_SET_RESET = 0x0B;
+// CTRL1 = 0x1D: modo continuo, 200 Hz, escala +-8 Gauss, oversampling 512.
+// A escala larga perde resolucao mas nao satura nunca - e o mesmo numero
+// que as bibliotecas conhecidas usam, ou seja, validado pelo mercado inteiro.
+constexpr float QMC5883L_LSB_POR_GAUSS = 3000.0f;  // escala +-8 Gauss
 
 // A bussola nao precisa ser lida todo loop: o campo magnetico nao muda em
 // milissegundos, e cada leitura sao duas transacoes I2C que entram na volta
@@ -65,26 +86,26 @@ constexpr unsigned long INTERVALO_LEITURA_BUSSOLA_MS = 100;
 // Quanto tempo a calibracao fica coletando min/max enquanto o robo gira.
 constexpr unsigned long DURACAO_CALIBRACAO_BUSSOLA_MS = 25000;
 
-// Amplitude minima aceitavel por eixo para a calibracao valer. Abaixo disso
-// o eixo praticamente nao girou e a direcao sairia torta - melhor recusar do
-// que gravar uma calibracao ruim por cima de uma boa.
-constexpr int AMPLITUDE_MINIMA_CALIBRACAO = 300;
+// Amplitude minima aceitavel por eixo, EM GAUSS, para a calibracao valer.
+// Abaixo disso o eixo praticamente nao girou e a direcao sairia torta -
+// melhor recusar do que gravar uma calibracao ruim por cima de uma boa.
+// Em Gauss e nao em LSB porque cada chip tem sua escala: convertido para
+// LSB na hora de usar, com o _lsbPorGauss do modelo detectado. (O valor
+// antigo, 300 LSB no QMC6310 a 3750 LSB/Gauss, equivalia a estes 0,08 G.)
+constexpr float AMPLITUDE_MINIMA_CALIBRACAO_GAUSS = 0.08f;
 
-// EEPROM: a ImuManager ja usa o endereco 0 (calibracao, 14 bytes) e o 32
-// (limiar de impacto, 6 bytes). 64 fica bem longe dos dois.
+// EEPROM: a bussola e agora o UNICO usuario de EEPROM do firmware (a
+// MPU6050 saiu em 2026-08-18 e levou os enderecos 0 e 32). 64 fica folgado.
 constexpr int EEPROM_ENDERECO_BUSSOLA = 64;
-constexpr uint16_t EEPROM_MAGICO_BUSSOLA = 0x6310;
+// Magico NOVO (era 0x6310): invalida de proposito a calibracao do chip
+// anterior - ver o item 4 do cabecalho.
+constexpr uint16_t EEPROM_MAGICO_BUSSOLA = 0x5883;
 
 // ALINHAMENTO DOS EIXOS <<< AJUSTAR QUANDO MONTAR NO FOFAO.
-// A compensacao de inclinacao so funciona se a bussola e o acelerometro
-// concordarem sobre onde e X, Y e Z. Sao duas plaquinhas separadas, entao
-// elas podem acabar montadas viradas uma em relacao a outra. Sintoma de
-// estar errado: inclinar o robo faz a direcao pular loucamente (parado ela
-// parece certa). Correcao: trocar os sinais abaixo para -1.0f, um de cada
-// vez, ate a direcao ficar estavel ao inclinar.
-constexpr float BUSSOLA_SINAL_ACEL_X = 1.0f;
-constexpr float BUSSOLA_SINAL_ACEL_Y = 1.0f;
-constexpr float BUSSOLA_SINAL_ACEL_Z = 1.0f;
+// O rumo usa o plano X/Y do chip: "norte" esta onde o eixo X apontar
+// quando o robo estiver nivelado. Se a plaquinha estiver montada virada
+// em relacao ao chassi, o rumo sai defasado - ver os sinais de montagem
+// na hora da instalacao.
 
 // Calibracao gravada na EEPROM.
 //
@@ -101,27 +122,29 @@ struct CalibracaoBussola {
 
 class BussolaManager {
  public:
-  // Wire.begin() ja foi chamado por main.cpp (junto com o setWireTimeout) -
-  // aqui so configuramos o chip. Retorna false se o modulo nao responder,
-  // sem travar nada (Cap 6 s.8).
+  // Wire.begin() ja foi chamado por main.cpp - aqui so detectamos e
+  // configuramos o chip. Retorna false se nenhum dos dois modelos
+  // responder, sem travar nada (Cap 6 s.8).
   bool iniciar() {
-    uint8_t id = 0;
-    if (!_ler(BUSSOLA_REG_CHIPID, &id, 1) || id != BUSSOLA_CHIPID_ESPERADO) {
+    if (_iniciarHmc5883l()) {
+      _endereco = HMC5883L_ENDERECO;
+      _lsbPorGauss = HMC5883L_LSB_POR_GAUSS;
+      _ehCloneQmc = false;
+    } else if (_iniciarQmc5883l()) {
+      _endereco = QMC5883L_ENDERECO;
+      _lsbPorGauss = QMC5883L_LSB_POR_GAUSS;
+      _ehCloneQmc = true;
+    } else {
       _conectado = false;
       return false;
     }
-    _escrever(BUSSOLA_REG_SINAL, 0x06);  // sinal dos eixos
-    _escrever(BUSSOLA_REG_CTRL2, 0x08);  // +-8 Gauss, Set/Reset ligado
-    _escrever(BUSSOLA_REG_CTRL1, 0xC3);  // modo continuo
     _conectado = true;
     _carregarCalibracao();
     return true;
   }
 
   // Chamar a cada loop(); ela mesma respeita INTERVALO_LEITURA_BUSSOLA_MS.
-  // `ax/ay/az` sao a leitura crua do acelerometro da ImuManager (m/s^2) -
-  // so a DIRECAO importa, a magnitude e normalizada aqui dentro.
-  void atualizar(float ax, float ay, float az) {
+  void atualizar() {
     if (!_conectado) return;
 
     unsigned long agora = millis();
@@ -148,31 +171,12 @@ class BussolaManager {
     // ficar PARADO por mais que o robo gire - e o melhor teste de qualidade
     // que existe. Se ele oscila muito, a calibracao esta ruim ou tem motor
     // ligado perto demais.
-    _campoUt = sqrt(mx * mx + my * my + mz * mz) / BUSSOLA_LSB_POR_GAUSS * 100.0f;
+    _campoUt = sqrt(mx * mx + my * my + mz * mz) / _lsbPorGauss * 100.0f;
 
-    float axs = ax * BUSSOLA_SINAL_ACEL_X;
-    float ays = ay * BUSSOLA_SINAL_ACEL_Y;
-    float azs = az * BUSSOLA_SINAL_ACEL_Z;
-    float normaAcel = sqrt(axs * axs + ays * ays + azs * azs);
-
-    float graus;
-    if (normaAcel > 0.001f) {
-      // O acelerometro parado sente a gravidade, que sempre aponta para
-      // baixo - comparando os eixos dele da para saber o quanto a placa esta
-      // torta. Com isso "endireitamos" o vetor magnetico de volta para o
-      // plano horizontal, como se a bussola estivesse deitada mesmo com o
-      // robo inclinado (formula classica de tilt compensation).
-      float rolagem = atan2(ays, azs);
-      float arfagem = atan2(-axs, sqrt(ays * ays + azs * azs));
-
-      float mxh = mx * cos(arfagem) + my * sin(rolagem) * sin(arfagem) +
-                  mz * cos(rolagem) * sin(arfagem);
-      float myh = my * cos(rolagem) - mz * sin(rolagem);
-      graus = atan2(-myh, mxh) * 180.0f / PI;
-    } else {
-      // Sem acelerometro utilizavel: so vale com o robo nivelado.
-      graus = atan2(-my, mx) * 180.0f / PI;
-    }
+    // Compensacao de inclinacao REMOVIDA (2026-08-18): ela usava o
+    // acelerometro da MPU6050, que foi descartada desta placa. Sem ela, o
+    // rumo so vale com o robo nivelado (plano X/Y) - ver o cabecalho.
+    float graus = atan2(-my, mx) * 180.0f / PI;
 
     if (graus < 0) graus += 360.0f;
     _rumoGraus = graus;
@@ -210,38 +214,86 @@ class BussolaManager {
   }
 
  private:
+  // --- Deteccao e configuracao de cada chip -------------------------------
+
+  bool _iniciarHmc5883l() {
+    // A identidade "H43" e a unica prova confiavel de que e um HMC5883L de
+    // verdade - endereco sozinho nao basta, porque qualquer ruido no
+    // barramento pode dar ACK onde nao devia.
+    uint8_t id[3] = {0, 0, 0};
+    _endereco = HMC5883L_ENDERECO;
+    if (!_ler(HMC5883L_REG_ID_A, id, 3)) return false;
+    if (id[0] != HMC5883L_ID_ESPERADA_0 || id[1] != HMC5883L_ID_ESPERADA_1 ||
+        id[2] != HMC5883L_ID_ESPERADA_2) {
+      return false;
+    }
+    _escrever(HMC5883L_REG_CFG_A, 0x70);  // 8 amostras de media, 15 Hz
+    _escrever(HMC5883L_REG_CFG_B, 0x20);  // +-1,3 Gauss (1090 LSB/Gauss)
+    _escrever(HMC5883L_REG_MODO, 0x00);   // modo continuo
+    return true;
+  }
+
+  bool _iniciarQmc5883l() {
+    // O clone nao tem registrador de identidade confiavel (o que o datasheet
+    // chama de ID le 0xFF, constante que nao distingue nada). A prova aqui e
+    // mais fraca: o endereco 0x0D respondeu. Como o HMC foi testado antes e
+    // falhou, se ALGUEM responde em 0x0D so pode ser o clone - nenhum outro
+    // modulo do robo usa esse endereco.
+    _endereco = QMC5883L_ENDERECO;
+    Wire.beginTransmission(_endereco);
+    if (Wire.endTransmission() != 0) return false;
+    _escrever(QMC5883L_REG_SET_RESET, 0x01);  // periodo de set/reset (datasheet)
+    _escrever(QMC5883L_REG_CTRL1, 0x1D);      // continuo, 200 Hz, +-8 Gauss
+    return true;
+  }
+
+  // --- Leitura crua --------------------------------------------------------
+
   void _escrever(uint8_t reg, uint8_t valor) {
-    Wire.beginTransmission(BUSSOLA_ENDERECO);
+    Wire.beginTransmission(_endereco);
     Wire.write(reg);
     Wire.write(valor);
     Wire.endTransmission();
   }
 
   bool _ler(uint8_t reg, uint8_t* destino, uint8_t quantos) {
-    Wire.beginTransmission(BUSSOLA_ENDERECO);
+    Wire.beginTransmission(_endereco);
     Wire.write(reg);
     if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom(BUSSOLA_ENDERECO, quantos) != quantos) return false;
+    if (Wire.requestFrom(_endereco, quantos) != quantos) return false;
     for (uint8_t i = 0; i < quantos; i++) destino[i] = Wire.read();
     return true;
   }
 
   bool _lerCampo(int16_t& x, int16_t& y, int16_t& z) {
     uint8_t status;
-    if (!_ler(BUSSOLA_REG_STATUS, &status, 1)) return false;
-    if (!(status & 0x01)) return false;  // bit DRDY: ainda nao ha dado novo
-
     uint8_t b[6];
-    if (!_ler(BUSSOLA_REG_DADOS, b, 6)) return false;
 
-    // QMC6310 entrega o byte MENOS significativo primeiro (little-endian) -
-    // ao contrario da MPU6050, que e big-endian. Trocar isso e um erro
-    // classico e silencioso: o valor sai plausivel, so que errado.
-    x = (int16_t)(b[0] | (b[1] << 8));
-    y = (int16_t)(b[2] | (b[3] << 8));
-    z = (int16_t)(b[4] | (b[5] << 8));
+    if (_ehCloneQmc) {
+      if (!_ler(QMC5883L_REG_STATUS, &status, 1)) return false;
+      if (!(status & 0x01)) return false;  // DRDY: ainda nao ha dado novo
+      if (!_ler(QMC5883L_REG_DADOS, b, 6)) return false;
+      // QMC5883L: byte MENOS significativo primeiro, na ordem X, Y, Z.
+      x = (int16_t)(b[0] | (b[1] << 8));
+      y = (int16_t)(b[2] | (b[3] << 8));
+      z = (int16_t)(b[4] | (b[5] << 8));
+      return true;
+    }
+
+    if (!_ler(HMC5883L_REG_STATUS, &status, 1)) return false;
+    if (!(status & 0x01)) return false;  // RDY: ainda nao ha dado novo
+    if (!_ler(HMC5883L_REG_DADOS, b, 6)) return false;
+    // HMC5883L: byte MAIS significativo primeiro (big-endian) e, ARMADILHA
+    // CLASSICA, na ordem X, Z, Y - nao X, Y, Z. Ler na ordem errada troca
+    // o eixo vertical com um horizontal: parado e nivelado parece certo, e
+    // a direcao erra feio ao inclinar. Erro silencioso, so se pega na rua.
+    x = (int16_t)((b[0] << 8) | b[1]);
+    z = (int16_t)((b[2] << 8) | b[3]);
+    y = (int16_t)((b[4] << 8) | b[5]);
     return true;
   }
+
+  // --- Calibracao (inalterada na troca de chip) -----------------------------
 
   void _acumularCalibracao(int16_t x, int16_t y, int16_t z) {
     if (x < _minX) _minX = x;
@@ -259,18 +311,22 @@ class BussolaManager {
     float ampY = (_maxY - _minY) / 2.0f;
     float ampZ = (_maxZ - _minZ) / 2.0f;
 
-    // SO X E Y SAO EXIGIDOS (corrigido 2026-07-27).
+    // Limiar convertido para a escala do chip detectado (ver
+    // AMPLITUDE_MINIMA_CALIBRACAO_GAUSS).
+    float amplitudeMinima = AMPLITUDE_MINIMA_CALIBRACAO_GAUSS * _lsbPorGauss;
+
+    // SO X E Y SAO EXIGIDOS.
     //
-    // A versao anterior exigia amplitude nos tres eixos, herdada do projeto
-    // de bancada onde o modulo era girado na mao em todas as direcoes. Num
-    // robo terrestre isso nunca acontece: ele gira em torno do proprio eixo
-    // vertical, entao o Z fica praticamente constante e a calibracao seria
-    // recusada no fim dos 25 s, sempre.
+    // Exigir amplitude nos tres eixos era heranca de bancada, onde o modulo
+    // era girado na mao em todas as direcoes. Num robo terrestre isso nunca
+    // acontece: ele gira em torno do proprio eixo vertical, entao o Z fica
+    // praticamente constante e a calibracao seria recusada no fim dos 25 s,
+    // sempre.
     //
     // Para rumo com o robo nivelado o que importa e o plano X/Y - e a
     // calibracao PRECISA ser feita com tudo montado, porque o que se quer
     // medir e justamente o ferro e os imas do proprio Fofao.
-    if (ampX < AMPLITUDE_MINIMA_CALIBRACAO || ampY < AMPLITUDE_MINIMA_CALIBRACAO) {
+    if (ampX < amplitudeMinima || ampY < amplitudeMinima) {
       _ultimaCalibracaoOk = false;
       return;
     }
@@ -286,9 +342,9 @@ class BussolaManager {
     // Z so e corrigido se ele REALMENTE girou (calibracao na mao, fora do
     // robo). Girando so em torno do eixo vertical, (maxZ+minZ)/2 nao e o
     // offset de hard-iron - e o proprio campo vertical da Terra somado a
-    // ele. Gravar isso como offset zeraria a componente vertical real e
-    // estragaria a compensacao de inclinacao. Na duvida, nao corrige.
-    if (ampZ >= AMPLITUDE_MINIMA_CALIBRACAO) {
+    // ele. E o rumo usa so o plano X/Y, entao mexer em Z nao ajuda em
+    // nada. Na duvida, nao corrige.
+    if (ampZ >= amplitudeMinima) {
       _cal.offsetZ = (_maxZ + _minZ) / 2.0f;
       _cal.escalaZ = media / ampZ;
     } else {
@@ -298,9 +354,8 @@ class BussolaManager {
 
     EEPROM.put(EEPROM_ENDERECO_BUSSOLA, _cal);
     // commit() OBRIGATORIO no ESP32 - ver o item 3 do cabecalho deste
-    // arquivo, que dizia o contrario ate a placa mudar. Sem ele os 25 s de
-    // giro que o dono acabou de fazer com o robo na mao se perdem no
-    // proximo reset, caladamente.
+    // arquivo. Sem ele os 25 s de giro que o dono acabou de fazer com o
+    // robo na mao se perdem no proximo reset, caladamente.
     EEPROM.commit();
     _calibrada = true;
     _ultimaCalibracaoOk = true;
@@ -317,6 +372,10 @@ class BussolaManager {
     _cal = dados;
     _calibrada = true;
   }
+
+  uint8_t _endereco = HMC5883L_ENDERECO;
+  float _lsbPorGauss = HMC5883L_LSB_POR_GAUSS;
+  bool _ehCloneQmc = false;
 
   bool _conectado = false;
   bool _calibrada = false;

@@ -230,18 +230,18 @@ async def test_roteamento_transparente_encaminha_para_outro_link():
     tarefa_bus = await _rodar_bus(bus)
     servico = ComunicacaoService("motion_core", bus)
     link_notebook = FakeTransporte()
-    link_arduino = FakeTransporte()
+    link_esp32 = FakeTransporte()
     servico.adicionar_link("mission_core", link_notebook)
-    servico.adicionar_link("hardware_core", link_arduino)
+    servico.adicionar_link("hardware_core", link_esp32)
 
-    mensagem_para_arduino = Mensagem.nova(
+    mensagem_para_esp32 = Mensagem.nova(
         TipoMensagem.COMMAND, "mission_core", "hardware_core", {"acao": "MOVE_FORWARD"}
     )
-    await link_notebook.injetar(mensagem_para_arduino.to_bytes())
+    await link_notebook.injetar(mensagem_para_esp32.to_bytes())
     await asyncio.sleep(0.05)
 
-    assert len(link_arduino.enviados) == 1
-    encaminhada = Mensagem.from_bytes(link_arduino.enviados[0])
+    assert len(link_esp32.enviados) == 1
+    encaminhada = Mensagem.from_bytes(link_esp32.enviados[0])
     assert encaminhada.destino == "hardware_core"
     assert encaminhada.payload == {"acao": "MOVE_FORWARD"}
     assert link_notebook.enviados == []  # nao deveria ter ACKado - nao e o destino final
@@ -264,9 +264,9 @@ async def test_roteamento_reassina_checksum_de_mensagem_do_firmware():
     tarefa_bus = await _rodar_bus(bus)
     servico = ComunicacaoService("motion_core", bus)
     link_notebook = FakeTransporte()
-    link_arduino = FakeTransporte()
+    link_esp32 = FakeTransporte()
     servico.adicionar_link("mission_core", link_notebook)
-    servico.adicionar_link("hardware_core", link_arduino, exigir_checksum_mensagem=False)
+    servico.adicionar_link("hardware_core", link_esp32, exigir_checksum_mensagem=False)
 
     resposta = Mensagem.nova(
         TipoMensagem.RESPONSE,
@@ -276,7 +276,7 @@ async def test_roteamento_reassina_checksum_de_mensagem_do_firmware():
         id_referencia="abc123",
     )
     resposta.checksum = "beef"  # simula o checksum nao-canonico do firmware
-    await link_arduino.injetar(resposta.to_bytes())
+    await link_esp32.injetar(resposta.to_bytes())
     await asyncio.sleep(0.05)
 
     assert len(link_notebook.enviados) == 1

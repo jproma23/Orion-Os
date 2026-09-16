@@ -49,7 +49,7 @@ fatos:
     perguntas:
       - qual seu corpo
       - o que controla seu hardware
-      - voce tem arduino
+      - voce tem esp32
       - qual sua placa
     resposta: >
       Meu corpo e um ESP32, ligado por cabo ao Raspberry Pi. Ele e quem

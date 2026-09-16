@@ -145,10 +145,11 @@ async def test_telemetria_atualiza_campos_de_hardware(cenario):
         "payload": {
             "estado": "IDLE",
             "em_movimento": False,
-            "distancia_frontal_cm": 42.0,
             "temperatura_c": 25.0,
             "umidade_percent": 60.0,
-            "inclinacao_graus": 2.5,
+            "bussola_conectada": True,
+            "rumo_graus": 85.0,
+            "lidar_leituras": [{"angulo": 90, "distancia_cm": 42.0, "valida": True}],
         }
     }
     await bus.publish("comm.mensagem.telemetry", envelope)
@@ -157,10 +158,13 @@ async def test_telemetria_atualiza_campos_de_hardware(cenario):
     resposta = await http.get("/estado")
     corpo = await resposta.json()
     hardware = corpo["estado"]["hardware"]
-    assert hardware["distancia_frontal_cm"] == 42.0
     assert hardware["temperatura_c"] == 25.0
     assert hardware["umidade_percent"] == 60.0
-    assert hardware["inclinacao_graus"] == 2.5
+    assert hardware["bussola_conectada"] is True
+    assert hardware["rumo_graus"] == 85.0
+    assert hardware["lidar_leituras"] == [
+        {"angulo": 90, "distancia_cm": 42.0, "valida": True}
+    ]
     assert hardware["estado"] == "IDLE"
     assert hardware["em_movimento"] is False
 
@@ -168,10 +172,10 @@ async def test_telemetria_atualiza_campos_de_hardware(cenario):
 @pytest.mark.asyncio
 async def test_safe_mode_entrada_e_saida(cenario):
     http, bus = cenario
-    await bus.publish("safety.safe_mode_entered", {"motivo": "impacto_detectado"})
+    await bus.publish("safety.safe_mode_entered", {"motivo": "perigo_frontal"})
     await bus.aguardar_fila_vazia()
     corpo = await (await http.get("/estado")).json()
-    assert corpo["estado"]["seguranca"] == {"safe_mode_ativo": True, "motivo": "impacto_detectado"}
+    assert corpo["estado"]["seguranca"] == {"safe_mode_ativo": True, "motivo": "perigo_frontal"}
 
     await bus.publish("safety.safe_mode_exited", {})
     await bus.aguardar_fila_vazia()

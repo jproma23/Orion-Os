@@ -66,6 +66,9 @@ from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.internet import ConsultaInternet  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
+from orion.mission.jarvis_plugins import get_registry  # noqa: E402
+from orion_api import set_mission_planner, app as orion_api_app  # noqa: E402
+import uvicorn  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
 from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
@@ -623,7 +626,10 @@ async def principal() -> None:
         # "vamos inserir conhecimento pra ele" (2026-08-04): o fio que faltava
         # entre a conversa e o vault de longo prazo.
         guardar_conhecimento=guardar_conhecimento,
+        # JARVIS Plugins: code_executor, file_operations, system_control, etc.
+        jarvis_plugins=get_registry(),
     )
+
 
     # QUEM ESTA FALANDO (2026-08-03). Ate aqui `processar()` recebia
     # `pessoa_id` como parametro e ninguem preenchia: as 152 conversas do banco
@@ -632,6 +638,8 @@ async def principal() -> None:
     # robo era da CASA e nao de cada pessoa. Numa casa com o dono, a cuidadora
     # e uma crianca de 3 anos, isso mistura os tres no mesmo balaio.
     quem_fala = QuemEstaFalando(bus, MemoryClient(comm))
+
+    set_mission_planner(planner, quem_fala)
 
     def limpar_para_fala(texto: str) -> str:
         """Tira o que nao da para falar: emojis, markdown (*negrito*),
@@ -722,6 +730,11 @@ async def principal() -> None:
     logger.info("Chat por texto ativo (webui -> mission.conversa)")
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
+
+    orion_api_server = uvicorn.Server(
+        uvicorn.Config(orion_api_app, host='0.0.0.0', port=8081, log_level='info')
+    )
+    tarefa_orion_api = asyncio.create_task(orion_api_server.serve())
 
     # Sentinela de visão (Cap 8): vigia rostos desconhecidos e dispara
     # sentinela.alerta -> Pi -> Vigília. Tolera câmera/link ausentes.
@@ -858,6 +871,7 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
+        tarefa_orion_api.cancel()
         # PRIMEIRO o planner: ele ainda pode ter turnos por destilar, e a
         # destilacao precisa do link com o Pi (que o `comm.encerrar()` logo
         # abaixo derruba) para gravar o fato. Encerrar na ordem errada perderia

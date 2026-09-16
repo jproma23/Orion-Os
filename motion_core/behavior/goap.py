@@ -59,11 +59,6 @@ from dataclasses import dataclass
 #: seguinte - plano que nasce condenado e ruido, nao decisao.
 FRENTE_LIVRE_CM = 60.0
 
-#: Acima disto o robo esta inclinado demais para planejar movimento.
-#: Igual ao LIMITE_INCLINACAO_GRAUS do firmware, de proposito: dois numeros
-#: diferentes para a mesma pergunta viram divergencia silenciosa.
-INCLINACAO_LIMITE_GRAUS = 20.0
-
 #: O vocabulario de estado. NADA fora desta lista pode aparecer numa
 #: precondicao ou efeito - `conferir_modelo()` recusa no import.
 #:
@@ -79,9 +74,7 @@ PREDICADOS: frozenset[str] = frozenset(
         "frente_livre",
         "pessoa_visivel",
         "pessoa_conhecida",
-        "nivelado",
         "bateria_ok",
-        "sem_impacto",
         "parado",
     }
 )
@@ -107,7 +100,6 @@ def estado_de(retrato) -> dict[str, bool]:
     escolha que o firmware faz ao tratar leitura invalida como duvida.
     """
     frente = getattr(retrato, "obstaculo_frente_cm", None)
-    inclinacao = getattr(retrato, "inclinacao_graus", None)
     nivel = getattr(retrato, "bateria_nivel", None)
 
     return {
@@ -119,7 +111,6 @@ def estado_de(retrato) -> dict[str, bool]:
         "frente_livre": frente is not None and frente > FRENTE_LIVRE_CM,
         "pessoa_visivel": bool(getattr(retrato, "pessoa_presente", False)),
         "pessoa_conhecida": bool(getattr(retrato, "pessoa_conhecida", False)),
-        "nivelado": inclinacao is not None and inclinacao < INCLINACAO_LIMITE_GRAUS,
         # bateria_nivel vem do firmware como OK/AVISO/CRITICA, ou None quando
         # o divisor nao esta montado - que e a situacao real hoje. None aqui
         # NAO pode virar False: isso proibiria o robo de se mover ate alguem
@@ -128,7 +119,6 @@ def estado_de(retrato) -> dict[str, bool]:
         # erro: um obstaculo nao visto machuca agora, uma bateria nao medida
         # e um risco gradual que o dono ja aceitou ao deixar o divisor fora.
         "bateria_ok": nivel != "CRITICA",
-        "sem_impacto": not bool(getattr(retrato, "impacto", False)),
         # Estado desconhecido (`None`) vira False, como todo o resto: se o
         # robo NAO SABE que esta parado, planejar um `parar` e a resposta
         # certa. O erro cai para o lado barato - mandar parar quem ja estava
@@ -158,8 +148,7 @@ def satisfeito(estado: Estado, objetivo: Objetivo) -> bool:
     Existe para quem precisa da pergunta ANTES de planejar - hoje o
     `impulsos.py`, que descarta uma vontade cujo objetivo ja esta feito. Sem
     isto ele teria que reimplementar a comparacao, e duas versoes da mesma
-    regra e como nasce a divergencia silenciosa (o mesmo motivo pelo qual o
-    limiar de inclinacao aqui e igual ao do firmware, algumas linhas acima).
+    regra e como nasce a divergencia silenciosa.
 
     `planejar()` responde a mesma coisa devolvendo `[]`, mas custa a busca
     inteira para dizer "nao ha o que fazer" - e quem so quer escolher entre
@@ -317,9 +306,9 @@ def conferir_modelo(acoes: Iterable, objetivos: Iterable[Objetivo]) -> None:
         # robo nao faz nada, e nada denuncia: nao ha erro, nao ha log, o
         # objetivo aparece bonito na lista oferecida a IA.
         #
-        # Foi exatamente o que aconteceu com `ficar_em_seguranca`, que pedia
-        # `sem_impacto` - predicado que so o sensor produz (achado de
-        # 2026-08-03, varrendo os 2^N mundos possiveis). Com o GOAP ligado a
+        # Foi exatamente o que aconteceu com `ficar_em_seguranca`, que pedia um
+        # predicado que nenhuma acao produz (achado de 2026-08-03, varrendo
+        # os 2^N mundos possiveis). Com o GOAP ligado a
         # IA escolhe entre poucos objetivos: um deles ser mudo custa caro.
         for predicado, desejado in objetivo.alvo.items():
             if any(acao.efeitos.get(predicado) == desejado for acao in acoes):

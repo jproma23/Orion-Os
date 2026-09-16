@@ -67,14 +67,13 @@ class CommandExecutor {
     float velocidade = payload["velocidade_percent"] | 50.0f;
 
     // Camada reativa (Cap 18 s.9, regra 7 do CLAUDE.md): enquanto uma
-    // parada de seguranca estiver ativa (obstaculo, inclinacao, impacto
-    // ou timeout), nenhum comando de movimento NOVO e aceito, mesmo que
-    // venha do Raspberry - so volta a aceitar quando safety.avaliar()
-    // confirmar de novo que esta livre. Sem isso, um comando
-    // atrasado/reenviado (retry, fila antiga, race condition) religava o
-    // motor com o perigo ainda presente (achado real da vistoria de
-    // 2026-07-24) - defesa em profundidade junto com o reforco continuo
-    // em SafetyManager::avaliar().
+    // parada de seguranca estiver ativa (obstaculo ou timeout), nenhum
+    // comando de movimento NOVO e aceito, mesmo que venha do Raspberry -
+    // so volta a aceitar quando safety.avaliar() confirmar de novo que esta
+    // livre. Sem isso, um comando atrasado/reenviado (retry, fila antiga,
+    // race condition) religava o motor com o perigo ainda presente (achado
+    // real da vistoria de 2026-07-24) - defesa em profundidade junto com o
+    // reforco continuo em SafetyManager::avaliar().
     // NENHUM COMANDO E RECUSADO (2026-07-29, EDR-0027).
     //
     // Ate aqui, qualquer comando de movimento era descartado enquanto

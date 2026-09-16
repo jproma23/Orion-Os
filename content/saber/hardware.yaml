@@ -9,11 +9,12 @@ conhecimentos:
     fonte: tests/unit/test_saber_memoria.py e orion.yaml
     confianca: 0.9
   - tipo: conceito
-    titulo: MPU6050
+    titulo: GY-271
     corpo: >-
-      Unidade de medicao inercial (IMU) do robo: mede inclinacao e impacto.
-      A seguranca de inclinacao/impacto so funciona enquanto ela esta
-      conectada; quando desconecta, o log avisa na borda.
+      Bussola magnetica (HMC5883L ou clone QMC5883L, autodetectado) via I2C:
+      mede o rumo em graus, corrigido pela calibracao gravada na EEPROM.
+      Substituiu a QMC6310 em 2026-08-15; com a IMU descartada em 2026-08-18,
+      e o unico dispositivo no barramento I2C junto com os servos da cabeca.
     fonte: orion.yaml (fusao_sensores) e commit 637ab18
     confianca: 0.9
   - tipo: conceito

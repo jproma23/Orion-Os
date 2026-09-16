@@ -9,8 +9,8 @@ VÁLIDA (nenhum nome inventado), mas não resposta CERTA.
 
 Por isso este módulo é um CONSELHEIRO e não um decisor:
 
-  - Enquanto um comportamento de segurança quiser o controle (obstáculo,
-    inclinação, impacto), nem se pergunta à IA. Segurança é determinística
+  - Enquanto um comportamento de segurança quiser o controle (obstáculo),
+    nem se pergunta à IA. Segurança é determinística
     e não se negocia (Cap 18, camada tática).
   - A IA só é consultada quando as regras estão empatadas ou nenhuma tem
     opinião forte - ou seja, na ambiguidade real.

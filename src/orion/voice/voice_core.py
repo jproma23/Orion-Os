@@ -129,7 +129,7 @@ class VoiceCore:
         # Loga na BORDA (ficou surdo / voltou a ouvir), nao a cada ciclo: o
         # ciclo repete a cada ~7s e em 2026-08-14 a surdez durou 3h35, o que
         # seriam ~1800 linhas iguais num log que ainda nao tem rotacao. Mesmo
-        # padrao do `_safe_mode_ativo` e do aviso da IMU no Motion Core.
+        # padrao do `_safe_mode_ativo` e do aviso de corpo mudo no Motion Core.
         #
         # Existe porque naquele dia o `journalctl` do avatar nao tinha UMA
         # linha sobre a surdez - o unico sinal era um evento que nem

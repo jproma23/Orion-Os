@@ -230,7 +230,7 @@ class ComunicacaoService:
             return await asyncio.wait_for(futuro, timeout=timeout_s)
         except ErroTransporte as erro:
             # Mesmo motivo do send(). Aqui o estrago era pior: o WHO_ARE_YOU da
-            # descoberta passa por aqui, e `_conectar_arduino` promete no proprio
+            # descoberta passa por aqui, e `_conectar_hardware_core` promete no proprio
             # docstring que "nunca levanta excecao" - mas so pegava
             # ErroComunicacao. Se o Mega resetasse na janela entre conectar() e o
             # WHO_ARE_YOU, ErroTransporte subia ate o asyncio.run e MATAVA o

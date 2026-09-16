@@ -99,17 +99,17 @@ async def test_muitas_reconexoes_nao_acumulam_tarefas() -> None:
 async def test_links_diferentes_convivem() -> None:
     """Fechar o link antigo de um peer não pode derrubar os outros peers."""
     svc = ComunicacaoService("motion_core", EventBus())
-    arduino = _TransporteFalso()
+    esp32 = _TransporteFalso()
     notebook_velho = _TransporteFalso()
     notebook_novo = _TransporteFalso()
 
-    svc.adicionar_link("hardware_core", arduino)
+    svc.adicionar_link("hardware_core", esp32)
     svc.adicionar_link("mission_core", notebook_velho)
     svc.adicionar_link("mission_core", notebook_novo)
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
-    assert arduino.fechado is False, "link do Arduino não podia ser afetado"
+    assert esp32.fechado is False, "link do Arduino não podia ser afetado"
     assert notebook_velho.fechado is True
     assert len(svc._links) == 2
 

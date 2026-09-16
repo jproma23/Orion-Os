@@ -1,0 +1,11 @@
+services:
+  nav2:
+    build: .
+    image: orion-nav2
+    # host: a ponte fala com o Motion Core em 127.0.0.1:8080 (acesso local,
+    # sem senha) e o ROS 2 roda com discovery da rede do host - sem mapear
+    # portas nem brigar com o Discovery Server.
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - ROS_DOMAIN_ID=0

@@ -27,7 +27,7 @@ from aiohttp import web
 from motion_core.behavior.behavior_core import MODO_MANUAL, MODOS_DE_CONTROLE
 from motion_core.memory.api import MemoryAPI
 from orion.kernel.config import ConfigurationManager
-from orion.kernel.event_bus import Evento, EventBus
+from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("motion_core.webui.server")
 
@@ -97,6 +97,13 @@ TOPICOS_REPASSADOS = (
     "comm.module_lost",
     "comm.module_recovered",
     "memory.updated",
+    # O mapa 360° vem do LiDAR LD06 (Motion Core, 2026-08-17): o próprio
+    # Motion Core lê a serial e publica setores. Antes o webui esperava
+    # `lidar_leituras` na telemetria do ESP32 - o LiDAR agora é sensor do
+    # Pi, não do corpo.
+    "lidar.scan",
+    "lidar.error",
+    "lidar.status",
     # O maestro (EDR-0020) publica aqui qual comportamento esta no comando:
     # repouso, atendendo, vigilia, ia_estrategica, mentor. Ficou de fora da
     # lista ate 2026-07-25, entao as DECISOES do robo - a informacao mais
@@ -296,19 +303,15 @@ class WebUIServer:
             "hardware": {
                 "estado": None,
                 "em_movimento": None,
-                "distancia_frontal_cm": None,
-                "distancia_traseira_cm": None,
                 "temperatura_c": None,
                 "umidade_percent": None,
-                "inclinacao_graus": None,
-                "aceleracao_g": None,
-                "impacto_detectado": None,
             },
             "posicao": None,
             "seguranca": {"safe_mode_ativo": False, "motivo": None},
             "visao": {"ultima_deteccao": None},
             "voz": {"estado": None},
             "mapa": {"leituras": []},
+            "lidar": None,
             "diagnostico": {"ultimos_erros": [], "modulos": {}},
         }
         self._eventos_recentes: list[dict[str, Any]] = []
@@ -326,6 +329,7 @@ class WebUIServer:
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_post("/comando", self._handler_comando)
         self._app.router.add_post("/controle", self._handler_controle)
+        self._app.router.add_post("/goal_nav2", self._handler_goal_nav2)
         self._app.router.add_post("/cabeca", self._handler_cabeca)
         self._app.router.add_post("/desligar", self._handler_desligar)
         self._app.router.add_get("/", self._handler_index)
@@ -340,6 +344,7 @@ class WebUIServer:
         self._app.router.add_get("/configuracao", self._handler_configuracao)
         self._app.router.add_get("/api/configuracao", self._handler_api_configuracao)
         self._app.router.add_post("/api/configuracao/entrar", self._handler_login_configuracao)
+        self._app.router.add_get("/api/lidar", self._handler_api_lidar)
         self._app.router.add_static("/", DIRETORIO_ESTATICO, show_index=False)
 
         for topico in TOPICOS_REPASSADOS:
@@ -475,6 +480,15 @@ class WebUIServer:
 
     async def _handler_mapa(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "mapa.html")
+
+    async def _handler_api_lidar(self, request: web.Request) -> web.Response:
+        """Ultima varredura do LiDAR LD06 (setores), para a pagina do mapa.
+
+        O SSE ja entrega `lidar.scan` em tempo real; este endpoint existe
+        para quem acabou de abrir a pagina ver o estado atual sem esperar o
+        proximo evento.
+        """
+        return web.json_response(self._estado.get("lidar"))
 
     async def _handler_diagnostico(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "diagnostico.html")
@@ -783,6 +797,64 @@ class WebUIServer:
         logger.info("webui: volante entregue ao modo '%s' pelo dashboard", modo)
         return web.json_response({"ok": True, "modo_controle": modo})
 
+    async def _handler_goal_nav2(self, request: web.Request) -> web.Response:
+        """Manda um destino ao Nav2 (NaviCore) pela web.
+
+        O Nav2 resolve COMO chegar (mapa, costmap, planejamento e desvio);
+        este endpoint e a porta de entrada ONDE ir - publica `navigation.goal`
+        no barramento, que o Nav2Goal (motion_core/navigation/nav2_goal.py)
+        traduz para a acao NavigateToPose do container.
+
+        Serve hoje para teste manual e como fonte de destino para a IA
+        estrategica (que ainda nao emite x/y de mapa - so acoes discretas).
+        Quem pode usar: mesma regra de dirigir (senha, /comando) - mandar um
+        robo a um destino e dirigir o robo. O volante e requisito igual: um
+        goal autonomo por cima do operador seria a mesma briga de volante que
+        o /comando ja resolve com 409.
+        """
+        try:
+            corpo = await request.json()
+        except Exception:
+            return web.json_response({"erro": "corpo precisa ser JSON"}, status=400)
+
+        if not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para mandar o robo a um destino", "precisa_senha": True},
+                status=401,
+            )
+        if not self.operador_tem_o_volante():
+            return web.json_response(
+                {
+                    "erro": "o volante esta com a IA - toque em MANUAL para assumir",
+                    "modo_controle": self.modo_controle,
+                },
+                status=409,
+            )
+
+        try:
+            x = float(corpo.get("x_m"))
+            y = float(corpo.get("y_m"))
+        except (TypeError, ValueError):
+            return web.json_response(
+                {"erro": "precisa de x_m e y_m numericos (metros, frame do mapa)"},
+                status=400,
+            )
+        yaw = 0.0
+        if "yaw_rad" in corpo:
+            try:
+                yaw = float(corpo["yaw_rad"])
+            except (TypeError, ValueError):
+                return web.json_response({"erro": "yaw_rad invalida"}, status=400)
+
+        await self._event_bus.publish(
+            "navigation.goal",
+            {"x_m": x, "y_m": y, "yaw_rad": yaw, "origem": "webui"},
+        )
+        logger.info("webui: destino Nav2 (%.2f, %.2f) publicado", x, y)
+        return web.json_response(
+            {"ok": True, "goal": {"x_m": x, "y_m": y, "yaw_rad": yaw}}
+        )
+
     async def _handler_estado(self, request: web.Request) -> web.Response:
         # O modo entra no MESMO payload que a página já busca, em vez de um
         # endpoint só para ele: assim o botão nunca aparece desenhado num
@@ -878,19 +950,32 @@ class WebUIServer:
         elif topico == "motion.position":
             self._estado["posicao"] = dados
         elif topico == "motion.scan_complete":
-            self._estado["mapa"] = {"leituras": dados.get("leituras", [])}
+            # O mapa 360° vem do LiDAR LD06 agora (2026-08-16): a varredura
+            # de servo+ultrassom saiu junto com os sensores. O firmware entrega
+            # `lidar_leituras` (angulo/distancia_cm/valida) na telemetria.
+            self._estado["mapa"] = {
+                "leituras": dados.get("leituras", [])
+                or dados.get("lidar_leituras", [])
+            }
+        elif topico == "lidar.scan":
+            self._estado["lidar"] = dados
+            self._estado["mapa"] = {
+                "leituras": [
+                    {
+                        "angulo": setor["inicio_graus"],
+                        "distancia_cm": setor["distancia_cm"],
+                        "valida": setor["distancia_cm"] is not None,
+                    }
+                    for setor in dados.get("setores", [])
+                ]
+            }
         elif topico == "comm.mensagem.telemetry":
             hardware = self._estado["hardware"]
             for campo in (
                 "estado",
                 "em_movimento",
-                "distancia_frontal_cm",
-                "distancia_traseira_cm",
                 "temperatura_c",
                 "umidade_percent",
-                "inclinacao_graus",
-                "aceleracao_g",
-                "impacto_detectado",
                 # Bussola QMC6310 (2026-07-27). `rumo_valido` importa tanto
                 # quanto o rumo: sem calibracao o valor existe mas nao
                 # significa nada, e a tela nao pode mostrar 217 graus como se
@@ -901,17 +986,10 @@ class WebUIServer:
                 "rumo_valido",
                 "rumo_graus",
                 "campo_ut",
-                # `sem_eco` separa "nada refletiu" de distancia medida - sem
-                # isto a tela mostra 517cm como se fosse parede (ver
-                # sensor_ultrassonico.h e EDR-0024).
-                "frontal_sem_eco",
-                "traseiro_sem_eco",
-                # Amostras descartadas por cegueira do loop durante o eco
-                # (2026-07-27, sensor_ultrassonico.h) - contador ACUMULADO
-                # desde o boot, para achar quem bloqueia o loop (hoje, o
-                # envio da telemetria), nao para acusar sensor ruim.
-                "frontal_descartes",
-                "traseiro_descartes",
+                # Pontos do LiDAR LD06: o mapa 360° passa a vir do lidar, que
+                # varre todos os ângulos num unico frame. `leituras` traz
+                # {angulo, distancia_cm, valida} para cada ponto.
+                "lidar_leituras",
             ):
                 # `if campo in dados` tambem cobre o pacote REDUZIDO que o
                 # firmware manda com o robo em movimento: campo ausente

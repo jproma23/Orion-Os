@@ -41,6 +41,7 @@ from orion.mission.comando_local import pediu_para_guardar as _pediu_para_guarda
 from orion.mission.extrator_fatos import ExtratorFatos
 from orion.mission.memory_client import MemoryClient
 
+from orion.mission.jarvis_plugins import get_registry, execute_plugin
 logger = logging.getLogger("orion.mission.mission_planner")
 
 CallbackComandoHardware = Callable[[str], Awaitable[None]]
@@ -373,6 +374,7 @@ class MissionPlanner:
     def __init__(
         self,
         ai_manager: AiManager,
+        jarvis_plugins=None,  # Registry de plugins JARVIS (opcional)
         enviar_comando_hardware: CallbackComandoHardware | None = None,
         memory_client: MemoryClient | None = None,
         diario=None,
@@ -444,6 +446,8 @@ class MissionPlanner:
         #: NAO chegava a IA que CONVERSA - o robo decidia sabendo de quem se
         #: tratava e conversava sem saber, com a mesma pessoa, no mesmo minuto.
         self._familia = familia
+        #: Registry de plugins JARVIS para function calling (code_exec, file_ops, etc)
+        self._jarvis_plugins = jarvis_plugins or get_registry()
 
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
@@ -469,6 +473,8 @@ class MissionPlanner:
             resposta = sobre_mim
         elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
             resposta = ja_sei
+        elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
+            resposta = jarvis_resp
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -529,6 +535,8 @@ class MissionPlanner:
             resposta = sobre_mim
         elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
             resposta = ja_sei
+        elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
+            resposta = jarvis_resp
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
         elif (resposta_diario := await self._responder_sobre_quem_viu(
@@ -718,6 +726,34 @@ class MissionPlanner:
             # Banco ausente ou corrompido nao pode emudecer a conversa: ele
             # so perde essa resposta e segue para a IA.
             logger.exception("falha ao consultar o autoconhecimento")
+            return None
+
+    async def _responder_plugins_jarvis(self, texto: str) -> str | None:
+        """Executa plugins JARVIS via function calling do Gemini.
+
+        Os plugins disponiveis: code_executor, file_operations, system_control,
+        screen_awareness, ros2_navigator, desktop_control.
+
+        Retorna a resposta do plugin se executado, None se nenhum plugin aplicavel.
+        """
+        if self._jarvis_plugins is None:
+            return None
+        try:
+            schemas = self._jarvis_plugins.get_function_schemas()
+            if not schemas:
+                return None
+            # Usar o AiManager com function calling para executar o plugin
+            # O AiManager.responder aceita parâmetro tools
+            tools = [{"function_declarations": schemas}]
+            contexto = await self._consultar_contexto(None, texto)
+            resposta = await self._ai_manager.responder(texto, contexto, tools=tools)
+            
+            # Se a resposta contém function call, executar
+            # O AiManager já executa function calls automaticamente quando tools fornecido
+            # A resposta final já inclui o resultado da execução
+            return resposta
+        except Exception as e:
+            logger.exception("Erro ao executar plugins JARVIS")
             return None
 
     async def _responder_do_saber(self, texto: str) -> str | None:

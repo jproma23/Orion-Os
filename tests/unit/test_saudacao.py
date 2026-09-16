@@ -145,14 +145,24 @@ async def test_pessoa_fora_da_familia_recebe_cumprimento_generico(bus):
 @pytest.mark.asyncio
 async def test_nao_fala_por_cima_de_uma_conversa(bus):
     """Entre "Fofão" e o fim da resposta o robô está conversando. Cumprimentar
-    no meio da própria frase é pior do que não cumprimentar."""
+    no meio da própria frase é pior do que não cumprimentar - a saudação adia
+    para o fim do turno, e não vaza para o turno seguinte."""
     _, ditas = _montar(bus)
 
     await bus.publish("voice.wake_detected", {})
     await bus.aguardar_fila_vazia()
+    await bus.publish("voice.response_started", {})  # o robô começou a falar
+    await bus.aguardar_fila_vazia()
     await _ver(bus, "João Paulo")
 
-    assert ditas == []
+    assert ditas == []  # no meio da fala: adia, não fala por cima
+
+    await bus.publish("voice.response_finished", {})
+    await bus.aguardar_fila_vazia()
+    # a chegada pendente saiu assim que o turno acabou
+    for _ in range(6):
+        await asyncio.sleep(0)
+    assert len(ditas) == 1
 
     # ESTA METADE MUDOU EM 2026-08-09, e a mudanca e o conserto.
     #
@@ -163,11 +173,9 @@ async def test_nao_fala_por_cima_de_uma_conversa(bus):
     #
     # A janela de 15 min esta em `test_saudacao_na_conversa.py`, junto com a
     # prova de que passado esse tempo a chegada volta a valer.
-    await bus.publish("voice.response_finished", {})
-    await bus.aguardar_fila_vazia()
     await _ver(bus, "João Paulo")
 
-    assert ditas == [], "cumprimentou logo depois do turno, no meio da conversa"
+    assert len(ditas) == 1, "cumprimentou de novo logo depois do turno, no meio da conversa"
 
 
 @pytest.mark.asyncio

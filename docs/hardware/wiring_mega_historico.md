@@ -72,6 +72,25 @@ terminal do TB6600 — se um motor girar ao contrário, inverta o par A+/A-
 | 5V ou 3.3V | VCC (confira o módulo) |
 | GND | GND |
 
+### Bússola — GY-271 (HMC5883L ou clone QMC5883L)
+
+No ESP32, a bússola divide o barramento I2C com a IMU: SDA = GPIO 21,
+SCL = GPIO 22. O módulo é alimentado com **3,3V** (VCC do ESP32, sem passar
+pelo regulador da plaquinha — ver `bussola_manager.h`).
+
+| Sinal | Fio GY-271 | Destino (ESP32) |
+|---|---|---|
+| VCC | vermelho | 3V3 |
+| GND | preto | GND |
+| SCL | verde | GPIO 22 |
+| SDA | branco | GPIO 21 |
+
+O firmware faz autodetecção: tenta o HMC5883L verdadeiro (endereço 0x1E,
+identidade "H43") e cai para o clone QMC5883L (0x0D) se não achar. A
+varredura de I2C do boot mostra na telemetria qual dos dois está presente.
+A calibração (giro de 25 s) usa mágico próprio `0x5883` — a calibração
+gravada pelo QMC6310 antigo é ignorada de propósito.
+
 ### DHT11 / DHT22 — temperatura e umidade
 
 | Pino Mega | Sinal |

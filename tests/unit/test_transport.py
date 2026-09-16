@@ -73,13 +73,13 @@ async def test_serial_transport_envia_e_recebe_via_pty():
     )
     await transporte.conectar()
 
-    # ORION (via SerialTransport) -> escravo -> mestre: le do lado "arduino simulado"
+    # ORION (via SerialTransport) -> escravo -> mestre: le do lado "esp32 simulado"
     await transporte.enviar(b'{"tipo":"HEARTBEAT"}')
     await asyncio.sleep(0.05)
     bruto = os.read(mestre_fd, 4096)
     assert b'{"tipo":"HEARTBEAT"}' in bruto  # quadro codificado contem o payload
 
-    # mestre (arduino simulado) -> escravo -> ORION: escreve e le via receber()
+    # mestre (esp32 simulado) -> escravo -> ORION: escreve e le via receber()
     from orion.communication.framing import codificar_serial
 
     os.write(mestre_fd, codificar_serial(b'{"tipo":"ACK"}'))

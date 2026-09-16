@@ -79,8 +79,6 @@ class RetratoDoMundo:
     # --- corpo do robô (telemetria do Mega) ---
     obstaculo_frente_cm: float | None
     obstaculo_tras_cm: float | None
-    inclinacao_graus: float | None
-    impacto: bool | None
     bateria_v: float | None
     bateria_nivel: str | None
 
@@ -119,7 +117,6 @@ class RetratoDoMundo:
 
         return (
             f"frente={fmt(self.obstaculo_frente_cm, 'cm')} "
-            f"inclin={fmt(self.inclinacao_graus, 'gr')} "
             f"bat={fmt(self.bateria_nivel)} "
             f"estado={fmt(self.estado_hardware)} "
             f"pessoa={fmt(self.pessoa_nome)} "
@@ -301,8 +298,6 @@ class EstadoDoMundo:
             obstaculo_tras_cm=do_mega(
                 "distancia_traseira_cm", "distancia_traseira_valida", "traseiro_sem_eco"
             ),
-            inclinacao_graus=do_mega("inclinacao_graus"),
-            impacto=do_mega("impacto_detectado"),
             bateria_v=do_mega("bateria_tensao_v", "bateria_lida"),
             bateria_nivel=do_mega("bateria_nivel", "bateria_lida"),
             estado_hardware=self._estado_hardware.ler(VALIDADE_ESTADO_HARDWARE_S, agora),

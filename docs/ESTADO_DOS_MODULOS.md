@@ -100,10 +100,10 @@ uma das duas.
 | `sensor_ultrassonico.h` — leitura frontal/traseira (núcleo) | 🟡 | 2026-07-27 | Compila. Bug do `sensor_ok` corrigido e validado ao vivo em 27/07 (mão na frente do sensor, 174→61→172cm). **Arquivo alterado nesta sessão** — invalidado pela regra 1. | gravar e revalidar |
 | `sensor_ultrassonico.h` — descarte por cegueira do loop (novo, 27/07) | 🟡 | 2026-07-27 | **Gravado no Mega e medido**: `frontal_descartes=29`, `traseiro_descartes=10` acumulados em poucos minutos de uptime real — confirma a hipótese (o envio da telemetria cega o loop durante o eco com frequência real, não só teórica). Ainda não correlacionado, em janela longa, com sumiço dos 423 ciclos de obstáculo falso. | observação prolongada correlacionando descartes com ausência de obstáculo falso |
 | `bussola_manager.h` (QMC6310) | 🟠 | 2026-07-27 | Compila. Conectada e lendo (`bussola_conectada: true`), mas `rumo_valido: false` — recusa afirmar rumo por falta de calibração, corretamente. Isto é funcionamento parcial por natureza (falta um passo), não risco. | calibrar com o robô montado (`CALIBRATE_COMPASS`) |
-| `imu_manager.h` (MPU6050) | 🟡 | 2026-07-27 | Compila. Em uso na cadeia de segurança desde a Fase 4; validado na vistoria de 24/07 (inclinação 8/20°, sem impacto). Arquivo não alterado nesta sessão. | nenhum tecnicamente — mantido 🟡 pelo teto de política |
+| `imu_manager.h` (MPU6050) | ❌ removido | 2026-08-18 | **Arquivo deletado** com a IMU descartada pelo dono (decisão de 16/08, executada em 18/08). Segurança de inclinação/impacto saiu do firmware; restam a parada reativa por obstáculo e o timeout de comando. Sem validação pendente — módulo não existe mais. | — |
 | `command_executor.h` — `SET_PAN_TILT` | 🟡 | 2026-07-27 | Compila. Sinal invertido nos dois eixos corrigido em `04ec281` (26/07). Journal registra literalmente "falta validar no hardware" — ainda de pé. | validar fisicamente o pan/tilt |
 | `telemetry_manager.h` | 🟡 | 2026-07-27 | Compila. Regime duplo (parado/andando) implementado com custo medido (envio 74→68ms). Regime "andando" nunca testado com o robô em movimento. **Arquivo alterado nesta sessão** (campos de descarte). | testar telemetria reduzida com movimento real |
-| `bussola_manager.h`/`imu_manager.h` — I2C físico | 🟡 | 2026-07-27 | Scanner de I2C no boot confirma `[0x1C, 0x68]` presentes (27/07, após religar o fio do MPU). Achado de hard-iron dos motores documentado, sem calibração final. | ver linha da bússola acima |
+| `bussola_manager.h` — I2C físico | 🟡 | 2026-08-18 | Scanner de I2C no boot confirma o chip presente (27/07, após religar o fio). Achado de hard-iron dos motores documentado, sem calibração final. A IMU (MPU6050) saiu do barramento em 18/08 — a bússola é o único sensor I2C além dos servos da cabeça. | ver linha da bússola acima |
 | `encoder_manager.h` | 🔴 *(fora de escopo por decisão)* | 2026-07-27 | Pinos 18/19 reservados, sem sensor físico ligado. Decisão explícita do usuário (27/07): não usar o encoder indutivo LM12-3004NA. Não é bug — é escopo cortado conscientemente. | nenhum — reabrir só se a decisão for revertida |
 | `dht_manager.h`, `bateria_manager.h` | 🟠 | 2026-07-27 | Compilam, aparecem condicionalmente na telemetria (`dht_valido`, `bateria_lida`). Nenhuma validação de bancada com data encontrada no journal para nenhum dos dois. | validar leitura real e registrar data |
 
@@ -114,7 +114,7 @@ uma das duas.
 **Nenhuma célula é 🟢** — correto pelo teto de política: o robô não se moveu.
 
 **Onde a evidência é mais forte que a cor sugere:** `communication/`,
-`safety_manager.h`, `imu_manager.h` e a arbitragem do maestro têm validação
+`safety_manager.h` e a arbitragem do maestro têm validação
 de hardware real e datada. A cor fica em 🟡 pelo teto, não porque falte
 evidência — está registrada em cada linha.
 

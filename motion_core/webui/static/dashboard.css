@@ -173,6 +173,19 @@ dd {
 }
 #bus-aviso.alerta { color: var(--alerta); }
 
+/* Rumo em texto sob a rosa: aparece mesmo sem calibração (pedido do dono,
+   2026-08-16) - é a telemetria crua do sensor. A cor de alerta acompanha a
+   agulha `crua` para não dar ar de direção confiável sem ser. */
+#bus-rumo {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--texto-forte);
+  min-height: 1.2em;
+}
+#rosa-ventos.crua ~ #bus-rumo { color: var(--alerta); }
+#rosa-ventos.ausente ~ #bus-rumo { opacity: .25; }
+
 @media (prefers-reduced-motion: reduce) {
   #rosa-agulha { transition: none; }
 }

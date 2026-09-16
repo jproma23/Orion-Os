@@ -79,11 +79,11 @@ logger = logging.getLogger("motion_core.behavior.impulsos")
 LIMIAR_ACAO = 0.35
 
 # --- As quatro familias, nos nomes que o dono usou -------------------------
-#: O corpo: bateria, corpo mudo, robo tombado. O que fala da propria maquina.
+#: O corpo: bateria, corpo mudo. O que fala da propria maquina.
 FISIOLOGIA = "fisiologia"
 #: Nao saber. Cresce com o TEMPO em que o robo esta as cegas.
 CURIOSIDADE = "curiosidade"
-#: Perigo ja presente - batida, caminho fechado, estranho em casa.
+#: Perigo ja presente - caminho fechado, estranho em casa.
 PROTECAO = "protecao"
 #: Gente. Cresce com o tempo sozinho, e com recado esperando para ser dado.
 SOCIAL = "social"
@@ -185,19 +185,7 @@ IMPULSOS: tuple[Impulso, ...] = (
         objetivo="ficar_em_seguranca",
         descricao="a bateria esta acabando",
     ),
-    Impulso(
-        nome="estou_tombado",
-        familia=FISIOLOGIA,
-        objetivo="ficar_em_seguranca",
-        descricao="estou inclinado alem do que da para andar",
-    ),
     # --- PROTECAO: perigo ja presente ------------------------------------
-    Impulso(
-        nome="levei_uma_batida",
-        familia=PROTECAO,
-        objetivo="ficar_em_seguranca",
-        descricao="bati em alguma coisa agora ha pouco",
-    ),
     Impulso(
         nome="caminho_bloqueado",
         familia=PROTECAO,
@@ -332,7 +320,7 @@ class Impulsos:
     # ----- medida -----
 
     def avaliar(self, retrato, estado: dict[str, bool]) -> list[ImpulsoMedido]:
-        """Mede os nove impulsos agora, do mais urgente ao menos.
+        """Mede os sete impulsos agora, do mais urgente ao menos.
 
         `retrato` e o `RetratoDoMundo`; `estado` e o mesmo dicionario de
         booleanos que o planejador usa (`goap.estado_de`). Os dois, e nao um
@@ -353,7 +341,6 @@ class Impulsos:
     def _fisiologia(self, retrato, estado, agora) -> list[ImpulsoMedido]:
         corpo_vivo = estado.get("corpo_vivo", False)
         nivel = getattr(retrato, "bateria_nivel", None)
-        inclinacao = getattr(retrato, "inclinacao_graus", None)
 
         # A BATERIA NAO E MEDIDA NESTE ROBO HOJE (03/08): o divisor de tensao
         # nao esta montado e `bateria_nivel` e None. None vira urgencia ZERO, e
@@ -371,11 +358,6 @@ class Impulsos:
                 "sem medida de bateria (divisor nao montado)" if nivel is None else "bateria ok"
             )
 
-        # `nivelado` do estado ja e False quando a inclinacao e DESCONHECIDA, e
-        # aqui isso nao serve: nao saber a inclinacao nao e estar tombado. Por
-        # isso este impulso le o numero cru do retrato, e nao o booleano.
-        tombado = inclinacao is not None and inclinacao >= goap.INCLINACAO_LIMITE_GRAUS
-
         return [
             ImpulsoMedido(
                 IMPULSOS_POR_NOME["corpo_mudo"],
@@ -383,15 +365,9 @@ class Impulsos:
                 "sem telemetria do corpo" if not corpo_vivo else "corpo respondendo",
             ),
             ImpulsoMedido(IMPULSOS_POR_NOME["bateria_no_fim"], urgencia_bateria, porque_bateria),
-            ImpulsoMedido(
-                IMPULSOS_POR_NOME["estou_tombado"],
-                1.0 if tombado else 0.0,
-                f"inclinado {inclinacao:.0f} graus" if tombado else "de pe",
-            ),
         ]
 
     def _protecao(self, retrato, estado, agora) -> list[ImpulsoMedido]:
-        impacto = bool(getattr(retrato, "impacto", False))
         alerta = getattr(retrato, "alerta_sentinela", None)
 
         # Bloqueado e diferente de cego: so conta quando o robo SABE o que ha
@@ -402,11 +378,6 @@ class Impulsos:
         frente = getattr(retrato, "obstaculo_frente_cm", None)
 
         return [
-            ImpulsoMedido(
-                IMPULSOS_POR_NOME["levei_uma_batida"],
-                1.0 if impacto else 0.0,
-                "impacto detectado" if impacto else "sem batida",
-            ),
             ImpulsoMedido(
                 IMPULSOS_POR_NOME["caminho_bloqueado"],
                 # Comeca ja acima do limiar: um obstaculo nao precisa amadurecer
@@ -483,7 +454,7 @@ class Impulsos:
 
         Nao ha desempate por familia. Se dois impulsos empatam, vence o
         primeiro da lista ordenada - e a ordem entre iguais nao importa porque
-        varios impulsos apontam para o MESMO objetivo de proposito (tres deles
+        varios impulsos apontam para o MESMO objetivo de proposito (dois deles
         pedem `ficar_em_seguranca`). O que interessa e o objetivo escolhido,
         nao qual das razoes o justificou.
         """

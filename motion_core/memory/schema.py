@@ -241,10 +241,22 @@ CREATE TABLE IF NOT EXISTS recados (
 CREATE INDEX IF NOT EXISTS idx_recados_pendentes ON recados (para_nome, entregue_em);
 """
 
+#: VOZ como identidade (2026-08-19). O rosto (`embedding_face`) ja existe;
+#: a coluna aqui da a MESMA identidade pela VOZ - o dono pediu o
+#: reconhecimento de locutor ("quem esta falando") no nivel do reconhecimento
+#: facial. O embedding vem do SpeechBrain ECAPA (192 floats32) e e
+#: comparado por cosseno, espelhando o padrao do rosto (128 floats64 por
+#: distancia euclidiana). Vazio = pessoa sem voiceprint cadastrada, e a
+#: conversa dela volta a ser "da casa" (mesma regra do rosto ausente).
+_MIGRACAO_004 = """
+ALTER TABLE pessoas ADD COLUMN embedding_voz BLOB;
+"""
+
 MIGRACOES: tuple[Migracao, ...] = (
     (1, _MIGRACAO_001),
     (2, _MIGRACAO_002),
     (3, _MIGRACAO_003),
+    (4, _MIGRACAO_004),
 )
 
 #: Tabelas mapeadas por categoria da API de memoria (Cap 11 s.6) - usadas

@@ -44,7 +44,7 @@ nunca acessa o Arduino direto.
 |---|---|---|---|
 | **Mission Core** | Notebook 8 GB (Linux) | Python 3.11+ | Reconhecimento facial, conversa por voz, avatar, planejamento de missão |
 | **Motion Core** | Raspberry Pi 4 (4 GB) + SSD 500 GB | Python 3.11+ | Kernel, Behavior Core, fusão de sensores, memória, interface web |
-| **Hardware Core** | Arduino Mega 2560 | C++ (PlatformIO) | Tempo real: motores, servos, ultrassom, IMU, parada de emergência |
+| **Hardware Core** | Arduino Mega 2560 | C++ (PlatformIO) | Tempo real: motores, servos, ultrassom, bússola, parada de emergência |
 
 A divisão está fixada nos EDRs [0018](docs/edr/EDR-0018-arquitetura-tcc.md)
 e [0019](docs/edr/EDR-0019-divisao-final-e-ssd.md); as regras invioláveis,
@@ -63,7 +63,7 @@ em [`ARQUITETURA.txt`](ARQUITETURA.txt).
 - **Voz** — wake word, VAD e resposta falada, com modelo de linguagem local
 - **Memória** — diário de observações em banco, com consulta determinística
   ("você viu o fulano hoje?") separada da conversa livre
-- **Navegação** — fusão de odometria e IMU publicando `motion.position`
+- **Navegação** — fusão de odometria e bússola publicando `motion.position`
 - **Interface web** — dashboard com mapa polar do radar, telemetria ao vivo,
   diagnóstico e configuração
 

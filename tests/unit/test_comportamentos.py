@@ -738,7 +738,7 @@ async def test_ia_estrategica_recebe_o_quadro_do_mundo():
     `{"comportamento_ativo": "repouso"}`.
 
     Ela escolhia entre avancar, girar e seguir pessoa sem saber se havia
-    obstaculo, gente na sala, bateria ou inclinacao. O `EstadoDoMundo` montava
+    obstaculo, gente na sala ou bateria. O `EstadoDoMundo` montava
     esse quadro inteiro e o entregava ao `ponte_conselho`, que esta desabilitado
     - o retrato ia para um caminho desligado enquanto quem decide recebia uma
     linha.
@@ -959,9 +959,7 @@ class _RetratoFalso:
     def __init__(self, **campos) -> None:
         self.telemetria_viva = campos.get("telemetria_viva", True)
         self.obstaculo_frente_cm = campos.get("obstaculo_frente_cm", 200.0)
-        self.inclinacao_graus = campos.get("inclinacao_graus", 2.0)
         self.bateria_nivel = campos.get("bateria_nivel", "OK")
-        self.impacto = campos.get("impacto", False)
         self.pessoa_presente = campos.get("pessoa_presente", False)
         self.pessoa_conhecida = campos.get("pessoa_conhecida", False)
         self.estado_hardware = campos.get("estado_hardware", "IDLE")

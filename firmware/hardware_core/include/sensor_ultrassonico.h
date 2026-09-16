@@ -125,7 +125,7 @@ class SensorUltrassonico {
           // TROCA CONSCIENTE: um objeto macio ou muito inclinado (cortina,
           // sofa, parede de lado) tambem nao devolve eco e sera reportado
           // como "livre". Ultrassom e fisicamente cego para isso; quem
-          // cobre essa falha e o impacto do IMU e a camada tatica do Pi.
+          // cobre essa falha e a camada tatica do Pi.
           _foraDeAlcance(agora);
         }
         break;

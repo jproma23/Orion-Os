@@ -27,20 +27,12 @@ def test_a_re_nunca_esta_ao_alcance_da_ia():
     assert "MOVE_DISTANCE" not in comandos
 
 
-def test_a_ia_nao_mexe_no_limiar_da_propria_seguranca():
-    """Calibrar o robo PODE (auto-ajuste, pedido do usuario) - mexer no
-    LIMIAR da seguranca nao. Calibrar e o sensor se reorientar; afrouxar o
-    limiar de impacto e o vigiado ajustando o vigia."""
-    assert "SET_IMPACT_THRESHOLD" in contrato.PROIBIDO_PARA_IA
-    comandos = {a.dados.get("comando") for a in contrato.ACOES.values()}
-    assert "SET_IMPACT_THRESHOLD" not in comandos
-
-
 def test_a_ia_pode_se_auto_ajustar():
-    """A outra metade: calibrar bussola e inclinacao esta liberado, porque
-    auto-ajuste foi pedido explicitamente."""
+    """A outra metade: calibrar a bussola esta liberado, porque auto-ajuste
+    foi pedido explicitamente. (O calibrar de inclinacao saiu junto com a
+    MPU6050, descartada em 2026-08-18.)"""
     comandos = {a.dados.get("comando") for a in contrato.ACOES.values()}
-    assert {"CALIBRATE_COMPASS", "CALIBRATE_IMU"} <= comandos
+    assert "CALIBRATE_COMPASS" in comandos
 
 
 def test_todo_movimento_passa_pela_navegacao():

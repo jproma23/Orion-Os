@@ -38,7 +38,7 @@ class FakeTransporte:
 # Mora AQUI e nao num modulo de teste porque dois arquivos o usam, e
 # `tests` nao e pacote importavel - importar de um test_*.py para
 # outro quebra a coleta (aconteceu no Notebook em 06/08).
-async def arduino_simulado(master_fd: int) -> None:
+async def esp32_simulado(master_fd: int) -> None:
     loop = asyncio.get_running_loop()
     decodificador = DecodificadorSerial()
     fila: asyncio.Queue[bytes] = asyncio.Queue()

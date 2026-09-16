@@ -51,7 +51,6 @@ async def _publicar_telemetria_e_posicao(bus: EventBus) -> None:
                     "distancia_frontal_cm": round(distancia, 1),
                     "temperatura_c": 24.5,
                     "umidade_percent": 55.0,
-                    "inclinacao_graus": round(2 * math.sin(t * 0.1), 1),
                 }
             },
         )
@@ -111,7 +110,7 @@ async def _piscar_safe_mode(bus: EventBus) -> None:
         await asyncio.sleep(15.0)
         await bus.publish(
             "safety.safe_mode_entered",
-            {"motivo": "impacto_detectado (simulado)"},
+            {"motivo": "perigo_frontal (simulado)"},
             prioridade=Prioridade.CRITICA,
         )
         await asyncio.sleep(4.0)

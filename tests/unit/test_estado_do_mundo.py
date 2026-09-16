@@ -66,13 +66,10 @@ async def test_telemetria_preenche_o_corpo(mundo: EstadoDoMundo) -> None:
         {
             "distancia_frontal_cm": 34.0,
             "distancia_frontal_valida": True,
-            "inclinacao_graus": 0.4,
-            "impacto_detectado": False,
         },
     )
     r = mundo.retrato()
     assert r.obstaculo_frente_cm == 34.0
-    assert r.inclinacao_graus == 0.4
     assert r.telemetria_viva is True
 
 

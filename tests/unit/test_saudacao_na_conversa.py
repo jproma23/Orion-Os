@@ -68,11 +68,37 @@ async def test_nao_cumprimenta_entre_dois_turnos_da_mesma_conversa(cenario):
 
 @pytest.mark.asyncio
 async def test_nao_cumprimenta_durante_a_propria_resposta(cenario):
-    """O que ja funcionava antes - nao pode regredir."""
+    """No meio da própria fala não cumprimenta - adia para o fim do turno.
+
+    A chegada não se perde: quem aparece enquanto o robô fala é cumprimentado
+    assim que a resposta termina (dono, 19/08).
+    """
     bus, ditas, relogio, saudacao = cenario
     await saudacao._ao_acordar(None)
+    await saudacao._ao_comecar_resposta(None)  # o robô está falando
     await _ver_pessoa(bus, saudacao)
-    assert ditas == []
+    assert ditas == []  # ainda falando: não fala por cima
+
+    await saudacao._ao_terminar_resposta(None)
+    if saudacao._tarefa_cumprimento is not None:
+        await saudacao._tarefa_cumprimento
+    assert len(ditas) == 1
+    assert "João Paulo" in ditas[0]
+
+
+@pytest.mark.asyncio
+async def test_acordou_sem_resposta_e_chegada_cumprimenta(cenario):
+    """19/08: a visão reconheceu o dono 6 s depois de ele dizer "Fofão".
+
+    O wake abria a janela de conversa na hora e a saudação morria antes de
+    nascer - o robô via o dono chegar e não dizia nada. Wake sozinho não é
+    conversa: quem aparece enquanto o robô acorda está CHEGANDO.
+    """
+    bus, ditas, relogio, saudacao = cenario
+    await saudacao._ao_acordar(None)  # "Fofão"
+    await _ver_pessoa(bus, saudacao)  # a visão reconhece logo depois
+    assert len(ditas) == 1
+    assert "João Paulo" in ditas[0]
 
 
 @pytest.mark.asyncio

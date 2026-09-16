@@ -160,13 +160,16 @@ async def test_manual_espera_hardware_ficar_ocioso_antes_de_mover(cenario):
 
 
 @pytest.mark.asyncio
-async def test_manual_bloqueia_avanco_com_obstaculo(cenario):
+async def test_manual_obedece_mesmo_com_obstaculo_frontal(cenario):
+    """MANUAL OBEDECE 100% (dono, 2026-08-18): comando do operador passa
+    mesmo com obstaculo medido - o obstaculo vira evento de informacao e
+    aviso, nunca um STOP que engole o comando."""
     await cenario.injetar_telemetria(distancia_frontal_cm=10)
     await cenario.nav.executar_manual("MOVE_FORWARD")
     await cenario.bus.aguardar_fila_vazia()
     comandos = cenario.comandos_enviados()
-    assert "MOVE_FORWARD" not in comandos
-    assert "STOP" in comandos
+    assert "MOVE_FORWARD" in comandos
+    assert "STOP" not in comandos
     assert any(e.topico == "navigation.obstacle_avoided" for e in cenario.eventos)
 
 
@@ -192,15 +195,15 @@ async def test_manual_comando_desconhecido_levanta_erro(cenario):
 
 
 @pytest.mark.asyncio
-async def test_manual_move_continuous_e_bloqueado_por_obstaculo(cenario):
+async def test_manual_move_continuous_obedece_mesmo_com_obstaculo(cenario):
     # o joystick usa MOVE_CONTINUOUS (nao MOVE_FORWARD) para andar para
-    # frente - precisa da MESMA checagem tatica de obstaculo.
+    # frente - precisa da MESMA regra: operador manda, o robo obedece.
     await cenario.injetar_telemetria(distancia_frontal_cm=10)
     await cenario.nav.executar_manual("MOVE_CONTINUOUS")
     await cenario.bus.aguardar_fila_vazia()
     comandos = cenario.comandos_enviados()
-    assert "MOVE_CONTINUOUS" not in comandos
-    assert "STOP" in comandos
+    assert "MOVE_CONTINUOUS" in comandos
+    assert "STOP" not in comandos
     assert any(e.topico == "navigation.obstacle_avoided" for e in cenario.eventos)
 
 
@@ -670,6 +673,10 @@ async def test_estado_do_mega_vem_tambem_da_telemetria(cenario):
 # O que os testes abaixo fixam: o robo OLHA (a varredura e o estudo), ANDA de
 # qualquer jeito, e o que ele descobriu vira dado para quem decide. Andar sem
 # saber e escolha do dono; andar sem saber e sem REGISTRAR seria defeito.
+#
+# EXCECAO DESDE 2026-08-18 ("manual obedece 100%"): este estudo mora so no
+# caminho AUTONOMO (`executar_goto`/PATROL). No manual o operador manda e o
+# robo obedece sem olhar - quem estuda o risco e o humano dirigindo.
 # ---------------------------------------------------------------------------
 
 
@@ -693,7 +700,10 @@ async def test_frente_desconhecida_nao_impede_o_avanco(cenario):
 
 @pytest.mark.asyncio
 async def test_olha_antes_de_avancar_quando_nao_sabe(cenario):
-    """O estudo de risco acontece: 7 angulos medidos onde havia so um None."""
+    """O estudo de risco acontece: 7 angulos medidos onde havia so um None.
+
+    Vive no caminho AUTONOMO (`executar_goto`): desde 2026-08-18 o manual
+    obedece 100% e nao estuda nada - quem dirige e o operador."""
     cenario.definir_leituras_scan([])
     await _telemetria(
         cenario,
@@ -703,7 +713,7 @@ async def test_olha_antes_de_avancar_quando_nao_sabe(cenario):
         frontal_sensor_ok=True,
     )
 
-    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
 
     assert "SCAN_FRONT" in cenario.comandos_enviados()
@@ -715,7 +725,8 @@ async def test_risco_assumido_e_declarado_para_quem_decide(cenario):
 
     Sem este evento o robo andaria sem medida e nada no sistema saberia -
     nem a IA, nem o diario, nem a interface. O dado e o que torna a decisao
-    possivel; sem ele, "tomada de decisao" seria so uma frase.
+    possivel; sem ele, "tomada de decisao" seria so uma frase. (Caminho
+    AUTONOMO: o manual obedece 100% e nao estuda risco desde 2026-08-18.)
     """
     cenario.definir_leituras_scan([])
     await _telemetria(
@@ -726,7 +737,7 @@ async def test_risco_assumido_e_declarado_para_quem_decide(cenario):
         frontal_sensor_ok=True,
     )
 
-    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
 
     riscos = [e for e in cenario.eventos if e.topico == "navigation.risco_assumido"]
@@ -740,7 +751,8 @@ async def test_varredura_que_mede_espaco_nao_declara_risco(cenario):
     """CONTRAPROVA: com medida boa, nao ha risco a declarar.
 
     Sem este teste, o de cima passaria com um publish incondicional - e o
-    evento viraria ruido que se aprende a ignorar.
+    evento viraria ruido que se aprende a ignorar. (Caminho AUTONOMO: o
+    manual obedece 100% e nao declara risco desde 2026-08-18.)
     """
     cenario.definir_leituras_scan(
         [
@@ -757,20 +769,21 @@ async def test_varredura_que_mede_espaco_nao_declara_risco(cenario):
         frontal_sensor_ok=True,
     )
 
-    await cenario.nav.executar_manual("MOVE_FORWARD")
+    await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
 
-    assert "MOVE_FORWARD" in cenario.comandos_enviados()
+    assert "MOVE_DISTANCE" in cenario.comandos_enviados()
     assert not [e for e in cenario.eventos if e.topico == "navigation.risco_assumido"]
 
 
 @pytest.mark.asyncio
 async def test_obstaculo_medido_continua_reportando_obstaculo(cenario):
-    """A checagem que RESTOU: obstaculo medido de verdade.
+    """A informacao que RESTOU: obstaculo medido de verdade.
 
-    Esta e a unica que ainda segura o avanco, e e uma decisao em aberto do
-    dono - ver o relatorio de 30/07. O motivo no payload existe para nao
-    confundi-la com duvida, que agora nunca segura nada.
+    Com "manual obedece 100%" (dono, 2026-08-18) o avanco nao e mais vetado
+    aqui, mas o obstaculo continua sendo REPORTADO - evento no mesmo topico,
+    com o motivo no payload, para o dashboard e a IA saberem que o operador
+    dirigiu para cima de um obstaculo.
     """
     await _telemetria(
         cenario,
@@ -783,7 +796,7 @@ async def test_obstaculo_medido_continua_reportando_obstaculo(cenario):
     await cenario.nav.executar_manual("MOVE_FORWARD")
     await cenario.bus.aguardar_fila_vazia()
 
-    assert "MOVE_FORWARD" not in cenario.comandos_enviados()
+    assert "MOVE_FORWARD" in cenario.comandos_enviados()
     recusas = [e for e in cenario.eventos if e.topico == "navigation.obstacle_avoided"]
     assert recusas[-1].dados["motivo"] == "obstaculo_frontal"
 

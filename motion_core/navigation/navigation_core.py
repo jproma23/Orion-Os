@@ -27,7 +27,7 @@ from enum import Enum
 from typing import Any
 
 from orion.communication.service import ComunicacaoService, ErroComunicacao
-from orion.kernel.event_bus import Evento, EventBus, Prioridade
+from orion.kernel.event_bus import EventBus, Evento, Prioridade
 
 logger = logging.getLogger("motion_core.navigation.navigation_core")
 
@@ -107,8 +107,8 @@ COMANDOS_MANUAIS = frozenset(
         "DOCK",
         # Auto-ajuste (2026-07-28, pedido do usuario: calibracao ele tem que
         # fazer, se auto ajustar). Nao movem o robo - mandam o Mega refazer a
-        # referencia dos proprios sensores.
-        "CALIBRATE_IMU",
+        # referencia dos proprios sensores. O CALIBRATE_IMU saiu em
+        # 2026-08-18 junto com a MPU6050.
         "CALIBRATE_COMPASS",
     }
 )
@@ -172,6 +172,18 @@ class NavigationCore:
         self._recorrente_janela_s = config_navigation.get("obstacle_recorrente_janela_s", 300.0)
         self._recorrente_limite = config_navigation.get("obstacle_recorrente_limite", 2)
 
+        # LiDAR LD06 (Motion Core, USB serial - decisao do dono 2026-08-17).
+        # `lidar_frontal_angulos_graus` e a janela em torno da frente (90° na
+        # convencao da web): [-60, 60] = os 120° a frente. A checagem tatica
+        # ganha um sensor continuo de 360° que vê obstaculos laterais antes de
+        # eles entrarem no ultrassom.
+        angulos = config_navigation.get("lidar_frontal_angulos_graus", [-60, 60])
+        self._lidar_frontal_limite_graus = (float(angulos[0]), float(angulos[1]))
+        self._lidar_min_obstaculo_cm = float(
+            config_navigation.get("lidar_min_obstaculo_cm", 25.0)
+        )
+        self._setores_lidar: list[dict[str, Any]] | None = None
+
         self._modo = ModoNavegacao.HOLD
         self._distancia_frontal_atual_cm: float | None = None
         #: O sensor frontal deu sinal de vida? None = nunca chegou telemetria.
@@ -203,6 +215,7 @@ class NavigationCore:
         event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("motion.scan_complete", self._ao_completar_scan)
         event_bus.subscribe("motion.status", self._ao_atualizar_estado_hardware)
+        event_bus.subscribe("lidar.scan", self._ao_atualizar_lidar)
 
     @property
     def modo(self) -> ModoNavegacao:
@@ -296,6 +309,61 @@ class NavigationCore:
             return False
         return self._distancia_frontal_atual_cm < self._distancia_seguranca_frontal_cm
 
+    # ---------- LiDAR LD06 (sensor do Pi, decisao do dono 2026-08-17) ----------
+
+    async def _ao_atualizar_lidar(self, evento: Evento) -> None:
+        """Guarda a ultima varredura em setores. Sensor puro: so informa."""
+        setores = evento.dados.get("setores")
+        if setores is not None:
+            self._setores_lidar = setores
+
+    def _angulo_na_frente(self, angulo_graus: float) -> bool:
+        """O angulo cai dentro da janela frontal configurada?
+
+        Convencao igual a da web (mapa.js): 0° = esquerda, 90° = frente,
+        180° = direita. A janela e relativa a frente, entao o limite nao
+        muda quando o robo gira. Diferenca circular lida com o salto 0/360.
+        """
+        delta = (angulo_graus - 90.0) % 360.0
+        if delta > 180.0:
+            delta = 360.0 - delta
+        minimo, maximo = self._lidar_frontal_limite_graus
+        return minimo <= delta <= maximo
+
+    def _menor_distancia_lidar_frontal(self) -> float | None:
+        """Menor distancia medida nos setores frontais, ou None.
+
+        Setor sem medida (`distancia_cm: null`) NAO e obstaculo: o LiDAR
+        nao enxergou nada ali, e afirmar parede onde nao ha medida seria o
+        mesmo fail-closed que este projeto combate. A duvida continua sendo
+        resolvida pelo ultrassom e pela varredura, como sempre foi.
+        """
+        if self._setores_lidar is None:
+            return None
+        menor: float | None = None
+        for setor in self._setores_lidar:
+            distancia_cm = setor.get("distancia_cm")
+            if distancia_cm is None:
+                continue
+            centro = (
+                float(setor.get("inicio_graus", 0.0)) + float(setor.get("fim_graus", 0.0))
+            ) / 2.0
+            if not self._angulo_na_frente(centro):
+                continue
+            if menor is None or distancia_cm < menor:
+                menor = distancia_cm
+        return menor
+
+    def _obstaculo_no_lidar(self) -> bool:
+        """True quando algum setor frontal mediu mais perto que o limite.
+
+        Sem LiDAR (varredura nunca publicada) responde False e a seguranca
+        tatica continua a cargo do ultrassom - tolerancia a ausencia (Cap
+        6 s.8). O LiDAR e MAIS um sensor de olhos, nao o unico.
+        """
+        menor = self._menor_distancia_lidar_frontal()
+        return menor is not None and menor < self._lidar_min_obstaculo_cm
+
     async def _ao_completar_scan(self, evento: Evento) -> None:
         if self._scan_pendente is not None and not self._scan_pendente.done():
             self._scan_pendente.set_result(evento.dados.get("leituras", []))
@@ -370,7 +438,9 @@ class NavigationCore:
             return False  # sem leitura valida (ex.: sensor nao montado) - nao bloqueia sozinho
         return min(distancias_validas) < self._distancia_seguranca_frontal_cm
 
-    async def _publicar_obstaculo(self, contexto: str, motivo: str = "obstaculo_frontal") -> None:
+    async def _publicar_obstaculo(
+        self, contexto: str, motivo: str = "obstaculo_frontal", distancia_cm: float | None = None
+    ) -> None:
         """`motivo` separa "tem coisa na frente" de "nao sei o que tem".
 
         Os dois impedem avancar, e sao fatos diferentes. O proprio firmware ja
@@ -380,14 +450,21 @@ class NavigationCore:
         sensores desmentem. Vai no payload do evento que ja existe, em vez de
         um topico novo: topico sem assinante e o defeito que mais se repete
         neste projeto.
+
+        `distancia_cm` explicita o valor que bloqueou quando ele nao vem do
+        ultrassom (ex.: setor do LiDAR LD06, que nao e a `distancia_frontal_cm`
+        da telemetria).
         """
+        payload: dict[str, Any] = {
+            "contexto": contexto,
+            "motivo": motivo,
+            "distancia_frontal_cm": self._distancia_frontal_atual_cm,
+        }
+        if distancia_cm is not None:
+            payload["distancia_frontal_cm"] = distancia_cm
         await self._event_bus.publish(
             "navigation.obstacle_avoided",
-            {
-                "contexto": contexto,
-                "motivo": motivo,
-                "distancia_frontal_cm": self._distancia_frontal_atual_cm,
-            },
+            payload,
             prioridade=Prioridade.ALTA,
         )
 
@@ -437,6 +514,19 @@ class NavigationCore:
             await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
             await self._publicar_obstaculo(contexto)
             return False
+
+        # LiDAR NAO BLOQUEIA MAIS (decisao do dono, 2026-08-20): "nada de
+        # sistema bloqueante" - o lidar alimenta o costmap do Nav2, e e o Nav2
+        # quem replaneja a rota. O STOP por lidar foi removido; o lidar vira
+        # evento de informacao (quem consumir - dashboard, IA - segue sabendo
+        # do obstaculo) sem frear o avanca. O piso continua sendo o ultrassom
+        # frontal acima (colisao iminente) e a parada reativa do Mega.
+        if self._obstaculo_no_lidar():
+            await self._publicar_obstaculo(
+                contexto,
+                motivo="lidar_frontal",
+                distancia_cm=self._menor_distancia_lidar_frontal(),
+            )
 
         if not self.frente_desconhecida():
             return True  # medida de verdade, e ela mostra espaco
@@ -656,20 +746,41 @@ class NavigationCore:
         velocidade_percent: float | None = None,
         distancia_cm: float | None = None,
     ) -> None:
-        """Repassa um comando direto do usuario ao Hardware Core (Cap 12 s.3),
-        com a checagem de obstaculo da camada tatica antes de qualquer
-        comando que avance o robo (Cap 12 s.6)."""
+        """Repassa um comando direto do usuario ao Hardware Core (Cap 12 s.3).
+
+        MANUAL OBEDECE 100% (decisao do dono, 2026-08-18): comando do operador
+        nunca e vetado por sensor. Ate 18/08 a checagem tatica (`_pode_avancar`)
+        engolia o avanco com um STOP quando havia obstaculo frontal; agora o
+        obstaculo vira evento de informacao e aviso no log - o comando passa.
+        O piso continua sendo a parada reativa do Mega (EDR-0027).
+        """
         if comando not in COMANDOS_MANUAIS:
             raise ErroNavegacao(f"comando manual desconhecido: {comando!r}")
 
         await self._mudar_modo(ModoNavegacao.MANUAL)
 
-        # `_pode_avancar` no lugar de `_obstaculo_a_frente()` (2026-07-30): a
-        # checagem antiga deixava passar o caso "nao sei" - ver a docstring
-        # dele. Vale tambem para o joystick: com o Mega sem freio (EDR-0027),
-        # o operador tambem depende desta camada.
-        if comando in COMANDOS_QUE_AVANCAM and not await self._pode_avancar(f"manual:{comando}"):
-            return
+        if comando in COMANDOS_QUE_AVANCAM:
+            if self._obstaculo_a_frente():
+                # Informa sem vetar: o evento de obstaculo continua indo para
+                # o dashboard e a IA, e o operador segue dirigindo.
+                await self._publicar_obstaculo(f"manual:{comando}")
+                logger.warning(
+                    "manual:%s OBEDECIDO apesar de obstaculo frontal a %.0f cm "
+                    "(seguranca em %.0f cm)",
+                    comando,
+                    self._distancia_frontal_atual_cm,
+                    self._distancia_seguranca_frontal_cm,
+                )
+            elif self._obstaculo_no_lidar():
+                await self._publicar_obstaculo(
+                    f"manual:{comando}",
+                    motivo="lidar_frontal",
+                    distancia_cm=self._menor_distancia_lidar_frontal(),
+                )
+                logger.warning(
+                    "manual:%s OBEDECIDO apesar de obstaculo no lidar frontal",
+                    comando,
+                )
 
         payload: dict[str, Any] = {"comando": comando}
         comando_de_movimento = comando in COMANDOS_DE_MOVIMENTO
@@ -769,8 +880,17 @@ class NavigationCore:
         if self._scan_antes_de_segmento:
             leituras = await self._escanear_a_frente()
             if self._obstaculo_na_varredura(leituras):
+                distancias_validas = [
+                    leitura["distancia_cm"]
+                    for leitura in leituras
+                    if leitura.get("angulo") in ANGULOS_FRONTAIS and leitura.get("valida")
+                ]
                 await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
-                await self._publicar_obstaculo(contexto="segmento")
+                await self._publicar_obstaculo(
+                    contexto="segmento",
+                    motivo="obstaculo_frontal",
+                    distancia_cm=min(distancias_validas),
+                )
                 return False
             confirmado_pela_varredura = self._varredura_confirma_frente_livre(leituras)
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Fofão — Dashboard</title>
-<link rel="stylesheet" href="dashboard.css?v=20260804b" />
+<link rel="stylesheet" href="dashboard.css?v=20260816a" />
 </head>
 <body>
 <header>
@@ -49,16 +49,21 @@
   </section>
 
   <section class="painel">
+    <!-- "Deslocamento medido", não "posição estimada": o título antigo soava
+         como um valor com alguma margem de erro, quando na verdade o número não
+         era medido de forma nenhuma - vinha dos pulsos ENVIADOS ao driver.
+         Juntado ao painel Telemetria (2026-08-16, a pedido do dono): sensores e
+         pose são o mesmo fluxo de telemetria, não janelas distintas. -->
     <h2>Telemetria</h2>
     <dl>
-      <dt>Distância frontal</dt><dd id="tel-distancia">—</dd>
-      <dt>Distância traseira</dt><dd id="tel-distancia-tras">—</dd>
       <dt>Temperatura</dt><dd id="tel-temp">—</dd>
       <dt>Umidade</dt><dd id="tel-umidade">—</dd>
-      <dt>Inclinação (IMU)</dt><dd id="tel-inclinacao">—</dd>
-      <dt>Aceleração (IMU)</dt><dd id="tel-aceleracao">—</dd>
-      <dt>Impacto</dt><dd id="tel-impacto">—</dd>
+      <dt>X</dt><dd id="pos-x">—</dd>
+      <dt>Y</dt><dd id="pos-y">—</dd>
+      <dt>Orientação</dt><dd id="pos-orientacao">—</dd>
+      <dt>Velocidade</dt><dd id="pos-velocidade">—</dd>
     </dl>
+    <p id="pos-aviso"></p>
   </section>
 
   <!-- QUEM CONTROLA (2026-07-30) fica DENTRO do painel do joystick: é ele que
@@ -117,21 +122,8 @@
       </g>
       <circle class="rosa-eixo" cx="0" cy="0" r="5" />
     </svg>
+    <p id="bus-rumo"></p>
     <p id="bus-aviso"></p>
-  </section>
-
-  <section class="painel">
-    <!-- "Deslocamento medido", não "posição estimada": o título antigo soava
-         como um valor com alguma margem de erro, quando na verdade o número não
-         era medido de forma nenhuma - vinha dos pulsos ENVIADOS ao driver. -->
-    <h2>Deslocamento medido</h2>
-    <dl>
-      <dt>X</dt><dd id="pos-x">—</dd>
-      <dt>Y</dt><dd id="pos-y">—</dd>
-      <dt>Orientação</dt><dd id="pos-orientacao">—</dd>
-      <dt>Velocidade</dt><dd id="pos-velocidade">—</dd>
-    </dl>
-    <p id="pos-aviso"></p>
   </section>
 
   <section class="painel painel--eventos">
@@ -158,6 +150,6 @@
 </main>
 
 <script src="camera_cabeca.js?v=20260804c"></script>
-<script src="dashboard.js?v=20260804b"></script>
+<script src="dashboard.js?v=20260816a"></script>
 </body>
 </html>

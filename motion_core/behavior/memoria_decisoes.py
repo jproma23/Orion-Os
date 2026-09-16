@@ -20,7 +20,7 @@ mesma e a resposta ja esta guardada.
 ## O que entra na assinatura, e o que NAO entra
 
 Entra o que muda a decisao:
-  - o bloco "O QUE EU SINTO AGORA" (distancias, inclinacao, bateria, corpo)
+  - o bloco "O QUE EU SINTO AGORA" (distancias, bateria, corpo)
   - se ha alguem na frente dele agora
   - a lista de opcoes oferecidas (mudou o cardapio, muda a escolha)
 

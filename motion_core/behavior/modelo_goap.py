@@ -46,16 +46,18 @@ _MODELO: dict[str, tuple[dict[str, bool], dict[str, bool]]] = {
         {"frente_conhecida": True, "pessoa_visivel": True},
     ),
     # --- Mover ------------------------------------------------------------
-    # Todas exigem `sem_impacto` e `nivelado`: planejar movimento com o robo
-    # tombado ou logo apos uma batida e planejar para um mundo que nao e o
-    # que esta acontecendo. A seguranca do firmware nao veta mais (EDR-0027),
-    # entao esta e a camada onde esse juizo tem que existir.
+    # Todas exigem `corpo_vivo` e `bateria_ok`. As precondicoes de postura
+    # (`nivelado`) e de impacto (`sem_impacto`) foram removidas com a IMU
+    # (2026-08-18): nao ha mais sensor medindo nenhuma das duas, e um
+    # predicado que nenhum sensor mede nunca fica falso - o planejador o
+    # daria por resolvido para sempre e o robo pararia de tentar (nota do
+    # topo de `goap.PREDICADOS`).
     "explorar": (
-        {"corpo_vivo": True, "frente_livre": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "frente_livre": True, "bateria_ok": True},
         {},
     ),
     "avancar": (
-        {"corpo_vivo": True, "frente_livre": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "frente_livre": True, "bateria_ok": True},
         {},
     ),
     # GIRAR ZERA `frente_conhecida` DE PROPOSITO, e este e o detalhe mais
@@ -68,31 +70,30 @@ _MODELO: dict[str, tuple[dict[str, bool], dict[str, bool]]] = {
     # promessa. Se depois do giro a frente continuar bloqueada, o proximo
     # ciclo replaneja. Ver a nota sobre intencao em goap.py.
     "virar_esquerda": (
-        {"corpo_vivo": True, "frente_conhecida": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
         {"frente_livre": True, "frente_conhecida": False},
     ),
     "virar_direita": (
-        {"corpo_vivo": True, "frente_conhecida": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
         {"frente_livre": True, "frente_conhecida": False},
     ),
     "manobrar": (
-        {"corpo_vivo": True, "frente_livre": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "frente_livre": True, "bateria_ok": True},
         {},
     ),
     "seguir_pessoa": (
-        {"corpo_vivo": True, "pessoa_visivel": True, "nivelado": True, "sem_impacto": True, "bateria_ok": True},
+        {"corpo_vivo": True, "pessoa_visivel": True, "bateria_ok": True},
         {},
     ),
     # `parar` nao exige nada: e a unica acao que continua valendo com o corpo
-    # mudo, tombado ou depois de uma batida. Uma acao sem precondicao alguma
-    # e o piso do planejador.
+    # mudo. Uma acao sem precondicao alguma e o piso do planejador.
     #
     # O EFEITO `parado` FOI ACRESCENTADO EM 2026-08-03, e conserta um objetivo
-    # que nao funcionava. `ficar_em_seguranca` pedia `sem_impacto: True`, e
-    # NENHUMA acao produz esse predicado - impacto e leitura de sensor, nao
-    # consequencia de decisao. Varrendo os 256 mundos possiveis, aquele
-    # objetivo nao gerava plano em nenhum: ou ja estava satisfeito (plano
-    # vazio) ou era impossivel (None).
+    # que nao funcionava. `ficar_em_seguranca` pedia um predicado de leitura
+    # de sensor, e NENHUMA acao produz esse predicado - ele e leitura de
+    # sensor, nao consequencia de decisao. Varrendo os 256 mundos possiveis,
+    # aquele objetivo nao gerava plano em nenhum: ou ja estava satisfeito
+    # (plano vazio) ou era impossivel (None).
     #
     # O tamanho do problema so aparece com o GOAP ligado: a IA escolhe entre 4
     # objetivos, e um deles se chama "ficar em seguranca". E o nome mais
@@ -105,10 +106,8 @@ _MODELO: dict[str, tuple[dict[str, bool], dict[str, bool]]] = {
     # --- Cuidar de si -----------------------------------------------------
     # Calibrar exige o robo PARADO na pratica, mas isso nao e um predicado do
     # vocabulario e nao vale inventar um que ninguem mede (ver PREDICADOS em
-    # goap.py). O que da para exigir com honestidade e corpo vivo e nivelado -
-    # calibrar a inclinacao com o robo tombado gravaria a referencia errada.
-    "calibrar_inclinacao": ({"corpo_vivo": True, "nivelado": True}, {}),
-    "calibrar_bussola": ({"corpo_vivo": True, "sem_impacto": True}, {}),
+    # goap.py). O que da para exigir com honestidade e corpo vivo.
+    "calibrar_bussola": ({"corpo_vivo": True}, {}),
     # --- Perifericos ------------------------------------------------------
     # Nenhum destes muda predicado nenhum: nao existe "luz_acesa" no
     # RetratoDoMundo, entao nao existe aqui. Continuam alcancaveis pela IA
@@ -264,7 +263,7 @@ def _conferir_cobertura() -> None:
             f"em contrato.ACOES"
         )
 
-    # TODA acao que move as rodas exige as mesmas quatro condicoes.
+    # TODA acao que move as rodas exige as mesmas duas condicoes.
     #
     # Isto nasceu de um erro meu, pego pelo teste em 2026-08-02: `explorar`,
     # `avancar` e `seguir_pessoa` exigiam `bateria_ok`, mas `virar_esquerda`,
@@ -279,7 +278,12 @@ def _conferir_cobertura() -> None:
     # `move_rodas` e o mesmo campo que o contrato ja usa para exigir que
     # movimento passe pela navegacao (regra 2) - a fonte da verdade sobre "o
     # que mexe no robo fisicamente" continua sendo uma so.
-    exigidas = {"corpo_vivo", "nivelado", "sem_impacto", "bateria_ok"}
+    #
+    # Postura e impacto (exigidos ate 2026-08-18) sairam daqui junto com a
+    # IMU: nao ha mais nada medindo inclinacao nem batida, e predicado que
+    # nenhum sensor mede nunca fica falso - o planejador o daria por
+    # resolvido e o robo pararia de tentar.
+    exigidas = {"corpo_vivo", "bateria_ok"}
     for nome, (precondicoes, _) in _MODELO.items():
         acao = contrato.ACOES[nome]
         if not acao.move_rodas:
@@ -288,8 +292,8 @@ def _conferir_cobertura() -> None:
         if faltando_pre:
             raise RuntimeError(
                 f"modelo GOAP inseguro: a acao {nome!r} move as rodas mas nao "
-                f"exige {sorted(faltando_pre)!r} - o planejador a usaria com o "
-                f"robo tombado, sem corpo, apos batida ou com a bateria no fim"
+                f"exige {sorted(faltando_pre)!r} - o planejador a usaria sem "
+                f"corpo ou com a bateria no fim"
             )
 
 

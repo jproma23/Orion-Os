@@ -33,6 +33,7 @@ logger = logging.getLogger("orion.mission.saudacao")
 TOPICO_RECONHECIDA = "vision.person_recognized"
 TOPICO_PERDIDA = "vision.person_lost"
 TOPICO_ACORDOU = "voice.wake_detected"
+TOPICO_RESPOSTA_INICIO = "voice.response_started"
 TOPICO_RESPOSTA_FIM = "voice.response_finished"
 TOPICO_SAUDACAO = "voice.saudacao"
 
@@ -174,13 +175,27 @@ class SaudacaoEspontanea:
         #: fato precise ser recitado. Só isto ataca a repetição sem
         #: reintroduzir o relatório de dados.
         self._frases_usadas: dict[str, list[str]] = {}
-        #: True entre "Fofão" e o fim da resposta - não se fala por cima de
-        #: uma conversa em andamento. Cumprimentar alguém no meio da própria
-        #: frase é pior do que não cumprimentar.
+        #: True entre "Fofão" e o fim da resposta - o robô está numa sessão de
+        #: conversa. NÃO se fala por cima de uma conversa em andamento;
+        #: cumprimentar no meio da própria frase é pior do que não cumprimentar.
         self._conversando = False
+        #: True só enquanto o robô ESTÁ FALANDO uma resposta (entre
+        #: `voice.response_started` e `voice.response_finished`). É o que
+        #: distingue "no meio da própria fala" (adia a saudação) de "acordou e
+        #: espera comando" (a pessoa está chegando - cumprimenta já).
+        self._falando = False
+        #: Quem chegou enquanto o robô falava e ainda não foi cumprimentado.
+        #:
+        #: Achado real (2026-08-19): o dono disse "Fofão" e a visão reconheceu
+        #: 6 segundos DEPOIS. Antes, o wake abria a janela de conversa na hora
+        #: e a saudação morria antes de nascer - o robô via o dono chegar e
+        #: não dizia nada. A chegada que chega na hora da resposta fica aqui e
+        #: sai assim que o turno terminar; ela não se perde.
+        self._pendente: list[str] = []
         #: Quando o último turno de conversa aconteceu. `_conversando` sozinho
         #: só cobria o turno; entre um turno e outro a pessoa voltava a "chegar"
-        #: e ouvia "que bom te ver" no meio do papo (dono, 09/08).
+        #: e ouvia "que bom te ver" no meio do papo (dono, 09/08). Só a
+        #: resposta TERMINADA marca aqui - o wake sozinho não é conversa.
         self._ultima_conversa: float | None = None
         self._janela_de_conversa_s = janela_de_conversa_s
         #: Cumprimento em voo - ver `_ao_reconhecer`.
@@ -188,27 +203,42 @@ class SaudacaoEspontanea:
 
         event_bus.subscribe(TOPICO_RECONHECIDA, self._ao_reconhecer)
         event_bus.subscribe(TOPICO_ACORDOU, self._ao_acordar)
+        event_bus.subscribe(TOPICO_RESPOSTA_INICIO, self._ao_comecar_resposta)
         event_bus.subscribe(TOPICO_RESPOSTA_FIM, self._ao_terminar_resposta)
 
     async def _ao_acordar(self, evento: Evento) -> None:
+        # O wake abre a SESSÃO de conversa, mas NÃO a janela de 15 min. Se
+        # marcasse a janela na hora, quem chegasse enquanto o robô ainda
+        # acordava seria engolido por ela (achado real 19/08: a visão
+        # reconheceu o dono 6 s depois do "Fofão" e o cumprimento morreu) - e
+        # até quem acordasse o robô e saísse sem dizer nada calaria a saudação
+        # por 15 minutos. A janela só começa com a primeira resposta de verdade.
         self._conversando = True
-        self._ultima_conversa = self._agora()
+
+    async def _ao_comecar_resposta(self, evento: Evento) -> None:
+        self._falando = True
 
     async def _ao_terminar_resposta(self, evento: Evento) -> None:
         self._conversando = False
-        # Marcado nas DUAS pontas: o wake abre a janela na hora, e o fim da
-        # resposta a renova. Marcar só no wake faria a janela começar a correr
-        # enquanto o robô ainda estava falando.
+        self._falando = False
         self._ultima_conversa = self._agora()
+        # Quem chegou durante a resposta (reconhecido enquanto o robô falava)
+        # cumprimenta AGORA que o turno acabou - a chegada não se perde.
+        pendentes = list(self._pendente)
+        self._pendente.clear()
+        for nome in pendentes:
+            self._tarefa_cumprimento = asyncio.create_task(
+                self._cumprimentar(nome, self._cumprimentados.get(nome))
+            )
 
-    def _conversa_em_andamento(self) -> bool:
-        """Alguém está falando com ele agora, ou acabou de falar.
+    def _pos_conversa(self) -> bool:
+        """Acabou de ter uma conversa REAL (uma resposta terminou há < 15 min).
 
         Quem conversa não CHEGA - já estava aqui. Esta é a diferença que o
         `_conversando` sozinho não via, porque ele só valia dentro do turno.
+        O wake sozinho NÃO marca: sem nenhuma troca, quem aparece na frente
+        está chegando, não conversando (19/08).
         """
-        if self._conversando:
-            return True
         if self._ultima_conversa is None:
             return False
         return self._agora() - self._ultima_conversa < self._janela_de_conversa_s
@@ -217,10 +247,12 @@ class SaudacaoEspontanea:
         nome = evento.dados.get("nome")
         if not nome:
             return  # sem identidade não há a quem cumprimentar pelo nome
-        if self._conversa_em_andamento():
-            # NAO marca `_cumprimentados`: a pessoa nao foi cumprimentada, so
-            # nao era hora. Marcar aqui adiaria o cumprimento de verdade em
-            # meia hora a cada quadro em que ela aparecesse durante a conversa.
+        if self._pos_conversa():
+            # Entre turnos de uma conversa REAL (dono, 09/08): quem conversa
+            # não chegou - não cumprimenta. NAO marca `_cumprimentados`: a
+            # pessoa nao foi cumprimentada, so nao era hora. Marcar aqui
+            # adiaria o cumprimento de verdade em meia hora a cada quadro em
+            # que ela aparecesse durante a conversa.
             return
         # O instante da ULTIMA vez tem que ser lido AGORA, porque
         # `_chegou_agora` grava o horario de hoje em cima dele. Sem isto o
@@ -229,6 +261,12 @@ class SaudacaoEspontanea:
         # commit corrige, so uma camada abaixo.
         anterior = self._cumprimentados.get(nome)
         if not self._chegou_agora(nome):
+            return
+        if self._conversando and self._falando:
+            # O robô está no meio da própria resposta: a pessoa chegou, mas
+            # não se fala por cima de quem está falando. Fica pendente e sai
+            # assim que o turno terminar (dono, 19/08).
+            self._pendente.append(nome)
             return
 
         # FORA DO LACO DA VISAO, de proposito. Este handler e chamado pelo
@@ -241,6 +279,11 @@ class SaudacaoEspontanea:
         # a compor a frase e simplesmente nao falaria, sem erro nenhum. Uma
         # saudacao por vez ja e a regra de fato (o `_chegou_agora` barra a
         # repeticao), entao um unico campo basta.
+        #
+        # O wake sozinho não é conversa: acordou mas ninguém respondeu ainda =
+        # a pessoa CHEGOU agora, e o cumprimento é a primeira coisa que ela
+        # deve ouvir (pedido do dono, 29/07: "praticamente ao me ver me
+        # cumprimentar"; sem isto a chegada morre na janela do wake - 19/08).
         self._tarefa_cumprimento = asyncio.create_task(self._cumprimentar(nome, anterior))
 
     async def _cumprimentar(self, nome: str, anterior: float | None = None) -> None:

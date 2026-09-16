@@ -7,7 +7,6 @@
 
 #include <Arduino.h>
 
-#include "imu_manager.h"
 #include "motor_manager.h"
 #include "radar_manager.h"
 
@@ -33,7 +32,7 @@ class SafetyManager {
  public:
   // Chamar todo loop(). Retorna true no instante em que uma parada de
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
-  bool avaliar(MotorManager& motores, RadarManager& radar, ImuManager& imu,
+  bool avaliar(MotorManager& motores, RadarManager& radar,
                unsigned long ultimoComandoMs) {
     // Cap 18: "em duvida, para" - continua valendo. O que mudou mais tarde em 28/07 e
     // O QUE CONTA COMO DUVIDA. Leitura invalida (sensor solto, fio, ruido)
@@ -69,8 +68,6 @@ class SafetyManager {
     } else {
       frenteDesconhecida = true;
     }
-    bool inclinacaoCritica = imu.conectado() && imu.inclinacaoCritica();
-    bool impacto = imu.conectado() && imu.impactoDetectado();
     bool timeoutComando =
         motores.emMovimento() && (millis() - ultimoComandoMs) > TIMEOUT_COMANDO_MS;
 
@@ -88,10 +85,10 @@ class SafetyManager {
     //
     // NAO TEM FREIO, EXISTEM MANOBRAS - regra do mantenedor, 2026-07-29.
     //
-    // Obstaculo a frente, inclinacao critica e impacto NAO param mais o robo
-    // por conta do firmware. Os tres viram DADO na telemetria, e cada um tem
-    // uma manobra correspondente do lado da inteligencia (contornar, se
-    // reorientar, recuar) - ver EDR-0027. O Mega mede, informa e executa.
+    // Obstaculo a frente NAO para mais o robo por conta do firmware. Vira
+    // DADO na telemetria, e tem uma manobra correspondente do lado da
+    // inteligencia (contornar) - ver EDR-0027. O Mega mede, informa e
+    // executa.
     //
     // Sobra UMA parada, e ela nao contradiz a regra: o homem-morto. Se os
     // motores estao girando e nenhum comando chega ha TIMEOUT_COMANDO_MS, nao
@@ -105,7 +102,7 @@ class SafetyManager {
     // que alimenta `seguranca_parada_ativa`/`seguranca_motivo` e o estado
     // OBSTACLE_DETECTED, que e como o Pi fica sabendo que precisa manobrar.
     // Ele deixou de implicar recusa de comando e deixou de implicar freio.
-    bool deveParar = inclinacaoCritica || impacto || timeoutComando || perigoFrontal;
+    bool deveParar = timeoutComando || perigoFrontal;
 
     // A UNICA parada automatica que restou.
     const bool deveFrear = timeoutComando;
@@ -125,8 +122,6 @@ class SafetyManager {
         // desmentiam. Quem le a telemetria agora sabe qual dos dois e.
         _motivo = obstaculoFrontal    ? "obstaculo_frontal"
                   : frenteDesconhecida ? "frente_desconhecida"
-                  : inclinacaoCritica  ? "inclinacao_critica"
-                  : impacto            ? "impacto"
                                        : "timeout_comando";
         _pararAtivo = true;
         return true;

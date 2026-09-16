@@ -31,9 +31,7 @@ MUNDO_BOM = {
     "frente_livre": False,
     "pessoa_visivel": False,
     "pessoa_conhecida": False,
-    "nivelado": True,
     "bateria_ok": True,
-    "sem_impacto": True,
 }
 
 
@@ -103,14 +101,6 @@ def test_sem_corpo_nao_ha_plano():
     assert _planejar({**MUNDO_BOM, "corpo_vivo": False}, "poder_seguir_em_frente") is None
 
 
-def test_tombado_nao_planeja_movimento():
-    assert _planejar({**MUNDO_BOM, "nivelado": False}, "poder_seguir_em_frente") is None
-
-
-def test_apos_impacto_nao_planeja_movimento():
-    assert _planejar({**MUNDO_BOM, "sem_impacto": False}, "poder_seguir_em_frente") is None
-
-
 def test_bateria_critica_barra_movimento_mas_nao_observacao():
     """Bateria no fim impede andar, nao impede olhar.
 
@@ -152,8 +142,6 @@ def test_girar_invalida_o_conhecimento_da_frente():
 class RetratoFalso:
     telemetria_viva: bool = True
     obstaculo_frente_cm: float | None = None
-    inclinacao_graus: float | None = 0.0
-    impacto: bool = False
     bateria_nivel: str | None = "OK"
     pessoa_presente: bool = False
     pessoa_conhecida: bool = False
@@ -226,12 +214,12 @@ def test_objetivo_fora_da_lista_nunca_vira_chute():
 # ---------------------------------------------------------------------------
 # NENHUM OBJETIVO PODE SER DECORATIVO (2026-08-03)
 #
-# `ficar_em_seguranca` pedia `sem_impacto: True`, e nenhuma acao produz esse
-# efeito - impacto e leitura de sensor, nao consequencia de decisao. Varrendo
-# os 2^N mundos possiveis, o objetivo nao gerava plano em NENHUM. Com o GOAP
-# ligado a IA escolhe entre 4 objetivos: um deles ser mudo custa caro, e o
-# nome "ficar em seguranca" e o mais atraente justamente quando as coisas vao
-# mal.
+# `ficar_em_seguranca` pedia um predicado de leitura de sensor, e nenhuma acao
+# produz esse efeito - ele e leitura de sensor, nao consequencia de decisao.
+# Varrendo os 2^N mundos possiveis, o objetivo nao gerava plano em NENHUM. Com
+# o GOAP ligado a IA escolhe entre 4 objetivos: um deles ser mudo custa caro,
+# e o nome "ficar em seguranca" e o mais atraente justamente quando as coisas
+# vao mal.
 # ---------------------------------------------------------------------------
 
 
@@ -265,7 +253,7 @@ def test_conferir_modelo_recusa_objetivo_decorativo():
     """A trava roda no IMPORT - quem criar outro objetivo mudo descobre no
     boot, nao no quintal."""
     mudo = goap.Objetivo(
-        nome="impossivel", descricao="pede o que ninguem faz", alvo={"sem_impacto": True}
+        nome="impossivel", descricao="pede o que ninguem faz", alvo={"pessoa_conhecida": True}
     )
     with pytest.raises(RuntimeError, match="decorativo"):
         goap.conferir_modelo(modelo_goap.ACOES_PLANEJAVEIS, [mudo])

@@ -65,6 +65,13 @@ _MINIMO_TERMOS = 1
 
 #: Palavras que aparecem em QUALQUER fala e nao discriminam conteudo. Curta
 #: de proposito, igual ao vault: lista grande comeca a derrubar palavra util.
+#
+# Verbos de ACAO/comando entram aqui de proposito (2026-08-16): "olha",
+# "mexe", "liga" etc. sao pedidos para o robo FAZER algo, nao temas de
+# conhecimento. Sem eles, "der uma olha" virava termo "olha", casava com
+# qualquer registro que contivesse a palavra no corpo, e o "Eu ja sei?"
+# despejava texto cru fora de contexto (visto: "der uma olha" respondeu
+# "Pensamento sistemico do dono").
 _PALAVRAS_VAZIAS = frozenset(
     {
         "para", "pelo", "pela", "como", "quando", "onde", "isso", "isto",
@@ -74,6 +81,12 @@ _PALAVRAS_VAZIAS = frozenset(
         "estao", "sera", "foi", "era", "sao", "com", "sem", "dos", "das",
         "nos", "nas", "num", "numa", "pra", "por", "que", "mas", "porque",
         "nao", "quero", "fazer", "existe", "existem", "acha", "acha que",
+        # Verbos de acao/comando: nao sao temas de conhecimento.
+        "olha", "olhar", "olhe", "ve", "ver", "viu", "vai", "anda", "andar",
+        "move", "mover", "mexe", "mexer", "liga", "ligar", "desliga",
+        "desligar", "acende", "apaga", "gira", "girar", "para", "parar",
+        "continua", "mostra", "mostrar", "fala", "falar", "conta", "contar",
+        "diz", "dizer", "faz", "checa", "checar", "verifica", "verificar",
     }
 )
 

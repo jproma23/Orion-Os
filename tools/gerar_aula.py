@@ -201,6 +201,10 @@ def _titulo_adequado(termo: str, contexto: str, titulo: str) -> bool:
 
     if palavras_termo == palavras_titulo:
         return not bool(palavras_termo & _TERMOS_AMBIGUOS)
+    # Um titulo que e so o termo procurado, por escrito mais curto (ex.:
+    #  Atrito para o termo Atrito estatico e dinamico), e a mesma coisa.
+    if palavras_titulo <= palavras_termo:
+        return True
     return len(palavras_titulo & _palavras_peso(contexto)) >= 2
 
 #: Palavras do `conteudo` da ementa que nao sao termo a ensinar.
@@ -250,7 +254,7 @@ async def _introducao(consulta: ConsultaInternet, termo: str, contexto: str = ""
     achado = None
     for tentativa in ([f"{termo} {contexto}"] if contexto else []) + [termo]:
         candidato = await consulta.consultar(tentativa)
-        if candidato is not None and _parecidos(termo, candidato.titulo):
+        if candidato is not None and _titulo_adequado(termo, contexto, candidato.titulo):
             achado = candidato
             break
     if achado is None:
@@ -276,7 +280,7 @@ async def _buscar(consulta: ConsultaInternet, topico):
         # conferencia, "O que e estar vivo" trouxe "Organizacao das Nacoes
         # Unidas" - a busca por termo solto encontra qualquer coisa, e uma
         # aula de biologia sobre a ONU e pior que nenhuma aula.
-        if not _parecidos(termo, achado.titulo):
+        if not _titulo_adequado(termo, topico.titulo, achado.titulo):
             print(f"    (descartado - procurei {termo!r} e veio {achado.titulo!r})")
             continue
         try:
