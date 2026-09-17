@@ -58,8 +58,10 @@ class ModuloVoz:
 
     async def iniciar(self) -> None:
         if self._nucleo is None:
+            # devolve None quando nao ha o que escutar - ver `_construir`
             self._nucleo = await self._construir()
-        self._tarefa = asyncio.create_task(self._nucleo.executar())
+        if self._nucleo is not None:
+            self._tarefa = asyncio.create_task(self._nucleo.executar())
         # O chat digitado (webui) nunca passa pelo VoiceCore, entao a
         # resposta de texto so chega aqui por evento - ver
         # ModuloMissao._processar_chat. Pedido do dono, 2026-09-13: o Fofao
@@ -79,7 +81,9 @@ class ModuloVoz:
         logger.info("Voz ativa - diga a palavra de ativacao")
 
     async def _ao_receber_resposta_chat(self, evento: Evento) -> None:
-        if self._nucleo is None:
+        # basta ter BOCA: sem nucleo (robo surdo, ver `iniciar()`) ele ainda
+        # responde em voz alta o que foi digitado no chat.
+        if self._nucleo is None and self._sintetizador is None:
             return
         texto = str(evento.dados.get("texto", "")).strip()
         if not texto:
@@ -96,21 +100,56 @@ class ModuloVoz:
 
     async def _falar_resposta_chat(self, texto: str) -> None:
         try:
-            await self._nucleo.falar(texto)
+            # O nucleo e preferido porque ele tambem para de escutar enquanto
+            # fala (estado SPEAKING, o cancelamento de eco). Sem nucleo nao ha
+            # escuta para pausar, e falar direto pelo sintetizador e o certo.
+            if self._nucleo is not None:
+                await self._nucleo.falar(texto)
+            else:
+                await self._sintetizador.falar(texto)
         except Exception:  # noqa: BLE001
             # mesmo raciocinio da saudacao: audio de saida quebrado nao pode
             # derrubar nada - o chat de texto ja respondeu na tela de qualquer
             # jeito, falar em voz alta e um extra.
             logger.warning("Falha ao falar a resposta do chat", exc_info=True)
 
+    def _montar_sintetizador(self) -> Any:
+        """So a FALA - nao toca em microfone, nem em Whisper, nem em rede."""
+        from orion.voice.sintese import Sintetizador
+
+        # A fala pode sair pela CABECA (alto-falante da tela ESP32-S3) em vez
+        # do dispositivo de audio do Pi - 2026-09-16, quando o alto-falante da
+        # tela passou a funcionar. Uma saida OU a outra, nunca as duas: o robo
+        # falaria em duplicado, com eco entre elas. Quem escreve na serial e a
+        # ponte do ModuloDisplay, dona da porta; aqui so se publica o PCM.
+        tocar_na_tela = None
+        if self._conf.get("falar_pela_tela"):
+            async def tocar_na_tela(audio, taxa: int) -> None:
+                await self._event_bus.publish(
+                    "voice.audio_pcm", {"audio": audio, "taxa": taxa}
+                )
+
+            logger.info("A fala vai sair pelo alto-falante da tela (orion_face)")
+
+        return Sintetizador(
+            self._conf["piper_voice_path"],
+            indice_dispositivo_saida=self._conf["saida_audio_indice"],
+            tocar_na_tela=tocar_na_tela,
+        )
+
     async def _construir(self) -> Any:
         # imports locais: puxam sounddevice, faster-whisper e piper, pesados
         # e ausentes em maquina de desenvolvimento sem audio.
-        from orion.voice.captura_audio import SeletorMicrofone
-        from orion.voice.sintese import Sintetizador
+        from orion.voice.captura_audio import ErroAudio, SeletorMicrofone
         from orion.voice.vad import DetectorAtividadeSonora
         from orion.voice.voice_core import VoiceCore
         from orion.voice.wake_word import DetectorPalavraAtivacao
+
+        # O SINTETIZADOR PRIMEIRO, de proposito (2026-09-16): falar nao depende
+        # de microfone nenhum. Montado aqui, ele sobrevive a uma falha da
+        # escuta mais abaixo, e o robo continua respondendo em voz alta em vez
+        # de ficar mudo por um defeito que nao e dele. Ver `iniciar()`.
+        self._sintetizador = self._montar_sintetizador()
 
         gravar_audio = None
         indice_mic = -1  # nao usado quando gravar_audio vem dos ouvidos do ESP32
@@ -144,7 +183,25 @@ class ModuloVoz:
         if gravar_audio is None:
             logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")
             seletor = SeletorMicrofone(self._conf["microfones_candidatos_indices"])
-            indice_mic = await seletor.escolher_melhor()
+            try:
+                indice_mic = await seletor.escolher_melhor()
+            except ErroAudio as erro:
+                # SEM MICROFONE O ROBO FICA SURDO, NAO MUDO (2026-09-16).
+                #
+                # Ate aqui este erro subia e derrubava o modulo de voz INTEIRO:
+                # o Boot Manager anotava "Modulo voice indisponivel" e o Fofao
+                # parava de falar qualquer coisa - inclusive a resposta do chat
+                # DIGITADO, que nao tem nada a ver com microfone. Foi o que
+                # aconteceu quando os ouvidos do ESP32 nao apareceram no boot e
+                # o Pi, que nao tem microfone proprio, nao teve para onde cair.
+                #
+                # O sintetizador ja foi montado la em cima, entao a boca esta
+                # de pe. Voltar None diz ao `iniciar()` que nao ha escuta para
+                # rodar - nao ha o que ouvir, mas ha o que dizer.
+                logger.warning(
+                    "Sem microfone (%s) - o Fofao segue SURDO, mas continua falando", erro
+                )
+                return None
 
         # Whisper le o modelo do disco no construtor e bloqueia por dezenas de
         # segundos. Fora da thread do event loop, senao o boot inteiro
@@ -154,26 +211,6 @@ class ModuloVoz:
         )
         transcritor_ativacao = await asyncio.to_thread(
             _TranscritorComLog, self._conf["whisper_model_ativacao"]
-        )
-
-        # A fala pode sair pela CABECA (alto-falante da tela ESP32-S3) em vez
-        # do dispositivo de audio do Pi - 2026-09-16, quando o alto-falante da
-        # tela passou a funcionar. Uma saida OU a outra, nunca as duas: o robo
-        # falaria em duplicado, com eco entre elas. Quem escreve na serial e a
-        # ponte do ModuloDisplay, dona da porta; aqui so se publica o PCM.
-        tocar_na_tela = None
-        if self._conf.get("falar_pela_tela"):
-            async def tocar_na_tela(audio, taxa: int) -> None:
-                await self._event_bus.publish(
-                    "voice.audio_pcm", {"audio": audio, "taxa": taxa}
-                )
-
-            logger.info("A fala vai sair pelo alto-falante da tela (orion_face)")
-
-        self._sintetizador = Sintetizador(
-            self._conf["piper_voice_path"],
-            indice_dispositivo_saida=self._conf["saida_audio_indice"],
-            tocar_na_tela=tocar_na_tela,
         )
 
         detector_atividade = None
@@ -229,7 +266,14 @@ class ModuloVoz:
             self._tarefa = None
 
     def esta_saudavel(self) -> bool:
-        return self._tarefa is not None and not self._tarefa.done()
+        # Saudavel = faz o que da para fazer. Sem microfone nao existe tarefa
+        # de escuta (ver `_construir`), e o modulo ainda assim fala - reportar
+        # doente ali colocaria o Boot Manager a reiniciar para sempre um modulo
+        # que nao tem o que consertar. A surdez ja foi registrada no boot, com
+        # o motivo, em vez de virar um alarme permanente sem explicacao.
+        if self._tarefa is not None:
+            return not self._tarefa.done()
+        return self._sintetizador is not None
 
 
 def _TranscritorComLog(modelo: str) -> Any:  # noqa: N802 - fabrica, nao classe

@@ -8809,3 +8809,76 @@ duplicado, com eco entre elas. `false` volta tudo para o dispositivo do Pi.
 - O mic da tela **não** foi ligado ao `VoiceCore`; quem ouve continua sendo os
   ouvidos ESP32 separados.
 - Nada foi commitado (o dono não pediu).
+
+### Continuação da mesma noite — o Fofão voltou a responder, e falando
+
+Pedido do dono: *"vamos conectar gemini e fazer o robo responder"*.
+
+**A IA nunca esteve fora do ar.** O que faltava era endereço. O
+`communication.raspberry.host` do `orion.yaml` ainda guardava `10.20.20.196`,
+o IP do Pi numa rede WiFi que não existe mais — de quando o Mission Core
+rodava no Notebook. Com o Notebook aposentado, os dois processos passaram a
+rodar na MESMA máquina, mas o campo ficou para trás. O log dizia
+`ErroComunicacao: Sem rota conhecida para o destino 'motion_core'` e o chat
+respondia **"o Fofão não respondeu a tempo"** — sintoma de IA morta, causa de
+endereço velho. Agora é `127.0.0.1`, o que de quebra encerra a classe inteira
+de problema que trocar de rede (DHCP) causava neste enlace.
+
+Chave do Gemini testada direto no endpoint antes de subir qualquer coisa:
+responde, cota de pé.
+
+**Sem microfone ele ficava MUDO, não só surdo.** `ModuloVoz._construir`
+deixava o `ErroAudio` do seletor de microfone subir; o Boot Manager anotava
+"Módulo voice indisponível" e o Fofão parava de falar **qualquer coisa** —
+inclusive a resposta do chat *digitado*, que não tem relação nenhuma com
+microfone. Foi exatamente o que aconteceu: os ouvidos do ESP32 não apareceram
+no boot, e o Pi não tem microfone próprio para onde cair.
+
+Corrigido na fonte: o sintetizador passa a ser montado **antes** de procurar
+microfone, e a falta de mic devolve `None` (sem escuta) em vez de derrubar o
+módulo inteiro. `esta_saudavel()` agora significa "faz o que dá para fazer" —
+reportar doente para sempre poria o Boot Manager a reiniciar um módulo que não
+tem conserto possível. A surdez é registrada uma vez, com o motivo, em vez de
+virar alarme permanente.
+
+**Medido:** `{"ok": true, "resposta": "Estou inteirinho, ouvindo e pronto por
+aqui."}` e, na sequência, a resposta saindo **falada pelo alto-falante da
+tela** — confirmado pelo dono.
+
+### O Pi está em corte térmico, e o ventilador só não estava ligado
+
+O dono notou que a fala demorou. Medido, em vez de chutado:
+
+| etapa | tempo |
+|---|---|
+| Gemini gerar o texto | 4,1 s |
+| Piper sintetizar 3,5 s de fala | 6,3 s, e **8,4 s** na segunda vez |
+
+A segunda medição mais lenta que a primeira é a assinatura de throttling, não
+de código ruim. E de fato:
+
+```
+temp=82.7'C     get_throttled=0xe0008     load average: 4,74 em 4 nucleos
+```
+
+`0xe0008` = limite térmico **ativo agora**, com corte de frequência já
+ocorrido. **O ventilador do Pi não estava ligado** — o dono vai ligá-lo em
+17/09.
+
+Por isso **nada foi otimizado**: não se trocou a voz do Piper por um modelo
+`low`, não se mexeu no `imgsz` do YOLO, não se empilhou nenhuma compensação
+para um problema que não é de software. Remedir com o ventilador ligado antes
+de tocar em qualquer linha.
+
+### Não feito
+
+- **O mic da tela não foi ligado ao `VoiceCore`.** Ele funciona (medido nesta
+  mesma noite), o robô segue surdo por escolha de tempo, não por impedimento.
+  É o próximo passo, e a avaliação da *qualidade* da escuta deve esperar o
+  ventilador — CPU rebaixada já piorou transcrição antes.
+- **Nada foi para o GitHub.** Não existe remoto configurado no Pi: o `orion-os`
+  só tinha `notebook` (máquina aposentada, não responde) e o `orion_face` não
+  tinha nenhum. `origin` foi configurado para
+  `git@github.com:jproma23/Orion-Os.git`, mas a chave do Pi ainda não está
+  autorizada no GitHub — e o remoto está parado desde ~13/08, então a
+  divergência precisa ser olhada antes de qualquer push.

@@ -18,7 +18,15 @@ communication:
                                # desenvolvimento, nao a subrede Ethernet fixa
                                # de producao (192.168.50.x) que ainda nao
                                # existe fisicamente.
-    host: "10.20.20.196"      # IP da Raspberry na rede WiFi atual (dev) - muda por DHCP, atualizado 2026-07-24
+    # 127.0.0.1 desde 2026-09-16: o Notebook foi aposentado e o Mission Core
+    # passou a rodar NO PROPRIO PI, do lado do Motion Core. Este campo ainda
+    # guardava o IP da Raspberry numa rede WiFi que nao existe mais, entao o
+    # Mission Core subia e nunca achava rota ("Sem rota conhecida para o
+    # destino motion_core") - e o chat respondia "o Fofao nao respondeu a
+    # tempo". Como os dois processos agora sao a MESMA maquina, o loopback
+    # tambem encerra de vez a classe de problema que trocar de rede (DHCP)
+    # causava neste enlace.
+    host: "127.0.0.1"
     tcp_port: 5757
     maintenance_usb: "auto"   # USB direto apenas para manutencao/diagnostico
   notebook:                   # acesso ADMINISTRATIVO do Pi ao Notebook (SSH)
