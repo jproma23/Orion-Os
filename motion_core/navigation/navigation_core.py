@@ -216,6 +216,7 @@ class NavigationCore:
         event_bus.subscribe("motion.scan_complete", self._ao_completar_scan)
         event_bus.subscribe("motion.status", self._ao_atualizar_estado_hardware)
         event_bus.subscribe("lidar.scan", self._ao_atualizar_lidar)
+        event_bus.subscribe("lidar.error", self._ao_falhar_lidar)
 
     @property
     def modo(self) -> ModoNavegacao:
@@ -258,36 +259,28 @@ class NavigationCore:
         if estado:
             self._estado_hardware = estado
 
-        # "NAO MEDI" NAO E "ESTA LIVRE" (2026-07-29).
+        # A DISTANCIA FRONTAL NAO VEM MAIS DAQUI (2026-09-19).
         #
-        # Quando nada reflete, o firmware reporta o TETO DE ALCANCE (517 cm)
-        # com `distancia_frontal_valida: true` - ver _foraDeAlcance em
-        # sensor_ultrassonico.h. O proprio driver marca `frontal_sem_eco` para
-        # denunciar que aquilo nao e medicao, e ate 2026-07-29 ninguem olhava:
-        # nem a seguranca do Mega, nem aqui.
+        # Os ultrassons foram retirados do robo fisicamente, e quem mede a
+        # frente agora e o LiDAR STL-50B2 - ver `_ao_atualizar_lidar`, que
+        # preenche `_distancia_frontal_atual_cm`. A telemetria do corpo segue
+        # trazendo estado, bateria e sinal de vida; distancia, nao.
         #
-        # Por que isso e perigoso e nao so impreciso: o eco de um obstaculo a
-        # 40 cm dura ~2,3 ms, e o loop do Mega fica cego por ate 124 ms
-        # (medido em 29/07, ~88 ms so no envio da telemetria). O eco inteiro
-        # cabe dentro da cegueira, o pino ECHO nunca e visto subir, e o driver
-        # conclui "nada refletiu". Ou seja: quanto MAIS PERTO o obstaculo,
-        # maior a chance de ele ser reportado como caminho livre. Falha para o
-        # lado errado, e justamente na hora que importa.
+        # O bloco que existia aqui lia `distancia_frontal_cm`,
+        # `distancia_frontal_valida` e `frontal_sem_eco`. Ele foi embora junto
+        # com o sensor - deixar o codigo lendo chaves que o firmware nao manda
+        # mais faria a distancia congelar no ultimo valor lido e envelhecer em
+        # silencio, que e pior que nao ter sensor.
         #
-        # Aqui isso vira None - "nao sei" - e quem decide o que fazer com a
-        # duvida e a camada de cima, com a camera e o radar, em vez de receber
-        # uma parede imaginaria a 5 metros.
-        # Sinal de vida do modulo, guardado antes de qualquer `return`: ele
-        # decide QUAL "nao sei" estamos vivendo (ver `_frontal_sensor_ok`).
+        # A LICAO QUE NAO SE PERDE: "nao medi" nunca pode virar "esta livre".
+        # O ultrassom errava justamente para o lado perigoso (obstaculo perto
+        # demais reportado como caminho aberto, medido em 29/07) e foi por isso
+        # que `frente_desconhecida()` existe, separado de `_obstaculo_a_frente`.
+        # O LiDAR tem a MESMA armadilha por outro caminho: ponto abaixo de
+        # `min_distancia_mm` e descartado, entao perto demais tambem vira setor
+        # sem eco. Os dois sensores mudam; o contrato do "nao sei", nao.
         if "frontal_sensor_ok" in payload:
             self._frontal_sensor_ok = bool(payload.get("frontal_sensor_ok"))
-
-        if payload.get("frontal_sem_eco"):
-            self._distancia_frontal_atual_cm = None
-            return
-        distancia = payload.get("distancia_frontal_cm")
-        if distancia is not None and payload.get("distancia_frontal_valida", True):
-            self._distancia_frontal_atual_cm = distancia
 
     def frente_desconhecida(self) -> bool:
         """True quando nao ha medida frontal confiavel agora.
@@ -312,10 +305,54 @@ class NavigationCore:
     # ---------- LiDAR LD06 (sensor do Pi, decisao do dono 2026-08-17) ----------
 
     async def _ao_atualizar_lidar(self, evento: Evento) -> None:
-        """Guarda a ultima varredura em setores. Sensor puro: so informa."""
+        """Guarda a varredura E alimenta a distancia frontal.
+
+        O LIDAR VIROU A FONTE DA DISTANCIA FRONTAL (2026-09-19), no lugar do
+        ultrassom, que foi retirado do robo fisicamente. Nao ha sensor novo a
+        acomodar aqui: `_distancia_frontal_atual_cm` sempre foi a UNICA
+        variavel de distancia frontal desta classe, e tudo que decide sobre
+        andar - `frente_desconhecida`, `_obstaculo_a_frente`, o risco
+        declarado - le dela. Trocar quem a preenche troca o sensor do robo
+        inteiro sem mexer em nenhuma dessas decisoes.
+
+        `None` continua significando "nao sei", nunca "esta livre": quando
+        nenhum setor frontal tem medida, `_menor_distancia_lidar_frontal`
+        devolve None e `frente_desconhecida()` passa a valer - exatamente o
+        mesmo contrato que o `frontal_sem_eco` do ultrassom tinha.
+        """
         setores = evento.dados.get("setores")
         if setores is not None:
             self._setores_lidar = setores
+            self._distancia_frontal_atual_cm = self._menor_distancia_lidar_frontal()
+            # SENSOR VIVO, ainda que a frente esteja sem eco. Esta linha e o
+            # que separa os dois "nao sei" (ver `_avancar_e_seguro`): sensor
+            # calado = anda e avisa no log; sensor FALANDO mas sem medida =
+            # estudo de risco, com varredura e `navigation.risco_assumido`.
+            # Vinha do `frontal_sensor_ok` do ultrassom; sem ela, depois que
+            # o sensor saiu do robo, o sinal ficaria None para sempre e o
+            # estudo de risco nunca mais aconteceria - silenciosamente.
+            self._frontal_sensor_ok = True
+
+    async def _ao_falhar_lidar(self, evento: Evento) -> None:
+        """`lidar.error`: o sensor parou de responder.
+
+        Derruba a medida junto: manter os ultimos setores faria o robo andar
+        apoiado numa varredura de quando o sensor ainda funcionava. `False`
+        (e nao None) diz "ja falou comigo e parou", que e o caso em que o log
+        precisa gritar mais alto.
+
+        Este topico era ORFAO ate 2026-09-19 - publicado pelo gerenciador do
+        LiDAR e escutado por ninguem, o defeito que mais se repete neste
+        projeto. Agora que o LiDAR e o unico sensor de distancia, ignorar o
+        aviso de falha dele deixou de ser barato.
+        """
+        self._frontal_sensor_ok = False
+        self._setores_lidar = None
+        self._distancia_frontal_atual_cm = None
+        logger.warning(
+            "LiDAR falhou (%s) - o robo esta sem medida de distancia",
+            evento.dados.get("motivo", "sem motivo"),
+        )
 
     def _angulo_na_frente(self, angulo_graus: float) -> bool:
         """O angulo cai dentro da janela frontal configurada?
@@ -335,8 +372,13 @@ class NavigationCore:
 
         Setor sem medida (`distancia_cm: null`) NAO e obstaculo: o LiDAR
         nao enxergou nada ali, e afirmar parede onde nao ha medida seria o
-        mesmo fail-closed que este projeto combate. A duvida continua sendo
-        resolvida pelo ultrassom e pela varredura, como sempre foi.
+        mesmo fail-closed que este projeto combate.
+
+        Mas tambem NAO e caminho livre: setor pulado nao entra no minimo, e
+        se NENHUM setor frontal tiver medida o retorno e None - que
+        `frente_desconhecida()` traduz em "nao sei". Ate 2026-09-19 a duvida
+        era resolvida pelo ultrassom; ele saiu do robo, e agora quem resolve e
+        a varredura (`SCAN_FRONT`) e a camera.
         """
         if self._setores_lidar is None:
             return None
@@ -357,9 +399,12 @@ class NavigationCore:
     def _obstaculo_no_lidar(self) -> bool:
         """True quando algum setor frontal mediu mais perto que o limite.
 
-        Sem LiDAR (varredura nunca publicada) responde False e a seguranca
-        tatica continua a cargo do ultrassom - tolerancia a ausencia (Cap
-        6 s.8). O LiDAR e MAIS um sensor de olhos, nao o unico.
+        Sem LiDAR (varredura nunca publicada) responde False - tolerancia a
+        ausencia (Cap 6 s.8). ATENCAO ao que esse False significa desde
+        2026-09-19: o ultrassom saiu do robo, entao nao ha mais um segundo
+        sensor tatico por tras. Quem pergunta tem que consultar
+        `frente_desconhecida()` para separar "medi e esta livre" de "nao tenho
+        sensor nenhum" - as duas respostas saem False aqui.
         """
         menor = self._menor_distancia_lidar_frontal()
         return menor is not None and menor < self._lidar_min_obstaculo_cm

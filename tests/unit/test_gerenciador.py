@@ -319,10 +319,18 @@ def test_erro_e_realmente_publicado():
     assert erros[0]["motivo"] == "lidar_sem_dados"
 
 
-def test_setor_sem_eco_nao_publica_mas_nao_estoura():
-    """Cobertura incompleta continua NAO publicando (decisao de seguranca: a
-    navegacao trataria "nao sei" como vazio), mas o caminho tem que ser
-    exercitado - e desde 16/09 ele avisa no log em vez de silenciar."""
+def test_cobertura_incompleta_publica_o_que_mediu():
+    """Um setor teimoso NAO cega o robo inteiro (mudou em 2026-09-19).
+
+    Ate aqui isto era `nao publica`, por medo de a navegacao ler "nao sei"
+    como vazio. Mas o medo ja estava resolvido do lado de quem consome
+    (`_menor_distancia_lidar_frontal` PULA setor sem medida), e o preco era
+    alto demais: medido ao vivo, 2 setores ATRAS sem eco descartavam a
+    varredura inteira, inclusive a leitura boa da FRENTE.
+
+    O que este teste guarda agora: o que foi medido sai, e o que nao foi sai
+    como None - nunca omitido, nunca inventado.
+    """
     bus = EventBusFake()
     manager = gerenciador.LidarManager(bus, config_lidar("stl50b2"))
 
@@ -334,5 +342,33 @@ def test_setor_sem_eco_nao_publica_mas_nao_estoura():
 
     asyncio.run(alimentar())
 
+    publicados = [d for t, d in bus.eventos if t == "lidar.scan"]
+    assert publicados, "varredura parcial tem que ser publicada"
+    scan = publicados[-1]
+    assert manager.scan_mais_recente is scan
+
+    setores = scan["setores"]
+    com_medida = [s for s in setores if s["distancia_cm"] is not None]
+    sem_medida = [s for s in setores if s["distancia_cm"] is None]
+    # o cenario e justamente o parcial: os dois lados tem que existir
+    assert com_medida, "o setor que mediu tem que aparecer"
+    assert sem_medida, "cenario invalido: era para sobrar setor sem eco"
+    # todos os 12 vao no payload, medidos ou nao - quem le decide o que fazer
+    assert len(setores) == manager._setores
+    assert scan["setores_cobertos"] == len(com_medida)
+    assert scan["setores_total"] == manager._setores
+
+
+def test_sem_nenhum_setor_medido_nao_publica():
+    """O unico caso que ainda segura a publicacao: varredura 100% vazia.
+
+    Contraprova do teste acima - sem ela, "publica sempre" passaria igual, e
+    o robo mandaria 12 setores de None para o barramento como se fosse
+    informacao.
+    """
+    bus = EventBusFake()
+    manager = gerenciador.LidarManager(bus, config_lidar("stl50b2"))
+    manager._quadros.clear()
+
+    assert manager._montar_scan() is None
     assert [d for t, d in bus.eventos if t == "lidar.scan"] == []
-    assert manager.scan_mais_recente is None

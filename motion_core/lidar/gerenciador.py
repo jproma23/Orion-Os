@@ -327,11 +327,30 @@ class LidarManager:
                 }
             )
 
+        if cobertos == 0:
+            # NENHUM setor mediu: nao ha varredura nenhuma para entregar. Este
+            # e o unico caso que ainda segura a publicacao.
+            return None
+
         if cobertos < self._setores:
-            # Ate 16/09 isto era um `return None` MUDO: um unico setor sem eco
-            # e o robo ficava cego, sem nada no log dizendo por que. Num
-            # ambiente real isso e comum (espaco aberto alem do alcance, vidro,
-            # angulo rasante), entao o silencio escondia o caso normal.
+            # UM SETOR TEIMOSO NAO CEGA O ROBO INTEIRO (2026-09-19). Ate aqui
+            # isto era `return None`: bastava UM dos 12 setores sem eco e a
+            # varredura inteira era descartada - inclusive a leitura boa da
+            # frente. Medido ao vivo nesse dia, com o robo parado numa sala:
+            #
+            #   nao publiquei - 2 de 12 setores sem eco (graus: 180, 210)
+            #   nao publiquei - 1 de 12 setores sem eco (graus: 150)
+            #
+            # 180 e 210 sao ATRAS. "Nao sei o que ha atras" estava virando
+            # "nao sei nada", e o robo ficava sem distancia frontal por causa
+            # de um setor que nao tem nada a ver com andar para a frente.
+            #
+            # O medo original ("a navegacao trataria 'nao sei' como vazio") ja
+            # estava resolvido do lado de quem consome: cada setor carrega o
+            # proprio `distancia_cm: None`, e `_menor_distancia_lidar_frontal`
+            # (navigation_core) PULA setor sem medida em vez de achar que esta
+            # livre. Suprimir a varredura inteira protegia contra um erro que
+            # ninguem mais cometia, e cobrava a cegueira como preco.
             #
             # Reporta so na BORDA (quando a lista de setores vazios muda), nao
             # a cada varredura - senao vira enxurrada a 2,5 Hz.
@@ -341,16 +360,16 @@ class LidarManager:
             if vazios != self._setores_vazios_reportados:
                 self._setores_vazios_reportados = vazios
                 logger.info(
-                    "LiDAR %s: nao publiquei - %d de %d setores sem eco (graus: %s). "
-                    "Alem do alcance, vidro ou angulo rasante contam como sem eco.",
+                    "LiDAR %s: publicando com %d de %d setores sem eco (graus: %s). "
+                    "Sem eco = PERTO DEMAIS (abaixo de %.0f mm), alem do alcance, "
+                    "vidro ou angulo rasante - nunca 'caminho livre'.",
                     self._nome_driver,
                     len(vazios),
                     self._setores,
                     ", ".join(f"{g:.0f}" for g in vazios),
+                    self._min_mm,
                 )
-            return None
-
-        if self._setores_vazios_reportados:
+        elif self._setores_vazios_reportados:
             logger.info("LiDAR %s: cobertura completa de novo", self._nome_driver)
             self._setores_vazios_reportados = ()
 
@@ -360,6 +379,11 @@ class LidarManager:
         return {
             "valido": True,
             "setores": setores,
+            # Quantos dos setores trazem medida de verdade. Vai junto para quem
+            # le a varredura poder dizer "parcial" em vez de fingir que 12 de 12
+            # mediram - a varredura agora sai mesmo incompleta (ver acima).
+            "setores_cobertos": cobertos,
+            "setores_total": self._setores,
             "pontos": len(scan),
             "rpm": round(velocidade_media / 360.0 * 60.0, 1),
             "timestamp_s": round(time.monotonic(), 2),

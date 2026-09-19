@@ -38,6 +38,13 @@ logger = logging.getLogger("motion_core.behavior.estado_do_mundo")
 # a telemetria do Mega chega a cada 500ms, então 3s já significa "parou de
 # chegar". Visão e voz são naturalmente esporádicas e valem por mais tempo.
 VALIDADE_TELEMETRIA_S = 3.0
+#: Quanto tempo uma varredura do LiDAR continua valendo como "agora".
+#:
+#: O gerenciador publica a ~2,5 Hz, entao 3 s e mais de sete varreduras de
+#: folga: se nada chegou nesse tempo, o sensor parou, e distancia velha num
+#: robo que anda e pior que distancia nenhuma - e o mesmo raciocinio da
+#: telemetria, com o mesmo numero de propósito.
+VALIDADE_LIDAR_S = 3.0
 VALIDADE_ESTADO_HARDWARE_S = 5.0
 VALIDADE_VISAO_S = 15.0
 VALIDADE_VOZ_S = 30.0
@@ -132,6 +139,7 @@ class EstadoDoMundo:
         self._bus = event_bus
 
         self._telemetria = _Campo()
+        self._lidar = _Campo()
         self._estado_hardware = _Campo()
         self._pessoa = _Campo()
         self._alerta = _Campo()
@@ -140,6 +148,17 @@ class EstadoDoMundo:
 
         # Corpo do robô: telemetria periódica vinda do Mega pela ponte serial.
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_receber_telemetria)
+        # O QUE O ROBÔ VÊ EM VOLTA (2026-09-19). Sem esta linha, a distância
+        # que chegava na IA vinha dos ultrassons - que foram RETIRADOS do robô.
+        #
+        # O LiDAR funciona desde 15/09 e publica `lidar.scan` a 2,5 Hz, mas
+        # ninguém entre ele e a IA escutava: a navegação usava, a interface
+        # web mostrava, e o retrato do mundo continuava perguntando ao sensor
+        # que não existe mais. A IA estratégica foi DESLIGADA em 07/08 porque
+        # o contexto dela dizia "NÃO SEI a distância" e a única saída sensata
+        # era "olhar" - 505 chamadas, 4 decisões, robô parado. Esta assinatura
+        # é o que tira aquele motivo do caminho.
+        event_bus.subscribe("lidar.scan", self._ao_receber_lidar)
         # Situação do Hardware Core (IDLE / OBSTACLE_DETECTED / SAFE_MODE...).
         event_bus.subscribe("motion.status", self._ao_receber_estado)
         # Mundo lá fora: visão roda no Notebook e chega encaminhada.
@@ -171,6 +190,55 @@ class EstadoDoMundo:
         event_bus.subscribe("voice.response_finished", self._ao_terminar_voz)
 
     # ----- entrada de eventos -----
+
+    async def _ao_receber_lidar(self, evento: Evento) -> None:
+        """Guarda a varredura em setores. Quem interpreta e `_distancia_em`."""
+        setores = evento.dados.get("setores")
+        if setores is not None:
+            self._lidar.escrever(setores)
+
+    #: Meia-largura da janela que conta como FRENTE e como TRAS, em graus.
+    #:
+    #: 60 casa com `lidar_frontal_angulos_graus: [-60, 60]` do orion.yaml, que
+    #: a navegacao usa. O numero mora nos dois lugares porque o retrato e a
+    #: navegacao sao donos de perguntas diferentes - mas se um dia divergirem
+    #: de proposito, que seja por escolha e nao por esquecimento.
+    _MEIA_JANELA_GRAUS = 60.0
+    #: Convencao de angulo do projeto (igual a do mapa.js e a de
+    #: `NavigationCore._angulo_na_frente`): 0° = esquerda, 90° = FRENTE,
+    #: 180° = direita, 270° = TRAS.
+    _GRAUS_FRENTE = 90.0
+    _GRAUS_TRAS = 270.0
+
+    def _distancia_em(self, setores, centro_graus: float) -> float | None:
+        """Menor distancia medida na janela em torno de `centro_graus`.
+
+        None = NAO SEI, nunca "esta livre". Setor sem eco (`distancia_cm`
+        nulo) e PULADO, nao contado como espaco vazio: desde 2026-09-19 a
+        varredura sai mesmo incompleta, entao setor vazio virou rotina e
+        confundi-lo com caminho aberto seria a falha classica deste projeto -
+        e a mesma que o ultrassom cometia quando nada refletia.
+
+        Atencao ao que "sem eco" inclui: alem do alcance, vidro, angulo
+        rasante - e PERTO DEMAIS, abaixo do `min_distancia_mm` do LiDAR. O
+        obstaculo colado no robo some da varredura igual ao horizonte vazio.
+        """
+        if not setores:
+            return None
+        menor: float | None = None
+        for setor in setores:
+            distancia_cm = setor.get("distancia_cm")
+            if distancia_cm is None:
+                continue
+            centro = (
+                float(setor.get("inicio_graus", 0.0)) + float(setor.get("fim_graus", 0.0))
+            ) / 2.0
+            delta = abs((centro - centro_graus + 180.0) % 360.0 - 180.0)
+            if delta > self._MEIA_JANELA_GRAUS:
+                continue
+            if menor is None or distancia_cm < menor:
+                menor = float(distancia_cm)
+        return menor
 
     async def _ao_receber_telemetria(self, evento: Evento) -> None:
         payload = evento.dados.get("payload") or {}
@@ -257,47 +325,34 @@ class EstadoDoMundo:
         viva = self._telemetria.ler(VALIDADE_TELEMETRIA_S, agora) is not None
         pessoa = self._pessoa.ler(VALIDADE_VISAO_S, agora)
 
-        def do_mega(
-            chave: str,
-            chave_valido: str | None = None,
-            chave_sem_eco: str | None = None,
-        ) -> Any:
-            """Lê campo da telemetria respeitando os flags de validade dele.
+        def do_mega(chave: str, chave_valido: str | None = None) -> Any:
+            """Lê campo da telemetria respeitando o flag de validade dele.
 
-            O firmware manda pares (valor, valor_valido) - um ultrassom sem
-            eco devolve valor sujo com o flag em False. Ignorar o flag aqui
+            O firmware manda pares (valor, valor_valido). Ignorar o flag aqui
             reintroduziria exatamente o tipo de mentira que esta classe
             existe para evitar.
 
-            `chave_sem_eco` cobre um caso que o `valido` NÃO cobre, achado em
-            2026-07-29: quando nada reflete, `_foraDeAlcance` (no
-            sensor_ultrassonico.h) reporta o TETO DE ALCANCE - 517 cm - com
-            `valido: true`. É "não medi" entregue como "medi 5 metros de
-            espaço livre". O próprio driver marca `*_sem_eco` para denunciar
-            isso, e até esta data ninguém no sistema olhava a bandeira.
-
-            Por que importa mais do que parece: o eco de um obstáculo a 40 cm
-            dura ~2,3 ms e o loop do Mega fica cego por até 124 ms. O eco
-            inteiro cabe dentro da cegueira, e o driver conclui "nada
-            refletiu". Ou seja, quanto MAIS PERTO o obstáculo, maior a chance
-            de ele virar "caminho livre" - a falha aponta para o lado errado
-            justamente na hora que importa.
+            JÁ NÃO SERVE PARA DISTÂNCIA (2026-09-19): os ultrassons saíram do
+            robô e quem mede é o LiDAR, logo abaixo. O terceiro parâmetro
+            (`chave_sem_eco`) foi embora com eles - existia só para desmascarar
+            o `_foraDeAlcance` do `sensor_ultrassonico.h`, que reportava o teto
+            de alcance (517 cm) com `valido: true` quando nada refletia.
+            Sobrou aqui o que o corpo de fato mede: bateria.
             """
             if not viva:
                 return None
             if chave_valido is not None and not tele.get(chave_valido):
                 return None
-            if chave_sem_eco is not None and tele.get(chave_sem_eco):
-                return None  # não é medição - "não sei", nunca "está livre"
             return tele.get(chave)
 
+        # A DISTÂNCIA VEM DO LIDAR (2026-09-19). Mesma regra de sempre: só vale
+        # se for recente (`VALIDADE_LIDAR_S`), e None é "não sei", nunca
+        # "está livre" - ver `_distancia_em`.
+        setores = self._lidar.ler(VALIDADE_LIDAR_S, agora)
+
         return RetratoDoMundo(
-            obstaculo_frente_cm=do_mega(
-                "distancia_frontal_cm", "distancia_frontal_valida", "frontal_sem_eco"
-            ),
-            obstaculo_tras_cm=do_mega(
-                "distancia_traseira_cm", "distancia_traseira_valida", "traseiro_sem_eco"
-            ),
+            obstaculo_frente_cm=self._distancia_em(setores, self._GRAUS_FRENTE),
+            obstaculo_tras_cm=self._distancia_em(setores, self._GRAUS_TRAS),
             bateria_v=do_mega("bateria_tensao_v", "bateria_lida"),
             bateria_nivel=do_mega("bateria_nivel", "bateria_lida"),
             estado_hardware=self._estado_hardware.ler(VALIDADE_ESTADO_HARDWARE_S, agora),

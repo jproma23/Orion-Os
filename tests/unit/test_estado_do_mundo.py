@@ -10,6 +10,7 @@ import time
 import pytest
 
 from motion_core.behavior.estado_do_mundo import (
+    VALIDADE_LIDAR_S,
     VALIDADE_TELEMETRIA_S,
     EstadoDoMundo,
     _Campo,
@@ -24,6 +25,33 @@ def mundo() -> EstadoDoMundo:
 
 async def _telemetria(mundo: EstadoDoMundo, payload: dict) -> None:
     await mundo._ao_receber_telemetria(Evento("comm.mensagem.telemetry", {"payload": payload}))
+
+
+async def _lidar(mundo: EstadoDoMundo, frente_cm, tras_cm=999.0) -> None:
+    """Injeta uma varredura com a frente e o tras medindo o que se pediu.
+
+    Quem mede distancia desde 2026-09-19 e o LiDAR, nao a telemetria do corpo
+    (os ultrassons sairam do robo). `None` = setor SEM ECO, que e como o LiDAR
+    relata tanto "nada refletiu" quanto "perto demais".
+
+    Convencao: 0 = esquerda, 90 = FRENTE, 180 = direita, 270 = TRAS; janela de
+    +-60 graus em torno de cada um.
+    """
+    setores = []
+    for i in range(12):
+        inicio = i * 30.0
+        centro = inicio + 15.0
+        perto_de = lambda alvo: abs((centro - alvo + 180.0) % 360.0 - 180.0) <= 60.0
+        if perto_de(90.0):
+            distancia = frente_cm
+        elif perto_de(270.0):
+            distancia = tras_cm
+        else:
+            distancia = 999.0
+        setores.append(
+            {"inicio_graus": inicio, "fim_graus": inicio + 30.0, "distancia_cm": distancia}
+        )
+    await mundo._ao_receber_lidar(Evento("lidar.scan", {"valido": True, "setores": setores}))
 
 
 # ----- campo com prazo de validade -----
@@ -61,13 +89,12 @@ async def test_retrato_vazio_e_todo_desconhecido(mundo: EstadoDoMundo) -> None:
 
 @pytest.mark.asyncio
 async def test_telemetria_preenche_o_corpo(mundo: EstadoDoMundo) -> None:
-    await _telemetria(
-        mundo,
-        {
-            "distancia_frontal_cm": 34.0,
-            "distancia_frontal_valida": True,
-        },
-    )
+    # As DUAS fontes, porque o retrato junta duas coisas diferentes: o corpo
+    # diz que esta vivo, o LiDAR diz o que ha na frente. Ate 2026-09-19 as
+    # duas vinham do mesmo pacote de telemetria (ultrassom); hoje nao vem, e
+    # este teste guarda justamente que o retrato continua com as duas.
+    await _telemetria(mundo, {"bateria_tensao_v": 12.1, "bateria_lida": True})
+    await _lidar(mundo, frente_cm=34.0)
     r = mundo.retrato()
     assert r.obstaculo_frente_cm == 34.0
     assert r.telemetria_viva is True
@@ -75,13 +102,19 @@ async def test_telemetria_preenche_o_corpo(mundo: EstadoDoMundo) -> None:
 
 @pytest.mark.asyncio
 async def test_flag_de_invalido_do_firmware_e_respeitado(mundo: EstadoDoMundo) -> None:
-    """Ultrassom sem eco manda valor sujo com o flag em False - tem que
-    virar None, senão o maestro decidiria em cima de lixo."""
-    await _telemetria(
-        mundo,
-        {"distancia_frontal_cm": 999.0, "distancia_frontal_valida": False},
-    )
-    assert mundo.retrato().obstaculo_frente_cm is None
+    """O firmware manda pares (valor, valor_valido) e o flag MANDA.
+
+    Era sobre a distancia do ultrassom ate 2026-09-19. Com o sensor fora do
+    robo, este teste ficaria verde para sempre sem provar nada - o campo que
+    ele cobrava virou None por construcao. Repontado para a bateria, que e o
+    par (valor, valido) que a telemetria ainda traz: a regra e a mesma, e
+    agora volta a poder falhar.
+    """
+    await _telemetria(mundo, {"bateria_tensao_v": 12.4, "bateria_lida": False})
+    assert mundo.retrato().bateria_v is None
+
+    await _telemetria(mundo, {"bateria_tensao_v": 12.4, "bateria_lida": True})
+    assert mundo.retrato().bateria_v == 12.4
 
 
 @pytest.mark.asyncio
@@ -90,18 +123,23 @@ async def test_telemetria_que_parou_de_chegar_marca_corpo_sem_sinal(
 ) -> None:
     """Cabo solto / Mega resetando: o quadro não pode continuar dizendo que
     está tudo bem com dado velho."""
-    await _telemetria(
-        mundo, {"distancia_frontal_cm": 34.0, "distancia_frontal_valida": True}
-    )
+    await _telemetria(mundo, {"bateria_tensao_v": 12.1, "bateria_lida": True})
+    # Varredura boa AGORA: sem ela o assert da distancia mais abaixo passaria
+    # a toa, provando so que None continua None.
+    await _lidar(mundo, frente_cm=34.0)
+    assert mundo.retrato().obstaculo_frente_cm == 34.0
 
-    # Avança o relógio para além do prazo de validade da telemetria.
+    # Avança o relógio para além do prazo de validade dos dois.
     real = time.monotonic
     monkeypatch.setattr(
-        time, "monotonic", lambda: real() + VALIDADE_TELEMETRIA_S + 1.0
+        time, "monotonic", lambda: real() + max(VALIDADE_TELEMETRIA_S, VALIDADE_LIDAR_S) + 1.0
     )
 
     r = mundo.retrato()
     assert r.telemetria_viva is False
+    # DISTANCIA VELHA E PIOR QUE DISTANCIA NENHUMA: o LiDAR tambem vence
+    # (VALIDADE_LIDAR_S). Se o sensor parar de girar, o retrato nao pode
+    # continuar afirmando os 34 cm de antes.
     assert r.obstaculo_frente_cm is None
 
 
@@ -184,21 +222,9 @@ async def test_sem_eco_nao_vira_distancia_no_retrato():
     bus = EventBus()
     mundo = EstadoDoMundo(bus)
 
-    await mundo._ao_receber_telemetria(
-        Evento(
-            topico="comm.mensagem.telemetry",
-            dados={
-                "payload": {
-                    "distancia_frontal_cm": 517.24,
-                    "distancia_frontal_valida": True,
-                    "frontal_sem_eco": True,
-                    "distancia_traseira_cm": 517.24,
-                    "distancia_traseira_valida": True,
-                    "traseiro_sem_eco": True,
-                }
-            },
-        )
-    )
+    # o corpo vivo, mas o LiDAR sem eco na frente E atras
+    await _telemetria(mundo, {"bateria_tensao_v": 12.1, "bateria_lida": True})
+    await _lidar(mundo, frente_cm=None, tras_cm=None)
 
     retrato = mundo.retrato()
     assert retrato.obstaculo_frente_cm is None
@@ -212,18 +238,7 @@ async def test_medida_real_aparece_no_retrato():
     bus = EventBus()
     mundo = EstadoDoMundo(bus)
 
-    await mundo._ao_receber_telemetria(
-        Evento(
-            topico="comm.mensagem.telemetry",
-            dados={
-                "payload": {
-                    "distancia_frontal_cm": 34.0,
-                    "distancia_frontal_valida": True,
-                    "frontal_sem_eco": False,
-                }
-            },
-        )
-    )
+    await _lidar(mundo, frente_cm=34.0)
 
     assert mundo.retrato().obstaculo_frente_cm == 34.0
 

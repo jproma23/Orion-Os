@@ -102,13 +102,42 @@ class Cenario:
         ]
 
     async def injetar_telemetria(self, distancia_frontal_cm: float) -> None:
-        telemetria = Mensagem.nova(
-            TipoMensagem.TELEMETRY,
-            "hardware_core",
-            "motion_core",
-            {"distancia_frontal_cm": distancia_frontal_cm, "distancia_frontal_valida": True},
-        )
-        await self.bus.publish("comm.mensagem.telemetry", telemetria.to_dict())
+        """Faz o robo MEDIR `distancia_frontal_cm` a frente.
+
+        Passou a injetar uma VARREDURA DE LIDAR em 2026-09-19, quando os
+        ultrassons sairam do robo. O nome e a assinatura ficaram: o que estes
+        testes cobram e o comportamento diante de uma distancia medida, e isso
+        nao mudou de sensor - so mudou quem mede.
+        """
+        await self.injetar_lidar(distancia_frontal_cm)
+
+    async def injetar_lidar(self, distancia_frontal_cm: float | None) -> None:
+        """Publica um `lidar.scan` com a frente medindo o que se pediu.
+
+        `None` = setores frontais SEM ECO, que e como o LiDAR relata tanto
+        "nada refletiu" quanto "perto demais" (abaixo de `min_distancia_mm`).
+        E o equivalente exato do `frontal_sem_eco` do ultrassom, e serve as
+        mesmas regressoes: "nao medi" nunca pode virar "esta livre".
+
+        Convencao de angulo do projeto: 0° = esquerda, 90° = FRENTE,
+        180° = direita. A janela frontal e 90° +- 60°, ou seja 30°..150°.
+        """
+        setores = []
+        for i in range(12):
+            inicio = i * 30.0
+            centro = inicio + 15.0
+            na_frente = abs((centro - 90.0 + 180.0) % 360.0 - 180.0) <= 60.0
+            if na_frente:
+                distancia = distancia_frontal_cm
+            else:
+                # Atras/laterais longe de proposito: assim o minimo frontal e
+                # exatamente o valor pedido, e um erro na janela de angulo
+                # aparece como teste vermelho em vez de passar por acaso.
+                distancia = 999.0
+            setores.append(
+                {"inicio_graus": inicio, "fim_graus": inicio + 30.0, "distancia_cm": distancia}
+            )
+        await self.bus.publish("lidar.scan", {"valido": True, "setores": setores})
         await self.bus.aguardar_fila_vazia()
 
     async def encerrar(self) -> None:
@@ -601,12 +630,7 @@ async def test_sem_eco_vira_desconhecido_e_nao_distancia(cenario):
     caminho livre - e isso acontece MAIS quando o obstaculo esta PERTO (eco
     curto cabe inteiro dentro da cegueira do loop).
     """
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=517.24,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=True,
-    )
+    await cenario.injetar_lidar(None)
 
     assert cenario.nav.frente_desconhecida()
     assert cenario.nav._distancia_frontal_atual_cm is None
@@ -615,13 +639,8 @@ async def test_sem_eco_vira_desconhecido_e_nao_distancia(cenario):
 @pytest.mark.asyncio
 async def test_leitura_de_verdade_continua_valendo(cenario):
     """Contraprova: sem esta, o teste acima passaria com um `return` que
-    descartasse toda telemetria - uma sonda que nunca diz sim."""
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=42.0,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=False,
-    )
+    descartasse toda varredura - uma sonda que nunca diz sim."""
+    await cenario.injetar_lidar(42.0)
 
     assert not cenario.nav.frente_desconhecida()
     assert cenario.nav._distancia_frontal_atual_cm == 42.0
@@ -634,15 +653,17 @@ async def test_sem_eco_apaga_a_leitura_boa_anterior(cenario):
     Segurar o ultimo valor bom seria pior que o bug original: o robo andaria
     apoiado numa medida velha achando que e atual, e sem nada na tela dizendo
     que a informacao envelheceu.
+
+    VALE AINDA MAIS COM O LIDAR (2026-09-19). O ultrassom perdia o eco e
+    voltava no ciclo seguinte; o LiDAR pode ficar com um setor mudo por muito
+    tempo - foi o que aconteceu no dia da troca, com o setor de 150° sem eco
+    em toda varredura. Se a leitura velha sobrevivesse, o robo andaria por
+    minutos apoiado numa medida de antes.
     """
-    await _telemetria(
-        cenario, distancia_frontal_cm=30.0, distancia_frontal_valida=True, frontal_sem_eco=False
-    )
+    await cenario.injetar_lidar(30.0)
     assert cenario.nav._distancia_frontal_atual_cm == 30.0
 
-    await _telemetria(
-        cenario, distancia_frontal_cm=517.24, distancia_frontal_valida=True, frontal_sem_eco=True
-    )
+    await cenario.injetar_lidar(None)
 
     assert cenario.nav.frente_desconhecida()
 
@@ -684,13 +705,7 @@ async def test_estado_do_mega_vem_tambem_da_telemetria(cenario):
 async def test_frente_desconhecida_nao_impede_o_avanco(cenario):
     """A trava saiu: nem o "nao sei" segura o robo."""
     cenario.definir_leituras_scan([])  # olhou e nada refletiu
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=517.24,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=True,
-        frontal_sensor_ok=True,
-    )
+    await cenario.injetar_lidar(None)
 
     await cenario.nav.executar_manual("MOVE_FORWARD")
     await cenario.bus.aguardar_fila_vazia()
@@ -705,13 +720,7 @@ async def test_olha_antes_de_avancar_quando_nao_sabe(cenario):
     Vive no caminho AUTONOMO (`executar_goto`): desde 2026-08-18 o manual
     obedece 100% e nao estuda nada - quem dirige e o operador."""
     cenario.definir_leituras_scan([])
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=517.24,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=True,
-        frontal_sensor_ok=True,
-    )
+    await cenario.injetar_lidar(None)
 
     await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
@@ -729,13 +738,7 @@ async def test_risco_assumido_e_declarado_para_quem_decide(cenario):
     AUTONOMO: o manual obedece 100% e nao estuda risco desde 2026-08-18.)
     """
     cenario.definir_leituras_scan([])
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=517.24,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=True,
-        frontal_sensor_ok=True,
-    )
+    await cenario.injetar_lidar(None)
 
     await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
@@ -761,13 +764,7 @@ async def test_varredura_que_mede_espaco_nao_declara_risco(cenario):
             {"angulo": 120, "distancia_cm": 130.0, "valida": True},
         ]
     )
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=517.24,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=True,
-        frontal_sensor_ok=True,
-    )
+    await cenario.injetar_lidar(None)
 
     await cenario.nav.executar_goto(graus=0, distancia_cm=50)
     await cenario.bus.aguardar_fila_vazia()
@@ -785,13 +782,7 @@ async def test_obstaculo_medido_continua_reportando_obstaculo(cenario):
     com o motivo no payload, para o dashboard e a IA saberem que o operador
     dirigiu para cima de um obstaculo.
     """
-    await _telemetria(
-        cenario,
-        distancia_frontal_cm=10.0,
-        distancia_frontal_valida=True,
-        frontal_sem_eco=False,
-        frontal_sensor_ok=True,
-    )
+    await cenario.injetar_lidar(10.0)
 
     await cenario.nav.executar_manual("MOVE_FORWARD")
     await cenario.bus.aguardar_fila_vazia()
@@ -842,3 +833,40 @@ async def test_segmento_so_se_declara_completo_depois_do_movimento(cenario):
 
     concluidos = [e for e in cenario.eventos if e.topico == "navigation.segment_completed"]
     assert len(concluidos) == 1
+
+
+@pytest.mark.asyncio
+async def test_lidar_que_falha_apaga_a_medida_e_marca_o_sensor(cenario):
+    """`lidar.error` tem que derrubar a medida, nao so aparecer no log.
+
+    O topico era ORFAO ate 2026-09-19: o gerenciador publicava e ninguem
+    escutava. Enquanto o ultrassom existia isso era barato; com o LiDAR como
+    unico sensor de distancia, ignorar a falha dele significa o robo andar
+    apoiado numa varredura de quando o sensor ainda girava.
+    """
+    await cenario.injetar_lidar(40.0)
+    assert cenario.nav._distancia_frontal_atual_cm == 40.0
+    assert cenario.nav._frontal_sensor_ok is True
+
+    await cenario.bus.publish("lidar.error", {"motivo": "porta sumiu"})
+    await cenario.bus.aguardar_fila_vazia()
+
+    assert cenario.nav.frente_desconhecida()
+    assert cenario.nav._distancia_frontal_atual_cm is None
+    # False, e nao None: "ja falou comigo e parou" e diferente de "nunca falou"
+    assert cenario.nav._frontal_sensor_ok is False
+
+
+@pytest.mark.asyncio
+async def test_varredura_sem_eco_mantem_o_sensor_vivo(cenario):
+    """Frente sem eco NAO e sensor morto - e sensor vivo que nao mediu.
+
+    Essa diferenca decide se o robo faz o ESTUDO DE RISCO (varredura +
+    `navigation.risco_assumido`) ou so anda avisando no log. Quando a
+    distancia deixou de vir do ultrassom, `_frontal_sensor_ok` ficou sem
+    ninguem para preencher e o estudo de risco sumiria em silencio.
+    """
+    await cenario.injetar_lidar(None)
+
+    assert cenario.nav.frente_desconhecida()
+    assert cenario.nav._frontal_sensor_ok is True

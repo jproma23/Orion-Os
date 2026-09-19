@@ -381,9 +381,15 @@ async def principal() -> None:
     # Tolera ausencia do container (falha vira navigation.goal_resultado).
     Nav2Goal(event_bus)
 
-    # 3c. LiDAR LD06 (Motion Core, USB serial) - publica setores no barramento
-    # para a navegacao e a web (decisao do dono 2026-08-17). Tolera ausencia
-    # total (Cap 6 s.8): sem LiDAR o robo segue com o ultrassom frontal.
+    # 3c. LiDAR (Motion Core, USB serial) - publica setores no barramento para
+    # a navegacao, o retrato do mundo e a web (decisao do dono 2026-08-17).
+    #
+    # AGORA E O UNICO SENSOR DE DISTANCIA DO ROBO (2026-09-19): os ultrassons
+    # foram retirados fisicamente. O codigo continua tolerando ausencia (Cap 6
+    # s.8) e nao aborta o boot, mas o que sobra sem ele NAO e mais "o ultrassom
+    # frontal" - e nao ter medida nenhuma. `frente_desconhecida()` passa a
+    # valer sempre, e quem decide andar tem que tratar isso como duvida, nunca
+    # como caminho livre.
     try:
         conf_lidar = config.secao("lidar")
     except Exception:

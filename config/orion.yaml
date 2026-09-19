@@ -108,11 +108,15 @@ chassi:
   #   bitola_m: distância centro a centro das duas rodas. Entra na odometria
   #     diferencial (fusao_sensores.py) e no cálculo de graus por passo.
   #     Hoje o valor usado é o placeholder `motion.wheel_base_m` abaixo.
-  #   ultrassom_frontal_altura_m: a que altura do chão o sensor está. Abaixo
-  #     dessa linha ele é cego - degrau, pé de cadeira, brinquedo no chão.
-  #   ultrassom_frontal_recuo_m: quanto o sensor está recuado em relação à
-  #     ponta mais avançada do robô. Se for 0,10, então os 25 cm de
-  #     `min_front_distance_cm` são 15 cm de para-choque - erro sistemático
+  #   lidar_altura_m: a que altura do chão o LiDAR está. Ele varre um PLANO;
+  #     abaixo (e acima) dessa linha é cego - degrau, pé de cadeira, brinquedo
+  #     no chão, tampo de mesa na altura da cabeça. Era
+  #     `ultrassom_frontal_altura_m` até 2026-09-19; os ultrassons saíram do
+  #     robô, a pendência não saiu junto, porque o problema nunca foi do
+  #     ultrassom - é de qualquer sensor montado numa altura só.
+  #   lidar_recuo_m: quanto o LiDAR está recuado em relação à ponta mais
+  #     avançada do robô. Se for 0,10, então os 25 cm de
+  #     `lidar_min_obstaculo_cm` são 15 cm de para-choque - erro sistemático
   #     em toda decisão de parada, e sempre no sentido perigoso.
 
 motion:
