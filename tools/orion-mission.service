@@ -1,0 +1,31 @@
+[Unit]
+Description=Fofão - Mission Core (escuta, fala, visão, conversa)
+# O Mission Core CONSOME o que os outros dois servem: a camera por HTTP
+# (orion-camera-stream) e o barramento do Motion Core. `Wants` e nao
+# `Requires` de proposito: se a camera falhar, o robo ainda deve ouvir e
+# responder - ficar surdo porque a camera caiu seria pior que ficar cego.
+After=network-online.target orion-motion.service orion-camera-stream.service
+Wants=orion-motion.service orion-camera-stream.service
+
+[Service]
+WorkingDirectory=%h/orion-os
+# Mesma razao da unit do Motion Core: segredos fora do repositorio publico.
+# Aqui o que importa e OPENAI_API_KEY - sem ela o robo ouve, transcreve e
+# fica mudo ("sem chave de IA configurada"). O "-" mantem opcional: sem
+# chave ele sobe igual, so nao conversa.
+EnvironmentFile=-%h/orion-os/config/secrets.env
+ExecStart=%h/orion-os/.venv/bin/python -u -m orion
+Restart=always
+RestartSec=5
+
+# POR QUE O LOG SAIU DE /tmp (achado de 2026-09-19): o Mission Core escrevia
+# em /tmp/mission_core.log, e o Pi vinha reiniciando sozinho. Todo reboot
+# limpava /tmp e levava junto a unica evidencia do que acontecera antes da
+# queda - o log morria exatamente no evento que precisavamos investigar.
+# `append:` em data/logs preserva entre reinicios, igual ao Motion Core.
+ExecStartPre=/bin/mkdir -p %h/orion-os/data/logs
+StandardOutput=append:%h/orion-os/data/logs/mission_core.log
+StandardError=append:%h/orion-os/data/logs/mission_core.log
+
+[Install]
+WantedBy=default.target
