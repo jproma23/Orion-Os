@@ -75,26 +75,29 @@ constexpr bool DIR_INVERTIDO_DIREITO = true;
 // (JGB37-520) - agora o encoder e a UNICA fonte de velocidade real pro PID,
 // entao ele volta a ser necessario.
 //
-// SO 1 CANAL POR RODA, DE PROPOSITO: os pinos ECHO dos ultrassons (34/35)
-// pareciam livres para um segundo canal (quadratura completa), mas o ECHO
-// frontal (GPIO34) alimenta o SafetyManager de verdade (parada por
-// obstaculo) - nao vale a pena arriscar seguranca por resolucao de
-// encoder. Os UNICOS pinos input-only totalmente livres nesta montagem sao
-// GPIO 36 (era BATERIA_SENSE, divisor nunca chegou a ser montado) e GPIO 39
-// (nunca teve nada). NENHUM ultrassom foi tocado - os dois continuam
-// exatamente como estavam.
+// SO 1 CANAL POR RODA - mas o motivo CAIU em 2026-09-19. A regra era: os
+// pinos ECHO dos ultrassons (34/35) pareciam livres para um segundo canal
+// (quadratura completa), so que o ECHO frontal (GPIO34) alimentava o
+// SafetyManager de verdade, e nao valia arriscar seguranca por resolucao de
+// encoder.
+//
+// Os ultrassons sairam do robo. GPIO 34 e 35 estao LIVRES agora, e sao
+// input-only - exatamente o que um canal B de encoder precisa. Quem for
+// atras de quadratura completa (a odometria hoje roda com um encoder so,
+// decisao de custo de 13/08) comeca por aqui: os pinos existem e nao
+// disputam mais nada.
 constexpr uint8_t ENCODER_ESQ = 39;  // livre
 constexpr uint8_t ENCODER_DIR = 36;  // era BATERIA_SENSE
 
-// --- Ultrassonico frontal - HC-SR04 fixo, sem servo (INTOCADO) ---
-// Alimenta o SafetyManager (parada por obstaculo) - ver motor_manager.h e
-// a nota de encoder acima sobre por que estes pinos NAO foram realocados.
-constexpr uint8_t ULTRASSOM_FRENTE_TRIG = 32;  // (Mega: 26)
-constexpr uint8_t ULTRASSOM_FRENTE_ECHO = 34;  // (Mega: 27) SO LEITURA - seguranca real
-
-// --- Ultrassonico traseiro - HC-SR04 fixo (INTOCADO, so telemetria) ---
-constexpr uint8_t ULTRASSOM_TRAS_TRIG = 33;  // (Mega: 22)
-constexpr uint8_t ULTRASSOM_TRAS_ECHO = 35;  // (Mega: 23) SO LEITURA
+// --- Ultrassonicos: REMOVIDOS DO ROBO em 2026-09-19 ---
+// Eram dois HC-SR04 (frente em 32/34, tras em 33/35) e o servo do radar em
+// 18. Sairam fisicamente, por decisao do dono: quem mede distancia agora e
+// o LiDAR STL-50B2, ligado ao Raspberry, com 12 setores de 360 graus a
+// 2,5 Hz - contra 7 angulos numa varredura de 2,1 segundos.
+//
+// Os pinos 32, 33, 34, 35 e 18 estao LIVRES. Ficam listados aqui como
+// livres, e nao apagados em silencio, porque a proxima pessoa que precisar
+// de um pino vai procurar nesta lista.
 
 // --- I2C: bussola (HMC5883L/QMC5883L) ---
 // A MPU6050 (IMU) foi DESCARTADA em 2026-08-18 e saiu desta placa; o unico
@@ -109,9 +112,6 @@ constexpr uint8_t BUSSOLA_SCL = 22;  // (Mega: 21)
 
 // --- Temperatura/umidade (CONFIRMADO) - DHT11/22 ---
 constexpr uint8_t DHT_DATA = 4;  // (Mega: 24)
-
-// --- Servo do radar (CONFIRMADO 2026-07-18) - varre o ultrassom frontal ---
-constexpr uint8_t SERVO_RADAR = 18;  // (Mega: 9)
 
 // --- Servos pan/tilt ---
 // SERVO_PAN = horizontal, SERVO_TILT = vertical. VALIDADO 2026-07-20.

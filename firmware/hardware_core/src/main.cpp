@@ -25,9 +25,7 @@
 #include "motor_manager.h"
 #include "pins.h"
 #include "protocolo.h"
-#include "radar_manager.h"
 #include "safety_manager.h"
-#include "sensor_ultrassonico.h"
 #include "telemetry_manager.h"
 
 // Os simbolos __heap_start/__brkval do avr-libc que moravam aqui foram
@@ -41,14 +39,12 @@ namespace {
 orion::DecodificadorQuadro decodificador;
 orion::MaquinaDeEstados estados;
 orion::MotorManager motores;
-orion::RadarManager radar;
 orion::DhtManager dht;
 orion::BateriaManager bateria;
 orion::SafetyManager safety;
-orion::SensorUltrassonico ultrassomTraseiro;
 orion::BussolaManager bussola;
-orion::CommandExecutor comandos(motores, radar, estados, safety);
-orion::TelemetryManager telemetria(motores, radar, dht, estados, ultrassomTraseiro,
+orion::CommandExecutor comandos(motores, estados, safety);
+orion::TelemetryManager telemetria(motores, dht, estados,
                                   bateria, bussola, safety);
 
 constexpr unsigned long INTERVALO_HEARTBEAT_MS = 1000;
@@ -96,7 +92,6 @@ unsigned long tempoEnvioAnteriorUs = 0;
 unsigned long tempoBussolaAcumuladoUs = 0;
 uint16_t leiturasBussola = 0;
 orion::Estado estadoAnterior = orion::Estado::BOOT;
-bool varrendoAnterior = false;
 
 JsonDocument g_payloadVazio;  // reutilizado para ACK/HEARTBEAT (sempre {})
 
@@ -141,22 +136,11 @@ void notificarTransicaoDeEstado() {
   estadoAnterior = estados.atual();
 }
 
-void notificarFimDeVarredura() {
-  bool varrendoAgora = radar.varrendo();
-  if (varrendoAnterior && !varrendoAgora) {
-    JsonDocument payload;
-    payload["topico"] = "motion.scan_complete";
-    JsonArray leituras = payload["leituras"].to<JsonArray>();
-    for (uint8_t i = 0; i < radar.quantidadeLeituras(); i++) {
-      JsonObject item = leituras.add<JsonObject>();
-      item["angulo"] = radar.leituras()[i].angulo;
-      item["distancia_cm"] = radar.leituras()[i].distanciaCm;
-      item["valida"] = radar.leituras()[i].valida;
-    }
-    orion::enviarMensagem(Serial, "EVENT", "motion_core", payload.as<JsonObjectConst>());
-  }
-  varrendoAnterior = varrendoAgora;
-}
+// notificarFimDeVarredura() SAIU em 2026-09-19, com o radar. Publicava
+// `motion.scan_complete` com as 7 leituras da varredura; o servo e o
+// ultrassom foram retirados do robo, e quem varre agora e o LiDAR ligado ao
+// Raspberry, que publica `lidar.scan` direto no barramento de la - sem
+// passar por esta serial.
 
 void responderWhoAreYou(const char* origem, const char* idMsg) {
   JsonDocument payload;
@@ -361,8 +345,11 @@ void setup() {
   EEPROM.begin(128);
 
   // Reserva os quatro timers de PWM para os servos ANTES de qualquer
-  // attach() (exigencia da ESP32Servo, 2026-08-02). Sao 3 servos - radar,
-  // pan e tilt - e sem esta reserva o primeiro attach() pega um timer que o
+  // attach() (exigencia da ESP32Servo, 2026-08-02). Sao 2 servos desde
+  // 19/09 - pan e tilt; o do radar saiu com o ultrassom. A reserva continua
+  // sendo dos quatro timers de proposito: eles nao custam nada parados, e
+  // reduzir para dois so criaria um limite novo no dia em que aparecer mais
+  // um servo. Sem esta reserva o primeiro attach() pega um timer que o
   // LEDC pode estar usando para outra coisa; o servo entao treme ou fica
   // parado sem erro nenhum. Nao existia no Mega porque la a <Servo.h> era
   // dona absoluta do Timer1.
@@ -372,7 +359,6 @@ void setup() {
   ESP32PWM::allocateTimer(3);
 
   motores.iniciar();
-  radar.iniciar();
   bussola.iniciar();
   dht.iniciar();
   // BATERIA_SENSE (GPIO36) foi realocado pro encoder do motor DC em
@@ -380,23 +366,12 @@ void setup() {
   // (ver pins.h), entao nada fisico foi perdido. Desligado ate escolher um
   // novo pino ADC1 livre e recalcular o divisor para 3,3V.
   // bateria.iniciar(pinos::BATERIA_SENSE);
-  ultrassomTraseiro.iniciar(pinos::ULTRASSOM_TRAS_TRIG, pinos::ULTRASSOM_TRAS_ECHO);
 
-  // AUTOTESTE DE PRESENCA DO ULTRASSOM (2026-07-25).
-  //
-  // O latch de presenca (sensor_ultrassonico.h) so fecha quando um eco de
-  // verdade chega, e ate fechar a seguranca trata o sensor como ausente e
-  // impede o robo de andar. Com o radar parado apontando para um vao livre,
-  // esse eco nunca vinha - e alguem precisava passar a mao na frente do
-  // sensor apos CADA reinicio para destravar o robo. Inviavel para um robo
-  // que deve patrulhar sozinho.
-  //
-  // A varredura resolve sozinha: o arco de 30..150 graus cobre o ambiente,
-  // e basta UM angulo encontrar superficie para o latch fechar. Numa sala
-  // qualquer isso acontece em segundos. Se nao houver NADA em nenhum
-  // angulo, o latch fica aberto - e ai a recusa em andar esta correta,
-  // porque nao ha como distinguir isso de um sensor desligado.
-  radar.iniciarVarredura();
+  // O AUTOTESTE DE PRESENCA DO ULTRASSOM saiu junto com o sensor (19/09).
+  // Ele existia porque o latch de presenca so fechava com um eco de verdade,
+  // e sem ele alguem tinha que passar a mao na frente do sensor a cada
+  // reinicio para destravar o robo. Um problema inteiro que deixou de
+  // existir com o sensor.
   comandos.iniciar();
   g_payloadVazio.to<JsonObject>();  // forca virar {} em vez de null ao serializar
 
@@ -458,8 +433,6 @@ void loop() {
   }
 
   motores.atualizar();
-  radar.atualizar();
-  ultrassomTraseiro.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
   // bateria.atualizar();  // ver nota em setup() - pino virou encoder
 
@@ -479,7 +452,7 @@ void loop() {
     }
   }
 
-  bool acionouParadaAgora = safety.avaliar(motores, radar, ultimoComandoRecebido);
+  bool acionouParadaAgora = safety.avaliar(motores, ultimoComandoRecebido);
   if (acionouParadaAgora) {
     // "frente_desconhecida" tambem bloqueia o movimento, mas nao e a mesma
     // coisa que ver um obstaculo - e o radar estar olhando pro lado sem
@@ -511,7 +484,6 @@ void loop() {
   }
 
   notificarTransicaoDeEstado();
-  notificarFimDeVarredura();
 
   if (agora - ultimoHeartbeat >= INTERVALO_HEARTBEAT_MS) {
     ultimoHeartbeat = agora;

@@ -1,5 +1,5 @@
 // Telemetry Manager (Cap 10 secao 8) - pacote periodico Radar Inteligente
-// (Cap 5 secao 7): distancias dos ultrassons, orientacao da bussola, estado
+// (Cap 5 secao 7): orientacao da bussola, estado
 // dos motores, velocidade estimada, temperatura e umidade.
 #pragma once
 
@@ -10,34 +10,43 @@
 #include "dht_manager.h"
 #include "estado.h"
 #include "motor_manager.h"
-#include "radar_manager.h"
 #include "safety_manager.h"
-#include "sensor_ultrassonico.h"
 
 namespace orion {
 
 class TelemetryManager {
  public:
-  TelemetryManager(MotorManager& motores, RadarManager& radar, DhtManager& dht,
-                    MaquinaDeEstados& estados, SensorUltrassonico& ultrassomTraseiro,
+  // SEM DISTANCIA (2026-09-19): os ultrassons sairam do robo e o LiDAR fala
+  // direto com o Raspberry. Este pacote perdeu TODOS os campos de distancia
+  // - `distancia_frontal_cm`, `distancia_traseira_cm`, os `*_valida`, os
+  // `*_sem_eco`, os `*_descartes` e os `radar_*`. Quem lia distancia daqui
+  // (NavigationCore, EstadoDoMundo) le do `lidar.scan` desde a mesma data.
+  //
+  // Os campos foram REMOVIDOS, nao zerados: um `distancia_frontal_cm: 0` ou
+  // `-1` viajando no pacote seria lido como medida por qualquer consumidor
+  // distraido, e esse e o erro que este projeto ja pagou caro - "nao medi"
+  // entregue como numero.
+  TelemetryManager(MotorManager& motores, DhtManager& dht,
+                    MaquinaDeEstados& estados,
                     BateriaManager& bateria, BussolaManager& bussola, SafetyManager& safety)
       : _safety(safety),
         _motores(motores),
-        _radar(radar),
         _dht(dht),
         _estados(estados),
-        _ultrassomTraseiro(ultrassomTraseiro),
         _bateria(bateria),
         _bussola(bussola) {}
 
   // Pacote REDUZIDO, para quando o robo esta em movimento (2026-07-27).
   //
-  // Motivo medido: o pacote completo tem ~1850 bytes com enquadramento e o
-  // buffer de saida do AVR e de 64, entao `Serial.write` bloqueia 74 ms
-  // esperando drenar. Nesse tempo o loop nao olha o pino ECHO do ultrassom,
-  // e o eco de um obstaculo a 30 cm dura 1,7 ms - o eco inteiro cabe dentro
-  // da cegueira. Pior: o sensor conclui "nada refletiu" e reporta caminho
-  // LIVRE, que e o lado errado para falhar, justo quando o robo anda.
+  // Motivo medido (na epoca do Mega e dos ultrassons): o pacote completo tem
+  // ~1850 bytes com enquadramento e o buffer de saida do AVR era de 64, entao
+  // `Serial.write` bloqueava 74 ms esperando drenar - e nesse tempo o loop nao
+  // olhava o pino ECHO, cujo eco a 30 cm dura 1,7 ms. O sensor concluia "nada
+  // refletiu" e reportava caminho LIVRE, o lado errado para falhar.
+  //
+  // Aquele sensor nao existe mais, mas o pacote reduzido FICA: pacote menor
+  // continua sendo menos tempo de UART ocupada, e e nessa janela que os
+  // heartbeats atrasam - que e como o sistema detecta link caido.
   //
   // Aqui vai SO o que a navegacao e a seguranca precisam a cada ciclo.
   // Temperatura, bateria e diagnostico nao mudam em 200 ms e voltam no
@@ -47,22 +56,12 @@ class TelemetryManager {
     destino["reduzido"] = true;  // o Pi precisa saber que os campos ausentes
                                   // sao omissao proposital, nao sensor mudo
 
-    destino["distancia_frontal_cm"] = _radar.distanciaFrontalCm();
-    destino["distancia_frontal_valida"] = _radar.distanciaFrontalValida();
-    destino["frontal_sensor_ok"] = _radar.sensorFrontalRespondeu();
-    destino["frontal_sem_eco"] = _radar.frontalSemEco();
-    destino["radar_angulo_graus"] = _radar.anguloAtual();
     // POR QUE a seguranca parou o robo. Ate 28/07 isto nao existia na
-    // telemetria: o Pi via OBSTACLE_DETECTED e nao tinha como saber se era
-    // um obstaculo de verdade ou o radar olhando pro lado. Custou uma
-    // sessao inteira de diagnostico as cegas.
-    destino["radar_apontando_frente"] = _radar.apontandoParaFrente();
+    // telemetria e o Pi via o estado sem saber a razao - custou uma sessao
+    // inteira de diagnostico as cegas. Hoje o unico motivo possivel e o
+    // homem-morto, mas o campo fica: o Pi nao deve supor o motivo.
     destino["seguranca_parada_ativa"] = _safety.pararAtivo();
     if (_safety.pararAtivo()) destino["seguranca_motivo"] = _safety.motivo();
-
-    destino["distancia_traseira_cm"] = _ultrassomTraseiro.distanciaCm();
-    destino["distancia_traseira_valida"] = _ultrassomTraseiro.leituraValida();
-    destino["traseiro_sem_eco"] = _ultrassomTraseiro.semEco();
 
     // Rumo entra porque a odometria de rotacao se apoia nele (EDR-0024).
     if (_bussola.rumoValido()) {
@@ -77,45 +76,21 @@ class TelemetryManager {
   void preencherPayload(JsonObject destino) {
     destino["estado"] = nomeEstado(_estados.atual());
 
-    destino["distancia_frontal_cm"] = _radar.distanciaFrontalCm();
-    destino["distancia_frontal_valida"] = _radar.distanciaFrontalValida();
-    // sensor_ok separa "modulo ausente/mudo" de "nada refletindo dentro do
-    // alcance". Sem este campo os dois casos sao indistinguiveis de fora, e
-    // foi exatamente essa confusao que manteve o robo parado por horas em
-    // 2026-07-25. false = o pino ECHO nem chegou a subir apos o trigger.
-    destino["frontal_sensor_ok"] = _radar.sensorFrontalRespondeu();
-    // `sem_eco` = a distancia acima NAO foi medida, e o teto de alcance
-    // reportado porque nada refletiu. Sem este campo, "517 cm valido" era
-    // indistinguivel de uma parede realmente a 517 cm - quem monta mapa
-    // precisa tratar um como DESCONHECIDO e o outro como obstaculo (EDR-0024).
-    destino["frontal_sem_eco"] = _radar.frontalSemEco();
-
-    destino["distancia_traseira_cm"] = _ultrassomTraseiro.distanciaCm();
-    destino["distancia_traseira_valida"] = _ultrassomTraseiro.leituraValida();
-    destino["traseiro_sensor_ok"] = _ultrassomTraseiro.sensorRespondeu();
-    destino["traseiro_sem_eco"] = _ultrassomTraseiro.semEco();
-
-    // Amostras jogadas fora por o loop ter ficado cego durante o eco
-    // (SensorUltrassonico::SONDAGEM_MAXIMA_US). Contadores ACUMULADOS desde o
-    // boot, de proposito: o que interessa e a tendencia. Numero que sobe
-    // depressa nao acusa sensor ruim - acusa quem esta bloqueando o loop
-    // (hoje, o envio da telemetria). Enquanto isso subir, o mapa do EDR-0024
-    // nao tem base para existir.
-    destino["frontal_descartes"] = _radar.frontalDescartes();
-    destino["traseiro_descartes"] = _ultrassomTraseiro.descartes();
-
-    // Mesmo diagnostico do pacote reduzido, mais a idade da ultima leitura
-    // frontal de verdade - e ela que autoriza andar durante uma varredura.
-    destino["radar_apontando_frente"] = _radar.apontandoParaFrente();
-    destino["frontal_idade_ms"] = _radar.idadeFrontalMs();
-    destino["seguranca_parada_ativa"] = _safety.pararAtivo();
-    if (_safety.pararAtivo()) destino["seguranca_motivo"] = _safety.motivo();
-
-    // Angulo para onde o radar aponta. Sem isto, a distancia frontal e um
-    // numero sem significado (nao se sabe o que foi medido), e o mapa nunca
-    // pode ser construido - por isso mapa.leituras vive vazio.
-    destino["radar_angulo_graus"] = _radar.anguloAtual();
-
+    // TODOS OS CAMPOS DE DISTANCIA SAIRAM DAQUI em 2026-09-19, junto com os
+    // ultrassons. Eram 13 chaves: as duas distancias, os `*_valida`, os
+    // `*_sensor_ok`, os `*_sem_eco`, os `*_descartes`, `frontal_idade_ms` e
+    // os tres `radar_*`.
+    //
+    // O que cada uma resolvia NAO se perdeu - migrou de lugar, porque o
+    // problema era do sensor, nao do campo:
+    //   `*_sem_eco`      -> setor com `distancia_cm: null` no `lidar.scan`
+    //   `*_sensor_ok`    -> `lidar.scan` chegando (vivo) x `lidar.error`
+    //   `*_descartes`    -> `setores_cobertos` de `setores_total`
+    //   `radar_angulo_*` -> cada setor ja traz `inicio_graus`/`fim_graus`
+    //
+    // A licao que sobrevive aos dois sensores: "nao medi" e "medi longe" tem
+    // que ser distinguiveis de fora. Confundir os dois manteve o robo parado
+    // por horas em 25/07 e o fez andar as cegas em 29/07.
     destino["dht_valido"] = _dht.leituraValida();
     if (_dht.leituraValida()) {
       destino["temperatura_c"] = _dht.temperaturaC();
@@ -154,10 +129,8 @@ class TelemetryManager {
  private:
   SafetyManager& _safety;
   MotorManager& _motores;
-  RadarManager& _radar;
   DhtManager& _dht;
   MaquinaDeEstados& _estados;
-  SensorUltrassonico& _ultrassomTraseiro;
   BateriaManager& _bateria;
   BussolaManager& _bussola;
 };

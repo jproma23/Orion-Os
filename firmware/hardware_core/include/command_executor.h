@@ -15,7 +15,6 @@
 #include "estado.h"
 #include "motor_manager.h"
 #include "pins.h"
-#include "radar_manager.h"
 #include "safety_manager.h"
 
 namespace orion {
@@ -28,16 +27,16 @@ constexpr float SERVO_CENTRO_GRAUS = 90.0f;
 
 class CommandExecutor {
  public:
-  CommandExecutor(MotorManager& motores, RadarManager& radar, MaquinaDeEstados& estados,
+  CommandExecutor(MotorManager& motores, MaquinaDeEstados& estados,
                    SafetyManager& safety)
-      : _motores(motores), _radar(radar), _estados(estados), _safety(safety) {}
+      : _motores(motores), _estados(estados), _safety(safety) {}
 
   // Precisa ser chamado de dentro de setup(), nunca no construtor: este
   // objeto e global (criado antes de main()/init() rodar), e Servo::attach()
   // configura um timer de hardware que o init() do Arduino ainda vai
   // reconfigurar em seguida - se attach() rodasse no construtor, o init()
   // pisaria por cima e o servo nunca responderia, mesmo com o codigo
-  // "parecendo" correto (mesmo motivo de motores.iniciar()/radar.iniciar()
+  // "parecendo" correto (mesmo motivo de motores.iniciar()
   // existirem em vez de fazer isso no construtor deles).
   void iniciar() {
     // Rele da lanterna (pins.h): ATIVO EM LOW, entao o estado seguro e HIGH.
@@ -145,21 +144,17 @@ class CommandExecutor {
       return true;
     }
 
-    if (strcmp(comando, "SCAN_FRONT") == 0) {
-      _radar.iniciarVarredura();
-      return true;
-    }
-
-    if (strcmp(comando, "RADAR_SET_ANGLE") == 0) {
-      // Comando de calibracao (fora da lista original do Cap 10 s.5) -
-      // move so o servo do radar pra um angulo especifico, sem varredura.
-      // Usado pra achar/conferir o arco de rotacao livre na montagem
-      // fisica (achado real: colisao com o suporte da webcam ao lado,
-      // vistoria de 2026-07-24).
-      float angulo = payload["angulo_graus"] | 90.0f;
-      _radar.moverServoTeste(static_cast<uint8_t>(constrain(angulo, 0, 180)));
-      return true;
-    }
+    // SCAN_FRONT e RADAR_SET_ANGLE SAIRAM em 2026-09-19.
+    //
+    // Os dois moviam o servo do radar e liam o ultrassom frontal; o sensor e
+    // o servo foram retirados do robo. SCAN_FRONT era o "estudo de risco" -
+    // 7 angulos numa varredura de 2,1 s, com o robo parado. O LiDAR entrega
+    // 12 setores de 360 graus a 2,5 Hz, continuamente e sem parar de andar:
+    // a varredura nao foi perdida, foi superada.
+    //
+    // Um comando desconhecido cai no NACK la embaixo, que e o certo: se
+    // alguem no Pi ainda mandar SCAN_FRONT, o erro aparece no log em vez de
+    // um ACK mentiroso para um servo que nao existe.
 
     // Lanterna: o pino inverteu em 2026-08-04 porque virou RELE ativo em LOW
     // (ver pins.h). O PROTOCOLO nao mudou - LIGHT_ON/LIGHT_OFF continuam
@@ -231,7 +226,6 @@ class CommandExecutor {
 
  private:
   MotorManager& _motores;
-  RadarManager& _radar;
   MaquinaDeEstados& _estados;
   SafetyManager& _safety;
   Servo _servoPan;
