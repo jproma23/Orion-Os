@@ -1001,6 +1001,11 @@ async def principal() -> None:
         comm=comm,
         # Quem executa o desligamento das duas maquinas (ver acima).
         desligador=desligador,
+        # O retrato do mundo vai para a tela (2026-09-19). Sem isto, a unica
+        # forma de saber se o robo enxerga a frente era ler o log da IA
+        # estrategica - que esta desligada desde 07/08. O dado existia e era
+        # invisivel.
+        mundo=mundo,
     )
     await webui.iniciar()
 

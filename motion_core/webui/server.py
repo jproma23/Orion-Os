@@ -255,6 +255,7 @@ class WebUIServer:
         maestro=None,
         comm=None,
         desligador=None,
+        mundo=None,
     ) -> None:
         # memory_api e opcional (Cap 13 s.4: "consultas de historico...
         # locais ao SSD") - None quando o banco de dados nao esta
@@ -267,6 +268,14 @@ class WebUIServer:
         self._port = port
         self._memory_api = memory_api
         self._config = config
+        #: O EstadoDoMundo (retrato). Existe para o DONO PODER VER o que o
+        #: robo acha do mundo - que ate 2026-09-19 so era observavel quando a
+        #: IA estrategica rodava e imprimia o contexto no log. Com ela
+        #: desligada desde 07/08, a distancia frontal era calculada a cada
+        #: varredura e NINGUEM olhava: conferir se o robo enxerga exigia
+        #: reproduzir o calculo fora do processo. Medir o que o robo sabe tem
+        #: que ser barato, senao ninguem mede.
+        self._mundo = mundo
         #: O maestro (BehaviorCore) é o DONO do modo de controle - esta página
         #: só lê e pede a troca. Opcional pela mesma razão dos outros: sem ele
         #: o botão aparece desabilitado em vez de a página quebrar.
@@ -869,6 +878,20 @@ class WebUIServer:
         # dashboard serve na LAN e pelo Tailscale sem reconfiguracao.
         conf_web = self._config.secao("display")["web"] if self._config else {}
         estado["camera"] = {"porta": conf_web.get("camera_porta")}
+        # O RETRATO DO MUNDO - o mesmo objeto que alimenta o prompt da IA.
+        # None em qualquer campo significa "NAO SEI", nunca "esta livre": o
+        # retrato prefere calar a inventar (ver RetratoDoMundo).
+        if self._mundo is not None:
+            r = self._mundo.retrato()
+            estado["mundo"] = {
+                "obstaculo_frente_cm": r.obstaculo_frente_cm,
+                "obstaculo_tras_cm": r.obstaculo_tras_cm,
+                "pessoa_presente": r.pessoa_presente,
+                "pessoa_nome": r.pessoa_nome,
+                "telemetria_viva": r.telemetria_viva,
+                "estado_hardware": r.estado_hardware,
+                "resumo": r.resumo(),
+            }
         return web.json_response(
             {"estado": estado, "eventos_recentes": self._eventos_recentes}
         )
