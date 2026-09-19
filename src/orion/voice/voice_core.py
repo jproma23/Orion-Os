@@ -116,6 +116,9 @@ class VoiceCore:
         #: o log nao repetir a mesma linha a cada ciclo - ver
         #: `_publicar_erro_audio`.
         self._audio_em_falha = False
+        #: A ultima coisa que ELE disse, para reconhecer a propria voz quando
+        #: ela volta pelo microfone - ver `_eh_eco_da_propria_fala`.
+        self._ultima_fala = ""
 
     @property
     def estado(self) -> EstadoVoz:
@@ -178,6 +181,17 @@ class VoiceCore:
         inteiro (voice_core, sentinela, avatar - tudo compartilha o mesmo
         `asyncio.run`), so porque o alto-falante falhou uma vez. Achado
         real da vistoria de codigo de 2026-07-24."""
+        # INFO, e nao debug: o log contava so o lado da ENTRADA ("ouvi
+        # (rms=...): 'Javis'") e ficava mudo sobre a SAIDA. Em 2026-09-19 o
+        # robo foi chamado, a sessao abriu e encerrou por silencio, e nao
+        # havia uma linha no log que respondesse "ele falou?". Aqui e o ponto
+        # unico por onde TODAS as falas passam - resposta, saudacao, recado -,
+        # entao uma linha so cobre todas.
+        logger.info("falando: %.100s", texto)
+        # Guardado ANTES de falar: se a sintese falhar no meio, parte do audio
+        # pode ter saido mesmo assim, e o eco desse pedaco tem que ser
+        # reconhecido do mesmo jeito.
+        self._ultima_fala = texto
         try:
             await self._sintetizador.falar(texto)
         except Exception as erro:
@@ -342,6 +356,14 @@ class VoiceCore:
                 # nem para concluir que a pessoa foi embora.
                 logger.info("descartando transcricao em laco (alucinacao): %.60s...", texto)
                 continue
+            if self._eh_eco_da_propria_fala(texto):
+                # Conta como SILENCIO, e nao como fala: se o que voltou foi a
+                # voz dele, entao ninguem falou com ele nessa janela - e a
+                # sessao tem que poder fechar. Tratar como fala mantinha a
+                # sessao aberta para sempre, alimentando o proprio laco.
+                logger.info("descartando eco da propria fala: %.60s...", texto)
+                silencios += 1
+                continue
 
             logger.info("sessao aberta - comando sem palavra de ativacao: %r", texto)
             await self._event_bus.publish("voice.command_received", {"texto": texto})
@@ -407,6 +429,59 @@ class VoiceCore:
                 if repeticoes >= cls._REPETICOES_PARA_ALUCINACAO:
                     return True
         return False
+
+    #: Quantas palavras a transcricao precisa ter para ser testada como eco.
+    #: Abaixo disso a coincidencia nao diz nada: "sim", "ta bom" ou "o que"
+    #: batem com quase qualquer fala anterior por acaso.
+    _PALAVRAS_MINIMAS_PARA_ECO = 4
+    #: Que fracao das palavras ouvidas precisa estar na ultima fala dele.
+    #: 0,7 e alto de proposito - ver o comentario sobre o erro barato.
+    _FRACAO_PARA_ECO = 0.7
+
+    def _eh_eco_da_propria_fala(self, texto: str) -> bool:
+        """A transcricao e a voz DELE voltando pelo microfone?
+
+        A trava de tempo (`_falar_na_tela` agora espera o som acabar) e a
+        defesa principal; esta aqui e o cinto de seguranca, para o caso de o
+        som escapar por uma fresta - um atraso na serial, um buffer do I2S
+        maior que o previsto, o alto-falante e o microfone na mesma placa.
+
+        NAO COMPARA TEXTO IGUAL: o Whisper devolve a fala dele mastigada, e
+        exigir igualdade nao pegaria nada. Medido no laco de 2026-09-19:
+
+            ele disse  "Duas coisas acontecerem juntas nao significa que..."
+            voltou     "dois coisas acontecerem juntas now significa que..."
+
+        Entao a conta e de SOBREPOSICAO: que fracao do que foi ouvido ja
+        estava no que ele acabou de dizer. No exemplo acima, 8 das 9 palavras.
+
+        O ERRO BARATO E PARA QUE LADO. Achar que a pessoa e eco custa uma fala
+        perdida - ela repete, e a janela conta como silencio, entao a sessao
+        ainda pode fechar. Achar que o eco e pessoa custa o robo conversando
+        sozinho para sempre. Por isso o limiar e alto, mas existe.
+        """
+        if not self._ultima_fala:
+            return False
+        ouvidas = self._palavras(texto)
+        if len(ouvidas) < self._PALAVRAS_MINIMAS_PARA_ECO:
+            return False
+        ditas = set(self._palavras(self._ultima_fala))
+        em_comum = sum(1 for p in ouvidas if p in ditas)
+        return (em_comum / len(ouvidas)) >= self._FRACAO_PARA_ECO
+
+    @staticmethod
+    def _palavras(texto: str) -> list[str]:
+        """So as palavras, minusculas, sem pontuacao nenhuma colada.
+
+        Mesmo padrao de `_comando_na_janela`, e nao o `.strip(\".,!?;:\")` do
+        `_parece_alucinacao`: aquele nao tira ASPAS, e a fala do robo tem. No
+        primeiro teste contra o log real, ele disse `de outra \"oracao\"?` e o
+        eco passou batido porque `\"oracao\"` nao casava com `oracao` - cinco
+        das seis palavras batiam e a sexta morreu num par de aspas.
+        """
+        import re
+
+        return re.findall(r"[\wÀ-ÿ]+", texto.lower())
 
     @classmethod
     def _letra_travada(cls, palavra: str) -> bool:

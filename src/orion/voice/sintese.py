@@ -24,6 +24,14 @@ from piper import PiperVoice
 from orion.voice import timbre as _timbre
 from orion.voice.audio_utils import reamostrar as _reamostrar
 
+#: Folga somada a duracao do audio ao falar PELA TELA (ver `_falar_na_tela`).
+#:
+#: Cobre o caminho entre publicar o PCM e o som de fato sair: a fila do Event
+#: Bus, a `create_task` da ponte serial e o buffer do I2S no firmware. Meio
+#: segundo e generoso de proposito - errar para menos traz de volta o robo
+#: conversando sozinho, e errar para mais so atrasa a escuta em meio segundo.
+MARGEM_FIM_DA_FALA_S = 0.5
+
 #: A VOZ DO FOFAO (2026-08-03) - pedido do dono: "caloroso e presente".
 #:
 #: O modelo continua o `pt_BR-faber-medium`, que e a voz padrao de portugues do
@@ -168,6 +176,31 @@ class Sintetizador:
         Roda DENTRO da `_trava_fala` (chamada por `falar`), entao duas falas
         continuam nao se cruzando - pelo mesmo motivo de sempre, so que aqui o
         recurso disputado e a porta serial, nao o stream do sounddevice.
+
+        SO VOLTA QUANDO O SOM ACABOU (corrigido em 2026-09-19). Esta funcao
+        devolvia o controle assim que entregava o PCM, e o contrato de
+        `falar()` - "quando eu volto, o robo terminou de falar" - so valia no
+        caminho do alto-falante local, que termina com `sd.wait()`. Pela tela
+        havia tres saltos que voltam na hora, um atras do outro:
+
+            sintese.py       await self._tocar_na_tela(...)  -> publish
+            modulo.py        publish("voice.audio_pcm")      -> so enfileira
+            ponte_serial.py  create_task(self._enviar_audio) -> "volta JA"
+
+        O preco foi o robo conversando sozinho. O microfone fica na MESMA
+        placa que o alto-falante e a sessao de conversa dispensa a palavra de
+        ativacao, entao ele gravava a propria fala e respondia a ela. Medido
+        no log de 2026-09-19:
+
+            17:40:26 FALOU  "...ou falava de outra 'oracao'?"
+            17:41:02 OUVIU  'Coisa ou falada de outra oracao'   <- ele mesmo
+            17:41:02 FALOU  "Causa e correlacao. Duas coisas..."
+            17:41:51 OUVIU  'dois coisas acontecerem juntas...' <- ele mesmo
+            17:41:51 FALOU  "Causa e correlacao. Duas coisas..." <- em laco
+
+        O assentamento pos-fala do VoiceCore (0,9 s) nao dava conta porque
+        contava a partir daqui: 0,9 s depois de COMECAR uma fala de 40 s.
+        Ele continua valendo, e agora conta do lugar certo - do fim do som.
         """
         audio, taxa = await asyncio.to_thread(self._sintetizar, texto)
         # Entrega na taxa NATIVA do Piper: quem converte para a taxa que a tela
@@ -175,3 +208,9 @@ class Sintetizador:
         # lugar so - duas copias do mesmo numero em modulos diferentes e o tipo
         # de coisa que diverge no dia em que uma delas muda.
         await self._tocar_na_tela(audio, taxa)
+        # A duracao sai do proprio audio (amostras / taxa) e nao de um palpite:
+        # e o mesmo numero que o `sd.wait()` do caminho local espera, so que
+        # calculado em vez de observado - daqui nao da para ver o alto-falante
+        # da cabeca. A reamostragem da ponte serial nao muda a duracao.
+        duracao_s = len(audio) / float(taxa)
+        await asyncio.sleep(duracao_s + MARGEM_FIM_DA_FALA_S)
