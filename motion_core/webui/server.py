@@ -559,13 +559,13 @@ class WebUIServer:
         except Exception:
             logger.warning("chat: Mission Core nao respondeu", exc_info=True)
             return web.json_response(
-                {"erro": "o Fofao nao respondeu a tempo"}, status=504
+                {"erro": "o Javis nao respondeu a tempo"}, status=504
             )
 
         payload = resposta.payload or {}
         if not payload.get("ok"):
             return web.json_response(
-                {"erro": payload.get("erro", "o Fofao nao conseguiu responder")},
+                {"erro": payload.get("erro", "o Javis nao conseguiu responder")},
                 status=502,
             )
         return web.json_response({"ok": True, "resposta": payload.get("resposta", "")})

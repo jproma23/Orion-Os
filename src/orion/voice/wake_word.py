@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 
-PALAVRAS_ATIVACAO_PADRAO = ("fofao", "fofão")
+PALAVRAS_ATIVACAO_PADRAO = ("javis", "jarvis")
 #: edicoes (substituicao/insercao/remocao de 1 letra) toleradas por
 #: palavra na checagem foneticamente tolerante (passo 3) - pequeno de
 #: proposito, ver docstring do modulo.
@@ -98,15 +98,19 @@ class DetectorPalavraAtivacao:
                 return True
 
         # 3) Tolerancia a pequeno erro fonetico (distancia de edicao) - so
-        #    em tokens de tamanho parecido com "fofao"/"fofão" (5 letras),
+        #    em tokens de tamanho parecido com o da PALAVRA sendo procurada,
         #    pra nao disparar em qualquer palavra curta do dia a dia.
+        #
+        #    O tamanho era o numero 5 cravado aqui (o tamanho de "fofao"),
+        #    o que so funcionava enquanto existisse uma unica palavra de
+        #    ativacao com cinco letras: com "jarvis" (2026-09-17) a regua
+        #    ficaria errada, e com uma palavra mais longa este passo nunca
+        #    dispararia. Agora cada palavra usa a propria medida.
         for token in tokens:
-            if abs(len(token) - 5) > 2:
-                continue
-            if any(
-                _distancia_levenshtein(token, p) <= self._distancia_maxima
-                for p in self._palavras
-            ):
-                return True
+            for palavra in self._palavras:
+                if abs(len(token) - len(palavra)) > 2:
+                    continue
+                if _distancia_levenshtein(token, palavra) <= self._distancia_maxima:
+                    return True
 
         return False

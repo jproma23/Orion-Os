@@ -227,8 +227,8 @@ async def test_atender_preempta_repouso_e_manda_hold():
     await _passo(maestro)
     assert maestro.ativo_nome == "repouso"
 
-    # dono chamou "Fofão" (evento vindo do Notebook)
-    await bus.publish("voice.wake_detected", {"texto_janela": "fofão"})
+    # dono chamou "Javis" (evento vindo do Notebook)
+    await bus.publish("voice.wake_detected", {"texto_janela": "javis"})
     await asyncio.sleep(0.05)
     assert maestro.ativo_nome == "atender"
     assert {"acao": "HOLD"} in comandos_nav  # parou o robô ao atender
@@ -384,7 +384,7 @@ async def test_controle_manual_vence_atender():
     laco = asyncio.create_task(maestro.executar())
     await maestro.definir_modo_controle(MODO_MANUAL)
 
-    await bus.publish("voice.wake_detected", {"texto_janela": "fofão"})
+    await bus.publish("voice.wake_detected", {"texto_janela": "javis"})
     await asyncio.sleep(0.05)
     assert maestro.ativo_nome == "atender"
 
@@ -451,7 +451,7 @@ async def test_vigilia_investiga_e_libera_e_perde_para_atender():
     assert maestro.ativo_nome == "vigilia"
     assert fotos and fotos[0]["motivo"] == "barulho"
 
-    # dono chama "Fofão" no meio -> Atender (80) preempta a Vigília (60)
+    # dono chama "Javis" no meio -> Atender (80) preempta a Vigília (60)
     await bus.publish("voice.wake_detected", {})
     await asyncio.sleep(0.05)
     assert maestro.ativo_nome == "atender"
@@ -904,7 +904,7 @@ async def test_acao_nao_delegada_continua_segurando_o_controle():
 async def test_volante_volta_para_auto_depois_de_ocioso(monkeypatch):
     """*"quando passar mais de 3 minutos ocioso passar para auto"* (dono, 30/07).
 
-    Sem isto, um clique em "manual" deixava o Fofao parado para sempre esperando
+    Sem isto, um clique em "manual" deixava o Javis parado para sempre esperando
     alguem lembrar de devolver o controle - e foi o que aconteceu na bancada: o
     dono achou que o rele tinha queimado, quando o robo so estava em manual sem
     ninguem no joystick.

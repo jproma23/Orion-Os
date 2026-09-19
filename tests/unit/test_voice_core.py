@@ -87,7 +87,7 @@ async def test_fluxo_completo_com_palavra_de_ativacao():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["fofao", "que horas sao"]),
+        transcritor=TranscritorFalso(["javis", "que horas sao"]),
         sintetizador=sintetizador,
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -123,7 +123,7 @@ async def test_erro_no_processamento_ainda_fala_uma_resposta():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["fofao", "oi"]),
+        transcritor=TranscritorFalso(["javis", "oi"]),
         sintetizador=sintetizador,
         processar_comando=processar_com_erro,
         gravar_audio=_gravar_audio_falso,
@@ -160,7 +160,7 @@ async def test_falha_ao_falar_nao_derruba_o_ciclo():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["fofao", "oi"]),
+        transcritor=TranscritorFalso(["javis", "oi"]),
         sintetizador=SintetizadorComFalha(),
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -262,7 +262,7 @@ async def test_janela_silenciosa_pula_a_transcricao_de_vigilancia():
     async def processar(texto):
         return "nao deveria chamar"
 
-    vigia = TranscritorContador(["fofão"])
+    vigia = TranscritorContador(["javis"])
     voice = VoiceCore(
         bus,
         indice_microfone=0,
@@ -328,11 +328,11 @@ def test_fala_humana_nao_e_confundida_com_laco():
     """O risco da mudanca e o oposto: emudecer quem falou. A ancora agora
     desliza, entao frases normais passam a ser testadas em toda posicao."""
     for frase in [
-        "Fofão, acende a luz da sala",
+        "Javis, acende a luz da sala",
         "que horas o Kamal chega em casa",
         "você pode centralizar a sua cabeça para me ver",
         "sim, por favor",
-        "Fofão! Fofão!",  # enfase humana: duas vezes, nao cinco
+        "Javis! Javis!",  # enfase humana: duas vezes, nao cinco
         "vai lá no quarto e vê se o Kamal está lá",
     ]:
         assert not VoiceCore._parece_alucinacao(frase), frase

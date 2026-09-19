@@ -39,7 +39,11 @@ from orion.voice.audio_utils import reamostrar as _reamostrar
 #:
 #: Nada disso custa latencia da PRIMEIRA frase: o streaming por frases ja
 #: garante que o robo comeca a falar antes de terminar de gerar.
-VOZ_LENGTH_SCALE = 1.05
+#: 1.05 -> 1.18 em 2026-09-17, a pedido do dono ouvindo o robo falar pela tela:
+#: *"ele esta falando rapido demais, precisamos que ele fale mais lento"*. O
+#: limite descrito abaixo continua valendo - pausado demais vira solene, e
+#: solene e frio -, entao subiu com margem, nao ate onde daria.
+VOZ_LENGTH_SCALE = 1.18
 VOZ_NOISE_SCALE = 0.70
 VOZ_NOISE_W_SCALE = 0.80
 

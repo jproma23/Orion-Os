@@ -80,7 +80,7 @@ class PonteConversa:
             # silencio - mesmo raciocinio de PonteConselho.
             logger.exception("falha ao atender a conversa por texto")
             await self._servico.responder(
-                mensagem_original, {"ok": False, "erro": "o Fofao nao conseguiu responder"}
+                mensagem_original, {"ok": False, "erro": "o Javis nao conseguiu responder"}
             )
             return
 

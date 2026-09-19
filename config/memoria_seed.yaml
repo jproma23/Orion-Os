@@ -6,7 +6,7 @@ conhecimentos:
   - tipo: conceito
     titulo: ORION
     corpo: >-
-      O ORION, apelido Fofao, e um robo assistente domestico em tres camadas:
+      O ORION, apelido Javis, e um robo assistente domestico em tres camadas:
       Mission Core (Notebook: visao, IA, voz e conversa), Motion Core
       (Raspberry Pi 4: movimento, banco e web) e Hardware Core (Arduino Mega:
       tempo real). O audio roda num ESP32. A configuracao unica vive em
@@ -72,7 +72,7 @@ conhecimentos:
   - tipo: conceito
     titulo: ESP32
     corpo: >-
-      Microcontrolador do audio: capta os microfones e o wake word "Fofao" e
+      Microcontrolador do audio: capta os microfones e o wake word "Javis" e
       transmite por socket TCP (16 kHz) para o Notebook. O transporte e
       correto; o ruido de captacao (SNR do mic) e o portao aberto do hardware.
     fonte: orion.yaml (voice) e ROADMAP portao 1
@@ -506,7 +506,7 @@ dispositivos:
     tipo: audio
     localizacao: enlace TCP por mDNS
     acesso: >-
-      Microfones, wake word "Fofao"; socket TCP, 16 kHz; transmite 768000
+      Microfones, wake word "Javis"; socket TCP, 16 kHz; transmite 768000
       bytes em 12 s
   - nome: Webcam USB frontal
     tipo: vision

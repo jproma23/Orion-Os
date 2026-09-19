@@ -257,7 +257,7 @@ function conectar() {
 
   fonte.addEventListener('system.ready', () => {
     definirAlerta(false);
-    dizer('Sistemas prontos! Oi, eu sou o Fofão 🤖');
+    dizer('Sistemas prontos! Oi, eu sou o Javis 🤖');
   });
 
   // O QUADRO (2026-08-07). Vocabulario FECHADO: o que nao esta em

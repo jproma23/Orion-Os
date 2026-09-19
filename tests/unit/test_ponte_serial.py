@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 import serial as pyserial
 
-from orion.display.ponte_serial import PonteSerial
+from orion.display.ponte_serial import PonteSerial, empacotar_audio
 from orion.kernel.event_bus import EventBus
 
 
@@ -150,6 +150,69 @@ async def test_audio_nao_bloqueia_os_outros_eventos(serial_fake, bus_rodando):
     assert any("motion.pan_tilt" in linha for linha in serial_fake.linhas)
 
     await ponte.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_mic_so_entrega_quadro_inteiro(serial_fake, bus_rodando):
+    """Meio quadro no buffer desalinha os canais e vira ruido branco.
+
+    Achado real (2026-09-17): `gravar()` limpa o buffer a qualquer instante,
+    inclusive no meio de um quadro que esta chegando. Se o pedaco restante
+    entrasse sozinho, ele poderia comecar no meio de uma amostra - e um byte
+    fora de lugar transformava a fala em chiado de escala cheia (rms=0,57,
+    pico=1,0, Whisper transcrevendo vazio).
+    """
+    ponte = PonteSerial(bus_rodando, porta="/dev/fake")
+    await ponte.iniciar()
+
+    # um quadro de audio: 4 amostras estereo, todas iguais e mansas
+    pcm = np.full(8, 1000, dtype=np.int16).tobytes()
+    quadro = empacotar_audio(pcm)
+
+    # chega partido em dois pedacos, como a USB de fato entrega
+    ponte._desempacotar(quadro[:5])
+    assert not ponte._bruto, "quadro incompleto nao pode entrar no buffer"
+
+    ponte._desempacotar(quadro[5:])
+    assert bytes(ponte._bruto) == pcm, "quadro completo entra inteiro e igual"
+
+    await ponte.encerrar()
+
+
+@pytest.mark.asyncio
+async def test_mic_ganho_preserva_a_distancia_entre_fala_e_silencio(
+    serial_fake, bus_rodando
+):
+    """O ganho NAO pode achatar a diferenca entre fala e ruido.
+
+    Achado real (2026-09-17): com ganho automatico o silencio era multiplicado
+    por 8x e a fala por 3x, entao os 7,7x medidos entre uma coisa e outra
+    viravam ~2x. O VAD so acorda o Whisper com som acima do ruido - resultado,
+    o robo ficou surdo por causa do ajuste feito para ouvir melhor (1 unica
+    transcricao em 6 minutos no ar). Ganho fixo mantem a razao intacta.
+    """
+    ponte = PonteSerial(bus_rodando, porta="/dev/fake")
+    rng = np.random.default_rng(1)
+
+    # niveis reais medidos neste microfone: fala rms~0,035, silencio rms~0,0045
+    fala = (np.sin(np.linspace(0, 200, 3200)) * 0.035 * 32768).astype(np.int16)
+    silencio = (rng.normal(0, 0.0045, 3200) * 32768).astype(np.int16)
+
+    saida_fala = ponte._converter(np.repeat(fala, 2).tobytes())
+    saida_silencio = ponte._converter(np.repeat(silencio, 2).tobytes())
+    assert saida_fala.size == fala.size, "estereo intercalado vira mono"
+
+    def _rms(x):
+        return float(np.sqrt(np.mean(np.square(x))))
+
+    razao_antes = _rms(fala / 32768) / _rms(silencio / 32768)
+    razao_depois = _rms(saida_fala) / _rms(saida_silencio)
+    assert razao_depois == pytest.approx(razao_antes, rel=0.05), (
+        f"o ganho achatou a dinamica: {razao_antes:.1f}x virou {razao_depois:.1f}x"
+    )
+
+    assert 0.05 <= _rms(saida_fala) <= 0.25, "a fala ainda precisa chegar audivel"
+    assert float(np.abs(saida_fala).max()) <= 1.0, "nada pode estourar"
 
 
 @pytest.mark.asyncio

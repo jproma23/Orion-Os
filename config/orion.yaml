@@ -2,7 +2,7 @@
 # Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
 
 system:
-  robot_name: "Fofão"
+  robot_name: "Javis"
   language: "pt-BR"
   timezone: "America/Sao_Paulo"
   log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
@@ -351,7 +351,12 @@ vision:
   # gravado no Mega e posterior a essa correcao. Nao inverter nos dois lugares.
 
 voice:
-  wake_word: "fofão"
+  # Aceita um nome ou uma LISTA de nomes. "jarvis" entrou em 2026-09-17 a
+  # pedido do dono ("quero que ele responda por Jarvis tambem") - os dois
+  # chamam o robo, e ele continua se apresentando como Fofao.
+  # So vale para a ATIVACAO POR VOZ: enquanto nao houver microfone ligado
+  # (ver docs/journal.md), nenhum dos dois nomes e ouvido.
+  wake_word: ["javis", "jarvis"]
   # MEDIDO EM 2026-08-05, nesta maquina, com audio de gabarito gerado pelo
   # proprio Piper (4 frases, resposta conhecida, servico rodando junto):
   #
@@ -443,7 +448,7 @@ voice:
     compression_ratio_threshold: 2.4
     # Diz ao modelo que esta palavra e esperada. Nao inventa nada: desempata
     # a favor dela quando o som esta no limite.
-    hotwords: "Fofao"
+    hotwords: "Javis Jarvis"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
@@ -461,7 +466,13 @@ voice:
   #
   # `habilitado: false` volta para os microfones locais sem tocar em codigo.
   ouvidos_esp32:
-    habilitado: true
+    # false desde 2026-09-17: quem ouve agora e o microfone da propria cabeca
+    # (a tela ESP32-S3, pela USB - ver display/ponte_serial.py). Os ouvidos
+    # separados continuam suportados e voltam trocando isto para true; ficaram
+    # desligados porque o ESP32 deles nao esta no ar, e ligado ele custava 6s
+    # de espera em todo boot mais um traceback de reconexao a cada 3s no log,
+    # para sempre.
+    habilitado: false
     host: "ouvidos.local"
     porta: 9100
     # Quanto se espera o ESP32 aparecer no boot antes de cair para o

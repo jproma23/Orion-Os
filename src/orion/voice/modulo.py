@@ -26,7 +26,7 @@ logger = logging.getLogger("orion.voice.modulo")
 ProcessarComando = Callable[[str], Awaitable[str]]
 
 #: dito uma vez quando a voz sobe, para o usuario saber que pode falar.
-SAUDACAO_PADRAO = "Oi! Pode falar comigo. É só me chamar de Fofão."
+SAUDACAO_PADRAO = "Oi! Pode falar comigo. É só me chamar de Javis."
 
 
 class ModuloVoz:
@@ -39,6 +39,7 @@ class ModuloVoz:
         processar_comando: ProcessarComando,
         frase_saudacao: str | None = SAUDACAO_PADRAO,
         nucleo: Any | None = None,
+        ouvidos_tela: Any | None = None,
     ) -> None:
         # `nucleo` injetavel: os testes exercitam o ciclo de vida sem
         # microfone, sem Whisper e sem Piper instalados.
@@ -47,6 +48,12 @@ class ModuloVoz:
         self._processar_comando = processar_comando
         self._frase_saudacao = frase_saudacao
         self._nucleo = nucleo
+        #: A ponte serial do ModuloDisplay, quando existe - ela e a dona da
+        #: porta USB da tela e tambem serve o audio do microfone de la. Quem
+        #: casa os dois modulos e o Boot Manager, que conhece os dois lados
+        #: (mesmo padrao de `processar_comando`); ModuloVoz continua sem saber
+        #: que existe um ModuloDisplay.
+        self._ouvidos_tela = ouvidos_tela
         self._sintetizador: Any | None = None
         self._tarefa: asyncio.Task | None = None
         #: Ouvidos do ESP32 (2026-09-13): a classe ja existia testada desde
@@ -180,6 +187,19 @@ class ModuloVoz:
                     prazo_s,
                 )
 
+        # Degrau novo (2026-09-17): o microfone da propria cabeca. Vem DEPOIS
+        # dos ouvidos do ESP32 (dois mics dedicados, melhores quando estao no
+        # ar) e ANTES do microfone local, que nesta montagem nao existe - o Pi
+        # nao tem nenhum, e era por isso que o robo ficava surdo quando os
+        # ouvidos nao apareciam. Chega pelo MESMO cabo USB que leva a fala;
+        # quem le a porta e a ponte do ModuloDisplay, dona dela.
+        if gravar_audio is None and self._ouvidos_tela is not None:
+            if self._ouvidos_tela.ouvindo:
+                logger.info("Ouvindo pelo microfone da tela (orion_face)")
+                gravar_audio = self._ouvidos_tela.gravar
+            else:
+                logger.warning("A tela nao esta ouvindo - sem microfone por esse caminho")
+
         if gravar_audio is None:
             logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")
             seletor = SeletorMicrofone(self._conf["microfones_candidatos_indices"])
@@ -206,11 +226,22 @@ class ModuloVoz:
         # Whisper le o modelo do disco no construtor e bloqueia por dezenas de
         # segundos. Fora da thread do event loop, senao o boot inteiro
         # congela aqui e os heartbeats se perdem.
+        # Os nomes pelos quais o robo atende viram HOTWORDS do Whisper: sao
+        # justamente as palavras que ele nao espera ouvir em portugues e erra
+        # ("Fofao" -> 'Fulfao!'). Lido antes dos transcritores porque e deles
+        # que os dois precisam.
+        nomes = self._conf["wake_word"]
+        if isinstance(nomes, str):
+            nomes = [nomes]
+        nomes = list(nomes)
+
         transcritor = await asyncio.to_thread(
-            _TranscritorComLog, self._conf["whisper_model"]
+            _TranscritorComLog, self._conf["whisper_model"], " ".join(nomes)
         )
+        # O de vigilancia e o que MAIS precisa: a unica coisa que ele procura
+        # nas janelas curtas e exatamente esses nomes.
         transcritor_ativacao = await asyncio.to_thread(
-            _TranscritorComLog, self._conf["whisper_model_ativacao"]
+            _TranscritorComLog, self._conf["whisper_model_ativacao"], " ".join(nomes)
         )
 
         detector_atividade = None
@@ -228,7 +259,11 @@ class ModuloVoz:
         # edicao desde 2026-07-24 - o DetectorFuzzy que vivia dentro de
         # conversar_fofao.py virou duplicata (e com limiar diferente do da
         # biblioteca, o que so confundia) e nao veio para ca.
-        detector_ativacao = DetectorPalavraAtivacao((self._conf["wake_word"],))
+        # `wake_word` aceita um nome ou uma LISTA de nomes (2026-09-17, pedido
+        # do dono: "quero que ele responda por Jarvis também"). String continua
+        # valendo - e o formato que a config usava e o que os testes montam.
+        # (`nomes` ja foi normalizado la em cima, junto com as hotwords.)
+        detector_ativacao = DetectorPalavraAtivacao(tuple(nomes))
 
         return VoiceCore(
             event_bus=self._event_bus,
@@ -276,12 +311,20 @@ class ModuloVoz:
         return self._sintetizador is not None
 
 
-def _TranscritorComLog(modelo: str) -> Any:  # noqa: N802 - fabrica, nao classe
+def _TranscritorComLog(modelo: str, hotwords: str | None = None) -> Any:  # noqa: N802
     """Transcritor que registra o volume (RMS) junto com o texto.
 
     Sem isso nao da para distinguir "microfone captando fraco" de "Whisper
     entendendo errado" - foi essa informacao que permitiu diagnosticar a
     palavra de ativacao falhando ao vivo em 2026-07-24.
+
+    `hotwords` enviesa o decodificador para palavras que ele nao esperaria -
+    e o que faz "Fofao" ser reconhecido como Fofao. O `Transcritor` ja
+    aceitava e repassava o parametro para o faster-whisper desde sempre, mas
+    NINGUEM nunca passava nada (2026-09-17): mais um parametro orfao, o mesmo
+    padrao de codigo pronto e nao ligado que ja apareceu varias vezes neste
+    projeto. Medido antes de ligar, com o microfone da tela: "Fofao" virava
+    'Fulfao!' e era descartado pelo portao de confianca.
     """
     from orion.voice.transcricao import Transcritor
 
@@ -294,4 +337,4 @@ def _TranscritorComLog(modelo: str) -> Any:  # noqa: N802 - fabrica, nao classe
             logger.info("ouvi (rms=%.4f): %r", rms, texto)
             return texto
 
-    return TranscritorComLog(modelo=modelo)
+    return TranscritorComLog(modelo=modelo, hotwords=hotwords)

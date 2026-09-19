@@ -169,14 +169,31 @@ def _montar_modulos(
 
     conf_visao = config.secao("vision")
     missao = ModuloMissao(event_bus, comm, config.secao("ai"))
+
+    # UMA ponte serial para os dois modulos (2026-09-17). A porta USB da tela
+    # tem uma dona so - dois objetos abrindo /dev/ttyACM0 dividiriam os bytes
+    # entre si de forma imprevisivel -, mas o cabo carrega as duas direcoes: o
+    # rosto e a fala vao, o microfone da cabeca volta. Construida aqui, no
+    # orquestrador, pelo mesmo motivo que `processar_comando` e: e o unico
+    # lugar que conhece os dois lados.
+    from orion.display.ponte_serial import PonteSerial
+
+    ponte_face = PonteSerial(event_bus)
+
     return [
-        ModuloDisplay(event_bus, conf_visao),
+        ModuloDisplay(event_bus, conf_visao, ponte_serial=ponte_face),
         missao,
         # A voz recebe o METODO da missao, nao o modulo: e aqui, no
         # orquestrador, que os dois se encontram. ModuloVoz continua sem
         # saber que ModuloMissao existe (EDR-0023 s.1) e o Boot Manager e o
         # unico lugar que conhece os dois lados.
-        ModuloVoz(event_bus, config.secao("voice"), processar_comando=missao.processar),
+        ModuloVoz(
+            event_bus,
+            config.secao("voice"),
+            processar_comando=missao.processar,
+            # o microfone da cabeca, servido pela mesma ponte acima
+            ouvidos_tela=ponte_face,
+        ),
         ModuloVisao(
             event_bus,
             conf_visao,

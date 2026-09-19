@@ -45,7 +45,7 @@ logger = logging.getLogger("orion.mission.conselheiro")
 COMPORTAMENTOS_DE_SEGURANCA = frozenset({"vigilancia_obstaculo"})
 
 _PROMPT_SISTEMA = (
-    "Você é o conselheiro de comportamento do robô Fofão, um robô cuidador "
+    "Você é o conselheiro de comportamento do robô Javis, um robô cuidador "
     "do lar e da família. Sua única função é escolher, entre as opções "
     "dadas, o comportamento mais adequado ao momento e explicar o motivo "
     "em uma frase curta. Você nunca aciona hardware diretamente."

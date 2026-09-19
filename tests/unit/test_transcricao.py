@@ -56,7 +56,7 @@ def _montar(segmentos, **kw):
     t._no_speech_threshold = kw.get("no_speech_threshold", 0.6)
     t._log_prob_threshold = kw.get("log_prob_threshold", -1.0)
     t._compression_ratio_threshold = kw.get("compression_ratio_threshold", 2.4)
-    t._hotwords = kw.get("hotwords", "Fofao")
+    t._hotwords = kw.get("hotwords", "Javis")
     return t, falso
 
 
@@ -76,7 +76,7 @@ async def test_os_freios_chegam_a_lib():
     assert k["no_speech_threshold"] == 0.6
     assert k["log_prob_threshold"] == -1.0
     assert k["compression_ratio_threshold"] == 2.4
-    assert k["hotwords"] == "Fofao"
+    assert k["hotwords"] == "Javis"
 
 
 @pytest.mark.asyncio
@@ -98,10 +98,10 @@ async def test_fala_boa_passa_inteira():
     """O portão não pode calar quem falou de verdade - seria trocar um
     problema por outro pior."""
     t, _ = _montar([
-        _Segmento("Fofão,", no_speech_prob=0.02, avg_logprob=-0.3),
+        _Segmento("Javis,", no_speech_prob=0.02, avg_logprob=-0.3),
         _Segmento("acende a luz", no_speech_prob=0.05, avg_logprob=-0.4),
     ])
-    assert await t.transcrever(MUDO) == "Fofão, acende a luz"
+    assert await t.transcrever(MUDO) == "Javis, acende a luz"
 
 
 @pytest.mark.asyncio
@@ -151,10 +151,10 @@ async def test_frase_normal_nao_e_confundida_com_repeticao():
     """O risco do portao novo e calar quem falou. Frase curta comprime mal
     (o cabecalho do zlib pesa), entao fica bem abaixo do limiar."""
     t, _ = _montar([
-        _Segmento("Fofão, vai lá no quarto ver se o Kamal está", no_speech_prob=0.03,
+        _Segmento("Javis, vai lá no quarto ver se o Kamal está", no_speech_prob=0.03,
                   avg_logprob=-0.4),
     ])
-    assert await t.transcrever(MUDO) == "Fofão, vai lá no quarto ver se o Kamal está"
+    assert await t.transcrever(MUDO) == "Javis, vai lá no quarto ver se o Kamal está"
 
 
 @pytest.mark.asyncio
@@ -171,4 +171,4 @@ def test_razao_de_compressao_separa_os_dois_casos():
     """A medida em si, sem o transcritor no meio - para o limiar 2.4 poder ser
     revisto depois com base em numero, nao em impressao."""
     assert razao_de_compressao("O que é " * 60) > 2.4
-    assert razao_de_compressao("Fofão, acende a luz da sala") < 2.4
+    assert razao_de_compressao("Javis, acende a luz da sala") < 2.4
