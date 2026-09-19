@@ -42,6 +42,21 @@ logger = logging.getLogger("motion_core.memory.experiencias")
 
 CATEGORIA = "experiencias"
 
+#: As colunas que a tabela `experiencias` REALMENTE tem (schema.py, _MIGRACAO_003),
+#: fora `id` e `criado_em`, que a MemoryAPI preenche sozinha. Escrita aqui para
+#: `_gravar` poder conferir os nomes ANTES de mandar ao banco — ver o docstring
+#: de `_gravar` para o que custou nao haver essa conferencia.
+COLUNAS_EXPERIENCIA = frozenset(
+    {
+        "situacao",
+        "o_que_aconteceu",
+        "o_que_funcionou",
+        "o_que_falhou",
+        "resultado",
+        "contexto",
+    }
+)
+
 #: Familias de experiencia. A janela de dedup usa a familia, nao o texto:
 #: saber que a familia AVANCAR falhou de novo e diferente de a mesma familia
 #: falhar o dia inteiro num trecho so.
@@ -96,9 +111,9 @@ class RegistradorExperiencias:
         falha = f"obstaculo a {float(distancia):.0f} cm" if distancia is not None else "frente obstruida"
         await self._gravar(
             situacao="avancar",
-            acontecimento=f"nao pode avancar - {falha}",
-            funcionou="",
-            falhou=falha,
+            o_que_aconteceu=f"nao pode avancar - {falha}",
+            o_que_funcionou="",
+            o_que_falhou=falha,
             resultado=RESULTADO_FALHOU,
             contexto=f"motivo:{motivo}",
         )
@@ -108,9 +123,9 @@ class RegistradorExperiencias:
             return
         await self._gravar(
             situacao="seguir_pessoa",
-            acontecimento="perdeu o alvo durante o acompanhamento",
-            funcionou="",
-            falhou="perdeu o alvo; velocidade ou iluminacao a verificar",
+            o_que_aconteceu="perdeu o alvo durante o acompanhamento",
+            o_que_funcionou="",
+            o_que_falhou="perdeu o alvo; velocidade ou iluminacao a verificar",
             resultado=RESULTADO_FALHOU,
             contexto="follow_lost",
         )
@@ -122,9 +137,9 @@ class RegistradorExperiencias:
         motivo = str(evento.dados.get("motivo") or "erro sem motivo")
         await self._gravar(
             situacao=acao,
-            acontecimento=f"o comando falhou: {motivo}",
-            funcionou="",
-            falhou=motivo,
+            o_que_aconteceu=f"o comando falhou: {motivo}",
+            o_que_funcionou="",
+            o_que_falhou=motivo,
             resultado=RESULTADO_FALHOU,
             contexto=f"acao:{acao}",
         )
@@ -137,9 +152,9 @@ class RegistradorExperiencias:
         angulos = int(evento.dados.get("angulos_varridos") or 0)
         await self._gravar(
             situacao=f"avancar_sem_medida ({contexto})",
-            acontecimento="avancou sem medida frontal confiavel",
-            funcionou="",
-            falhou="avancou sem saber o que havia na frente",
+            o_que_aconteceu="avancou sem medida frontal confiavel",
+            o_que_funcionou="",
+            o_que_falhou="avancou sem saber o que havia na frente",
             resultado=RESULTADO_RISCO,
             contexto=f"motivo:{motivo};angulos_varridos:{angulos}",
         )
@@ -152,9 +167,9 @@ class RegistradorExperiencias:
         descricao = self._descrever_trecho(graus, distancia)
         await self._gravar(
             situacao="mover",
-            acontecimento=f"{descricao} concluido",
-            funcionou="trecho concluido sem obstaculo",
-            falhou="",
+            o_que_aconteceu=f"{descricao} concluido",
+            o_que_funcionou="trecho concluido sem obstaculo",
+            o_que_falhou="",
             resultado=RESULTADO_FUNCIONOU,
             contexto=f"graus:{graus};distancia_cm:{distancia}",
         )
@@ -181,14 +196,36 @@ class RegistradorExperiencias:
         return True
 
     async def _gravar(self, **campos: str) -> None:
-        """Grava uma experiencia. Falha de memoria NAO pode derrubar o robo."""
+        """Grava uma experiencia. Falha de memoria NAO pode derrubar o robo.
+
+        NOME ERRADO DE COLUNA NAO E FALHA DE MEMORIA, e erro de programacao, e
+        por isso ele passa por cima do `except` abaixo (achado de 2026-09-19).
+        Ate aqui os cinco pontos de captura escreviam `acontecimento`,
+        `funcionou` e `falhou`; a tabela sempre teve `o_que_aconteceu`,
+        `o_que_funcionou` e `o_que_falhou` (schema.py) — e ate o docstring no
+        topo DESTE arquivo ja dizia os nomes certos. O `except` largo engolia o
+        ErroColunaInvalida como se fosse banco fora do ar, entao 100% das
+        experiencias eram descartadas em silencio: o robo passava o dia
+        "aprendendo" para um acervo que ficava vazio, e o portao "Eu ja sei?"
+        nunca tinha o que responder. 237 descartes num unico dia de log.
+
+        A conferencia abaixo e a trava: a proxima vez que alguem errar um nome
+        o erro estoura na hora, com o nome errado no texto, em vez de virar
+        mais uma linha de WARNING que ninguem le.
+        """
+        invalidos = set(campos) - COLUNAS_EXPERIENCIA
+        if invalidos:
+            raise ValueError(
+                f"campo(s) que nao existem na tabela '{CATEGORIA}': {sorted(invalidos)} "
+                f"(validos: {sorted(COLUNAS_EXPERIENCIA)})"
+            )
         try:
             await self._memoria.saber_guardar(CATEGORIA, campos)
             logger.info(
                 "experiencia gravada: %s - %s (%s)",
                 campos.get("situacao", "?"),
                 campos.get("resultado", "?"),
-                campos.get("falhou", campos.get("funcionou", "")),
+                campos.get("o_que_falhou") or campos.get("o_que_funcionou", ""),
             )
         except Exception:
             logger.warning("nao consegui gravar a experiencia", exc_info=True)

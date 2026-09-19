@@ -13,6 +13,7 @@ diario):
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from datetime import datetime, timedelta
 
 import pytest
@@ -27,20 +28,55 @@ from motion_core.memory.experiencias import (
     RESULTADO_RISCO,
     RegistradorExperiencias,
 )
+from motion_core.memory.schema import MIGRACOES
 from orion.kernel.event_bus import EventBus
 
 AGORA = datetime(2026, 8, 9, 15, 0, 0)
 
 
+def _colunas_reais_da_tabela(tabela: str) -> set[str]:
+    """As colunas que a tabela tem DE VERDADE, tiradas do schema de producao.
+
+    Aplica as migracoes reais num SQLite em memoria e pergunta ao proprio
+    banco. Nao ha lista de nomes escrita aqui de proposito: uma lista a mais
+    seria mais um lugar para divergir do schema, que e exatamente o defeito
+    que estes testes passaram a guardar.
+    """
+    conexao = sqlite3.connect(":memory:")
+    try:
+        for _versao, sql in MIGRACOES:
+            conexao.executescript(sql)
+        return {linha[1] for linha in conexao.execute(f"PRAGMA table_info({tabela})")}
+    finally:
+        conexao.close()
+
+
 class _MemoriaFalsa:
+    """Dube da MemoryAPI que recusa o que o banco real recusaria.
+
+    ELE ERA PERMISSIVO DEMAIS (achado de 2026-09-19). O `saber_guardar` de
+    verdade valida os nomes das colunas contra o schema e levanta
+    ErroColunaInvalida; este dube aceitava qualquer dicionario. Resultado: os
+    cinco pontos de captura escreviam `acontecimento`/`funcionou`/`falhou`, a
+    tabela sempre teve `o_que_aconteceu`/`o_que_funcionou`/`o_que_falhou`, a
+    suite inteira ficou verde e a producao descartou 100% das experiencias por
+    semanas. Um teste que aceita mais que a producao nao prova nada.
+    """
+
     def __init__(self) -> None:
         self.gravados: list[dict] = []
         self.explodir = False
+        self._colunas = _colunas_reais_da_tabela(CATEGORIA)
 
     async def saber_guardar(self, categoria: str, dados: dict) -> int:
         if self.explodir:
             raise RuntimeError("banco fora do ar")
         assert categoria == CATEGORIA
+        invalidas = set(dados) - self._colunas
+        assert not invalidas, (
+            f"coluna(s) inexistente(s) em '{categoria}': {sorted(invalidas)} - "
+            f"a tabela real tem {sorted(self._colunas)}"
+        )
         self.gravados.append(dict(dados))
         return len(self.gravados)
 
@@ -75,7 +111,7 @@ async def test_obstaculo_evitado_vira_experiencia_de_falha() -> None:
     assert len(memoria.gravados) == 1
     dados = memoria.gravados[0]
     assert dados["situacao"] == "avancar"
-    assert dados["falhou"] == "obstaculo a 25 cm"
+    assert dados["o_que_falhou"] == "obstaculo a 25 cm"
     assert dados["resultado"] == RESULTADO_FALHOU
     assert dados["contexto"] == "motivo:obstaculo_frontal"
 
@@ -95,7 +131,7 @@ async def test_frente_desconhecida_tambem_e_falha_de_avanco() -> None:
     )
     await bus.aguardar_fila_vazia()
 
-    assert memoria.gravados[0]["falhou"] == "frente obstruida"
+    assert memoria.gravados[0]["o_que_falhou"] == "frente obstruida"
     assert memoria.gravados[0]["contexto"] == "motivo:frente_desconhecida"
 
     await _parar(bus, tarefa)
@@ -115,7 +151,7 @@ async def test_alvo_perdido_vira_experiencia_de_follow() -> None:
     dados = memoria.gravados[0]
     assert dados["situacao"] == "seguir_pessoa"
     assert dados["resultado"] == RESULTADO_FALHOU
-    assert "perdeu o alvo" in dados["falhou"]
+    assert "perdeu o alvo" in dados["o_que_falhou"]
 
     await _parar(bus, tarefa)
 
@@ -132,7 +168,7 @@ async def test_erro_de_comando_vira_experiencia_com_a_acao() -> None:
 
     dados = memoria.gravados[0]
     assert dados["situacao"] == "GOTO"
-    assert dados["falhou"] == "comando_invalido"
+    assert dados["o_que_falhou"] == "comando_invalido"
     assert dados["resultado"] == RESULTADO_FALHOU
     assert dados["contexto"] == "acao:GOTO"
 
@@ -172,7 +208,7 @@ async def test_trecho_concluido_vira_experiencia_de_sucesso() -> None:
 
     dados = memoria.gravados[0]
     assert dados["situacao"] == "mover"
-    assert dados["funcionou"] == "trecho concluido sem obstaculo"
+    assert dados["o_que_funcionou"] == "trecho concluido sem obstaculo"
     assert dados["resultado"] == RESULTADO_FUNCIONOU
 
     await _parar(bus, tarefa)
