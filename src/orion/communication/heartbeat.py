@@ -135,16 +135,28 @@ class MonitorHeartbeat:
         normal do peer (N falhas seguidas); passou disso, e perda de
         verdade.
         """
-        if peer not in self._ja_estabelecidos:
+        nunca_conectou = peer not in self._ja_estabelecidos
+        if nunca_conectou:
             limite = self._limite_perdidos.get(peer, self._limite_global)
             if self._falhas_envio.get(peer, 0) < limite:
                 logger.debug("'%s' ainda nao conectou - dentro da carencia", peer)
                 return
-            logger.warning(
-                "'%s' nunca conectou apos %d tentativas - tratando como perda", peer, limite
-            )
+        # A GUARDA VEM ANTES DO LOG (corrigido em 2026-09-19). O aviso de
+        # "nunca conectou" ficava ACIMA desta linha, entao a idempotencia
+        # prometida no docstring protegia so o `publish` - o log repetia a
+        # cada ciclo, para sempre. Com heartbeat_interval_s=1.0 isso e uma
+        # linha por segundo por peer morto: medido, 33.436 linhas identicas
+        # num arquivo de 39,7 MB que ainda nao tem rotacao (~8 MB/dia com o
+        # corpo fora do ar). Qualquer outra mensagem do motion_core ficava
+        # enterrada no meio delas, que e o custo real - nao o disco.
         if peer in self._perdidos_atualmente:
             return
+        if nunca_conectou:
+            logger.warning(
+                "'%s' nunca conectou apos %d tentativas - tratando como perda",
+                peer,
+                self._limite_perdidos.get(peer, self._limite_global),
+            )
         self._perdidos_atualmente.add(peer)
         logger.warning("Heartbeat perdido: modulo='%s'", peer)
         await self._event_bus.publish(
