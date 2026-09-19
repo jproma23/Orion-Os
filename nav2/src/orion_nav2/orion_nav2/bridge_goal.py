@@ -21,6 +21,7 @@ POST /cancelar aborta o goal em andamento.
 """
 
 import json
+import math
 import threading
 import time
 from concurrent.futures import Future
@@ -133,10 +134,22 @@ class PonteGoal(Node):
         objetivo.pose.header.stamp = self.get_clock().now().to_msg()
         objetivo.pose.pose.position.x = x
         objetivo.pose.pose.position.y = y
-        objetivo.pose.pose.orientation.z = 0.0
-        objetivo.pose.pose.orientation.w = 1.0
+        # O YAW ERA LIDO E JOGADO FORA (corrigido em 2026-09-19). Estas duas
+        # linhas eram `z = 0.0` e `w = 1.0` fixos, ou seja: yaw 0 sempre. O
+        # robo chegava no ponto certo virado sempre para o mesmo lado, e
+        # ninguem era avisado - a API aceitava `yaw_rad`, a mensagem de erro
+        # acima ainda anuncia "(yaw_rad opcional)", e a resposta voltava 200.
+        # O valor atravessa a webui (server.py) e o nav2_goal.py inteiros so
+        # para morrer aqui, na ultima linha do caminho.
+        #
+        # Rotacao no plano vira quaternio so no eixo Z: um giro de `yaw` em
+        # torno de Z e (x=0, y=0, z=sen(yaw/2), w=cos(yaw/2)). Com yaw=0 isso
+        # da (0,0,0,1), que e exatamente o valor fixo de antes - entao quem
+        # nao manda `yaw_rad` continua com o comportamento de sempre.
+        objetivo.pose.pose.orientation.z = math.sin(yaw / 2.0)
+        objetivo.pose.pose.orientation.w = math.cos(yaw / 2.0)
 
-        self.get_logger().info(f"goal pedido: x={x:.2f} y={y:.2f}")
+        self.get_logger().info(f"goal pedido: x={x:.2f} y={y:.2f} yaw={yaw:.2f} rad")
         self._cancelar_atual()
 
         if not self._cliente.wait_for_server(timeout_sec=5.0):
