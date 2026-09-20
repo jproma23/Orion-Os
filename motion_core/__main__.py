@@ -159,7 +159,10 @@ async def _conectar_corpo_websocket(
     # exigir_checksum_mensagem=False, igual a serial: os quadros nascem aqui
     # dentro, nao atravessam meio fisico nenhum antes do comm os ler.
     comm.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
-    logger.info("Hardware Core (ESP32) conectado por WebSocket em %s", url)
+    # `transporte._url` e o que RESPONDEU, que pode nao ser o primeiro da
+    # lista - e saber se veio pelo nome ou pelo IP e o que diz, de graca, se
+    # o mDNS esta de pe.
+    logger.info("Hardware Core (ESP32) conectado por WebSocket em %s", transporte._url)
     return True
 
 

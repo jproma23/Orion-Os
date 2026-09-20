@@ -66,8 +66,14 @@ communication:
     # passados. Fica valendo o USB ate la - nao se aponta a config para um
     # cabo que ainda nao existe.
     #
-    # PARA MIGRAR: passe os tres fios, troque esta linha por "/dev/ttyAMA0" e
-    # reinicie o Pi (o overlay so vale no boot).
+    # ESTADO EM 2026-09-20: a UART do header JA ESTA ATIVA no Pi
+    # (`/dev/ttyAMA0` existe, PL011, console serial removido do cmdline).
+    # Falta so passar os tres fios acima. Enquanto isso o corpo continua
+    # pelo USB, que funciona identico - o ESP32 usa a MESMA UART0 nos dois
+    # caminhos.
+    #
+    # PARA MIGRAR: passe os fios e troque esta linha por "/dev/ttyAMA0".
+    # Nao precisa reiniciar o Pi de novo - o overlay ja pegou.
     #
     #     Pi pino  8 (GPIO14, TX) --> ESP32 RX (GPIO3)
     #     Pi pino 10 (GPIO15, RX) <-- ESP32 TX (GPIO1)
@@ -92,20 +98,25 @@ communication:
     # TEM que ser igual ao Serial.begin() do firmware - se so um lado mudar,
     # o Mega fica mudo e a descoberta por WHO_ARE_YOU falha em todas as portas.
     baud_rate: 250000
-    # COMO SE FALA COM O CORPO (2026-09-20). "serial" e o caminho historico
-    # (protocolo binario, `port`/`baud_rate` acima). "websocket" e o ESP32
-    # que esta no robo HOJE: ele foi regravado com um firmware WiFi e nao
-    # responde mais a serial - o sintoma era "Hardware Core nao encontrado em
-    # nenhuma porta" a cada 35 s com toda a telemetria nula.
+    # COMO SE FALA COM O CORPO. "serial" e o caminho historico e VOLTOU a
+    # ser o escolhido (decisao do dono, 2026-09-20 a noite), depois de uma
+    # passagem curta por "websocket".
     #
-    # O fonte desse firmware NAO EXISTE (procurado no Pi e no Windows). O
-    # protocolo foi extraido da flash do chip; o backup do binario esta em
-    # ~/backups/firmware_corpo/. Ver motion_core/navigation/ponte_corpo_ws.py
-    # para o vocabulario e, principalmente, para as TRES coisas que este
-    # firmware nao faz (sem ACK, sem andar distancia, sem bussola).
+    # POR QUE FOI PARA O WEBSOCKET: acabaram as portas USB do Pi e o ESP32
+    # tinha sido regravado com um firmware WiFi sem fonte. Funcionou, esta
+    # tudo commitado (firmware/corpo_ws + ponte_corpo_ws.py) e continua
+    # servindo se um dia o corpo ficar longe do Pi.
     #
-    # Voltar para "serial" exige regravar o firmware do repo no ESP32.
-    transporte: "websocket"
+    # POR QUE VOLTOU: a UART do header GPIO resolve a falta de porta USB sem
+    # gastar nenhuma, e tira o WiFi do laco de controle - que o EDR-0031
+    # desaconselha com razao. E no caminho o WiFi mostrou os dois jeitos de
+    # sumir, os dois no mesmo dia: o DHCP trocou o IP (.112 -> .102) e o
+    # mDNS parou de anunciar sem o ESP32 nem reiniciar.
+    #
+    # A serial ainda traz MAIS dado: a telemetria binaria inclui bussola
+    # (rumo, campo, calibracao), varredura de I2C e tempos de loop - nada
+    # disso existia no JSON do WebSocket.
+    transporte: "serial"
     # NOME, e nao IP - e o risco que estava anotado aqui se materializou na
     # primeira regravacao (2026-09-20): o DHCP trocou o endereco de .112
     # para .102 e o corpo sumiu ate alguem editar esta linha a mao.
@@ -117,7 +128,24 @@ communication:
     #
     # Se um dia o mDNS falhar, um IP ainda funciona aqui - mas conferir
     # antes com `getent hosts orion-corpo.local`.
-    websocket_url: "ws://orion-corpo.local:81"
+    # DOIS enderecos, tentados em ordem - e nao um so. Os dois jeitos de o
+    # corpo sumir aconteceram no mesmo dia (2026-09-20) e sao independentes:
+    #
+    #   o IP muda      - o DHCP trocou .112 por .102 numa regravacao;
+    #   o NOME some    - o ESP32 parou de anunciar o mDNS sem nem reiniciar
+    #                    (o avahi deixou de ver o servico e `getent hosts`
+    #                    passou a falhar), com o WebSocket VIVO no IP.
+    #
+    # Nome primeiro porque ele sobrevive a troca de IP, que e o caso mais
+    # comum; o IP atras como rede de seguranca. O que responder vai para a
+    # frente da fila, entao depois de uma falha de mDNS nao se paga o
+    # timeout de DNS a cada reconexao.
+    #
+    # Se trocar o roteador e o IP mudar, o nome cobre. Se o mDNS falhar,
+    # conferir o endereco novo no log de boot do ESP32 e atualizar aqui.
+    websocket_url:
+      - "ws://orion-corpo.local:81"
+      - "ws://10.20.20.102:81"
     # QUANTO VALE UM "passo" DA TELEMETRIA - TODOS OS TRES SAO SUPOSICAO.
     #
     # O firmware nao anda distancia (so velocidade continua), entao quem

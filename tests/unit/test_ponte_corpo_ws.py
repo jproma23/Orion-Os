@@ -368,3 +368,69 @@ async def test_firmware_que_omite_a_bussola_nao_ganha_rumo_inventado():
     p = _drenar(t)[0].payload
     assert "rumo_graus" not in p
     assert p["bussola_calibrada"] is False
+
+
+# --- Varios enderecos, tentados em ordem ----------------------------------
+#
+# Os dois jeitos de o corpo sumir aconteceram no mesmo dia e sao
+# independentes: o IP muda (DHCP) e o NOME para de resolver (o ESP32 parou
+# de anunciar o mDNS sem reiniciar). Nenhum dos dois serve sozinho.
+
+
+def test_aceita_um_endereco_ou_varios():
+    um = TransporteCorpoWS("ws://a:81", pulsos_por_metro=1.0, pulsos_por_grau=1.0)
+    assert um._urls == ["ws://a:81"]
+
+    varios = TransporteCorpoWS(["ws://a:81", "ws://b:81"],
+                               pulsos_por_metro=1.0, pulsos_por_grau=1.0)
+    assert varios._urls == ["ws://a:81", "ws://b:81"]
+    assert varios._url == "ws://a:81", "o primeiro e o preferido"
+
+
+def test_lista_vazia_e_erro_na_hora():
+    """Melhor estourar no boot que descobrir em operacao que nao ha para
+    onde discar."""
+    with pytest.raises(ValueError):
+        TransporteCorpoWS([], pulsos_por_metro=1.0, pulsos_por_grau=1.0)
+
+
+@pytest.mark.asyncio
+async def test_cai_para_o_segundo_quando_o_primeiro_falha(monkeypatch):
+    """O caso real: o mDNS parou de resolver e o IP continuou vivo."""
+    t = TransporteCorpoWS(["ws://nome.local:81", "ws://10.0.0.9:81"],
+                          pulsos_por_metro=1.0, pulsos_por_grau=1.0)
+    tentados = []
+
+    async def escutar_falso(endereco):
+        tentados.append(endereco)
+        if "nome.local" in endereco:
+            raise OSError("Name or service not known")
+        t._url = endereco
+        t._urls.remove(endereco)
+        t._urls.insert(0, endereco)
+
+    monkeypatch.setattr(t, "_escutar_em", escutar_falso)
+    await t._conectar_e_escutar()
+
+    assert tentados == ["ws://nome.local:81", "ws://10.0.0.9:81"]
+    assert t._url == "ws://10.0.0.9:81"
+    assert t._urls[0] == "ws://10.0.0.9:81", (
+        "o que respondeu vai para a frente - senao paga-se o timeout de DNS "
+        "a cada reconexao"
+    )
+
+
+@pytest.mark.asyncio
+async def test_nenhum_endereco_responde_da_erro_com_os_motivos(monkeypatch):
+    t = TransporteCorpoWS(["ws://a:81", "ws://b:81"],
+                          pulsos_por_metro=1.0, pulsos_por_grau=1.0)
+
+    async def sempre_falha(endereco):
+        raise OSError("sem rota")
+
+    monkeypatch.setattr(t, "_escutar_em", sempre_falha)
+    with pytest.raises(ConnectionError) as erro:
+        await t._conectar_e_escutar()
+    assert "ws://a:81" in str(erro.value) and "ws://b:81" in str(erro.value), (
+        "o erro tem de dizer O QUE foi tentado - senao o diagnostico comeca do zero"
+    )

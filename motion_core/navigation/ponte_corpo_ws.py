@@ -131,13 +131,24 @@ class TransporteCorpoWS:
 
     def __init__(
         self,
-        url: str,
+        url: str | list[str],
         pulsos_por_metro: float,
         pulsos_por_grau: float,
         nome_local: str = "hardware_core",
         nome_remoto: str = "motion_core",
     ) -> None:
-        self._url = url
+        #: VARIOS enderecos, tentados em ordem - e nao um so.
+        #:
+        #: Os dois jeitos de o corpo "sumir" ja aconteceram no mesmo dia, e
+        #: sao independentes:
+        #:   - o IP muda (DHCP trocou .112 por .102 numa regravacao);
+        #:   - o NOME para de resolver (o ESP32 parou de anunciar o mDNS sem
+        #:     nem reiniciar - o WebSocket seguia vivo no IP).
+        #: Por isso nenhum dos dois serve sozinho.
+        self._urls = [url] if isinstance(url, str) else list(url)
+        if not self._urls:
+            raise ValueError("nenhum endereco para o corpo")
+        self._url = self._urls[0]
         self._pulsos_por_metro = pulsos_por_metro
         self._pulsos_por_grau = pulsos_por_grau
         self._nome_local = nome_local
@@ -246,8 +257,30 @@ class TransporteCorpoWS:
             espera = min(espera * 2, RECONEXAO_ESPERA_MAXIMA_S)
 
     async def _conectar_e_escutar(self) -> None:
+        """Tenta os enderecos em ordem; o que conectar vira o preferido.
+
+        Reordenar importa: depois que o mDNS falha uma vez, insistir nele a
+        cada reconexao custaria o timeout de DNS toda vez.
+        """
+        erros = []
+        for endereco in list(self._urls):
+            try:
+                await self._escutar_em(endereco)
+                return
+            except (aiohttp.ClientError, OSError, TimeoutError) as erro:
+                erros.append(f"{endereco}: {type(erro).__name__}")
+                continue
+        raise ConnectionError("nenhum endereco respondeu - " + "; ".join(erros))
+
+    async def _escutar_em(self, endereco: str) -> None:
         async with aiohttp.ClientSession() as sessao:
-            async with sessao.ws_connect(self._url, timeout=10, heartbeat=5) as ws:
+            async with sessao.ws_connect(endereco, timeout=10, heartbeat=5) as ws:
+                if endereco != self._url:
+                    logger.info("corpo respondeu em %s (era %s)", endereco, self._url)
+                    self._url = endereco
+                    # o que funcionou vai para a frente da fila
+                    self._urls.remove(endereco)
+                    self._urls.insert(0, endereco)
                 self._ws = ws
                 self._conectado = True
                 logger.info("corpo conectado em %s", self._url)
