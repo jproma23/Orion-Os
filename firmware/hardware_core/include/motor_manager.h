@@ -12,17 +12,26 @@
 // telemetry_manager.h e main.cpp continuam chamando exatamente o que
 // chamavam antes - so o que acontece POR DENTRO mudou.
 //
-// ENCODER DE CANAL UNICO (nao quadratura completa): os pinos que sobrariam
-// pra um segundo canal por roda esbarravam nos ECHO dos ultrassons - o
-// frontal (GPIO34) alimenta o SafetyManager de verdade, e nao vale a pena
-// arriscar seguranca por resolucao de encoder. Os UNICOS pinos input-only
-// totalmente livres (GPIO 36 e 39) bastam pra 1 canal por roda. O sentido
-// de giro vem do que foi COMANDADO (nao lido do encoder) - ver
-// encoder_pcnt.h para o detalhe.
+// ENCODER DE CANAL UNICO (nao quadratura completa) - e O MOTIVO ORIGINAL JA
+// NAO VALE. A razao era que o segundo canal por roda esbarraria nos ECHO dos
+// ultrassons, e o frontal (GPIO34) alimentava o SafetyManager: nao se
+// arrisca seguranca por resolucao de encoder.
 //
-// NAO TESTADO EM HARDWARE REAL (2026-09-13): motor e encoder ainda nao
-// chegaram fisicamente. Reducao (1:90) e PPR do encoder (11, chute) sao
-// placeholders - ver RETOMADA_MIGRACAO.md. Rodas no ar no primeiro
+// Os ultrassons SAIRAM do robo em 2026-09-19 (quem mede distancia agora e o
+// LiDAR, no Raspberry). GPIO 34 e 35 estao livres, sao input-only, e o
+// encoder que chegou TEM canal B (fio verde - confirmado na ficha do
+// fabricante, ver ENCODER_PPR_MOTOR). Ou seja: a quadratura completa deixou
+// de ser impossivel e passou a ser so uma tarefa nao feita.
+//
+// Enquanto ela nao vem, o sentido de giro continua vindo do que foi
+// COMANDADO (nao lido do encoder) - ver encoder_pcnt.h. Isso e suficiente
+// para o PID, que so precisa do MODULO da velocidade; e insuficiente para
+// detectar que a roda girou para o lado errado (ou que foi empurrada).
+//
+// NAO TESTADO EM HARDWARE REAL: o PWM e o PID nunca rodaram com o motor de
+// verdade. O PPR (11) foi confirmado pela ficha em 2026-09-20, mas a
+// REDUCAO (1:90) continua sendo suposicao - e ela multiplica tudo: pulso por
+// metro, pulso por grau e a velocidade maxima. Rodas no ar no primeiro
 // acionamento, sem excecao (regra do projeto).
 #pragma once
 
@@ -47,14 +56,25 @@ constexpr float BITOLA_M = 0.45f;  // SUSPEITO - nunca medido, ver acima
 // Reducao do JGB37-520: DECISAO PROVISORIA 1:90 (peca ainda a caminho,
 // RETOMADA_MIGRACAO.md 2026-09-13).
 constexpr float REDUCAO_ENGRENAGEM = 90.0f;
-// PPR do encoder no eixo do MOTOR (antes da reducao): NAO CONFIRMADO. 11 e
-// o valor mais comum nesta familia de motor, mas e CHUTE ate medir o
-// encoder real na chegada (girar o eixo 1 volta a mao e contar os pulsos).
-constexpr float ENCODER_PPR_MOTOR_CHUTE = 11.0f;
+// PPR do encoder no eixo do MOTOR (antes da reducao): CONFIRMADO em
+// 2026-09-20 pelo manual do fabricante que veio com a peca - deixou de ser
+// chute. O texto da ficha, literal:
+//
+//     "Yellow: 11 pulses per circle of signal line motor"
+//     "Green:  signal line resolution 11 * deceleration ratio = resolution"
+//
+// Ou seja: 11 por volta DO MOTOR, e a resolucao na roda e 11 x a reducao -
+// exatamente a conta que PULSOS_POR_VOLTA_RODA faz abaixo.
+//
+// A mesma ficha confirma que o encoder e de QUADRATURA (canal A no fio
+// amarelo, canal B no verde). Aqui so o canal A e lido - ver o cabecalho
+// sobre canal unico. O canal B continua disponivel no conector, e os GPIO
+// 34/35 ficaram livres com a saida dos ultrassons.
+constexpr float ENCODER_PPR_MOTOR = 11.0f;
 // Canal unico conta as DUAS bordas do pulso (2x, ver encoder_pcnt.cpp) -
 // metade da resolucao de uma quadratura 4x completa, mas ainda proporcional
 // e suficiente pra realimentar o PID.
-constexpr float PULSOS_POR_VOLTA_RODA = ENCODER_PPR_MOTOR_CHUTE * 2.0f * REDUCAO_ENGRENAGEM;
+constexpr float PULSOS_POR_VOLTA_RODA = ENCODER_PPR_MOTOR * 2.0f * REDUCAO_ENGRENAGEM;
 constexpr float PULSOS_POR_METRO = PULSOS_POR_VOLTA_RODA / (PI * RODA_DIAMETRO_M);
 // Girando sobre o proprio eixo (tracao diferencial): cada roda percorre um
 // circulo de raio = bitola/2. O PI cancela dos dois lados.
