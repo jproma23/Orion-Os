@@ -30,6 +30,26 @@ VERSAO_KERNEL = "0.1.0"
 #: fora do alcance faria o boot travar esperando o timeout do proprio SO.
 TIMEOUT_CONEXAO_RASPBERRY_S = 3.0
 
+#: Por quanto tempo INSISTIR na conexao antes de tolerar a ausencia.
+#:
+#: POR QUE EXISTE (2026-09-20). Uma tentativa so bastava enquanto o Mission
+#: Core era subido na mao, sempre depois do Motion Core ja estar de pe.
+#: Desde que os dois viraram servico systemd no mesmo Pi, eles sobem JUNTOS,
+#: e o Mission Core chega na porta antes de ela existir:
+#:
+#:     16:46:59  Raspberry inalcancavel em 127.0.0.1:5757: [Errno 111]
+#:     ... e 98 "Sem rota conhecida para o destino 'motion_core'" depois
+#:
+#: `After=orion-motion.service` na unit NAO resolve isso: o systemd so espera
+#: o processo NASCER, nao o socket abrir. Quem tem que ter paciencia e quem
+#: disca. E a falha e silenciosa do jeito pior: o robo sobe, fala, responde -
+#: e fica sem memoria nenhuma ate alguem reiniciar o servico na mao.
+ESPERA_TOTAL_RASPBERRY_S = 30.0
+
+#: Intervalo entre tentativas. Curto: o caso comum e o Motion Core estar a
+#: segundos de abrir a porta, e cada segundo aqui e um segundo de boot.
+INTERVALO_RETENTATIVA_RASPBERRY_S = 2.0
+
 # Etapas do Cap 6 secao 4 que dependem de hardware/fases ainda nao
 # implementadas neste projeto. Cada uma vira um evento diagnostic
 # informativo no boot, em vez de travar a inicializacao. "raspberry" saiu
@@ -51,10 +71,16 @@ async def _conectar_raspberry(
     event_bus: EventBus,
     logger: logging.Logger,
     simulado: bool = False,
+    espera_total_s: float | None = None,
 ) -> bool:
     """Tenta conectar no Motion Core (Raspberry) via TCP (Cap 14 s.2) e
     confirma via WHO_ARE_YOU. Tolera ausencia (Cap 6 s.8): Raspberry
     desligado ou fora da rede nao aborta o boot do Notebook.
+
+    `espera_total_s` sobrescreve ESPERA_TOTAL_RASPBERRY_S. Existe para a
+    RECONEXAO (ver `_criar_reconexao_motion_core`) poder pedir uma tentativa
+    so (`0.0`) e cuidar ela mesma do backoff, em vez de aninhar duas esperas
+    - a de boot e a de reconexao - uma dentro da outra.
 
     Com `simulado` (--sim) NAO abre soquete nenhum. Antes de 2026-07-25 a
     flag era ignorada aqui e o modo "simulado" conectava no Pi real - o que
@@ -74,22 +100,45 @@ async def _conectar_raspberry(
     from orion.communication.transport import ErroTransporte, TcpTransport
 
     conf_raspberry = config.secao("communication")["raspberry"]
-    cliente = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
-    try:
-        await asyncio.wait_for(cliente.conectar(), timeout=TIMEOUT_CONEXAO_RASPBERRY_S)
-    except (TimeoutError, ErroTransporte) as erro:
-        logger.warning(
-            "Raspberry (Motion Core) inalcancavel em %s:%d: %s",
-            conf_raspberry["host"],
-            conf_raspberry["tcp_port"],
-            erro,
-        )
-        await event_bus.publish(
-            "diagnostic.error",
-            {"modulo": "raspberry", "motivo": "inalcancavel", "detalhe": str(erro)},
-            prioridade=Prioridade.BAIXA,
-        )
-        return False
+
+    # Insiste ate ESPERA_TOTAL_RASPBERRY_S. Um TcpTransport NOVO por tentativa
+    # de proposito: um transporte que ja falhou em conectar nao volta atras.
+    espera = ESPERA_TOTAL_RASPBERRY_S if espera_total_s is None else espera_total_s
+    limite = asyncio.get_running_loop().time() + espera
+    tentativa = 0
+    while True:
+        tentativa += 1
+        cliente = TcpTransport(conf_raspberry["host"], conf_raspberry["tcp_port"])
+        try:
+            await asyncio.wait_for(cliente.conectar(), timeout=TIMEOUT_CONEXAO_RASPBERRY_S)
+            break
+        except (TimeoutError, ErroTransporte) as erro:
+            if asyncio.get_running_loop().time() >= limite:
+                logger.warning(
+                    "Raspberry (Motion Core) inalcancavel em %s:%d apos %d tentativas em %.0fs: %s",
+                    conf_raspberry["host"],
+                    conf_raspberry["tcp_port"],
+                    tentativa,
+                    espera,
+                    erro,
+                )
+                await event_bus.publish(
+                    "diagnostic.error",
+                    {"modulo": "raspberry", "motivo": "inalcancavel", "detalhe": str(erro)},
+                    prioridade=Prioridade.BAIXA,
+                )
+                return False
+            # INFO e nao WARNING: no boot pelo systemd, nao achar a porta na
+            # primeira tentativa e o ESPERADO, nao um defeito. O WARNING fica
+            # para quando a paciencia acabar - que ai sim e noticia.
+            logger.info(
+                "Motion Core ainda nao atende em %s:%d (tentativa %d) - esperando %.0fs",
+                conf_raspberry["host"],
+                conf_raspberry["tcp_port"],
+                tentativa,
+                INTERVALO_RETENTATIVA_RASPBERRY_S,
+            )
+            await asyncio.sleep(INTERVALO_RETENTATIVA_RASPBERRY_S)
 
     comm.adicionar_link("motion_core", cliente)
     try:
@@ -105,6 +154,90 @@ async def _conectar_raspberry(
 
     logger.info("Raspberry (Motion Core) conectado: %s v%s", info.nome, info.versao_modulo)
     return True
+
+
+#: Backoff da reconexao em OPERACAO (nao do boot). Os mesmos numeros do
+#: Motion Core reconectando o corpo - ver _criar_reconexao_hardware_core em
+#: motion_core/__main__.py.
+RECONEXAO_ESPERA_INICIAL_S = 2.0
+RECONEXAO_ESPERA_MAXIMA_S = 30.0
+
+
+def _criar_reconexao_motion_core(
+    comm: ComunicacaoService,
+    config: ConfigurationManager,
+    event_bus: EventBus,
+    logger: logging.Logger,
+    heartbeat: Any,
+    limite_perdidos: int | None,
+):
+    """Devolve o callback que o MonitorHeartbeat chama quando o Motion Core some.
+
+    BUG REAL (2026-09-20): o link com o Motion Core era aberto UMA vez, no
+    boot, e nunca mais. Caindo o link, `_resolver_link` passava a levantar
+    `ErroComunicacao: Sem rota conhecida para o destino 'motion_core'` a cada
+    consulta - 98 delas num dia so. E a falha e silenciosa do jeito pior: o
+    robo continua falando, ouvindo e respondendo, **sem memoria nenhuma**, e
+    nada na fala denuncia. So voltava reiniciando o servico na mao.
+
+    Este e o espelho exato de `_criar_reconexao_hardware_core` no Motion Core
+    (o corpo reconectando o ESP32). A maquina ja existia e ja era chamada -
+    `_marcar_perdido` -> `_tentar_reconectar` -> callback de `monitorar()`.
+    Faltava o callback, do lado do Mission Core. Mesmo padrao de codigo orfao
+    que ja mordeu este projeto seis vezes.
+
+    POR QUE INSISTE SOZINHO: `_marcar_perdido` e IDEMPOTENTE - dispara uma vez
+    por perda e so rearma quando um heartbeat volta a chegar. Como o caso
+    normal e o Motion Core ainda estar subindo no instante da primeira
+    tentativa, um callback que tentasse uma vez e desistisse trocaria um jeito
+    de nao reconectar por outro.
+    """
+    #: Uma tentativa por vez. Sem esta guarda, uma segunda perda declarada
+    #: enquanto a primeira ainda insiste abriria um segundo laco, e os dois
+    #: passariam a discar em duplicata - o Motion Core so aceita UM enlace
+    #: chamado "mission_core" por vez (EDR-0023 s.5).
+    em_curso: dict[str, asyncio.Task | None] = {"tarefa": None}
+
+    async def _insistir() -> None:
+        espera = RECONEXAO_ESPERA_INICIAL_S
+        tentativa = 0
+        while True:
+            tentativa += 1
+            # espera_total_s=0.0: UMA discagem por ciclo. O backoff e daqui,
+            # nao de dentro - senao seriam duas esperas aninhadas.
+            if await _conectar_raspberry(
+                comm, config, event_bus, logger, espera_total_s=0.0
+            ):
+                logger.info("Motion Core de volta na tentativa %d", tentativa)
+                # Re-registrar zera o relogio do HealthMonitor (monitorar e
+                # idempotente de proposito) e mantem ESTE callback armado
+                # para a proxima queda.
+                heartbeat.monitorar(
+                    "motion_core",
+                    reconectar=_ao_perder,
+                    heartbeats_perdidos_limite=limite_perdidos,
+                )
+                await event_bus.publish(
+                    "comm.module_recovered", {"modulo": "motion_core"}, prioridade=Prioridade.ALTA
+                )
+                return
+            logger.warning(
+                "Motion Core ainda fora (tentativa %d) - tento de novo em %.0fs",
+                tentativa,
+                espera,
+            )
+            await asyncio.sleep(espera)
+            espera = min(espera * 2, RECONEXAO_ESPERA_MAXIMA_S)
+
+    async def _ao_perder() -> None:
+        anterior = em_curso["tarefa"]
+        if anterior is not None and not anterior.done():
+            logger.debug("reconexao do Motion Core ja esta em curso")
+            return
+        logger.warning("Motion Core sumiu - comecando a insistir na reconexao")
+        em_curso["tarefa"] = asyncio.create_task(_insistir())
+
+    return _ao_perder
 
 
 async def _iniciar_modulos(
@@ -222,8 +355,13 @@ class SistemaOrion:
         comm: ComunicacaoService,
         raspberry_conectado: bool,
         modulos: list[Any] | None = None,
+        heartbeat: Any | None = None,
+        tarefa_heartbeat: asyncio.Task | None = None,
     ) -> None:
         self.modulos = list(modulos or [])
+        #: None em modo simulado (--sim nao abre enlace nenhum).
+        self.heartbeat = heartbeat
+        self._tarefa_heartbeat = tarefa_heartbeat
         self.config = config
         self.event_bus = event_bus
         self.registry = registry
@@ -250,9 +388,17 @@ class SistemaOrion:
                     "Falha ao encerrar o modulo %s", getattr(modulo, "nome", "?"), exc_info=True
                 )
         self.watchdog.parar()
+        # Antes do comm.encerrar(): parado, o monitor nao declara perda nem
+        # dispara uma reconexao no meio do desligamento - que ficaria
+        # discando para um link que acabamos de fechar de proposito.
+        if self.heartbeat is not None:
+            self.heartbeat.parar()
         await self.comm.encerrar()
         self.event_bus.parar()
-        for tarefa in (self._tarefa_watchdog, self._tarefa_bus):
+        tarefas = [self._tarefa_watchdog, self._tarefa_bus]
+        if self._tarefa_heartbeat is not None:
+            tarefas.append(self._tarefa_heartbeat)
+        for tarefa in tarefas:
             tarefa.cancel()
             try:
                 await tarefa
@@ -315,6 +461,42 @@ class BootManager:
             comm, config, event_bus, logger, simulado=self._simulado
         )
 
+        # Heartbeat com o Motion Core + RECONEXAO (2026-09-20). Ate aqui o
+        # Mission Core montava HealthMonitor e Watchdog mas nenhum
+        # MonitorHeartbeat: nao mandava heartbeat, nao percebia a queda do
+        # enlace e nao reconectava. O outro lado sempre teve (o Motion Core
+        # monitora "mission_core" e "hardware_core" desde 06/08) - a metade
+        # que faltava era esta.
+        heartbeat = None
+        tarefa_heartbeat = None
+        if not self._simulado:
+            from orion.communication.heartbeat import MonitorHeartbeat
+
+            limites_por_link = conf_comm.get("heartbeats_lost_threshold_por_link") or {}
+            heartbeat = MonitorHeartbeat(
+                comm,
+                event_bus,
+                intervalo_s=conf_comm["heartbeat_interval_s"],
+                heartbeats_perdidos_limite=conf_comm["heartbeats_lost_threshold"],
+            )
+            # MONITORA MESMO SEM TER CONECTADO, de proposito. Se o Motion Core
+            # demorar mais que a paciencia do boot, e so aqui que o robo ainda
+            # tem chance de achar o corpo depois - o Motion Core aprendeu isto
+            # em 06/08 com o hardware_core e vale igual deste lado.
+            heartbeat.monitorar(
+                "motion_core",
+                reconectar=_criar_reconexao_motion_core(
+                    comm,
+                    config,
+                    event_bus,
+                    logger,
+                    heartbeat,
+                    limites_por_link.get("motion_core"),
+                ),
+                heartbeats_perdidos_limite=limites_por_link.get("motion_core"),
+            )
+            tarefa_heartbeat = asyncio.create_task(heartbeat.iniciar())
+
         # Modulos do Mission Core (EDR-0023). Vision e o primeiro; Voice,
         # Mission/IA e Display entram aqui conforme forem migrados de
         # tools/conversar_fofao.py.
@@ -367,4 +549,6 @@ class BootManager:
             comm=comm,
             raspberry_conectado=raspberry_conectado,
             modulos=modulos,
+            heartbeat=heartbeat,
+            tarefa_heartbeat=tarefa_heartbeat,
         )
