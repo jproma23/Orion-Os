@@ -51,7 +51,7 @@
 #include "motor_manager.h"
 #include "pins.h"
 #include "safety_manager.h"
-#include "segredos_wifi.h"
+#include "wifi_corpo.h"
 
 namespace {
 
@@ -93,6 +93,7 @@ orion::MotorManager motores;
 orion::BussolaManager bussola;
 orion::DhtManager dht;
 orion::SafetyManager seguranca;
+corpo::WifiCorpo wifi;
 
 Servo servoPan;
 Servo servoTilt;
@@ -261,6 +262,23 @@ void executarComando(uint8_t cliente, JsonDocument& doc) {
     return;
   }
 
+  // Trocar de rede SEM CABO, com o robo ainda na rede velha. A resposta
+  // sai ANTES de conectar na nova, senao ela nunca chegaria: o socket morre
+  // junto com a rede antiga.
+  if (strcmp(cmd, "wifi") == 0) {
+    const char* novoSsid = doc["ssid"] | "";
+    const char* novaSenha = doc["senha"] | "";
+    if (novoSsid[0] == '\0') {
+      responderAck(cliente, id, false, "ssid ausente");
+      return;
+    }
+    responderAck(cliente, id, true, "trocando de rede - a conexao vai cair");
+    servidor.loop();  // empurra a resposta antes de derrubar o link
+    delay(100);
+    wifi.trocarRede(String(novoSsid), String(novaSenha));
+    return;
+  }
+
   if (strcmp(cmd, "lanterna") == 0) {
     const bool acesa = doc["on"] | false;
     digitalWrite(pinos::RELE_LANTERNA, acesa ? pinos::LANTERNA_ACESA
@@ -297,29 +315,6 @@ void aoEvento(uint8_t cliente, WStype_t tipo, uint8_t* payload, size_t tamanho) 
   }
 }
 
-void conectarWifi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_SENHA);
-  Serial.print("Conectando ao WiFi");
-  // NAO bloqueia para sempre: sem rede o robo ainda tem de bootar, ficar
-  // seguro e responder pelo monitor serial. Quem reconecta depois e o
-  // proprio WiFi.setAutoReconnect.
-  const unsigned long limite = millis() + 20000;
-  while (WiFi.status() != WL_CONNECTED && millis() < limite) {
-    delay(250);
-    Serial.print(".");
-  }
-  Serial.println();
-  if (WiFi.status() == WL_CONNECTED) {
-    WiFi.setAutoReconnect(true);
-    Serial.printf("WiFi ok! IP: %s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("Corpo ORION pronto! ws://%s:%d\n",
-                  WiFi.localIP().toString().c_str(), WS_PORTA);
-  } else {
-    Serial.println("SEM WIFI - o corpo sobe mudo, motores travados pelo watchdog");
-  }
-}
-
 }  // namespace
 
 void setup() {
@@ -341,7 +336,14 @@ void setup() {
   bussola.iniciar();  // tolera ausencia: `conectado()` fica false e so
   dht.iniciar();
 
-  conectarWifi();
+  // Conecta na rede guardada na NVS; sem nenhuma conhecida, sobe o portal
+  // (rede `orion-corpo`) para configurar do celular - ver wifi_corpo.h.
+  if (wifi.iniciar()) {
+    Serial.printf("Corpo ORION pronto! ws://%s:%d\n",
+                  WiFi.localIP().toString().c_str(), WS_PORTA);
+  } else {
+    Serial.println("Corpo ORION no PORTAL - configure a rede e ele reinicia");
+  }
 
   servidor.begin();
   servidor.onEvent(aoEvento);
@@ -350,6 +352,7 @@ void setup() {
 
 void loop() {
   servidor.loop();
+  wifi.atualizar();
 
   // PID das duas rodas com o dt real. Tem de rodar a cada volta do loop -
   // e o unico lugar onde `move`/`turn` percebem que chegaram.

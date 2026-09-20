@@ -106,11 +106,18 @@ communication:
     #
     # Voltar para "serial" exige regravar o firmware do repo no ESP32.
     transporte: "websocket"
-    # IP fixo do corpo. Nao e by-id nem mDNS: e o que o proprio firmware
-    # anuncia no boot ("Corpo ORION pronto! ws://10.20.20.112:81"). Se o
-    # DHCP mudar esse IP, o corpo some - reservar o IP no roteador e o
-    # conserto de verdade.
-    websocket_url: "ws://10.20.20.112:81"
+    # NOME, e nao IP - e o risco que estava anotado aqui se materializou na
+    # primeira regravacao (2026-09-20): o DHCP trocou o endereco de .112
+    # para .102 e o corpo sumiu ate alguem editar esta linha a mao.
+    #
+    # O firmware agora se anuncia por mDNS como `orion-corpo.local`
+    # (ESPmDNS, em firmware/corpo_ws/include/wifi_corpo.h) e o Pi resolve
+    # .local pelo avahi, que ja estava ativo. O endereco pode mudar a
+    # vontade que o nome continua valendo.
+    #
+    # Se um dia o mDNS falhar, um IP ainda funciona aqui - mas conferir
+    # antes com `getent hosts orion-corpo.local`.
+    websocket_url: "ws://orion-corpo.local:81"
     # QUANTO VALE UM "passo" DA TELEMETRIA - TODOS OS TRES SAO SUPOSICAO.
     #
     # O firmware nao anda distancia (so velocidade continua), entao quem
