@@ -279,10 +279,25 @@ class VoiceCore:
             texto_comando = await self._transcritor.transcrever(audio_comando)
         else:
             logger.info("comando veio junto com a ativacao: %r", texto_comando)
-        await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
-        await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
 
-        await self._responder(texto_comando)
+        # O MESMO portao da sessao, aqui tambem (2026-09-20). Ate hoje este
+        # caminho nao olhava o que tinha transcrito, e "acordou mas nao falou
+        # nada" virava uma chamada de IA com a fala do usuario em branco - que
+        # o Gemini recusa com 400 (ver `_motivo_para_descartar`).
+        #
+        # E NAO SE VOLTA PARA O IDLE: quem disse a palavra de ativacao QUER
+        # falar, so nao chegou a tempo na janela de 3 s. Cair fora aqui o
+        # obrigaria a dizer "Oi javis" de novo, que e exatamente o "falar em
+        # dois tempos" que o bloco acima evita. Entao pula-se so a resposta e
+        # entra-se na sessao, que tem a paciencia certa para esperar a fala.
+        motivo = self._motivo_para_descartar(texto_comando)
+        if motivo is not None:
+            logger.info("acordou mas nao veio comando aproveitavel (%s) - abrindo a sessao", motivo)
+        else:
+            await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
+            await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
+            await self._responder(texto_comando)
+
         await self._conversar_ate_o_silencio()
         await self._definir_estado(EstadoVoz.IDLE)
         return True
@@ -347,21 +362,21 @@ class VoiceCore:
                 continue
 
             texto = await self._transcritor.transcrever(audio)
-            if not texto or not texto.strip():
-                silencios += 1
-                continue
-            if self._parece_alucinacao(texto):
+            motivo = self._motivo_para_descartar(texto)
+            if motivo == "alucinacao":
                 # Nao conta como silencio NEM como fala: o Whisper entrou em
                 # laco, e nao ha informacao nenhuma ali - nem para responder,
                 # nem para concluir que a pessoa foi embora.
                 logger.info("descartando transcricao em laco (alucinacao): %.60s...", texto)
                 continue
-            if self._eh_eco_da_propria_fala(texto):
-                # Conta como SILENCIO, e nao como fala: se o que voltou foi a
-                # voz dele, entao ninguem falou com ele nessa janela - e a
-                # sessao tem que poder fechar. Tratar como fala mantinha a
-                # sessao aberta para sempre, alimentando o proprio laco.
-                logger.info("descartando eco da propria fala: %.60s...", texto)
+            if motivo is not None:
+                # Vazio ou eco contam como SILENCIO. No eco, o motivo e menos
+                # obvio: se o que voltou foi a voz dele, entao ninguem falou
+                # com ele nessa janela - e a sessao tem que poder fechar.
+                # Tratar como fala mantinha a sessao aberta para sempre,
+                # alimentando o proprio laco.
+                if motivo == "eco":
+                    logger.info("descartando eco da propria fala: %.60s...", texto)
                 silencios += 1
                 continue
 
@@ -468,6 +483,37 @@ class VoiceCore:
         ditas = set(self._palavras(self._ultima_fala))
         em_comum = sum(1 for p in ouvidas if p in ditas)
         return (em_comum / len(ouvidas)) >= self._FRACAO_PARA_ECO
+
+    def _motivo_para_descartar(self, texto: str) -> str | None:
+        """Por que esta transcricao NAO deve virar um comando - ou None.
+
+        POR QUE EXISTE (2026-09-20). Os tres testes abaixo ja eram feitos, mas
+        so dentro de `_conversar_ate_o_silencio`. O caminho da palavra de
+        ativacao (`ciclo_uma_vez`) mandava o texto para a IA sem olhar, e uma
+        transcricao VAZIA chegava ate o modelo. Colhido no log:
+
+            16:46:30  ouvi (rms=0.1486): 'Oi javis!'   -> acordou, respondeu
+            16:46:39  ouvi (rms=0.0238): ''            -> foi para a IA assim
+            16:46:39  400 Requests ending with a model turn are not supported
+
+        O Gemini descarta a mensagem de usuario vazia, sobra o historico
+        terminando na fala DELE, e a API recusa o pedido inteiro. Ou seja: uma
+        janela de silencio virava uma chamada gasta e um erro no log - com a
+        cota gratuita pagando a conta.
+
+        Devolver o MOTIVO, e nao um booleano, e o que deixa os dois caminhos
+        compartilharem o portao sem compartilhar a consequencia: so a sessao
+        contabiliza silencio, e cada motivo pesa diferente ali (ver quem
+        chama). O portao decide o que e aproveitavel; quem chama decide o que
+        fazer com o descarte.
+        """
+        if not texto or not texto.strip():
+            return "vazio"
+        if self._parece_alucinacao(texto):
+            return "alucinacao"
+        if self._eh_eco_da_propria_fala(texto):
+            return "eco"
+        return None
 
     @staticmethod
     def _palavras(texto: str) -> list[str]:

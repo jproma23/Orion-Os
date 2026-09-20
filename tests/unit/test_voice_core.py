@@ -341,3 +341,108 @@ def test_fala_humana_nao_e_confundida_com_laco():
 def test_palavra_longa_legitima_nao_e_laco():
     """Nenhuma letra repetida 8 vezes seguidas - so palavra comprida."""
     assert not VoiceCore._parece_alucinacao("anticonstitucionalissimamente")
+
+
+@pytest.mark.asyncio
+async def test_acordou_e_nao_falou_nada_nao_chega_na_ia():
+    """A cena exata do log de 2026-09-19 16:46:39.
+
+        16:46:30  ouvi (rms=0.1486): 'Oi javis!'   -> acordou, respondeu
+        16:46:39  ouvi (rms=0.0238): ''            -> ia para a IA assim
+        16:46:39  400 Requests ending with a model turn are not supported
+
+    A janela do comando veio vazia e o texto em branco viajava ate o modelo.
+    O Gemini descarta a mensagem de usuario vazia, sobra o historico
+    terminando na fala DELE, e a API recusa o pedido inteiro - uma chamada de
+    cota gasta para nao dizer nada.
+    """
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    eventos = []
+    for topico in ("voice.wake_detected", "voice.command_received"):
+        bus.subscribe(topico, lambda e, t=topico: eventos.append(t))
+
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "nao deveria responder"
+
+    sintetizador = SintetizadorFalso()
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        # acorda, e a janela do comando vem VAZIA (so silencio no microfone)
+        transcritor=TranscritorFalso(["javis", ""]),
+        sintetizador=sintetizador,
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    # O que importa: a IA nao foi consultada com a fala em branco.
+    assert processados == []
+    assert sintetizador.falas == []
+    # Acordou (isso e verdade e vale o evento), mas nao houve comando nenhum.
+    assert eventos == ["voice.wake_detected"]
+    assert voice.estado is EstadoVoz.IDLE
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_acordar_sem_comando_ainda_abre_a_sessao():
+    """Quem diz a palavra de ativacao QUER falar - so nao chegou a tempo.
+
+    Barrar a fala vazia nao pode custar a fala seguinte: sem isto, quem
+    demorasse meio segundo a mais teria que dizer "Oi javis" de novo, que e o
+    "falar em dois tempos" que o projeto ja tinha decidido nao exigir.
+    """
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "sao dez horas"
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        # acorda / janela do comando vazia / A PESSOA FALA na janela seguinte
+        transcritor=TranscritorFalso(["javis", "", "que horas sao"]),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert processados == ["que horas sao"]
+
+    bus.parar()
+    await tarefa
+
+
+def test_portao_devolve_o_motivo_de_cada_descarte():
+    """O portao separa OS TRES casos porque eles pesam diferente na sessao:
+    alucinacao nao conta silencio, vazio e eco contam."""
+    bus = EventBus()
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso([]),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=None,
+        gravar_audio=_gravar_audio_falso,
+    )
+
+    assert voice._motivo_para_descartar("") == "vazio"
+    assert voice._motivo_para_descartar("   ") == "vazio"
+    assert voice._motivo_para_descartar("FFFFFFFFFFFF") == "alucinacao"
+    assert voice._motivo_para_descartar("que horas sao") is None
