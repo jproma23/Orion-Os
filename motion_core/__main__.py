@@ -123,15 +123,65 @@ async def _tentar_porta(
     return True
 
 
+async def _conectar_corpo_websocket(
+    comm: ComunicacaoService,
+    config_hardware_core: dict,
+    event_bus: EventBus,
+    logger: logging.Logger,
+) -> bool:
+    """Registra o corpo WebSocket como o link "hardware_core".
+
+    SEM WHO_ARE_YOU: este firmware nao conhece o handshake do projeto (e
+    nao conhece nada do protocolo - ver ponte_corpo_ws.py). Quem prova que
+    ha alguem vivo do outro lado e a TELEMETRIA, e `conectar()` so volta
+    depois do primeiro quadro. Um socket aberto para um firmware travado
+    nao passa por aqui.
+    """
+    from motion_core.navigation.ponte_corpo_ws import TransporteCorpoWS
+
+    url = config_hardware_core["websocket_url"]
+    transporte = TransporteCorpoWS(
+        url,
+        pulsos_por_metro=float(config_hardware_core["pulsos_por_metro"]),
+        pulsos_por_grau=float(config_hardware_core["pulsos_por_grau"]),
+    )
+    try:
+        await transporte.conectar()
+    except Exception as erro:
+        logger.warning("Corpo (WebSocket) inalcancavel em %s: %s", url, erro)
+        await event_bus.publish(
+            "diagnostic.error",
+            {"modulo": "hardware_core", "motivo": "websocket_indisponivel", "url": url},
+            prioridade=Prioridade.ALTA,
+        )
+        return False
+
+    # exigir_checksum_mensagem=False, igual a serial: os quadros nascem aqui
+    # dentro, nao atravessam meio fisico nenhum antes do comm os ler.
+    comm.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
+    logger.info("Hardware Core (ESP32) conectado por WebSocket em %s", url)
+    return True
+
+
 async def _conectar_hardware_core(
     comm: ComunicacaoService,
     config_hardware_core: dict,
     event_bus: EventBus,
     logger: logging.Logger,
 ) -> bool:
-    """Abre o link serial com o Hardware Core e confirma via WHO_ARE_YOU.
-    Retorna False (tolerado, Cap 6 s.8) se nenhuma porta responder - nunca
-    levanta excecao."""
+    """Abre o link com o Hardware Core. Retorna False (tolerado, Cap 6 s.8)
+    se o corpo nao responder - nunca levanta excecao.
+
+    DOIS CAMINHOS desde 2026-09-20, escolhidos por `transporte` na config:
+    "serial" (protocolo binario, historico) e "websocket" (o ESP32 que esta
+    no robo hoje, regravado com firmware WiFi). Bifurcar AQUI, e nao no
+    chamador, e o que faz o boot e a RECONEXAO usarem o mesmo caminho - esta
+    funcao e chamada nos dois lugares."""
+    if config_hardware_core.get("transporte") == "websocket":
+        return await _conectar_corpo_websocket(
+            comm, config_hardware_core, event_bus, logger
+        )
+
     porta = config_hardware_core["port"]
     candidatas = PORTAS_SERIAIS_CANDIDATAS if porta == "auto" else (porta,)
 

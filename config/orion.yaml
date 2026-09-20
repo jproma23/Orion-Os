@@ -92,6 +92,43 @@ communication:
     # TEM que ser igual ao Serial.begin() do firmware - se so um lado mudar,
     # o Mega fica mudo e a descoberta por WHO_ARE_YOU falha em todas as portas.
     baud_rate: 250000
+    # COMO SE FALA COM O CORPO (2026-09-20). "serial" e o caminho historico
+    # (protocolo binario, `port`/`baud_rate` acima). "websocket" e o ESP32
+    # que esta no robo HOJE: ele foi regravado com um firmware WiFi e nao
+    # responde mais a serial - o sintoma era "Hardware Core nao encontrado em
+    # nenhuma porta" a cada 35 s com toda a telemetria nula.
+    #
+    # O fonte desse firmware NAO EXISTE (procurado no Pi e no Windows). O
+    # protocolo foi extraido da flash do chip; o backup do binario esta em
+    # ~/backups/firmware_corpo/. Ver motion_core/navigation/ponte_corpo_ws.py
+    # para o vocabulario e, principalmente, para as TRES coisas que este
+    # firmware nao faz (sem ACK, sem andar distancia, sem bussola).
+    #
+    # Voltar para "serial" exige regravar o firmware do repo no ESP32.
+    transporte: "websocket"
+    # IP fixo do corpo. Nao e by-id nem mDNS: e o que o proprio firmware
+    # anuncia no boot ("Corpo ORION pronto! ws://10.20.20.112:81"). Se o
+    # DHCP mudar esse IP, o corpo some - reservar o IP no roteador e o
+    # conserto de verdade.
+    websocket_url: "ws://10.20.20.112:81"
+    # QUANTO VALE UM "passo" DA TELEMETRIA - TODOS OS TRES SAO SUPOSICAO.
+    #
+    # O firmware nao anda distancia (so velocidade continua), entao quem
+    # conta pulsos e freia e o Pi. Esta conta e a que transforma "ande 50 cm"
+    # em "pare depois de N pulsos" - e ela esta empilhada sobre tres numeros
+    # que ninguem mediu:
+    #
+    #   1. a reducao da caixa (1:90 e decisao provisoria - peca a caminho)
+    #   2. a bitola do robo (0,45 m nunca foi medida com fita)
+    #   3. se o "passo" deste firmware e pulso de encoder ou passo de stepper
+    #      - o firmware e da linhagem ANTIGA, dos TB6600, e o nome sugere
+    #      stepper. Com os motores desmontados nao da para saber.
+    #
+    # Os valores abaixo saem de firmware/hardware_core/include/motor_manager.h
+    # (11 PPR x 2 bordas x 90 de reducao = 1980 pulsos por volta da roda).
+    # MEDIR na bancada, com as rodas no ar, antes de confiar em centimetro.
+    pulsos_por_metro: 3151.0    # 1980 / (pi * 0,200 m)
+    pulsos_por_grau: 12.4       # 1980 * 0,45 / (360 * 0,200)
   ack_timeout_ms: 500
   max_retries: 3
   heartbeat_interval_s: 1.0
