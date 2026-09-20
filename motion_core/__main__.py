@@ -54,6 +54,7 @@ from motion_core.memory.replica_pendente import (
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
+from motion_core.navigation.gerente_nav2 import GerenteNav2
 from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
 from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
@@ -379,7 +380,21 @@ async def principal() -> None:
     # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
     # COMO chegar (mapa, costmap, replanejamento); o Motion Core decide ONDE.
     # Tolera ausencia do container (falha vira navigation.goal_resultado).
-    Nav2Goal(event_bus)
+    #
+    # O gerente deixa o Nav2 DESLIGADO enquanto ninguem navega (~225 MB
+    # medidos, num Pi de 3,8 GB) e o sobe no primeiro goal. Com
+    # `nav2.sob_demanda: false` o gerente sai de cena e volta o modo antigo,
+    # com o container de pe o tempo todo.
+    conf_nav2 = config.secao("nav2")
+    gerente_nav2 = None
+    tarefa_gerente_nav2 = None
+    if conf_nav2.get("sob_demanda"):
+        gerente_nav2 = GerenteNav2(
+            event_bus,
+            ocioso_para_desligar_s=float(conf_nav2["ocioso_para_desligar_min"]) * 60.0,
+        )
+        tarefa_gerente_nav2 = asyncio.create_task(gerente_nav2.iniciar())
+    Nav2Goal(event_bus, gerente=gerente_nav2)
 
     # 3c. LiDAR (Motion Core, USB serial) - publica setores no barramento para
     # a navegacao, o retrato do mundo e a web (decisao do dono 2026-08-17).
@@ -1045,6 +1060,13 @@ async def principal() -> None:
         tarefa_manutencao_task.cancel()
     if lidar_manager is not None:
         await lidar_manager.parar()
+    if gerente_nav2 is not None:
+        # So para o LACO de ociosidade. O container fica como estiver: se o
+        # Motion Core esta caindo para um restart, derrubar o Nav2 junto so
+        # faria o proximo goal pagar 15 s a toa.
+        gerente_nav2.parar()
+        if tarefa_gerente_nav2 is not None:
+            tarefa_gerente_nav2.cancel()
     await webui.encerrar()
     await comm.encerrar()
     servidor_tcp.close()

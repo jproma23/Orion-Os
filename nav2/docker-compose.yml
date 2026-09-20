@@ -6,6 +6,15 @@ services:
     # sem senha) e o ROS 2 roda com discovery da rede do host - sem mapear
     # portas nem brigar com o Discovery Server.
     network_mode: host
-    restart: unless-stopped
+    # "no" e NAO "unless-stopped" (2026-09-20): quem manda subir e parar o
+    # Nav2 agora e o GerenteNav2, no Motion Core, conforme o robo precise
+    # navegar - ele custa 225 MB medidos num Pi de 3,8 GB.
+    #
+    # Com `unless-stopped` o Docker ressuscitava o container no boot e logo
+    # depois de todo `docker stop` do gerente, desfazendo a economia sem dizer
+    # nada. As duas pontas tem que concordar: se voltar para o modo antigo
+    # (`nav2.sob_demanda: false` no orion.yaml), volte isto para
+    # `unless-stopped` tambem, senao ninguem sobe o Nav2.
+    restart: "no"
     environment:
       - ROS_DOMAIN_ID=0

@@ -52,6 +52,37 @@ communication:
     # nao levanta excecao (Cap 6 s.8), entao o robo sobe sem corpo em vez de
     # nao subir.
     # Voltar para "auto" so faz sentido quando houver UMA unica serial no Pi.
+    #
+    # O CAMINHO DE SAIDA DO USB JA ESTA PRONTO, MAS AINDA NAO E ESTE (2026-09-20).
+    #
+    # O Pi tem 4 portas e 5 candidatos: SSD, LiDAR, tela ESP32-S3, corpo e a
+    # placa de audio USB. Hoje quem esta de fora e o AUDIO - o que so nao
+    # doi porque `falar_pela_tela: true` (a fala e o microfone vem da cabeca
+    # ESP32-S3, nao do Pi). Ou seja: a porta nao sobra, ela esta emprestada.
+    #
+    # A UART do header GPIO ja foi HABILITADA no Pi (enable_uart=1 +
+    # dtoverlay=disable-bt no config.txt, console serial removido do
+    # cmdline.txt, em 2026-09-20) e devolve essa porta quando os fios forem
+    # passados. Fica valendo o USB ate la - nao se aponta a config para um
+    # cabo que ainda nao existe.
+    #
+    # PARA MIGRAR: passe os tres fios, troque esta linha por "/dev/ttyAMA0" e
+    # reinicie o Pi (o overlay so vale no boot).
+    #
+    #     Pi pino  8 (GPIO14, TX) --> ESP32 RX (GPIO3)
+    #     Pi pino 10 (GPIO15, RX) <-- ESP32 TX (GPIO1)
+    #     Pi pino  6 (GND)        --- ESP32 GND
+    #
+    # 3,3 V nos dois lados: liga direto, sem conversor de nivel.
+    #
+    # Sera ttyAMA0 e NAO ttyS0/serial0: com `dtoverlay=disable-bt` o header
+    # recebe a PL011, que tem clock proprio. A mini-UART (ttyS0) segue a
+    # frequencia do core e corrompe quadros a 250000 baud quando o governor
+    # muda o clock - nao e teoria nesta velocidade.
+    #
+    # AO GRAVAR O FIRMWARE DEPOIS DE MIGRAR: o ESP32 usa a MESMA UART0
+    # (GPIO 1/3) para o USB e para esses fios. Desligue os fios do header
+    # antes de gravar pela USB, ou os dois transmissores brigam no mesmo par.
     port: "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0"
     # 250000 desde 2026-07-27 (era 115200). O pacote de telemetria passa de
     # 600 bytes e o buffer serial do Mega e de 64 - o firmware BLOQUEAVA ate
@@ -158,6 +189,29 @@ navigation:
   # distancia em algum setor frontal que bloqueia o avanco.
   lidar_frontal_angulos_graus: [-60, 60]
   lidar_min_obstaculo_cm: 25
+
+# O Nav2 (container Docker) LIGADO SO QUANDO PRECISA (2026-09-20).
+#
+# Pedido do dono: "o que consome muita ram so usar no momento certo". Medido
+# no Pi parando e subindo o container de verdade:
+#
+#     nav2 no ar    1686 MB livres      subir ate o bridge responder: 15 s
+#     nav2 parado   1911 MB livres      parar (SIGTERM ate sair limpo): 11 s
+#     -------------------------------
+#     custo          225 MB  (5,9% da RAM do Pi, que so tem 3,8 GB)
+#
+# Nao custa o mapa: o slam_toolbox roda em "mode: mapping" SEM "map_file_name"
+# (nav2/config/nav2_params.yaml), entao ele ja nunca salvou nada - o mapa
+# morria a cada reinicio do container e a cada boot, com ou sem isto.
+#
+# O PRECO sao os 15 s do primeiro goal depois de um periodo parado. Quem for
+# falar nesse intervalo tem o evento "navigation.nav2_subindo" para saber.
+nav2:
+  sob_demanda: true
+  # 10 min: maior que a pausa entre duas pernas de uma mesma ronda (senao ele
+  # pagaria os 15 s de novo no meio dela), e curto o bastante para a RAM
+  # voltar quando o robo de fato parou.
+  ocioso_para_desligar_min: 10
 
 # LiDAR STL-50B2 (familia 3iRobotix Delta-2) - o unico dos tres que foi
 # TESTADO COM O HARDWARE NA MAO (bancada 2026-09-15: varredura 360° coerente,

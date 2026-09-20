@@ -40,9 +40,12 @@ COOLDOWN_FALHA_S = 5.0
 class Nav2Goal:
     """Assina `navigation.goal`, repassa ao Nav2 e publica o resultado."""
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(self, event_bus: EventBus, gerente: Any | None = None) -> None:
         self._event_bus = event_bus
         self._proxima_tentativa_s = 0.0
+        #: Quem liga/desliga o container (GerenteNav2). None = modo antigo,
+        #: com o Nav2 de pe o tempo todo - e o que os testes usam.
+        self._gerente = gerente
         event_bus.subscribe("navigation.goal", self._ao_goal)
 
     async def _ao_goal(self, evento: Evento) -> None:
@@ -65,19 +68,47 @@ class Nav2Goal:
             logger.warning("goal %r ignorado (cooldown apos falha)", (x, y))
             return
 
+        # O Nav2 pode estar DESLIGADO para poupar os ~225 MB dele (ver
+        # gerente_nav2). Subir leva ~15 s, e o `navigation.nav2_subindo`
+        # publicado la avisa quem quiser dizer "ja vou" nesse intervalo.
+        if self._gerente is not None and not await self._gerente.garantir_no_ar():
+            logger.error("Nav2 nao subiu - goal %r descartado", (x, y))
+            await self._publicar("falhou", {"motivo": "nav2_indisponivel", "x_m": x, "y_m": y})
+            return
+
         payload = {"x": x, "y": y, "yaw_rad": yaw}
+        # Enquanto o robo ANDA, o gerente tem que saber que o Nav2 esta em
+        # uso. `_enviar` so volta quando o goal termina (timeout de 600 s), e
+        # sem isto uma navegacao longa seria desligada no meio do caminho -
+        # trocando 225 MB pelo robo parando sozinho no corredor.
+        vivo = None
+        if self._gerente is not None:
+            vivo = asyncio.create_task(self._manter_vivo())
         try:
             resultado, status = await asyncio.to_thread(self._enviar, payload)
         except Exception as exc:
             logger.error("falha ao falar com o bridge_goal: %s", exc)
             await self._publicar("falhou", {"motivo": str(exc)})
             return
+        finally:
+            if vivo is not None:
+                vivo.cancel()
 
         if resultado != "completado":
             self._proxima_tentativa_s = (
                 asyncio.get_running_loop().time() + COOLDOWN_FALHA_S
             )
         await self._publicar(resultado, {"x_m": x, "y_m": y, "yaw_rad": yaw, "status": status})
+
+    #: De quanto em quanto tempo avisar o gerente de que o goal segue vivo.
+    #: Bem menor que qualquer ociosidade configuravel (o padrao e 600 s).
+    INTERVALO_MANTER_VIVO_S = 30.0
+
+    async def _manter_vivo(self) -> None:
+        """Segura o Nav2 ligado enquanto o robo esta a caminho."""
+        while True:
+            self._gerente.marcar_uso()
+            await asyncio.sleep(self.INTERVALO_MANTER_VIVO_S)
 
     def _enviar(self, payload: dict[str, Any]) -> tuple[str, int]:
         """POST sincrono ao bridge_goal; roda fora do loop (to_thread)."""
