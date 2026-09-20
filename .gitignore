@@ -20,3 +20,4 @@ yolov8n.pt
 # Rascunhos gerados da Wikipedia: material intermediario, nao conteudo.
 # So entra no repositorio depois de revisado e publicado em content/aulas.
 content/rascunhos/
+firmware/corpo_ws/include/segredos_wifi.h

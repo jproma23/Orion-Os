@@ -1,0 +1,22 @@
+// Credenciais do WiFi do corpo. COPIE para segredos_wifi.h e preencha.
+//
+// POR QUE ESTE ARQUIVO EXISTE: o firmware anterior (sem fonte) trazia o SSID
+// e a SENHA embutidos, e eles ficaram legiveis em texto claro na flash -
+// qualquer `strings` no backup do binario os mostra. Um firmware com fonte
+// versionado repetiria o problema de forma pior: a senha entraria no
+// historico do git, de onde nao sai mais.
+//
+// `segredos_wifi.h` esta no .gitignore. Este `.exemplo` e o que vai para o
+// repositorio.
+//
+// ATENCAO: isto NAO protege a senha dentro do ESP32 - ela continua na flash
+// do chip e continua legivel por quem tiver a placa na mao. O que se evita
+// aqui e o vazamento pelo REPOSITORIO, que alcanca muito mais gente.
+#pragma once
+
+#define WIFI_SSID "coloque-o-nome-da-rede"
+#define WIFI_SENHA "coloque-a-senha"
+
+// Porta do servidor WebSocket. 81 e a que o firmware antigo usava e a que o
+// Pi espera em `communication.hardware_core.websocket_url` (orion.yaml).
+#define WS_PORTA 81

@@ -151,6 +151,15 @@ class TransporteCorpoWS:
 
         self._telemetria: dict[str, Any] = {}
         self._ultima_telemetria_s: float | None = None
+        #: O firmware do outro lado sabe andar uma distancia sozinho?
+        #:
+        #: DESCOBERTO PELA TELEMETRIA, e nao por config: o firmware novo
+        #: (firmware/corpo_ws, com fonte no repo) publica `estado` e
+        #: `em_movimento`; o antigo, sem fonte, nao publica nenhum dos dois.
+        #: Detectar assim faz a ponte servir aos DOIS sem ninguem lembrar de
+        #: virar uma chave depois de gravar - e esquecer de virar essa chave
+        #: daria um robo que anda e nao para.
+        self._firmware_sabe_distancia = False
 
         #: movimento finito em curso (ver limitacao 2 no cabecalho)
         self._alvo_passos: int | None = None
@@ -254,12 +263,37 @@ class TransporteCorpoWS:
             dados = json.loads(texto)
         except ValueError:
             return
+
+        # O firmware NOVO avisa quando um `move`/`turn` termina. O antigo nao
+        # tem o que avisar - quem detectava o fim era esta ponte, contando
+        # pulsos. Sem repassar isto, `_aguardar_ocioso` esperaria o timeout a
+        # cada segmento de uma ronda.
+        if dados.get("evento") == "movimento_concluido":
+            await self._emitir(
+                TipoMensagem.EVENT,
+                {"topico": "motion.movimento_concluido", **{
+                    k: v for k, v in dados.items() if k != "evento"
+                }},
+            )
+            return
+
         if "passos_esq" not in dados:
-            return  # pong ou outra coisa que nao e telemetria
+            return  # pong, ack ou outra coisa que nao e telemetria
 
         self._telemetria = dados
         self._ultima_telemetria_s = asyncio.get_running_loop().time()
-        await self._conferir_movimento_finito(dados)
+
+        if not self._firmware_sabe_distancia and "estado" in dados:
+            self._firmware_sabe_distancia = True
+            logger.info(
+                "corpo com firmware NOVO: distancia e giro terminam no ESP32, "
+                "nao mais contados por aqui"
+            )
+
+        # Contar pulsos aqui so faz sentido com o firmware antigo; com o novo
+        # quem freia e o proprio ESP32 e esta conta brigaria com ele.
+        if not self._firmware_sabe_distancia:
+            await self._conferir_movimento_finito(dados)
         await self._emitir(TipoMensagem.TELEMETRY, self._traduzir_telemetria(dados))
 
     def _traduzir_telemetria(self, dados: dict[str, Any]) -> dict[str, Any]:
@@ -270,9 +304,17 @@ class TransporteCorpoWS:
         aprender o dialeto novo.
         """
         distancia = dados.get("obstacle_distance", -1)
-        return {
-            "estado": "MOVING" if self._em_movimento else "IDLE",
-            "em_movimento": self._em_movimento,
+        # QUEM SABE SE O ROBO ESTA ANDANDO E O ROBO. O firmware novo publica
+        # `estado`/`em_movimento` lidos do proprio motor; o antigo nao publica
+        # nada disso e a unica fonte era o que esta ponte tinha COMANDADO - um
+        # palpite que erra sempre que o corpo para por conta propria (fim de
+        # `move`, watchdog, obstaculo). Preferir o dado real quando ele existe.
+        em_movimento = dados.get("em_movimento")
+        if em_movimento is None:
+            em_movimento = self._em_movimento
+        saida = {
+            "estado": dados.get("estado") or ("MOVING" if em_movimento else "IDLE"),
+            "em_movimento": bool(em_movimento),
             "passos_esquerda": dados.get("passos_esq", 0),
             "passos_direita": dados.get("passos_dir", 0),
             # -1 e o "nao sei" do firmware. Vira None e nao 0: zero seria
@@ -282,9 +324,18 @@ class TransporteCorpoWS:
             "pan_us": dados.get("pan_us"),
             "tilt_us": dados.get("tilt_us"),
             "rssi": dados.get("rssi"),
-            # rumo_graus/bussola_calibrada NAO entram: este firmware nao tem
-            # bussola, e inventar um rumo e pior que nao ter (ver cabecalho).
         }
+
+        # BUSSOLA, TEMPERATURA E UMIDADE so existem no firmware NOVO, e mesmo
+        # la so aparecem quando a leitura VALE (o firmware omite o campo em vez
+        # de mandar zero). Repassar so o que veio - inventar rumo_graus=0 seria
+        # pior que nao ter: 0 grau e um rumo valido, e ninguem saberia que e
+        # mentira.
+        for campo in ("rumo_graus", "bussola_calibrada", "temperatura_c",
+                      "umidade_percent", "safe_mode"):
+            if campo in dados:
+                saida[campo] = dados[campo]
+        return saida
 
     async def _conferir_movimento_finito(self, dados: dict[str, Any]) -> None:
         if self._alvo_passos is None or self._passos_inicio is None:
@@ -372,6 +423,29 @@ class TransporteCorpoWS:
                 TipoMensagem.EVENT, {"topico": "motion.scan_complete", "leituras": []}
             )
             return True
+
+        # FIRMWARE NOVO: ele mesmo anda a distancia e gira o angulo, com o PID
+        # e o encoder locais. A rede sai de dentro da malha, que era a maior
+        # fraqueza desta ponte (ver limitacao 2 no cabecalho).
+        if self._firmware_sabe_distancia:
+            if comando == "MOVE_DISTANCE":
+                return await self._enviar_bruto(
+                    {
+                        "cmd": "move",
+                        "cm": float(payload.get("distancia_cm") or 0),
+                        "vel": max(1.0, velocidade * 100.0),
+                    }
+                )
+            if comando in ("TURN_LEFT", "TURN_RIGHT"):
+                graus = abs(float(payload.get("graus") or 0))
+                return await self._enviar_bruto(
+                    {
+                        "cmd": "turn",
+                        # sinal = sentido: positivo horario (direita)
+                        "graus": graus if comando == "TURN_RIGHT" else -graus,
+                        "vel": max(1.0, velocidade * 100.0),
+                    }
+                )
 
         alvo = self._traduzir_movimento(comando, payload, velocidade)
         if alvo is None:

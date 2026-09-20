@@ -264,3 +264,107 @@ async def test_gimbal_sem_eixo_nao_manda_comando_vazio():
     t, enviados = _transporte()
     await _comandar(t, {"comando": "SET_PAN_TILT"})
     assert enviados == []
+
+
+# --- Convivencia com o firmware NOVO (firmware/corpo_ws) -------------------
+#
+# O firmware antigo nao tem fonte e nao sabe andar distancia; o novo sabe. A
+# ponte serve aos dois e decide pela TELEMETRIA, nao por config - esquecer de
+# virar uma chave depois de gravar daria um robo que anda e nao para.
+
+
+def _telemetria_nova(**extra):
+    d = {"passos_esq": 0, "passos_dir": 0, "estado": "IDLE",
+         "em_movimento": False}
+    d.update(extra)
+    return json.dumps(d)
+
+
+@pytest.mark.asyncio
+async def test_detecta_firmware_novo_pela_telemetria():
+    t, _ = _transporte()
+    assert t._firmware_sabe_distancia is False
+    await t._ao_receber(json.dumps({"passos_esq": 0, "passos_dir": 0}))
+    assert t._firmware_sabe_distancia is False, "firmware antigo nao tem `estado`"
+
+    await t._ao_receber(_telemetria_nova())
+    assert t._firmware_sabe_distancia is True
+
+
+@pytest.mark.asyncio
+async def test_com_firmware_novo_a_distancia_vai_para_o_ESP32():
+    """O ganho principal: o laco de distancia sai de cima do WiFi."""
+    t, enviados = _transporte()
+    await t._ao_receber(_telemetria_nova())
+
+    await _comandar(t, {"comando": "MOVE_DISTANCE", "distancia_cm": 50,
+                        "velocidade_percent": 60})
+    assert enviados == [{"cmd": "move", "cm": 50.0, "vel": 60.0}]
+    assert t._alvo_passos is None, "quem conta pulsos agora e o firmware"
+
+
+@pytest.mark.asyncio
+async def test_com_firmware_novo_o_giro_leva_o_sinal_do_sentido():
+    t, enviados = _transporte()
+    await t._ao_receber(_telemetria_nova())
+
+    await _comandar(t, {"comando": "TURN_LEFT", "graus": 90,
+                        "velocidade_percent": 40})
+    assert enviados[0]["cmd"] == "turn"
+    assert enviados[0]["graus"] == -90.0, "esquerda = anti-horario = negativo"
+
+    await _comandar(t, {"comando": "TURN_RIGHT", "graus": 90,
+                        "velocidade_percent": 40})
+    assert enviados[1]["graus"] == 90.0
+
+
+@pytest.mark.asyncio
+async def test_fim_de_movimento_do_firmware_vira_evento():
+    """Sem repassar isto, _aguardar_ocioso esperaria o timeout a cada
+    segmento de ronda."""
+    t, _ = _transporte()
+    await t._ao_receber(json.dumps(
+        {"evento": "movimento_concluido", "passos_esq": 500, "passos_dir": 498}
+    ))
+    quadros = _drenar(t)
+    assert len(quadros) == 1 and quadros[0].tipo is TipoMensagem.EVENT
+    assert quadros[0].payload["topico"] == "motion.movimento_concluido"
+    assert quadros[0].payload["passos_esq"] == 500
+
+
+@pytest.mark.asyncio
+async def test_em_movimento_vem_do_ROBO_e_nao_do_palpite_da_ponte():
+    """A ponte so sabe o que COMANDOU. Quando o corpo para sozinho (fim de
+    move, watchdog, obstaculo) o palpite erra - e o firmware novo sabe."""
+    t, _ = _transporte()
+    await _comandar(t, {"comando": "MOVE_FORWARD", "velocidade_percent": 50})
+    assert t._em_movimento is True, "a ponte acha que mandou andar"
+
+    # o corpo diz que ja parou
+    await t._ao_receber(_telemetria_nova(em_movimento=False, estado="IDLE"))
+    p = _drenar(t)[-1].payload
+    assert p["em_movimento"] is False
+    assert p["estado"] == "IDLE"
+
+
+@pytest.mark.asyncio
+async def test_bussola_e_dht_passam_quando_existem():
+    t, _ = _transporte()
+    await t._ao_receber(_telemetria_nova(
+        rumo_graus=137.5, bussola_calibrada=True,
+        temperatura_c=24.3, umidade_percent=61.0))
+    p = _drenar(t)[0].payload
+    assert p["rumo_graus"] == 137.5
+    assert p["bussola_calibrada"] is True
+    assert p["temperatura_c"] == 24.3
+
+
+@pytest.mark.asyncio
+async def test_firmware_que_omite_a_bussola_nao_ganha_rumo_inventado():
+    """O firmware novo OMITE o campo quando a leitura nao vale, em vez de
+    mandar zero. A ponte nao pode preencher o buraco."""
+    t, _ = _transporte()
+    await t._ao_receber(_telemetria_nova(bussola_calibrada=False))
+    p = _drenar(t)[0].payload
+    assert "rumo_graus" not in p
+    assert p["bussola_calibrada"] is False

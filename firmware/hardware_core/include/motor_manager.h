@@ -173,6 +173,20 @@ class MotorManager {
     _iniciarMovimento(_direita, true, velocidadePercent, -1);
   }
 
+  // RE CONTINUA. Faltava: `andarFrente` ignora o SINAL da velocidade (ela
+  // so diz o quanto, nunca o lado), e `andarDistancia` negativa e finita.
+  // Sem isto, quem quisesse andar de re sem alvo nao tinha o que chamar -
+  // descoberto escrevendo o firmware do corpo em 2026-09-20.
+  //
+  // Andar de re continua sendo o movimento MENOS protegido do robo: nao ha
+  // sensor nenhum apontado para tras.
+  void andarRe(float velocidadePercent) {
+    _ligarRele();
+    _tipo = TipoMovimento::RE;
+    _iniciarMovimento(_esquerda, false, velocidadePercent, -1);
+    _iniciarMovimento(_direita, false, velocidadePercent, -1);
+  }
+
   void andarDistancia(float distanciaCm, float velocidadePercent) {
     _ligarRele();
     int64_t pulsos = static_cast<int64_t>(fabsf(distanciaCm) * (PULSOS_POR_METRO / 100.0f));
