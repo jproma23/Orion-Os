@@ -18,8 +18,11 @@ communication:
                                # desenvolvimento, nao a subrede Ethernet fixa
                                # de producao (192.168.50.x) que ainda nao
                                # existe fisicamente.
-    # 127.0.0.1 desde 2026-09-16: o Notebook foi aposentado e o Mission Core
-    # passou a rodar NO PROPRIO PI, do lado do Motion Core. Este campo ainda
+    # 127.0.0.1 desde 2026-09-16, quando o Mission Core passou a rodar NO
+    # PROPRIO PI, do lado do Motion Core. A aposentadoria do Notebook daquele
+    # dia foi desfeita em 30/09 (EDR-0036), mas o Mission Core continua no Pi
+    # nessa divisao - o Notebook volta so com visao e voz - entao o loopback
+    # segue certo. Este campo ainda
     # guardava o IP da Raspberry numa rede WiFi que nao existe mais, entao o
     # Mission Core subia e nunca achava rota ("Sem rota conhecida para o
     # destino motion_core") - e o chat respondia "o Fofao nao respondeu a

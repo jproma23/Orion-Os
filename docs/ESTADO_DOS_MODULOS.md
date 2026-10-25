@@ -10,6 +10,9 @@
 >
 > O que já se sabe estar errado aqui, sem precisar reconferir nada:
 >
+> - **"Mission Core (Notebook)"** — a divisão de máquinas mudou duas vezes
+>   depois deste mapa. A vigente é a **EDR-0036** (30/09/2026): Mission Core no
+>   Pi, visão e voz no Notebook. Em 25/10 ela estava executada pela metade.
 > - **"O robô ainda não se moveu"** (topo e leitura do mapa) — falso desde
 >   2026-07-29. Ver o teto de política no `ARQUITETURA.txt`.
 > - **`vision/pan_tilt.py` 🔴 "câmera não transmite"** — resolvido em 28/07; o

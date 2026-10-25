@@ -6,14 +6,25 @@ está aqui.
 
 ## O que é o projeto
 
-ORION OS é uma plataforma de robótica modular, 100% offline (sem nuvem).
-O primeiro robô é o **Fofão**, composto por três computadores em cadeia:
+ORION OS é uma plataforma de robótica modular, **offline-first**: tudo que
+mantém o robô seguro roda local, e a IA da conversa é remota, por API
+(EDR-0021). O primeiro robô é o **Fofão**.
+
+**Divisão de máquinas vigente: EDR-0036 (30/09/2026).** Ela substitui a da
+EDR-0019 e a aposentadoria do Notebook de 09/09.
 
 | Unidade | Papel | Hardware | Linguagem |
 |---|---|---|---|
-| Mission Core | Cérebro: IA, visão computacional, reconhecimento facial, planejamento, voz, avatar | Notebook 8 GB (Linux) | Python 3.11+ |
-| Motion Core | Navegação, fusão de sensores, ponte com o Arduino, **memória + banco no SSD 500 GB**, interface web | Raspberry Pi 4 (4 GB) | Python 3.11+ |
-| Hardware Core | Tempo real: motores, servos, sensores, segurança reativa | Arduino Mega 2560 | C++ (PlatformIO) |
+| Vision Core + Voice Core | YOLO, rostos, palavra de ativação, Whisper, chamadas da IA, Piper. **Só processa, não guarda estado** | Notebook 8 GB (Debian) + webcam USB + alto-falante USB | Python 3.13 |
+| Mission Core | Memória, recados, GOAP, decisões: **o dono do estado** | Raspberry Pi 4 (4 GB) + SSD | Python 3.13 |
+| Motion Core | Navegação, LiDAR, fusão de sensores, ponte com o corpo, banco no SSD, interface web | Raspberry Pi 4 | Python 3.13 |
+| Hardware Core (corpo) | Tempo real: motores, servos, bússola, segurança reativa | ESP32-D0WD-V3 (DevKit), desde 02/08 (o Arduino Mega morreu) | C++ (PlatformIO) |
+| Ouvidos | 2 microfones I2S, fala direto com o Notebook (TCP 9100) | ESP32 | C++ |
+| Rosto | Olhos, boca, toque | ESP32-S3 (tela 3,5"), ligada no Pi | C++ (ESP-IDF) |
+
+> **Estado em 25/10/2026:** a EDR-0036 está executada pela metade. O Mission
+> Core está desligado no Pi e roda dentro do `orion-avatar` do Notebook, com
+> código de 19/08. Ver a seção "Estado em 25/10" da EDR-0036.
 
 ## Fonte de verdade
 
@@ -23,9 +34,9 @@ alinhada ao documento do TCC pela decisão **EDR-0018**
 responsabilidades do **EDR-0019** (`docs/edr/EDR-0019-divisao-final-e-ssd.md`).
 **Nenhuma funcionalidade pode violar a especificação.** Em caso de dúvida,
 consulte o capítulo correspondente antes de implementar. Mudanças
-arquiteturais exigem um novo EDR em `docs/edr/` — o último é o EDR-0027.
+arquiteturais exigem um novo EDR em `docs/edr/` — o último é o EDR-0036.
 
-Mapa rápido: Cap 5 = protocolo | Cap 6 = Kernel | Cap 7 = Mission | Cap 8 = Vision (Notebook) |
+Mapa rápido: Cap 5 = protocolo | Cap 6 = Kernel | Cap 7 = Mission (Raspberry, EDR-0036) | Cap 8 = Vision (Notebook) |
 Cap 9 = Voice | Cap 10 = Hardware Core/firmware | Cap 11 = Memória (Raspberry/SSD) | Cap 12 = Motion Core/Navegação (Raspberry) |
 Cap 13 = Interface | Cap 14 = Comunicação | Cap 15 = Banco | Cap 16 = Diagnóstico |
 Cap 17 = Configuração | Cap 18 = Segurança | Cap 19 = Testes | Cap 20 = Roadmap.
@@ -34,24 +45,27 @@ Cap 17 = Configuração | Cap 18 = Segurança | Cap 19 = Testes | Cap 20 = Roadm
 
 1. **Toda comunicação entre módulos passa pelo Event Bus.** Nenhum módulo
    importa ou chama outro diretamente. (Cap 6)
-2. **Notebook ↔ Arduino: proibido.** A cadeia é Notebook —Ethernet—
-   Raspberry —USB Serial— Arduino. Só o Raspberry fala com o Arduino.
-   (Cap 3, 5; EDR-0018)
-3. **O Arduino nunca executa IA nem navegação**; apenas comandos simples
+2. **Notebook ↔ corpo: proibido.** A cadeia é Notebook —TCP— Raspberry
+   —Serial— ESP32 do corpo. Só o Raspberry fala com o corpo. (Cap 3, 5;
+   EDR-0018) O ESP32 dos **ouvidos** não é o corpo e fala direto com o
+   Notebook (EDR-0036).
+3. **O corpo (ESP32) nunca executa IA nem navegação**; apenas comandos simples
    (MOVE_FORWARD, MOVE_DISTANCE, TURN_LEFT, STOP, DOCK...) e segurança
    reativa. Toda a lógica de controle dos motores fica encapsulada nele.
    (Cap 10)
-4. **A visão computacional roda no Notebook** (`src/orion/vision/`);
-   navegação, banco de dados e interface web rodam no Raspberry
-   (`motion_core/`), com dados no SSD. (Caps 8, 12, 13, 15)
+4. **Visão e voz rodam no Notebook** (`src/orion/vision/`, `src/orion/voice/`);
+   Mission Core, navegação, banco de dados e interface web rodam no
+   Raspberry, com dados no SSD. O Notebook manda ao Pi só eventos, nunca
+   vídeo nem áudio. (Caps 8, 9, 12, 13, 15; EDR-0036)
 5. **Nenhum módulo abre o SQLite diretamente** — só via API de memória /
    Database Manager (que roda no Raspberry; o Notebook consulta via
-   Ethernet). O banco vive no SSD, nunca no cartão SD. (Cap 11, 15)
+   TCP). O banco vive no SSD, nunca no cartão SD. (Cap 11, 15)
    Backup diário com réplica cruzada Raspberry ↔ Notebook.
 6. **Nenhum valor fixo no código** — todo parâmetro vem de `config/orion.yaml`
    via Configuration Manager. (Cap 17)
-7. **Segurança em 3 camadas**: reativa no Arduino (nunca depende dos
-   demais), tática no Raspberry, estratégica no Notebook. Em dúvida,
+7. **Segurança em 3 camadas**: reativa no corpo/ESP32 (nunca depende dos
+   demais), tática e estratégica no Raspberry. **Se o Notebook sumir, o robô
+   fica parado, seguro e avisando** (EDR-0036). Em dúvida,
    parar. (Cap 18)
 8. **Todo COMMAND no protocolo exige ACK**; mensagens têm id, versão,
    timestamp e CRC — mesmo formato no TCP e no Serial. (Cap 5, 14)
@@ -66,23 +80,23 @@ orion-os/
 ├── config/orion.yaml          ← configuração única (Cap 17)
 ├── docs/
 │   ├── ses/                   ← especificação oficial (20 capítulos)
-│   └── edr/                   ← Engineering Decision Records (último: 0027)
-├── src/orion/                 ← código do Notebook (Mission Core + Kernel)
+│   └── edr/                   ← Engineering Decision Records (último: 0036)
+├── src/orion/                 ← Kernel + Mission (Pi) + Vision/Voice (Notebook), EDR-0036
 │   ├── kernel/                ← Event Bus, Service Registry, HAL, Watchdog
 │   ├── communication/         ← TCP (Raspberry), enquadramento, heartbeat (Cap 14)
-│   ├── mission/               ← IA (OpenRouter), planejador, coordenação (Cap 7)
+│   ├── mission/               ← IA (Gemini por API), planejador, coordenação (Cap 7)
 │   ├── vision/                ← OpenCV, YOLO, reconhecimento facial (Cap 8)
 │   ├── voice/                 ← Whisper + Piper + wake word "Fofão" (Cap 9)
-│   ├── display/               ← avatar na tela do notebook (Cap 13)
+│   ├── display/               ← ponte com a tela ESP32-S3 (rosto) e avatar (Cap 13)
 │   └── diagnostics/           ← autotestes, métricas, saúde (Cap 16)
 ├── motion_core/               ← código do Raspberry Pi — deploy separado
 │   ├── behavior/              ← o maestro: arbitragem de comportamentos (EDR-0020)
 │   ├── navigation/            ← patrulha, seguimento, fusão de sensores (Cap 12)
 │   ├── memory/                ← API de memória + Database Manager no SSD (Caps 11, 15)
 │   └── webui/                 ← interface web: dashboard, mapa, diagnóstico (Cap 13)
-│   (a ponte serial com o Mega NÃO mora aqui: é o ComunicacaoService de
+│   (a ponte serial com o corpo NÃO mora aqui: é o ComunicacaoService de
 │    src/orion/communication/, que o motion_core/__main__.py instancia)
-├── firmware/hardware_core/    ← PlatformIO / Arduino Mega (Cap 10)
+├── firmware/hardware_core/    ← PlatformIO / ESP32 do corpo (Cap 10); pinos em include/pins.h
 ├── tests/
 │   ├── unit/                  ← pytest; portas seriais e sockets simulados
 │   └── integration/           ← cenários INT-01..09 (Cap 19)
@@ -92,13 +106,13 @@ orion-os/
 ## Comandos
 
 ```bash
-# Ambiente (Notebook)
+# Ambiente (as duas máquinas: Pi e Notebook)
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Rodar o sistema
 python -m orion                      # boot completo (Cap 6, seção 4)
-python -m orion --sim                # com Raspberry/Arduino simulados
+python -m orion --sim                # com Raspberry/corpo simulados
 
 # Testes
 pytest tests/unit -q                 # unitários (rodar após TODA mudança)
@@ -106,7 +120,9 @@ pytest tests/integration -q -m sim   # integração com simuladores
 
 # Firmware
 cd firmware/hardware_core && pio run          # compilar
-cd firmware/hardware_core && pio run -t upload # gravar no Mega
+# gravar no ESP32 (no Pi): o reset automático NÃO funciona nesta montagem.
+# Segurar BOOT, parar o orion-motion, gravar com esptool --no-stub --baud
+# 115200 na porta /dev/serial/by-id/... e depois tirar e pôr o USB.
 ```
 
 ## Convenções de código
@@ -115,7 +131,7 @@ cd firmware/hardware_core && pio run -t upload # gravar no Mega
 - Eventos nomeados em inglês minúsculo com ponto: `motion.obstacle_front`,
   `vision.person_detected` (lista oficial nos Caps 5–16).
 - Mensagens do protocolo: JSON compacto conforme Cap 5 seção 5 — o mesmo
-  formato nos enlaces TCP (Notebook↔Raspberry) e Serial (Raspberry↔Arduino).
+  formato nos enlaces TCP (Notebook↔Raspberry) e Serial (Raspberry↔ESP32 do corpo).
 - Commits: `[modulo] descrição` (ex.: `[kernel] event bus com prioridades`).
 - Todo bug corrigido ganha teste de regressão (Cap 19).
 - Firmware: máquina de estados do Cap 10 seção 4; nunca bloquear o loop
@@ -141,7 +157,7 @@ Testes no hardware → Documentação → Commit
 4. **Testes unitários** — cobrindo o problema original (regra já existente:
    "todo bug corrigido ganha teste de regressão"). Rodar a suíte inteira,
    não só o arquivo tocado.
-5. **Testes no hardware** — validação física no Pi/Mega/robô de verdade.
+5. **Testes no hardware** — validação física no Pi/ESP32/robô de verdade.
    Testes unitários provam que o código faz o que foi escrito para fazer;
    só o hardware prova que o que foi escrito resolve o problema físico.
    **Uma correção sem este passo é "em validação", não "pronta"** — ver

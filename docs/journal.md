@@ -8882,3 +8882,319 @@ de tocar em qualquer linha.
   `git@github.com:jproma23/Orion-Os.git`, mas a chave do Pi ainda não está
   autorizada no GitHub — e o remoto está parado desde ~13/08, então a
   divergência precisa ser olhada antes de qualquer push.
+
+## Sessão de 2026-09-20 — o corpo estava falando outra língua, e o robô estava sem memória sem ninguém perceber
+
+Sessão longa, 8 commits. Começou com dois erros de log e terminou com o
+firmware do corpo reescrito, gravado e depois **trocado de volta** para a
+serial — por decisão do dono, depois de o WiFi falhar dos dois jeitos
+possíveis no mesmo dia.
+
+### O que estava quebrado e ninguém via
+
+Dois erros conviviam no log havia dias, e os dois falhavam **em silêncio**:
+o robô continuava falando e respondendo normalmente nos dois casos.
+
+**1. `400 Requests ending with a model turn` — a fala vazia chegava na IA.**
+
+Os três portões que barram transcrição ruim (vazio, alucinação, eco) só
+existiam em `_conversar_ate_o_silencio`. O caminho da palavra de ativação
+mandava o texto para o modelo sem olhar. Colhido no log de 19/09:
+
+    16:46:30  ouvi (rms=0.1486): 'Oi javis!'   -> acordou, respondeu
+    16:46:39  ouvi (rms=0.0238): ''            -> foi para a IA assim
+    16:46:39  400 Requests ending with a model turn are not supported
+
+O Gemini descarta a mensagem de usuário vazia, sobra o histórico terminando
+na fala dele, e a API recusa o pedido inteiro. Uma janela de silêncio virava
+uma chamada de cota gasta.
+
+Consertado extraindo `_motivo_para_descartar()` e usando nos **dois**
+caminhos, em vez de copiar a regra. Devolve o motivo e não um booleano
+porque só a sessão contabiliza silêncio, e cada motivo pesa diferente lá.
+
+Detalhe que importa: acordar sem comando **não** volta para o IDLE. Quem diz
+a palavra de ativação quer falar, só não chegou a tempo nos 3 s — cair fora
+ali obrigaria a repetir "Oi javis", que é o "falar em dois tempos" que o
+projeto já tinha decidido não exigir. Pula-se só a resposta e abre-se a
+sessão. (`df692e8`)
+
+**2. 98 × `Sem rota conhecida para o destino 'motion_core'` — o robô sem
+memória o dia inteiro.**
+
+Duas causas somadas:
+
+- **Corrida no boot.** Desde que Mission e Motion viraram serviço systemd no
+  mesmo Pi, sobem juntos, e o Mission chegava na porta antes de ela existir
+  (`Errno 111`). `After=orion-motion.service` **não cobre isso**: o systemd
+  espera o processo nascer, não o socket abrir.
+- **Sem reconexão em operação.** O Mission Core montava `HealthMonitor` e
+  `Watchdog`, mas nenhum `MonitorHeartbeat`.
+
+A máquina de reconexão **sempre existiu e já era usada** — pelo Motion Core,
+que monitora `mission_core` e `hardware_core` desde 06/08. Um `grep` só em
+`src/` não vê isso, porque `motion_core/` fica fora de `src/`; foi o erro da
+minha primeira leitura. A metade que faltava era a deste lado.
+
+`_criar_reconexao_motion_core` é o espelho de `_criar_reconexao_hardware_core`
+(mesmo backoff 2→30 s, mesma guarda de laço único). E monitora **mesmo sem
+ter conectado**: se o Motion Core demorar mais que a paciência do boot, é só
+por aí que o robô ainda acha o corpo depois. (`98f6878`)
+
+**Medido em produção, duas vezes.** Derrubando o Motion Core de propósito:
+perda detectada na hora, reconectou na 3ª tentativa, **7 s** de queda total.
+E no boot real do Pi, horas depois, a corrida apareceu sozinha:
+
+    11:09:41  Motion Core ainda nao atende (tentativa 1) - esperando 2s
+    ...
+    11:09:49  Raspberry (Motion Core) conectado: motion_core v0.1.0
+
+Com o código anterior teria desistido na tentativa 1.
+
+### Nav2 sob demanda — 225 MB devolvidos
+
+Pedido do dono: *"o que consome muita ram só usar no momento certo"*. O Nav2
+vivia com `restart: unless-stopped`, subindo no boot e ficando de pé para
+sempre com SLAM, planner e costmap girando com o robô parado.
+
+Medido parando e subindo o container de verdade:
+
+    nav2 no ar    1686 MB livres     subir até o bridge responder: 15 s
+    nav2 parado   1911 MB livres     parar (SIGTERM):              11 s
+    ---------------------------------
+    custo          225 MB   (5,9% da RAM de um Pi que só tem 3,8 GB)
+
+**O número que a máquina sente é 225 MB.** Somar o RSS dos 12 processos dava
+386 MB e estava errado — RSS conta as bibliotecas do ROS, compartilhadas
+entre eles, uma vez por processo. Corrigi isso depois de já ter dito 386 ao
+dono.
+
+Não custa o mapa: o `slam_toolbox` roda em `mode: mapping` **sem**
+`map_file_name`, ou seja, nunca salvou nada — o mapa já morria a cada boot.
+
+O `GerenteNav2` liga no primeiro goal e desliga após 10 min ocioso. Três
+detalhes não óbvios estão no código: "container rodando" ≠ "Nav2 pronto"
+(quem responde é a sonda, e um 404 conta como vivo); uma subida por vez; e o
+gerente é reavisado a cada 30 s **enquanto o robô anda**, senão uma navegação
+longa seria desligada no meio do caminho. (`b59a704`)
+
+### O corpo não estava mudo — estava falando WebSocket
+
+Sintoma: `Hardware Core não encontrado em nenhuma porta` a cada 35 s, toda a
+telemetria de hardware nula. Parando o `orion-motion` e escutando a serial
+**a 115200** (não a 250000 do projeto):
+
+    Conectando ao WiFi
+    WiFi ok! IP: 10.20.20.112
+    Corpo ORION pronto! ws://10.20.20.112:81
+
+O ESP32 tinha sido regravado com um firmware WiFi. **O fonte não existia** —
+nem no repo, nem no Pi, nem no Windows. O protocolo foi recuperado com
+`strings` na flash do próprio chip (backup de 4 MB em
+`~/backups/firmware_corpo/`, **fora do repo: contém a senha do WiFi em texto
+claro**) e confirmado ao vivo com `{"cmd":"ping"} -> {"pong":true}`.
+
+Escrevi um `TransporteCorpoWS` que faz o ESP32 novo parecer o antigo. A
+primeira versão estava **errada**: assinava `motion.comando_hardware` e
+publicava `hardware.telemetry`, dois nomes que existiam só nela — ninguém
+publicava o primeiro (quem manda comando é o `comm.send`) e ninguém consumia
+o segundo (os cinco consumidores assinam `comm.mensagem.telemetry`). Era o
+"publicar no vazio" de sempre. Reescrito como `Transporte`, o que deixou
+`NavigationCore`, `SafetyManager` e webui sem mudar uma linha. (`2aa003a`)
+
+### Firmware do corpo, com fonte (`ff7dd91`)
+
+Reescrito em `firmware/corpo_ws/`, reusando os managers do `hardware_core`
+por `-I` (não copiados — duas cópias divergiriam na primeira correção). Os
+quatro buracos que a ponte remendava:
+
+1. **não andava distância** → `move`/`turn` terminam **dentro do ESP32**, com
+   o PID e o encoder locais, que já existiam em `motor_manager.h` e só não
+   tinham como ser chamados;
+2. **sem freio próprio** → watchdog para os motores após 1,5 s sem comando;
+3. **sem ACK** → responde de verdade;
+4. **sem bússola nem DHT** → de volta na telemetria.
+
+A ponte serve aos dois firmwares e **detecta qual está do outro lado pela
+telemetria** (o novo publica `estado`), não por uma chave na config —
+esquecer de virar a chave depois de gravar daria um robô que anda e não para.
+
+**Bug pego antes de gravar:** escrevi o `drive` de ré assumindo que
+`andarFrente(-velocidade)` andava para trás. Não anda — aquele método ignora
+o sinal. Em vez de contornar, adicionei `andarRe()` ao `motor_manager.h`, que
+é onde o buraco estava.
+
+### "E quando mudar de rede?" (`325aaf6`)
+
+Pergunta do dono olhando o firmware antes de gravar. Com SSID e senha
+compilados, a resposta era: cabo, computador e regravação.
+
+As credenciais foram para a NVS, que **sobrevive à regravação**. Três formas
+de trocar, nenhuma com cabo: comando WebSocket, portal AP (`orion-corpo`,
+com a página listando as redes visíveis) e o `segredos_wifi.h` só como padrão
+de fábrica. Se a rede nova não responder, ele volta sozinho para a anterior.
+
+### Os dois jeitos de o WiFi sumir — os dois no mesmo dia
+
+Isto é o que decidiu o resto da sessão:
+
+- **o IP muda**: o DHCP trocou `.112` por `.102` na primeira regravação, e o
+  corpo sumiu até alguém editar o `orion.yaml` à mão — exatamente o risco que
+  eu **tinha escrito na config poucas horas antes** e ignorado ao deixar um
+  IP fixo lá;
+- **o nome some**: pus mDNS (`orion-corpo.local`) para resolver o primeiro
+  problema, e em menos de 10 minutos ele parou de anunciar **sem o ESP32
+  reiniciar** — o avahi deixou de ver o serviço e `getent hosts` passou a
+  falhar, com o WebSocket vivo no IP o tempo todo.
+
+Resposta: a ponte passou a tentar **vários endereços em ordem**, com o que
+responde indo para a frente da fila.
+
+### Decisão do dono: volta para a serial (`76adc9f`)
+
+Ele cogitou hub USB; a **UART do header GPIO** é melhor em tudo que importa
+aqui — não gasta porta nenhuma, não tem conversor no caminho, e a PL011 tem
+clock próprio (a mini-UART segue o clock do core e corrompe quadros a 250000).
+Ela já estava habilitada desde a manhã (`enable_uart=1` + `dtoverlay=disable-bt`,
+backup do boot em `~/backups/boot-20260920-102714/`) e o reboot do Pi já a
+ativou: `/dev/ttyAMA0` existe.
+
+O ESP32 foi regravado com o `hardware_core` e o `orion.yaml` voltou a
+`transporte: serial`. **A serial ainda traz mais dado** — medido logo após
+gravar:
+
+    {"estado":"IDLE","bussola_conectada":true,"rumo_graus":267.594,
+     "campo_ut":28.717,"i2c_enderecos":[13],"loop_max_us":5790,
+     "loop_media_us":14,"t_bussola_us":6646}
+
+Bússola, varredura de I2C e tempos de loop — nada disso existia no JSON do
+WebSocket. E a bússola voltou a alimentar a navegação:
+`posicao.orientacao_origem` é "bussola" de novo.
+
+O caminho WebSocket inteiro **continua no repositório e funciona** (31
+testes): serve se um dia o corpo ficar longe do Pi.
+
+### Encoder: 11 PPR deixou de ser chute (`2a2ad1f`)
+
+A ficha do fabricante chegou com o motor (JGB37 + L298N) e confirma o que era
+palpite: *"Yellow: 11 pulses per circle of signal line motor"*. A constante
+perdeu o sufixo `_CHUTE`. A mesma ficha confirma que o encoder é de
+**quadratura** (canal B no fio verde).
+
+Dois comentários que viraram mentira em 19/09 foram corrigidos: o motivo do
+canal único (os ECHO dos ultrassons) **caiu** — os ultrassons saíram, GPIO 34
+e 35 estão livres e são input-only. A quadratura completa deixou de ser
+impossível e virou tarefa não feita.
+
+### Erros meus nesta sessão, para não se repetirem
+
+- **Disse 386 MB de economia do Nav2** somando RSS. O real, medido ligando e
+  desligando, é 225 MB.
+- **Gravei três vezes na porta errada.** Depois de um reboot do Pi o
+  `ttyUSB1` virou o LiDAR e o ESP32 foi para o `ttyUSB0`. O erro
+  `Invalid head of packet (0xAA)` era o header do LiDAR respondendo — e o
+  próprio `orion.yaml` já mandava usar o caminho by-id.
+- **Afirmei que o Pi reiniciava sozinho** quando o uptime voltou a poucos
+  minutos. Era o dono que tinha desligado, horas antes. O relógio tinha
+  pulado de 11:07 para 18:14 e eu vi o salto sem tirar a conclusão certa.
+  **Conferir a HORA, não só o uptime.**
+- **Escrevi um risco na config e o ignorei na linha seguinte** (o IP fixo).
+- **Deixei um backup em `/tmp`** entre dois comandos e o perdi quando a
+  máquina foi religada.
+
+### Estado ao fim da sessão
+
+- Três serviços no ar; corpo em `IDLE`, bússola lendo, zero erros no log.
+- **Suíte: 1261 passam** (eram 1210 no começo do dia).
+- 8 commits em `master`, **só no Pi** — não foram para o GitHub.
+- O trabalho do dono (`jarvis_plugins/`, `ai_manager.py`, `mission_planner.py`,
+  `ponte_serial.py`) ficou **fora dos commits, de propósito**.
+
+### Pendências
+
+- **A chave do Gemini** continua sendo um código OAuth (`AQ.Ab8...`), não uma
+  chave `AIzaSy...`. O dono disse que a cota vai ser restaurada; se depois
+  disso a IA não voltar, é a chave.
+- **Passar os três fios** do header (Pi 8→RX, 10→TX, 6→GND) e trocar `port`
+  para `/dev/ttyAMA0`. Não precisa reiniciar o Pi de novo.
+- **Gravar este ESP32 exige segurar o botão BOOT** e `--no-stub --baud 115200`
+  (o stub flasher falha). Está no README de `firmware/corpo_ws/`.
+- **Três números ainda são suposição** e entram na conta de `andarDistancia`:
+  redução (1:90), bitola (0,45 m) e a escala do PWM. Medir com as rodas no ar.
+- **`motor_core/` é firmware órfão** de um plano abandonado (ESP32 dedicado ao
+  motor, 13/09), contradito pelo `hardware_core` seis dias depois.
+- **Mover a autonomia reativa para o ESP32** (desenho do dono): LiDAR ligado
+  direto nele, desvio e odometria locais, Pi mandando alto nível. O que **não**
+  cabe lá: SLAM/nav2 (225 MB), GOAP (3.877 linhas), memória, webui, visão —
+  o ESP32 tem 278 KB livres contra 468 MB do Motion Core.
+- **O dono vai montar o hardware.** O software está num ponto de parada limpo.
+
+## Sessão de 2026-10-25 — o motor não girou por três motivos empilhados, e o Notebook tinha voltado pela metade
+
+### O que aconteceu entre 20/09 e hoje sem passar por aqui
+
+O journal ficou mais de um mês parado. A entrada de 20/09 acima só foi anexada hoje: o Pi caiu antes de ela ser escrita, e o texto ficou guardado no Windows. Neste meio-tempo:
+
+- **27/09**: o rosto expressivo foi gravado na tela ESP32-S3 (11 fps, toque ST77922).
+- **30/09**: **o dono desfez a aposentadoria do Notebook.** A nova divisão está na **EDR-0036**: visão e voz no Notebook, Mission Core no Pi.
+- **12/10**: a volta foi executada **pela metade**, como descrito na seção abaixo.
+
+### O Notebook voltou, mas com o código de agosto e com a memória
+
+Conferido hoje nas duas máquinas:
+
+- No Pi, o `orion-mission` está **desligado e desabilitado** desde 12/10, 18:21.
+- No Notebook, o `orion-avatar` (`tools/conversar_fofao.py`) roda o código de **19/08** (`c9c45a8` + 61 arquivos sem commit). Esse código inclui o Mission Core inteiro.
+- A única mudança de 12/10 no Notebook foi na config. O Pi passou a ser achado por `pi-os.local`, porque o IP mudou por DHCP. O alto-falante passou a ser o índice 5, porque o 4 virou a webcam.
+
+O robô conversa, mas **a memória roda no lado que a EDR-0036 diz que não guarda nada**. Os códigos divergiram nos dois sentidos: o Pi tem 38 commits que o Notebook não tem, e o Notebook tem 9 commits e 61 arquivos que o Pi não tem, entre eles o identificador de voz (SpeechBrain). Nada disso foi juntado hoje. Mexer nisso mexe no robô que está falando, então fica para uma sessão com o dono testando.
+
+O **Pi trocou de IP** (de .196 para .106). O IP fixo decidido em 30/09 não foi feito, e o remote `pi` do git no Notebook ainda aponta para o endereço velho.
+
+### Bancada: ligação dos motores JGB37 + L298N
+
+O dono refez a fiação. A **fiação real**, que agora está no `pins.h`:
+
+| O quê | GPIO |
+|---|---|
+| L298N IN1..IN4 | 32, 33, 25, 26 |
+| Encoder esquerdo A / B | 34 / 35 |
+| Encoder direito A / B | 14 / 27 |
+| ENA / ENB | jumper no módulo; 13 e 15 ficam sempre em HIGH, por garantia |
+
+Também mudou:
+- **A placa do dono não tem GPIO 36 nem 39.** O firmware punha os dois encoders justamente neles, ou seja, em pino nenhum. O mapa de 20/09 copiou o `pins.h` sem conferir a placa.
+- **O relé saiu do robô.** O L298N fica direto na fonte, e o motor para porque os IN vão para LOW. Consequência registrada no `pins.h`: no boot e no reset, os IN ficam soltos por alguns milissegundos com a ponte energizada.
+- **A velocidade passou a ser PWM nos próprios IN**, porque o ENA e o ENB não vêm do ESP32.
+
+### Os três motivos de a roda não girar
+
+1. **Bug de software, anterior a hoje:** a ESP32Servo distribui os canais LEDC a partir do 0, então o pan ficava com o canal 0 e o tilt com o 1. **O motor também usava o 0 e o 1.** O `attach()` dos servos roda depois do `motores.iniciar()` e reconfigurava os canais para 50 Hz: o motor recebia pulso de servo, e todo `ledcWrite` do motor mexia no pan. Nunca apareceu porque o PWM do motor DC nunca tinha rodado com motor de verdade. **Conserto:** os motores foram para os canais 14 e 15 (grupo low-speed), que a ESP32Servo só alcança depois de ocupar outros 12.
+2. **Faltava o GND comum** entre o L298N e o ESP32.
+3. **O L298N é alimentado com 5 V e o motor é de 5 V**, segundo o dono. O L298N perde de 2 a 3 V por dentro, então sobram uns 3 V para o motor. Com um pack de 18 V seriam ~16 V num motor de 5 V, o que não serve. O caminho seguro com o pack é um **buck em ~7 V** na entrada do L298N, ou um driver de baixa perda (TB6612FNG ou DRV8833).
+
+Mesmo com o GND ligado e 100% de PWM, **nenhuma roda girou** e **nenhum encoder contou um pulso**. A causa ainda não está isolada: não houve medição com multímetro.
+
+### Ferramenta nova: `TEST_WHEEL` + `tools/testar_roda.py`
+
+É um comando de bancada que gira **uma roda só**, em malha aberta (sem o PID para esconder erro de ligação). Enquanto a roda gira, ele amostra os fios A e B do encoder e responde:
+- quantas bordas chegaram em cada canal;
+- a contagem do PCNT;
+- a ordem entre A e B (subida de A com B baixo ou B alto), que revela o sentido.
+
+A versão gravada às 10:35 lê também o nível real dos pinos IN durante o giro (`in_ativo_alto_pct`, `in_outro_alto_pct`). Isso diz se o sinal sai do ESP32 sem precisar de multímetro. O ESP32 voltou sozinho depois da gravação, confirmado pelo Motion Core às 10:36:03.
+
+O `orion-motion` precisa estar parado enquanto a ferramenta usa a serial.
+
+### Erros meus nesta sessão
+
+- **Supus motor de 12 V** e recomendei trocar a fonte. O dono corrigiu: é de 5 V.
+- O primeiro teste foi a **40%**, com o L298N já em 5 V, potência baixa demais para mostrar qualquer coisa.
+- Escrevi a ferramenta de bancada com **aspas que se perderam no heredoc** do SSH, e ela não rodou na primeira vez.
+- O SSH do Pi passou a **fechar toda conexão antes do banner**, enquanto ping e câmera respondiam. O dono teve que reiniciar o Pi. **A causa não foi descoberta.** Depois do reinício, `get_throttled=0x0`.
+
+### Não feito / pendente
+
+- **O firmware de hoje não foi commitado** (`pins.h`, `motor_manager.h`, `encoder_pcnt.cpp`, `main.cpp`, `tools/testar_roda.py`). O ESP32 está rodando a versão com os canais 14/15 e o `TEST_WHEEL` com a leitura dos IN.
+- A bancada continua: rodar `tools/testar_roda.py` com as rodas no ar, ler os IN e só então o encoder.
+- Juntar os códigos do Pi e do Notebook e religar o Mission Core no Pi (EDR-0036).

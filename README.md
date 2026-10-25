@@ -5,23 +5,24 @@
 <h1 align="center">ORION OS</h1>
 
 <p align="center">
-  <strong>Plataforma de robótica modular, 100% offline.</strong><br>
+  <strong>Plataforma de robótica modular, offline-first.</strong><br>
   Primeiro robô: <strong>Fofão</strong>.
 </p>
 
 <p align="center">
   <a href="https://jproma23.github.io/Orion-Os/"><img alt="Diário de bordo" src="https://img.shields.io/badge/diário_de_bordo-2a3f8f?style=flat-square"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white">
-  <img alt="C++" src="https://img.shields.io/badge/C++-Arduino-00979D?style=flat-square&logo=arduino&logoColor=white">
+  <img alt="C++" src="https://img.shields.io/badge/C++-ESP32-00979D?style=flat-square&logo=espressif&logoColor=white">
   <img alt="Testes" src="https://img.shields.io/badge/testes-305_passando-2e7d32?style=flat-square">
-  <img alt="Offline" src="https://img.shields.io/badge/nuvem-nenhuma-555?style=flat-square">
 </p>
 
 ---
 
 Um robô que percebe o ambiente, decide sozinho o que fazer e conversa com
-quem mora na casa — **sem depender de nuvem para nada**. Visão, voz e
-modelos de linguagem rodam localmente, no hardware que está na bancada.
+quem mora na casa. **Tudo que mantém o robô seguro roda local**: visão,
+escuta, navegação, memória e segurança. A IA da conversa é remota, por API
+(Gemini, EDR-0021). Sem internet, o robô continua seguro, mas conversa
+pouco.
 
 **[→ Diário de bordo do desenvolvimento](https://jproma23.github.io/Orion-Os/)**
 — cada sessão registrada no dia em que aconteceu, os acertos e os bugs que
@@ -29,26 +30,33 @@ custaram caro.
 
 ## Arquitetura
 
-Três computadores em cadeia. Cada um só fala com o vizinho — o Notebook
-nunca acessa o Arduino direto.
+Duas máquinas e três ESP32. A divisão vigente é a da
+[EDR-0036](docs/edr/EDR-0036-notebook-volta.md) (30/09/2026): o Notebook faz o
+trabalho pesado que pode esperar, e o Pi faz o que não pode falhar e guarda o
+estado.
 
 ```
-   Notebook 8 GB            Mission Core     IA, visão, voz, avatar
-        │  Ethernet / TCP
-   Raspberry Pi 4 + SSD     Motion Core      kernel, decisão, navegação, banco, web UI
-        │  USB Serial
-   Arduino Mega 2560        Hardware Core    motores, servos, sensores, segurança reativa
+   ESP32 ouvidos ──Wi-Fi──► Notebook 8 GB         Vision + Voice   YOLO, rostos, Whisper, IA, Piper
+   (2 mics I2S)                  │  TCP (só eventos, nunca vídeo/áudio)
+                             Raspberry Pi 4 + SSD  Mission + Motion memória, decisão, navegação, LiDAR, web UI
+                              │ serial      │ USB
+                     ESP32 do corpo     ESP32-S3 (tela)
+                     motores, servos,   rosto e toque
+                     bússola, segurança
 ```
 
 | Unidade | Hardware | Linguagem | Responsabilidade |
 |---|---|---|---|
-| **Mission Core** | Notebook 8 GB (Linux) | Python 3.11+ | Reconhecimento facial, conversa por voz, avatar, planejamento de missão |
-| **Motion Core** | Raspberry Pi 4 (4 GB) + SSD 500 GB | Python 3.11+ | Kernel, Behavior Core, fusão de sensores, memória, interface web |
-| **Hardware Core** | Arduino Mega 2560 | C++ (PlatformIO) | Tempo real: motores, servos, ultrassom, bússola, parada de emergência |
+| **Vision + Voice Core** | Notebook 8 GB (Debian), webcam e alto-falante USB | Python 3.13 | Rostos, YOLO, palavra de ativação, Whisper, chamadas da IA, Piper. Não guarda estado |
+| **Mission Core** | Raspberry Pi 4 (4 GB) + SSD 500 GB | Python 3.13 | Memória, recados, GOAP, decisões |
+| **Motion Core** | Raspberry Pi 4 | Python 3.13 | Kernel, Behavior Core, LiDAR, fusão de sensores, interface web |
+| **Hardware Core** | ESP32 (DevKit) | C++ (PlatformIO) | Tempo real: motores DC com encoder, servos, bússola, parada de emergência |
+| **Rosto** | ESP32-S3, tela 3,5" | C++ (ESP-IDF) | Olhos, boca sincronizada com a fala, toque |
 
-A divisão está fixada nos EDRs [0018](docs/edr/EDR-0018-arquitetura-tcc.md)
-e [0019](docs/edr/EDR-0019-divisao-final-e-ssd.md); as regras invioláveis,
-em [`ARQUITETURA.txt`](ARQUITETURA.txt).
+> **Em 25/10/2026 a EDR-0036 está executada pela metade:** o Mission Core
+> ainda roda no Notebook, com código de agosto. Ver a EDR.
+
+As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
 
 ## O que já funciona
 
@@ -56,23 +64,23 @@ em [`ARQUITETURA.txt`](ARQUITETURA.txt).
   registry, health monitor, watchdog com escalonamento e boot manager
 - **Behavior Core** — arbitragem de prioridade entre comportamentos
   autônomos: repouso, atender, vigília e desvio de obstáculo
-- **Protocolo binário** entre Pi e Arduino — enquadramento por tamanho, CRC,
-  ACK, heartbeat e reconexão automática
+- **Protocolo** entre Pi e corpo (ESP32): quadros JSON com CRC, ACK,
+  heartbeat e reconexão automática
 - **Visão** — reconhecimento facial: o robô sabe quem é da casa e dispara
   alerta para rosto desconhecido
-- **Voz** — wake word, VAD e resposta falada, com modelo de linguagem local
+- **Voz** — wake word, VAD, Whisper e resposta falada pelo Piper; a IA da conversa é o Gemini, por API
 - **Memória** — diário de observações em banco, com consulta determinística
   ("você viu o fulano hoje?") separada da conversa livre
-- **Navegação** — fusão de odometria e bússola publicando `motion.position`
-- **Interface web** — dashboard com mapa polar do radar, telemetria ao vivo,
+- **Navegação** — LiDAR STL-50B2, fusão de odometria e bússola publicando `motion.position`
+- **Interface web** — dashboard com o mapa do LiDAR, telemetria ao vivo,
   diagnóstico e configuração
 
 ## Estrutura
 
 ```
-src/orion/          Mission Core: kernel, communication, vision, voice, mission, display
+src/orion/          kernel, communication, mission (Pi), vision e voice (Notebook), display
 motion_core/        Motion Core: behavior, navigation, memory, webui
-firmware/           Hardware Core: firmware do Arduino Mega (PlatformIO)
+firmware/           Hardware Core: firmware do ESP32 do corpo (PlatformIO)
 docs/ses/           Especificação do sistema, capítulos 01 a 20
 docs/edr/           Registros de decisão de arquitetura
 docs/journal.md     Diário de bordo — vira o blog via tools/build_blog.py
@@ -96,8 +104,8 @@ Testes e lint:
 tools/check.sh            # ruff + pytest
 ```
 
-O firmware do Arduino fica em `firmware/hardware_core/`, compilado com
-PlatformIO.
+O firmware do corpo (ESP32) fica em `firmware/hardware_core/`, compilado com
+PlatformIO. Os pinos estão em `firmware/hardware_core/include/pins.h`.
 
 ## Documentação
 
