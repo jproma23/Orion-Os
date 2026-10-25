@@ -1,6 +1,6 @@
 """Comportamento: a unidade plugável do Behavior Core (EDR-0020).
 
-Cada comportamento do Fofão (atender, vigiar, patrulhar, repousar...) é uma
+Cada comportamento do Jarvis (atender, vigiar, patrulhar, repousar...) é uma
 subclasse desta. O maestro (BehaviorCore) escolhe, a cada instante, o
 comportamento de MAIOR prioridade que "quer rodar" e o coloca no controle.
 """
@@ -56,7 +56,7 @@ class Comportamento:
     def quer_rodar(self) -> bool:
         """True quando este comportamento deseja o controle AGORA.
 
-        A subclasse liga isso ao seu gatilho (ex.: ouviu "Fofão", detectou
+        A subclasse liga isso ao seu gatilho (ex.: ouviu "Jarvis", detectou
         rosto desconhecido, chegou o horário da ronda). Quando o valor muda,
         a subclasse deve chamar `maestro.pedir_reavaliacao()` para o maestro
         reagir na hora, sem esperar o próximo tick.

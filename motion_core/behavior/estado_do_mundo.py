@@ -1,4 +1,4 @@
-"""Modelo de mundo unificado do Fofão (base da integração cognitiva).
+"""Modelo de mundo unificado do Jarvis (base da integração cognitiva).
 
 PROBLEMA QUE RESOLVE
 --------------------

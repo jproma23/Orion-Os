@@ -21,3 +21,5 @@ yolov8n.pt
 # So entra no repositorio depois de revisado e publicado em content/aulas.
 content/rascunhos/
 firmware/corpo_ws/include/segredos_wifi.h
+# valores so desta maquina (kernel/config.py: caminho_local)
+config/orion.local.yaml

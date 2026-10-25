@@ -329,7 +329,7 @@ class AiManager:
         None se a resposta vier fora do vocabulario ou a chamada falhar
         (Cap 6 s.8 - quem chama trata None como "sem decisao agora")."""
         prompt = (
-            "Voce e o Javis, um robo cuidador do lar e da familia. Decida o "
+            "Voce e o Jarvis, um robo cuidador do lar e da familia. Decida o "
             "proximo comportamento pensando no bem-estar e na seguranca de "
             "quem mora na casa. Escolha APENAS UMA destas acoes e responda so "
             f"com a palavra exata, sem mais nada: {', '.join(acoes_validas)}.\n\n"
@@ -364,7 +364,7 @@ class AiManager:
     # no log sem liberar um byte.
     #
     # Por isso o metodo foi REMOVIDO e nao esvaziado: quem monta o alivio
-    # (conversar_fofao) parou de passar `descarregar_modelo`, e o alivio
+    # (conversar_jarvis) parou de passar `descarregar_modelo`, e o alivio
     # agora conta so com o que de fato libera memoria - pausar a visao, que
     # e o maior consumidor da maquina (YOLO + reconhecimento facial).
 

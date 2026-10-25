@@ -2,14 +2,14 @@
 from orion.voice.wake_word import DetectorPalavraAtivacao
 
 
-def test_detecta_javis():
+def test_detecta_jarvis():
     detector = DetectorPalavraAtivacao()
-    assert detector.verificar("Javis, que horas são?") is True
+    assert detector.verificar("Jarvis, que horas são?") is True
 
 
-def test_detecta_javis_no_meio_da_frase():
+def test_detecta_jarvis_no_meio_da_frase():
     detector = DetectorPalavraAtivacao()
-    assert detector.verificar("javis voce esta ai") is True
+    assert detector.verificar("jarvis voce esta ai") is True
 
 
 def test_detecta_jarvis_com_o_erre():
@@ -29,13 +29,13 @@ def test_nao_detecta_sem_a_palavra():
 
 def test_nao_detecta_substring_dentro_de_outra_palavra():
     detector = DetectorPalavraAtivacao()
-    assert detector.verificar("javiszinho gostoso") is False
+    assert detector.verificar("jarviszinho gostoso") is False
 
 
 def test_palavra_customizada():
     detector = DetectorPalavraAtivacao(palavras_ativacao=("robo",))
     assert detector.verificar("ei robo, vem aqui") is True
-    assert detector.verificar("javis, oi") is False
+    assert detector.verificar("jarvis, oi") is False
 
 
 def test_case_insensitive():
@@ -47,9 +47,9 @@ def test_detecta_palavra_quebrada_em_dois_tokens():
     """Achado real, testado ao vivo em 2026-07-24 com a palavra de entao
     ('FO FÃO'): o Whisper as vezes transcreve o nome com um espaco no
     meio, o que quebrava o casamento por borda de palavra. O defeito e da
-    transcricao, nao da palavra - vale igual para "ja vis"."""
+    transcricao, nao da palavra - vale igual para "jar vis"."""
     detector = DetectorPalavraAtivacao()
-    assert detector.verificar("JA VIS, que dia e hoje?") is True
+    assert detector.verificar("JAR VIS, que dia e hoje?") is True
     assert detector.verificar("ja vis") is True
 
 
@@ -58,8 +58,8 @@ def test_detecta_com_pequeno_erro_de_transcricao():
     transcricao quase certa sem abrir mao de exigir a palavra de
     verdade."""
     detector = DetectorPalavraAtivacao()
-    assert detector.verificar("javes, oi") is True  # 1 letra trocada
-    assert detector.verificar("javi, oi") is True  # falta 1 letra
+    assert detector.verificar("jarves, oi") is True  # 1 letra trocada
+    assert detector.verificar("javis, oi") is True  # falta 1 letra - e como o Whisper as vezes ouve
 
 
 def test_nao_detecta_transcricoes_muito_diferentes():
@@ -75,7 +75,7 @@ def test_nao_detecta_transcricoes_muito_diferentes():
 
 def test_fuzzy_nao_dispara_em_palavra_curta_qualquer():
     """A tolerancia fonetica (passo 3) e restrita a tokens de tamanho
-    parecido com 'javis' - nao pode disparar em qualquer frase comum do
+    parecido com 'jarvis' - nao pode disparar em qualquer frase comum do
     dia a dia."""
     detector = DetectorPalavraAtivacao()
     assert detector.verificar("oi, tudo bem com voce") is False

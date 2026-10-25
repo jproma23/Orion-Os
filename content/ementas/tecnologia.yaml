@@ -38,7 +38,7 @@ niveis:
       aula: tecnologia.sensores-atuadores.basico
     - id: tec.robotica-intro
       titulo: O que é um robô
-      conteudo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+      conteudo: Perceber, decidir e agir; graus de autonomia, com o Jarvis como exemplo.
       aula: tecnologia.robotica-intro.basico
   intermediario:
     descricao: Montar e programar coisas que funcionam.

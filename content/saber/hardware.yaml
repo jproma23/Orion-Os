@@ -20,7 +20,7 @@ conhecimentos:
   - tipo: conceito
     titulo: ESP32
     corpo: >-
-      Microcontrolador do audio: capta os microfones e o wake word "Fofao" e
+      Microcontrolador do audio: capta os microfones e o wake word "Jarvis" e
       transmite por socket TCP (16 kHz) para o Notebook. O transporte e
       correto; o ruido de captacao (SNR do mic) e o portao aberto do hardware.
     fonte: orion.yaml (voice) e ROADMAP portao 1

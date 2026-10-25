@@ -82,7 +82,7 @@ async function enviarMensagem(texto) {
   campo.disabled = true;
   botao.disabled = true;
   chatStatus.className = 'chat-status';
-  chatStatus.textContent = 'o Fofão está pensando...';
+  chatStatus.textContent = 'o Jarvis está pensando...';
   balaoProvisorio(texto);
   try {
     const resposta = await fetch('/api/conversa/mensagem', {

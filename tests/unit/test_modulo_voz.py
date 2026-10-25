@@ -12,7 +12,7 @@ from orion.kernel.modulo import ModuloOrion
 from orion.voice.modulo import ModuloVoz
 
 CONFIG_VOZ = {
-    "wake_word": "fofão",
+    "wake_word": "jarvis",
     "whisper_model": "base",
     "whisper_model_ativacao": "base",
     "piper_voice_path": "data/piper_voices/pt_BR-faber-medium.onnx",

@@ -3,7 +3,7 @@
 Todo modulo de alto nivel do Notebook (Vision, Voice, Mission/IA, Display)
 cumpre este protocolo, para o Boot Manager conseguir subir, vigiar e
 desligar todos da mesma forma - em vez de encanamento diferente para cada
-um, que foi como tools/conversar_fofao.py virou o sistema inteiro.
+um, que foi como tools/conversar_jarvis.py virou o sistema inteiro.
 
 Regras do contrato (EDR-0023 secao 1):
 

@@ -56,6 +56,8 @@ class VoiceCore:
         detector_atividade: DetectorAtividadeSonora | None = None,
         assentamento_pos_fala_s: float = 0.9,
         silencios_para_fechar_sessao: int = 2,
+        identificador_locutor=None,
+        exigir_palavra_ativacao: bool = True,
     ) -> None:
         self._event_bus = event_bus
         self._indice_microfone = indice_microfone
@@ -107,6 +109,22 @@ class VoiceCore:
         #: que a pessoa saiu, e longo o bastante para ela pensar antes de
         #: responder sem ser expulsa da conversa.
         self._silencios_para_fechar_sessao = silencios_para_fechar_sessao
+        #: Identifica QUEM esta falando pela voz (identificador_locutor.py).
+        #: None = recurso desligado (comportamento de sempre). Quando ativo,
+        #: publica `voice.person_recognized` ao achar uma voz da familia na
+        #: fala atual - o que o `quem_fala` passa a creditar, igualzinho ao
+        #: rosto (`vision.person_recognized`).
+        self._identificador_locutor = identificador_locutor
+        #: SEM PALAVRA DE ATIVACAO (2026-10-25, pedido do dono: "prefiro sem
+        #: palavra de ativacao" / "eu falava e ele ja respondia"). Com False a
+        #: sessao de conversa fica SEMPRE aberta: toda fala que passa pelos
+        #: portoes (VAD, vazio, alucinacao, eco) vira comando, sem nome antes.
+        #: E a mesma sessao que a palavra abria - nao e um segundo caminho.
+        #:
+        #: O custo e de cota, nao de codigo: cada fala aceita e uma chamada de
+        #: IA, inclusive conversa entre outras pessoas e TV. Ver o comentario
+        #: de `voice.exigir_palavra_ativacao` no orion.yaml.
+        self._exigir_palavra_ativacao = exigir_palavra_ativacao
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
         )
@@ -230,7 +248,16 @@ class VoiceCore:
         """Um ciclo: escuta uma janela curta, verifica a palavra de
         ativacao e, se detectada, processa um comando completo ate falar a
         resposta. Retorna True se um comando foi processado (util em
-        testes/logs), False se a janela nao tinha a palavra de ativacao."""
+        testes/logs), False se a janela nao tinha a palavra de ativacao.
+
+        Sem palavra de ativacao (`exigir_palavra_ativacao=False`), o ciclo e
+        a propria sessao: escuta e responde ate o silencio, e o `executar()`
+        abre outra em seguida. Retorna False, porque nao ha ativacao a contar."""
+        if not self._exigir_palavra_ativacao:
+            await self._conversar_ate_o_silencio()
+            await self._definir_estado(EstadoVoz.IDLE)
+            return False
+
         await self._definir_estado(EstadoVoz.LISTENING)
         try:
             audio_janela = await self._gravar_audio(self._duracao_janela_escuta_s)
@@ -276,9 +303,20 @@ class VoiceCore:
                 await self._publicar_erro_audio(erro)
                 return False
 
-            texto_comando = await self._transcritor.transcrever(audio_comando)
+            # Transcreve e identifica o locutor em PARALELO: os dois sao
+            # bloqueantes em thread e independentes, e o ECAPA e barato
+            # perto do Whisper - correr os dois juntos esconde quase todo o
+            # custo da identificacao dentro do tempo da transcricao.
+            texto_comando, _ = await asyncio.gather(
+                self._transcritor.transcrever(audio_comando),
+                self._identificar_falante(audio_comando),
+            )
         else:
             logger.info("comando veio junto com a ativacao: %r", texto_comando)
+            # O comando inteiro (incluindo quem o disse) esta na janela da
+            # ativacao: identifica ai mesmo, antes de responder - quem_fala
+            # precisa ver o evento antes do planner processar a fala.
+            await self._identificar_falante(audio_janela)
 
         # O MESMO portao da sessao, aqui tambem (2026-09-20). Ate hoje este
         # caminho nao olhava o que tinha transcrito, e "acordou mas nao falou
@@ -319,6 +357,28 @@ class VoiceCore:
         await self._event_bus.publish("voice.response_started", {"texto": resposta})
         await self._falar_com_protecao(resposta)
         await self._event_bus.publish("voice.response_finished", {"texto": resposta})
+
+    async def _identificar_falante(self, audio) -> None:
+        """Publica `voice.person_recognized` se o audio pertencer a uma voz
+        cadastrada da familia.
+
+        Quem consome e o `quem_fala` (a atribuicao da conversa), o mesmo
+        handler do rosto. Erros nao derrubam a conversa: identificacao e
+        um extra, sem ela a conversa so volta a ser "da casa".
+        """
+        if self._identificador_locutor is None:
+            return
+        try:
+            locutor = await self._identificador_locutor.identificar(audio)
+        except Exception:
+            logger.warning("falha ao identificar o locutor por voz", exc_info=True)
+            return
+        if locutor is None or locutor.nome is None:
+            return
+        await self._event_bus.publish(
+            "voice.person_recognized",
+            {"nome": locutor.nome, "confianca": locutor.confianca},
+        )
 
     async def _conversar_ate_o_silencio(self) -> None:
         """A CONVERSA CONTINUA SEM PRECISAR CHAMAR DE NOVO (2026-08-02).
@@ -361,7 +421,10 @@ class VoiceCore:
                 silencios += 1
                 continue
 
-            texto = await self._transcritor.transcrever(audio)
+            texto, _ = await asyncio.gather(
+                self._transcritor.transcrever(audio),
+                self._identificar_falante(audio),
+            )
             motivo = self._motivo_para_descartar(texto)
             if motivo == "alucinacao":
                 # Nao conta como silencio NEM como fala: o Whisper entrou em
@@ -386,7 +449,10 @@ class VoiceCore:
             await self._responder(texto)
             silencios = 0
 
-        logger.info("sessao encerrada por silencio - a palavra de ativacao volta a ser exigida")
+        if self._exigir_palavra_ativacao:
+            # Sem palavra de ativacao este fim nao muda nada (a proxima sessao
+            # abre na hora), e o aviso viraria uma linha a cada silencio.
+            logger.info("sessao encerrada por silencio - a palavra de ativacao volta a ser exigida")
 
     #: Quantas repeticoes da MESMA frase curta denunciam laco do Whisper.
     _REPETICOES_PARA_ALUCINACAO = 5
@@ -603,7 +669,7 @@ class VoiceCore:
     def _comando_na_janela(self, texto_janela: str) -> str | None:
         """O que sobrou depois da palavra de ativacao, se valer a pena.
 
-        Devolve None quando a janela so tinha o chamado ("Fofão!"), para o
+        Devolve None quando a janela so tinha o chamado ("Jarvis!"), para o
         fluxo normal seguir e gravar o comando em seguida.
         """
         import re

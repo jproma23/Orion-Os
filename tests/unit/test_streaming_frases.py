@@ -34,7 +34,7 @@ class _Pedaco:
 
 def _ia(tmp_path, pedacos=None, erro_apos=None):
     prompt = tmp_path / "p.txt"
-    prompt.write_text("voce e o Fofao", encoding="utf-8")
+    prompt.write_text("voce e o Jarvis", encoding="utf-8")
     ia = AiManager(
         caminho_prompt_sistema=str(prompt),
         openai_model="fake",

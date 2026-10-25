@@ -162,7 +162,7 @@ async def test_wake_word_tardio_nao_e_consumido_como_escolha():
     await planner.processar("ativar modo aula")
     planner._escolha_aula_expira_em = time.monotonic() - 1
 
-    resposta = await planner.processar("Fofao! Fofao! Fofao!")
+    resposta = await planner.processar("Jarvis! Jarvis! Jarvis!")
 
     assert resposta == "resposta da IA"
     assert "nao tenho aula" not in resposta

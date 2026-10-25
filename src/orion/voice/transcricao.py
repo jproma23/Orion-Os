@@ -29,7 +29,7 @@ todos os freios que a lib oferece estavam desligados. Agora:
   "isto nao e fala" e "nao estou confiante". Segmento que falha em qualquer
   um dos dois e DESCARTADO aqui, explicitamente - preferimos devolver
   string vazia, que o VoiceCore ja trata como "nao entendi".
-- `hotwords`: diz ao modelo que a palavra "Fofao" e esperada. Nao inventa
+- `hotwords`: diz ao modelo que a palavra "Jarvis" e esperada. Nao inventa
   nada: so desempata a favor dela quando o som esta no limite.
 - `compression_ratio_threshold`: texto que comprime demais e repetitivo
   demais para ser fala. **Desde 2026-08-05 quem aplica este e o `_aceitos`,

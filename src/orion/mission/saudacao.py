@@ -1,4 +1,4 @@
-"""Saudação espontânea: o Fofão fala primeiro ao reconhecer alguém.
+"""Saudação espontânea: o Jarvis fala primeiro ao reconhecer alguém.
 
 Pedido do dono (2026-07-29): *"quero que ele fale tudo"*, *"praticamente ao me
 ver me cumprimentar"*, *"agir espontaneamente como estivesse vendo o seu

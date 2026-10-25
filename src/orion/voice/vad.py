@@ -20,7 +20,7 @@ silenciosas).
 Limitacao consciente: energia nao distingue fala de outros barulhos (TV,
 palmas). Um barulho alto ainda acorda o Whisper - como hoje; o ganho e o
 silencio ficar barato. O upgrade futuro e um modelo de wake word treinado
-("Fofao", openWakeWord), ver wake_word.py.
+("Jarvis", openWakeWord), ver wake_word.py.
 """
 from __future__ import annotations
 

@@ -8,7 +8,7 @@ from orion.mission.ai_manager import SEM_IA, AiManager
 @pytest.fixture
 def ai_manager(tmp_path):
     caminho_prompt = tmp_path / "prompt.txt"
-    caminho_prompt.write_text("Voce e o Javis.", encoding="utf-8")
+    caminho_prompt.write_text("Voce e o Jarvis.", encoding="utf-8")
     return AiManager(caminho_prompt_sistema=caminho_prompt)
 
 
@@ -19,19 +19,19 @@ def test_sem_contexto_o_prompt_diz_o_que_nao_se_sabe(ai_manager):
     Campo ausente e convite a invencao - o modelo respondia "Sim, vi a Ana
     passar!" sobre quem nunca viu (medido 2026-07-19, ver grounding.py)."""
     prompt = ai_manager._montar_prompt_sistema(None)
-    assert "Voce e o Javis." in prompt
+    assert "Voce e o Jarvis." in prompt
     assert "não sei (sem registro)" in prompt
 
 
 def test_contexto_vazio_o_prompt_diz_o_que_nao_se_sabe(ai_manager):
     prompt = ai_manager._montar_prompt_sistema({})
-    assert "Voce e o Javis." in prompt
+    assert "Voce e o Jarvis." in prompt
     assert "não sei (sem registro)" in prompt
 
 
 def test_contexto_com_pessoa_adiciona_ao_prompt(ai_manager):
     prompt = ai_manager._montar_prompt_sistema({"pessoa": {"nome": "Joao"}})
-    assert "Voce e o Javis." in prompt
+    assert "Voce e o Jarvis." in prompt
     assert "Joao" in prompt
 
 

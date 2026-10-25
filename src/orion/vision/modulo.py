@@ -223,7 +223,7 @@ class ModuloVisao:
         """Suspende a visao inteira sob pressao de memoria (EDR-0020).
 
         FECHA UMA PENDENCIA DECLARADA (2026-07-30). O comentario em
-        `conversar_fofao.py` dizia, desde o merge de 26/07: *"o ModuloVisao do
+        `conversar_jarvis.py` dizia, desde o merge de 26/07: *"o ModuloVisao do
         EDR-0023 ainda nao expoe pausar()/retomar() - so iniciar()/encerrar().
         Ate ele expor, o alivio descarrega o modelo de IA mas NAO consegue
         pausar a visao, que e o maior consumidor de RAM"*. E o alivio recebia

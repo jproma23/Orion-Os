@@ -487,7 +487,7 @@ class BootManager:
 
         # Modulos do Mission Core (EDR-0023). Vision e o primeiro; Voice,
         # Mission/IA e Display entram aqui conforme forem migrados de
-        # tools/conversar_fofao.py.
+        # tools/conversar_jarvis.py.
         modulos = await _iniciar_modulos(
             _montar_modulos(config, event_bus, comm, self._simulado), registry, event_bus, logger
         )

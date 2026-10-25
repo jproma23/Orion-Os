@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Expoe motion_core/ quando este arquivo roda como SCRIPT: ai o sys.path
-# tem tools/, nao a raiz. Mesmo padrao de tools/conversar_fofao.py. Sob
+# tem tools/, nao a raiz. Mesmo padrao de tools/conversar_jarvis.py. Sob
 # pytest isso ja vem do `pythonpath` do pyproject, e a linha e inofensiva.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

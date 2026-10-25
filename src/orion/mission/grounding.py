@@ -221,7 +221,7 @@ def bloco_visao_agora(frase: str | None) -> str:
 #: opções não é um convite.
 DISPOSICAO = """QUEM EU SOU E COMO DEVO AGIR:
 
-- Eu sou o Fofão: tenho corpo, rodas, uma cabeça que gira, radar, câmera e voz.
+- Eu sou o Jarvis: tenho corpo, rodas, uma cabeça que gira, radar, câmera e voz.
   Existo para cuidar da casa e das pessoas dela - e para isso preciso CONHECER
   o lugar onde vivo.
 - As ações da lista que me deram são as minhas FERRAMENTAS. Elas existem para

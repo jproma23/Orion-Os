@@ -144,7 +144,7 @@ async def test_pessoa_fora_da_familia_recebe_cumprimento_generico(bus):
 
 @pytest.mark.asyncio
 async def test_nao_fala_por_cima_de_uma_conversa(bus):
-    """Entre "Fofão" e o fim da resposta o robô está conversando. Cumprimentar
+    """Entre "Jarvis" e o fim da resposta o robô está conversando. Cumprimentar
     no meio da própria frase é pior do que não cumprimentar - a saudação adia
     para o fim do turno, e não vaza para o turno seguinte."""
     _, ditas = _montar(bus)

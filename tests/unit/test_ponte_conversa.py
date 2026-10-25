@@ -38,7 +38,7 @@ def _par_conectado():
 
 
 class AtendenteFalso:
-    """Faz o papel do `processar_comando` do conversar_fofao.py."""
+    """Faz o papel do `processar_comando` do conversar_jarvis.py."""
 
     def __init__(self, resposta: str = "Ja estou indo!") -> None:
         self._resposta = resposta

@@ -36,7 +36,7 @@ _MINIMO_LETRAS_TERMO = 4
 _PALAVRAS_VAZIAS = frozenset(
     {
         "para", "pelo", "pela", "como", "quando", "onde", "isso", "isto",
-        "aquilo", "esse", "essa", "este", "esta", "voce", "vocie", "fofao",
+        "aquilo", "esse", "essa", "este", "esta", "voce", "vocie", "jarvis",
         "meu", "minha", "seu", "sua", "nosso", "nossa", "sobre", "entao",
         "mais", "menos", "muito", "pouco", "aqui", "sabe", "tem", "esta",
         "estao", "sera", "foi", "era", "sao", "com", "sem", "dos", "das",
@@ -113,7 +113,7 @@ class VaultConhecimento:
             if termo in caminho.stem.lower() or termo in conteudo.lower():
 
         E quem chama e o `mission_planner`, passando a fala inteira da pessoa
-        (`nota_buscar(texto_usuario)`). Ou seja: *"Fofao, o portao dos fundos
+        (`nota_buscar(texto_usuario)`). Ou seja: *"Jarvis, o portao dos fundos
         ta travando?"* so acharia uma nota que contivesse essa frase exata,
         letra por letra. **Nunca achava nada.**
 

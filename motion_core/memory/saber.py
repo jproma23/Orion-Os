@@ -75,7 +75,7 @@ _MINIMO_TERMOS = 1
 _PALAVRAS_VAZIAS = frozenset(
     {
         "para", "pelo", "pela", "como", "quando", "onde", "isso", "isto",
-        "aquilo", "esse", "essa", "este", "esta", "voce", "vocie", "fofao",
+        "aquilo", "esse", "essa", "este", "esta", "voce", "vocie", "jarvis",
         "meu", "minha", "seu", "sua", "nosso", "nossa", "sobre", "entao",
         "mais", "menos", "muito", "pouco", "aqui", "sabe", "tem", "esta",
         "estao", "sera", "foi", "era", "sao", "com", "sem", "dos", "das",

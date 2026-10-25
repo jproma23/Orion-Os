@@ -1,6 +1,6 @@
 """ORION API - FastAPI endpoint para receber comandos do JARVIS Mark 54.
 
-Roda no Notebook (porta 8081) junto com conversar_fofao.py.
+Roda no Notebook (porta 8081) junto com conversar_jarvis.py.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger("orion.api")
 
-# Variáveis globais injetadas pelo conversar_fofao.py
+# Variáveis globais injetadas pelo conversar_jarvis.py
 _mission_planner = None
 _quem_fala = None
 
@@ -33,7 +33,7 @@ class ExecuteResponse(BaseModel):
 
 
 def set_mission_planner(planner, quem_fala):
-    "Injetado pelo conversar_fofao.py na inicialização."
+    "Injetado pelo conversar_jarvis.py na inicialização."
     global _mission_planner, _quem_fala
     _mission_planner = planner
     _quem_fala = quem_fala

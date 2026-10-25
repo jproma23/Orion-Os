@@ -1140,7 +1140,7 @@ class MissionPlanner:
     def registrar_consultar_visao(self, callback: CallbackVisao | None) -> None:
         """Liga a visao ao planner DEPOIS de ela subir (2026-08-09).
 
-        No `conversar_fofao.py` o MissionPlanner e construido ANTES do
+        No `conversar_jarvis.py` o MissionPlanner e construido ANTES do
         ModuloVisao (a camera carrega o YOLO no `iniciar()`), entao este fio
         nao pode nascer no `__init__`. Quem monta o boot chama este metodo
         assim que o modulo de visao esta no ar.

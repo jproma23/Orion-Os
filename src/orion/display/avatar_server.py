@@ -81,7 +81,7 @@ class AvatarServer:
         #:
         #: Fica no AvatarServer, e nao no ModuloDisplay, porque ha DOIS
         #: caminhos que sobem o avatar - `python -m orion` (kernel/boot) e
-        #: `tools/conversar_fofao.py`, que e o que roda em producao. Aqui os
+        #: `tools/conversar_jarvis.py`, que e o que roda em producao. Aqui os
         #: dois ganham sem fiacao nova.
         self._build = _versao.descobrir(
             pathlib.Path(__file__).resolve().parents[3],

@@ -6,10 +6,10 @@ Roda no Notebook. Uso:
     python3 tools/testar_mic.py [indice_mic] [segundos]
 Ex.:  python3 tools/testar_mic.py 4 5
 
-Fale uma frase CONHECIDA durante a gravacao (ex.: "Fofao, faca uma varredura")
+Fale uma frase CONHECIDA durante a gravacao (ex.: "Jarvis, faca uma varredura")
 para comparar o que voce disse com o que saiu.
 
-IMPORTANTE: se a voz (conversar_fofao.py) estiver rodando, ela pode estar
+IMPORTANTE: se a voz (conversar_jarvis.py) estiver rodando, ela pode estar
 segurando o mic - pare-a antes, ou teste um indice diferente do que ela usa.
 """
 from __future__ import annotations

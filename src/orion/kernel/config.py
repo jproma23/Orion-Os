@@ -37,6 +37,22 @@ class ErroConfiguracaoInvalida(Exception):
     """Configuracao ausente, malformada ou fora do esquema esperado."""
 
 
+def _sobrepor(base: dict[str, Any], local: dict[str, Any]) -> dict[str, Any]:
+    """Mescla `local` por cima de `base`, entrando nos dicionarios aninhados.
+
+    So o que o arquivo local declara muda; o resto continua vindo do
+    orion.yaml. Lista e valor simples SUBSTITUEM (nao se concatenam): quem
+    escreve `wake_word: ["x"]` no local quer exatamente isso.
+    """
+    resultado = dict(base)
+    for chave, valor in local.items():
+        if isinstance(valor, dict) and isinstance(resultado.get(chave), dict):
+            resultado[chave] = _sobrepor(resultado[chave], valor)
+        else:
+            resultado[chave] = valor
+    return resultado
+
+
 def _buscar_caminho(dados: dict[str, Any], caminho: str) -> Any:
     """Navega um dict aninhado usando um caminho tipo 'a.b.c'."""
     atual: Any = dados
@@ -57,6 +73,19 @@ class ConfigurationManager:
     def __init__(self, caminho_yaml: Path | str = "config/orion.yaml") -> None:
         self._caminho = Path(caminho_yaml)
         self._dados: dict[str, Any] = {}
+
+    @property
+    def caminho_local(self) -> Path:
+        """O arquivo DESTA maquina: `orion.local.yaml`, ao lado do orion.yaml.
+
+        Existe porque o mesmo orion.yaml serve ao Pi e ao Notebook, e alguns
+        valores so podem ser de um deles (2026-10-25): o Notebook acha o Pi
+        por `pi-os.local`, o Pi fala consigo mesmo por 127.0.0.1; o
+        alto-falante do Notebook e o USB, o do Pi e o fone. Com um arquivo
+        so, todo `git merge` entre as maquinas trocava um pelo outro. Fica
+        fora do git (.gitignore) e e opcional.
+        """
+        return self._caminho.with_name(f"{self._caminho.stem}.local{self._caminho.suffix}")
 
     @property
     def caminho(self) -> Path:
@@ -83,6 +112,18 @@ class ConfigurationManager:
             raise ErroConfiguracaoInvalida(
                 f"Conteudo de {self._caminho} nao e um mapeamento YAML valido."
             )
+
+        local = self.caminho_local
+        if local.exists():
+            try:
+                dados_locais = yaml.safe_load(local.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError as erro:
+                raise ErroConfiguracaoInvalida(f"YAML invalido em {local}: {erro}") from erro
+            if not isinstance(dados_locais, dict):
+                raise ErroConfiguracaoInvalida(
+                    f"Conteudo de {local} nao e um mapeamento YAML valido."
+                )
+            dados = _sobrepor(dados, dados_locais)
 
         self._dados = dados
         self._validar()

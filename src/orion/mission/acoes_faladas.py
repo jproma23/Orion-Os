@@ -1,4 +1,4 @@
-"""O que o Fofao sabe FAZER quando alguem pede falando.
+"""O que o Jarvis sabe FAZER quando alguem pede falando.
 
 Pedido do dono em 2026-08-03: *"o robo tem que saber mexer a cabeca quando eu
 pedir"*, *"ele tem que saber todos os comandos"*.

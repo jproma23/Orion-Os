@@ -116,12 +116,12 @@ async def test_estado_inicial_e_vazio_mas_bem_formado(cenario):
 @pytest.mark.asyncio
 async def test_system_ready_atualiza_estado(cenario):
     http, bus = cenario
-    await bus.publish("system.ready", {"robot_name": "Fofão", "modo": "REAL"})
+    await bus.publish("system.ready", {"robot_name": "Jarvis", "modo": "REAL"})
     await bus.aguardar_fila_vazia()
 
     resposta = await http.get("/estado")
     corpo = await resposta.json()
-    assert corpo["estado"]["sistema"] == {"robot_name": "Fofão", "modo": "REAL"}
+    assert corpo["estado"]["sistema"] == {"robot_name": "Jarvis", "modo": "REAL"}
 
 
 @pytest.mark.asyncio

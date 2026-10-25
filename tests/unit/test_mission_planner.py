@@ -74,7 +74,7 @@ async def test_pergunta_de_hora_responde_direto_sem_chamar_ia():
     ai = AiManagerFalso()
     planner = MissionPlanner(ai_manager=ai)
 
-    resposta = await planner.processar("Javis, que horas sao?")
+    resposta = await planner.processar("Jarvis, que horas sao?")
 
     assert "horas" in resposta
     assert ai.chamadas == []  # nao deveria ter chamado a IA
@@ -82,12 +82,12 @@ async def test_pergunta_de_hora_responde_direto_sem_chamar_ia():
 
 @pytest.mark.asyncio
 async def test_pergunta_geral_vai_para_ia():
-    ai = AiManagerFalso(resposta="Eu sou o Javis.")
+    ai = AiManagerFalso(resposta="Eu sou o Jarvis.")
     planner = MissionPlanner(ai_manager=ai)
 
     resposta = await planner.processar("quem e voce")
 
-    assert resposta == "Eu sou o Javis."
+    assert resposta == "Eu sou o Jarvis."
     assert len(ai.chamadas) == 1
 
 
@@ -108,7 +108,7 @@ async def test_comando_de_lanterna_aciona_hardware():
 
     planner = MissionPlanner(ai_manager=ai, enviar_comando_hardware=enviar)
 
-    resposta = await planner.processar("Javis, acenda a lanterna")
+    resposta = await planner.processar("Jarvis, acenda a lanterna")
 
     assert comandos_enviados == ["LIGHT_ON"]
     # O marcador nao pode sobrar no texto: ele viraria audio.
@@ -328,7 +328,7 @@ async def test_apagar_e_acender_sao_acoes_diferentes_no_catalogo():
         ai_manager=AiManagerFalso(resposta="#acao:apagar_luz\nApaguei."),
         enviar_comando_hardware=_coletor(comandos_enviados),
     )
-    await planner.processar("Javis, apague a lanterna")
+    await planner.processar("Jarvis, apague a lanterna")
 
     assert comandos_enviados == ["LIGHT_OFF"]
 
@@ -447,7 +447,7 @@ async def test_conhecimento_que_o_vault_recusou_nao_pode_soar_como_guardado():
 ORDENS_DE_PARADA = [
     "para!",
     "para",
-    "javis para",
+    "jarvis para",
     "para tudo",
     "para agora",
     "para de andar",
@@ -520,7 +520,7 @@ PERGUNTAS_DE_RELOGIO = [
     "que horas são?",
     "que horas é",
     "que horas?",
-    "javis, que horas sao",
+    "jarvis, que horas sao",
     "que horas e?",
     "que horas agora",
     "qual o horario atual",
@@ -638,7 +638,7 @@ PERGUNTAS_VER_AGORA = [
     "o que é isso",
     "o que e esse",
     "o que e isto?",
-    "javis, o que e isso?",
+    "jarvis, o que e isso?",
     "o que tem na frente?",
     "o que ta na minha frente",
     "o que esta na frente?",

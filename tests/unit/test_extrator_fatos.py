@@ -266,12 +266,12 @@ async def test_turno_novo_rearma_a_espera():
 
 @pytest.mark.asyncio
 async def test_ociosidade_nao_gasta_modelo_com_chamado_solto():
-    """"Fofao!" e a sessao mais comum do banco: a palavra de ativacao entra
+    """"Jarvis!" e a sessao mais comum do banco: a palavra de ativacao entra
     como turno. Nao ha fato dentro de um chamado, so custo."""
     ia = IaFalsa("NADA")
     e = ExtratorFatos(ia, MemoriaFalsa(), turnos_por_lote=4, segundos_ate_destilar=0.01)
 
-    e.agendar("Fofao!", "Oi! Estou aqui!")
+    e.agendar("Jarvis!", "Oi! Estou aqui!")
     await asyncio.sleep(0.05)
 
     assert ia.chamadas == []

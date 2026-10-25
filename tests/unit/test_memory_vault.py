@@ -18,9 +18,9 @@ def test_ler_nota_inexistente_retorna_none(tmp_path):
 def test_escrever_nota_com_links_vira_wikilinks(tmp_path):
     vault = VaultConhecimento(tmp_path / "vault")
 
-    vault.escrever_nota("Fofão conhece Kamal", "Kamal e morador.", links=["Kamal", "Familia"])
+    vault.escrever_nota("Jarvis conhece Kamal", "Kamal e morador.", links=["Kamal", "Familia"])
 
-    conteudo = vault.ler_nota("Fofão conhece Kamal")
+    conteudo = vault.ler_nota("Jarvis conhece Kamal")
     assert "[[Kamal]]" in conteudo
     assert "[[Familia]]" in conteudo
 
@@ -98,7 +98,7 @@ def test_pergunta_inteira_acha_a_nota(tmp_path):
     vault = VaultConhecimento(tmp_path / "vault")
     vault.escrever_nota("portao dos fundos", "O portao dos fundos trava quando chove.")
 
-    achados = vault.buscar("Fofao, o portao dos fundos esta travando de novo?")
+    achados = vault.buscar("Jarvis, o portao dos fundos esta travando de novo?")
 
     assert [n["titulo"] for n in achados] == ["portao dos fundos"]
 

@@ -3,7 +3,7 @@
 Roda no Raspberry (Motion Core). A cada reavaliação, o comportamento de
 MAIOR prioridade que "quer rodar" assume o controle; um mais forte preempta
 (cancela a tarefa) o mais fraco, que pode voltar depois. É isto que faz o
-Fofão parecer "vivo": ninguém manda o próximo passo, o maestro decide
+Jarvis parecer "vivo": ninguém manda o próximo passo, o maestro decide
 sozinho a partir do que cada comportamento deseja.
 """
 from __future__ import annotations

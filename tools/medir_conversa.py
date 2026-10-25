@@ -43,7 +43,7 @@ from orion.mission.ai_manager import AiManager  # noqa: E402
 #: que duas rodadas sejam comparaveis - baseline e "depois" tem que responder a
 #: mesma coisa.
 FALAS = [
-    "oi Fofão",
+    "oi Jarvis",
     "tudo bem?",
     "como você está hoje?",
     "o que você viu hoje?",
@@ -61,7 +61,7 @@ FALAS = [
     "o que você acha da casa?",
     "tem alguém na cozinha?",
     "você viu o Kamal hoje?",
-    "obrigado, Fofão",
+    "obrigado, Jarvis",
     "tchau",
 ]
 

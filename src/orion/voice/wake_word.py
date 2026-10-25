@@ -1,4 +1,4 @@
-"""Deteccao da palavra de ativacao "Fofao" (Cap 9 secao 3-4).
+"""Deteccao da palavra de ativacao "Jarvis" (Cap 9 secao 3-4).
 
 Ainda nao existe um modelo customizado treinado para "Fofao" no
 openWakeWord (os modelos prontos da lib sao em ingles - "hey jarvis",
@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 
-PALAVRAS_ATIVACAO_PADRAO = ("javis", "jarvis")
+PALAVRAS_ATIVACAO_PADRAO = ("jarvis",)
 #: edicoes (substituicao/insercao/remocao de 1 letra) toleradas por
 #: palavra na checagem foneticamente tolerante (passo 3) - pequeno de
 #: proposito, ver docstring do modulo.
@@ -93,9 +93,12 @@ class DetectorPalavraAtivacao:
         # 2) O Whisper as vezes quebra "fofao" em dois tokens ("fo fao") -
         #    junta cada par de tokens vizinhos e tenta de novo. Achado
         #    real: 'FO FÃO' nao batia so por causa do espaco no meio.
-        for i in range(len(tokens) - 1):
-            if tokens[i] + tokens[i + 1] in self._palavras:
-                return True
+        #    O par juntado tambem entra no passo 3 (2026-10-25): "jarvis"
+        #    chega quebrado E com uma letra a menos ("ja vis"), e sem isso so
+        #    casava quem errasse uma coisa de cada vez.
+        pares = [tokens[i] + tokens[i + 1] for i in range(len(tokens) - 1)]
+        if any(par in self._palavras for par in pares):
+            return True
 
         # 3) Tolerancia a pequeno erro fonetico (distancia de edicao) - so
         #    em tokens de tamanho parecido com o da PALAVRA sendo procurada,
@@ -106,7 +109,7 @@ class DetectorPalavraAtivacao:
         #    ativacao com cinco letras: com "jarvis" (2026-09-17) a regua
         #    ficaria errada, e com uma palavra mais longa este passo nunca
         #    dispararia. Agora cada palavra usa a propria medida.
-        for token in tokens:
+        for token in tokens + pares:
             for palavra in self._palavras:
                 if abs(len(token) - len(palavra)) > 2:
                     continue

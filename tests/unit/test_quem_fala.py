@@ -143,3 +143,19 @@ async def test_casa_pelo_primeiro_nome():
     _, quem, _ = _montar()
     await _reconhecer(quem, "Joao")
     assert quem.pessoa_id() == 1
+
+
+@pytest.mark.asyncio
+async def test_voz_reconhecida_credita_a_conversa():
+    """`voice.person_recognized` (identificacao de locutor) credita como o
+    rosto: quem fala no microfone sem a camera ver ganha a conversa."""
+    import asyncio
+
+    bus, quem, _ = _montar()
+    tarefa = asyncio.create_task(bus.iniciar())
+    await bus.publish("voice.person_recognized", {"nome": "Joao Paulo"})
+    await bus.aguardar_fila_vazia()
+    assert quem.pessoa_id() == 1
+    assert quem.nome == "Joao Paulo"
+    bus.parar()
+    await tarefa

@@ -1,4 +1,4 @@
-"""Instintos do Fofão: perceber que a própria medida não está confiável.
+"""Instintos do Jarvis: perceber que a própria medida não está confiável.
 
 A ideia é do mantenedor (2026-07-29): *"o robô tem que se calibrar sempre q
 precisar corrigir, se seus dados estiverem oscilando"*. Um instinto não decide

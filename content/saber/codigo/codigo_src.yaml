@@ -201,7 +201,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/mission/acoes_faladas.py
     corpo: >-
-      O que o Fofao sabe FAZER quando alguem pede falando.. Classes: AcaoFal
+      O que o Jarvis sabe FAZER quando alguem pede falando.. Classes: AcaoFal
       ada. Funcoes: bloco_para_prompt, extrair, sem_marcador, partir_argumen
       to.
     fonte: codigo-fonte do ORION (src)
@@ -253,7 +253,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/mission/diario.py
     corpo: >-
-      Diário do robô: o que o Fofão viu, gravado e recuperável (camada 2)..
+      Diário do robô: o que o Jarvis viu, gravado e recuperável (camada 2)..
       Classes: DiarioObservacoes. Funcoes: hoje_ate, observacoes_de_hoje.
     fonte: codigo-fonte do ORION (src)
     confianca: 0.9
@@ -342,7 +342,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/mission/saudacao.py
     corpo: >-
-      Saudação espontânea: o Fofão fala primeiro ao reconhecer alguém.. Clas
+      Saudação espontânea: o Jarvis fala primeiro ao reconhecer alguém.. Clas
       ses: SaudacaoEspontanea.
     fonte: codigo-fonte do ORION (src)
     confianca: 0.9
@@ -449,7 +449,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/voice/ouvidos_esp32.py
     corpo: >-
-      Ouvidos do Fofão: os dois microfones I2S do ESP32, por WiFi (Cap 9)..
+      Ouvidos do Jarvis: os dois microfones I2S do ESP32, por WiFi (Cap 9)..
       Classes: OuvidosESP32. Funcoes: conectado, iniciar, encerrar, gravar.
     fonte: codigo-fonte do ORION (src)
     confianca: 0.9
@@ -463,7 +463,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/voice/timbre.py
     corpo: >-
-      O timbre do Fofao - o que faz a voz dele ser DELE.. Funcoes: aquecer.
+      O timbre do Jarvis - o que faz a voz dele ser DELE.. Funcoes: aquecer.
     fonte: codigo-fonte do ORION (src)
     confianca: 0.9
   - tipo: conceito
@@ -492,7 +492,7 @@ conhecimentos:
   - tipo: conceito
     titulo: src/orion/voice/wake_word.py
     corpo: >-
-      Deteccao da palavra de ativacao "Fofao" (Cap 9 secao 3-4).. Classes: D
+      Deteccao da palavra de ativacao "Jarvis" (Cap 9 secao 3-4).. Classes: D
       etectorPalavraAtivacao. Funcoes: verificar.
     fonte: codigo-fonte do ORION (src)
     confianca: 0.9

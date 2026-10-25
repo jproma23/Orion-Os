@@ -43,7 +43,7 @@ anterior, e e por isso que `adiar()` existe separado de `acordar()`.
 
 Sem `xset` (o Pi nao tem X, e a suite tambem nao), o controle se declara
 inativo UMA VEZ no log e vira um objeto que nao faz nada. A tela e a cara do
-robo: o pior desfecho possivel deste arquivo seria um Fofao de rosto preto
+robo: o pior desfecho possivel deste arquivo seria um Jarvis de rosto preto
 na sala por causa de um binario ausente.
 """
 from __future__ import annotations

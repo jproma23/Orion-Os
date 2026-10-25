@@ -14,7 +14,7 @@ import json
 from motion_core.behavior.memoria_decisoes import MemoriaDeDecisoes, assinatura
 
 CONTEXTO = """QUEM EU SOU E COMO DEVO AGIR:
-- Eu sou o Fofao.
+- Eu sou o Jarvis.
 
 O QUE EU SINTO AGORA:
 - a minha frente: NAO SEI a distancia agora

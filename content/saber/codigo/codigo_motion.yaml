@@ -27,7 +27,7 @@ conhecimentos:
   - tipo: conceito
     titulo: motion_core/behavior/comportamentos.py
     corpo: >-
-      Comportamentos concretos do Fofão plugados no maestro (EDR-0020).. Cla
+      Comportamentos concretos do Jarvis plugados no maestro (EDR-0020).. Cla
       sses: Repouso, Ronda, AcompanharPessoa, Atender, Vigilia, IaEstrategic
       a, AtenderGesto, VigilanciaObstaculo. Funcoes: quer_rodar, executar, p
       edir, quer_rodar, executar, quer_rodar, executar, quer_rodar.
@@ -36,14 +36,14 @@ conhecimentos:
   - tipo: conceito
     titulo: motion_core/behavior/contrato.py
     corpo: >-
-      Contrato de autoridade da IA sobre o Fofao (EDR-0026).. Classes: Acao.
+      Contrato de autoridade da IA sobre o Jarvis (EDR-0026).. Classes: Acao.
       Funcoes: resolver.
     fonte: codigo-fonte do ORION (motion)
     confianca: 0.9
   - tipo: conceito
     titulo: motion_core/behavior/estado_do_mundo.py
     corpo: >-
-      Modelo de mundo unificado do Fofão (base da integração cognitiva).. Cl
+      Modelo de mundo unificado do Jarvis (base da integração cognitiva).. Cl
       asses: RetratoDoMundo, EstadoDoMundo. Funcoes: ler, escrever, resumo,
       retrato, fmt, do_mega.
     fonte: codigo-fonte do ORION (motion)
@@ -51,7 +51,7 @@ conhecimentos:
   - tipo: conceito
     titulo: motion_core/behavior/goap.py
     corpo: >-
-      GOAP - o Fofao planeja uma SEQUENCIA em vez de escolher um passo.. Cla
+      GOAP - o Jarvis planeja uma SEQUENCIA em vez de escolher um passo.. Cla
       sses: Objetivo. Funcoes: estado_de, satisfeito, planejar, conferir_mod
       elo.
     fonte: codigo-fonte do ORION (motion)
@@ -66,7 +66,7 @@ conhecimentos:
   - tipo: conceito
     titulo: motion_core/behavior/impulsos.py
     corpo: >-
-      Impulsos: de onde sai o objetivo do Fofao quando ninguem esta mandando
+      Impulsos: de onde sai o objetivo do Jarvis quando ninguem esta mandando
       .. Classes: Impulso, ImpulsoMedido, Impulsos. Funcoes: nome, familia,
       objetivo, forte, como_dict, marcar, avaliar, objetivo_interno.
     fonte: codigo-fonte do ORION (motion)
@@ -74,7 +74,7 @@ conhecimentos:
   - tipo: conceito
     titulo: motion_core/behavior/instintos.py
     corpo: >-
-      Instintos do Fofão: perceber que a própria medida não está confiável..
+      Instintos do Jarvis: perceber que a própria medida não está confiável..
       Classes: InstintoBussola. Funcoes: dispersao_circular_graus, dispersa
       o_atual_graus.
     fonte: codigo-fonte do ORION (motion)

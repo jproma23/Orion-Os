@@ -1,4 +1,4 @@
-"""GOAP - o Fofao planeja uma SEQUENCIA em vez de escolher um passo.
+"""GOAP - o Jarvis planeja uma SEQUENCIA em vez de escolher um passo.
 
 Pedido do dono em 2026-08-02: incorporar GOAP (Goal-Oriented Action Planning)
 ao robo.

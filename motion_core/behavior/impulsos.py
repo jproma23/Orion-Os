@@ -1,4 +1,4 @@
-"""Impulsos: de onde sai o objetivo do Fofao quando ninguem esta mandando.
+"""Impulsos: de onde sai o objetivo do Jarvis quando ninguem esta mandando.
 
 ## O que faltava, e o que NAO faltava
 

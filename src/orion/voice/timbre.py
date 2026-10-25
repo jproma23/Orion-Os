@@ -1,4 +1,4 @@
-"""O timbre do Fofao - o que faz a voz dele ser DELE.
+"""O timbre do Jarvis - o que faz a voz dele ser DELE.
 
 ## Por que isto existe
 
@@ -95,7 +95,7 @@ def _comprimir(x: np.ndarray, quanto: float, taxa: int) -> np.ndarray:
 
 
 def aquecer(audio: np.ndarray, taxa: int) -> np.ndarray:
-    """Aplica o timbre do Fofao. Devolve int16, pronto para tocar.
+    """Aplica o timbre do Jarvis. Devolve int16, pronto para tocar.
 
     Recebe e devolve `int16` porque e o formato que sai do Piper e o que o
     `sounddevice` toca - converter aqui evita que quem chama precise saber de

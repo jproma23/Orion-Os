@@ -1,4 +1,4 @@
-"""Cadastra uma pessoa conhecida (dono/morador) no Fofao (Caps 8, 11).
+"""Cadastra uma pessoa conhecida (dono/morador) no Jarvis (Caps 8, 11).
 
 Roda no NOTEBOOK: abre a camera, captura alguns frames, extrai o embedding
 do rosto (face_recognition) e grava a pessoa na tabela `pessoas` do banco
@@ -71,7 +71,7 @@ async def _capturar_embeddings(indice_camera: int, espelhado: bool, n_fotos: int
 
 
 async def principal() -> int:
-    parser = argparse.ArgumentParser(description="Cadastra um dono/morador conhecido do Fofao.")
+    parser = argparse.ArgumentParser(description="Cadastra um dono/morador conhecido do Jarvis.")
     parser.add_argument("nome", help="Nome da pessoa (ex.: Joao)")
     parser.add_argument(
         "--autorizacao", default="dono", help="Nivel: dono | morador | visitante (padrao: dono)"
@@ -127,7 +127,7 @@ async def principal() -> int:
     if resposta.payload.get("ok"):
         pessoa_id = resposta.payload.get("resultado")
         logger.info(
-            "CADASTRADO! %s (%s) e a pessoa id=%s. O Fofao agora reconhece esse rosto.",
+            "CADASTRADO! %s (%s) e a pessoa id=%s. O Jarvis agora reconhece esse rosto.",
             args.nome,
             args.autorizacao,
             pessoa_id,

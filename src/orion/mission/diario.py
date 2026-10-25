@@ -1,4 +1,4 @@
-"""Diário do robô: o que o Fofão viu, gravado e recuperável (camada 2).
+"""Diário do robô: o que o Jarvis viu, gravado e recuperável (camada 2).
 
 O QUE FALTAVA
 -------------

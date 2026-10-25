@@ -125,9 +125,9 @@ async def _preparar_memoria_de_demonstracao(bus: EventBus) -> MemoryAPI:
     db = DatabaseManager(diretorio / "orion.db", diretorio / "backups")
     db.iniciar()
     memory = MemoryAPI(db, bus)
-    await memory.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "Fofão, que horas são?"})
+    await memory.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "Jarvis, que horas são?"})
     await memory.remember("conversas", {"pessoa_id": None, "papel": "robo", "texto": "Agora são 21:45."})
-    await memory.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "Fofão, acenda a lanterna"})
+    await memory.remember("conversas", {"pessoa_id": None, "papel": "usuario", "texto": "Jarvis, acenda a lanterna"})
     await memory.remember("conversas", {"pessoa_id": None, "papel": "robo", "texto": "Lanterna ligada."})
     return memory
 

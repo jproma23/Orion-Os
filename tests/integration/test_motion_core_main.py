@@ -101,7 +101,7 @@ async def test_conectar_hardware_core_tolera_falta_de_resposta_who_are_you():
 
 _CONFIG_BASE = """
 system:
-  robot_name: "Fofão"
+  robot_name: "Jarvis"
   log_level: "INFO"
   profile: "HOME"
 communication:

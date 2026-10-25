@@ -1,4 +1,4 @@
-"""Comportamentos concretos do Fofão plugados no maestro (EDR-0020).
+"""Comportamentos concretos do Jarvis plugados no maestro (EDR-0020).
 
 Começo enxuto, self-contained no Pi (usa sinais que já chegam ao Event Bus
 do Motion Core): Repouso (base) e VigilanciaObstaculo (segurança tática).
@@ -67,7 +67,7 @@ class Ronda(Comportamento):
     """Iniciativa própria (prio 20): dar uma olhada em volta quando não há
     nada acontecendo.
 
-    É o primeiro comportamento DISCRICIONÁRIO do Fofão - os outros são
+    É o primeiro comportamento DISCRICIONÁRIO do Jarvis - os outros são
     disparados por condição concreta (voz, alerta, obstáculo), este é uma
     escolha. Existe justamente para o conselheiro de IA ter o que escolher:
     parado (repouso) ou dar uma olhada (ronda). Com uma opção só não há
@@ -158,7 +158,7 @@ class AcompanharPessoa(Comportamento):
     o dono (80), controle manual (95) e segurança (100).
 
     Gatilhos vêm do Notebook: vision.person_detected e vision.person_lost.
-    Eles SÓ chegam aqui porque `conversar_fofao.py` os encaminha - até
+    Eles SÓ chegam aqui porque `conversar_jarvis.py` os encaminha - até
     2026-07-28 não encaminhava, e todo assinante de visão no Pi (inclusive
     o EstadoDoMundo) esperava por um evento que nunca vinha.
     """
@@ -254,7 +254,7 @@ class AcompanharPessoa(Comportamento):
 
 
 class Atender(Comportamento):
-    """Atender o dono (prio 80): quando alguém chama "Fofão", o robô para o
+    """Atender o dono (prio 80): quando alguém chama "Jarvis", o robô para o
     que estava fazendo e fica à disposição até a resposta terminar. A
     conversa em si acontece no Notebook (Voice Core); aqui o maestro apenas
     garante que o robô NÃO saia andando enquanto atende - manda HOLD ao
@@ -348,7 +348,7 @@ class Vigilia(Comportamento):
 
 
 class IaEstrategica(Comportamento):
-    """A IA do Fofao no comando (prio 40) - EDR-0022 + EDR-0026.
+    """A IA do Jarvis no comando (prio 40) - EDR-0022 + EDR-0026.
 
     **Uma personalidade so.** Ate 2026-07-28 havia duas: esta e o `Mentor`
     (prio 35). A separacao fazia sentido quando o Mentor era um modelo LOCAL

@@ -1,6 +1,6 @@
 """Modulo de voz do Mission Core (EDR-0023).
 
-Extrai de tools/conversar_fofao.py toda a montagem da voz: escolha do
+Extrai de tools/conversar_jarvis.py toda a montagem da voz: escolha do
 microfone, os DOIS modelos Whisper (um transcreve o comando, outro fica
 vigiando a palavra de ativacao), a sintese Piper, o portao de atividade
 sonora (VAD) e o VoiceCore que amarra tudo.
@@ -26,7 +26,7 @@ logger = logging.getLogger("orion.voice.modulo")
 ProcessarComando = Callable[[str], Awaitable[str]]
 
 #: dito uma vez quando a voz sobe, para o usuario saber que pode falar.
-SAUDACAO_PADRAO = "Oi! Pode falar comigo. É só me chamar de Javis."
+SAUDACAO_PADRAO = "Oi! Eu sou o Jarvis. Pode falar comigo."
 
 
 class ModuloVoz:
@@ -184,7 +184,7 @@ class ModuloVoz:
                 # de pe. Voltar None diz ao `iniciar()` que nao ha escuta para
                 # rodar - nao ha o que ouvir, mas ha o que dizer.
                 logger.warning(
-                    "Sem microfone (%s) - o Fofao segue SURDO, mas continua falando", erro
+                    "Sem microfone (%s) - o Jarvis segue SURDO, mas continua falando", erro
                 )
                 return None
 
@@ -222,7 +222,7 @@ class ModuloVoz:
         # A palavra vem do orion.yaml (regra 6). O proprio
         # DetectorPalavraAtivacao ja tolera erro fonetico por distancia de
         # edicao desde 2026-07-24 - o DetectorFuzzy que vivia dentro de
-        # conversar_fofao.py virou duplicata (e com limiar diferente do da
+        # conversar_jarvis.py virou duplicata (e com limiar diferente do da
         # biblioteca, o que so confundia) e nao veio para ca.
         # `wake_word` aceita um nome ou uma LISTA de nomes (2026-09-17, pedido
         # do dono: "quero que ele responda por Jarvis também"). String continua
@@ -237,6 +237,7 @@ class ModuloVoz:
             sintetizador=self._sintetizador,
             processar_comando=self._processar_comando,
             detector_palavra_ativacao=detector_ativacao,
+            exigir_palavra_ativacao=self._conf["exigir_palavra_ativacao"],
             frase_ativacao="Oi? Pode falar!",
             transcritor_ativacao=transcritor_ativacao,
             detector_atividade=detector_atividade,
@@ -284,7 +285,7 @@ def _TranscritorComLog(modelo: str, hotwords: str | None = None) -> Any:  # noqa
     palavra de ativacao falhando ao vivo em 2026-07-24.
 
     `hotwords` enviesa o decodificador para palavras que ele nao esperaria -
-    e o que faz "Fofao" ser reconhecido como Fofao. O `Transcritor` ja
+    e o que faz "Jarvis" ser reconhecido como Jarvis. O `Transcritor` ja
     aceitava e repassava o parametro para o faster-whisper desde sempre, mas
     NINGUEM nunca passava nada (2026-09-17): mais um parametro orfao, o mesmo
     padrao de codigo pronto e nao ligado que ja apareceu varias vezes neste

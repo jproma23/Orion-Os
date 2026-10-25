@@ -1,4 +1,4 @@
-"""Quem esta falando com o robo agora - liga o rosto reconhecido a conversa.
+"""Quem esta falando com o robo agora - liga rosto OU voz reconhecidos a conversa.
 
 ## O buraco que isto fecha
 
@@ -6,12 +6,18 @@ As 152 conversas gravadas no banco tem `pessoa_id = NULL`. Todas. Nao por
 falta de coluna nem de reconhecimento facial: a visao reconhece o rosto e
 publica `vision.person_recognized` com o nome, a tabela `pessoas` tem o id, e
 a saudacao ja consulta os dois. So que `MissionPlanner.processar()` recebe
-`pessoa_id` como PARAMETRO e quem chama (`conversar_fofao.py`) nunca preenche.
+`pessoa_id` como PARAMETRO e quem chama (`conversar_jarvis.py`) nunca preenche.
 
 O efeito e sutil e caro: a memoria do robo e **da casa**, nao de cada pessoa.
 Ele guarda "gosta de cafe forte" sem saber de quem, e depois serve esse fato
 para qualquer um. Com tres pessoas na casa - Joao Paulo, Kamal e Marah - isso
 mistura o dono, a cuidadora e uma crianca de 3 anos no mesmo balaio.
+
+A partir de 2026-08-19 ha SEGUNDA fonte de identidade: `voice.person_recognized`
+(identificador_locutor.py), que atribui pela VOZ mesmo quando a camera nao ve
+o rosto. Os dois eventos alimentam o MESMO handler - quem fala no microfone
+sem aparecer na tela tambem ganha conversa creditada, e com a mesma regra:
+abaixo do limiar, ninguem e atribuido.
 
 ## Atribuir errado e PIOR que nao atribuir
 
@@ -51,7 +57,11 @@ VALIDADE_S = 60.0
 
 
 class QuemEstaFalando:
-    """Guarda quem a visao reconheceu por ultimo, e traduz para `pessoa_id`."""
+    """Guarda quem a visao OU a voz reconheceu por ultimo, e traduz para
+    `pessoa_id`. Duas fontes de identidade, um handler so: o rosto
+    (`vision.person_recognized`) e a voz (`voice.person_recognized`)
+    apontam para o mesmo `_ao_reconhecer` - quem falou no microfone sem
+    aparecer na camera tambem ganha a conversa creditada."""
 
     def __init__(
         self,
@@ -66,11 +76,13 @@ class QuemEstaFalando:
         self._nome: str | None = None
         self._id: int | None = None
         self._visto_em: float = 0.0
-        #: nome -> id. A visao publica reconhecimento a cada quadro; sem este
-        #: cache seria uma consulta ao banco do Pi por quadro, atravessando o
-        #: link TCP. O elenco de uma casa nao muda no meio de uma conversa.
+        #: nome -> id. As fontes publicam reconhecimento a cada quadro/fala;
+        #: sem este cache seria uma consulta ao banco do Pi por evento,
+        #: atravessando o link TCP. O elenco de uma casa nao muda no meio de
+        #: uma conversa.
         self._ids_por_nome: dict[str, int] = {}
         event_bus.subscribe("vision.person_recognized", self._ao_reconhecer)
+        event_bus.subscribe("voice.person_recognized", self._ao_reconhecer)
 
     async def _ao_reconhecer(self, evento) -> None:
         nome = (evento.dados or {}).get("nome")

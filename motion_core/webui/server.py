@@ -189,7 +189,7 @@ LINHAS_LOG_PADRAO = 200
 #:
 #: Apontava para `data/logs/orion.log`, que e escrito pelo `python -m orion` -
 #: um caminho de boot que NAO roda em producao (o Notebook sobe
-#: `tools/conversar_fofao.py` pelo orion-avatar.service, e o Pi sobe
+#: `tools/conversar_jarvis.py` pelo orion-avatar.service, e o Pi sobe
 #: `python -m motion_core`). Medido no dia do achado:
 #:
 #:     orion.log        1.713 bytes, ultima escrita em 23/07, conteudo de 17/07
@@ -574,7 +574,7 @@ class WebUIServer:
         payload = resposta.payload or {}
         if not payload.get("ok"):
             return web.json_response(
-                {"erro": payload.get("erro", "o Javis nao conseguiu responder")},
+                {"erro": payload.get("erro", "o Jarvis nao conseguiu responder")},
                 status=502,
             )
         return web.json_response({"ok": True, "resposta": payload.get("resposta", "")})

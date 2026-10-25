@@ -2,7 +2,7 @@
 # Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
 
 system:
-  robot_name: "Javis"
+  robot_name: "Jarvis"
   language: "pt-BR"
   timezone: "America/Sao_Paulo"
   log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
@@ -488,7 +488,17 @@ voice:
   # chamam o robo, e ele continua se apresentando como Fofao.
   # So vale para a ATIVACAO POR VOZ: enquanto nao houver microfone ligado
   # (ver docs/journal.md), nenhum dos dois nomes e ouvido.
-  wake_word: ["javis", "jarvis"]
+  wake_word: ["jarvis"]
+  # SEM PALAVRA DE ATIVACAO (2026-10-25, decisao do dono: "prefiro sem
+  # palavra de ativacao"). false = a conversa fica sempre aberta e toda fala
+  # vira comando; o wake_word acima so vale com true.
+  #
+  # RISCO, com numero: a cota gratis do Gemini e de 500 chamadas/dia, e ja
+  # acabou uma vez em 3h30 (a IA estrategica a 30 s). Com false, CADA fala
+  # aceita gasta uma - inclusive conversa entre outras pessoas, TV e radio.
+  # Os portoes continuam na frente (VAD, transcricao vazia, alucinacao e eco
+  # da propria voz). Se a cota voltar a acabar cedo, e aqui que se volta.
+  exigir_palavra_ativacao: false
   # MEDIDO EM 2026-08-05, nesta maquina, com audio de gabarito gerado pelo
   # proprio Piper (4 frases, resposta conhecida, servico rodando junto):
   #
@@ -574,7 +584,7 @@ voice:
     compression_ratio_threshold: 2.4
     # Diz ao modelo que esta palavra e esperada. Nao inventa nada: desempata
     # a favor dela quando o som esta no limite.
-    hotwords: "Javis Jarvis"
+    hotwords: "Jarvis"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
@@ -616,6 +626,24 @@ voice:
     fator_acima_do_ruido: 2.5
     rms_minimo: 0.003
     janelas_de_historico: 30
+  # IDENTIFICACAO DE LOCUTOR POR VOZ (2026-08-19, trazida do Notebook em
+  # 2026-10-25): saber QUEM falou so pela voz, no nivel do reconhecimento
+  # facial. O modelo (SpeechBrain ECAPA) roda no Notebook e compara a fala
+  # atual com os voiceprints cadastrados por cosseno; o vencedor acima do
+  # limiar publica voice.person_recognized, que o quem_fala credita igual ao
+  # rosto - a conversa passa a ter dono mesmo quando a camera nao ve ninguem.
+  #
+  # `limiar_cosseno`: 0.5 e conservador (erra para NAO atribuir - mesma
+  # regra do rosto). Se ele nao reconhecer ninguem na pratica, abaixe em
+  # passos de 0.05; se trocar a voz de uma pessoa pela de outra, suba.
+  #
+  # `savedir`: onde o modelo baixado fica (nao baixar de novo a cada boot).
+  # Sem voiceprint cadastrado nada acontece - a conversa segue "da casa".
+  identificacao_locutor:
+    habilitado: true
+    limiar_cosseno: 0.5
+    modelo: "speechbrain/spkrec-ecapa-voxceleb"
+    savedir: ".cache_speechbrain"
 
 ai:
   # IA REMOTA, E SO ELA (OpenRouter, API compativel com a da OpenAI).

@@ -356,7 +356,7 @@ class VisionCore:
                 # economiza de verdade. O YOLO e o face_recognition sao o
                 # trabalho mais pesado do Notebook, e ate 2026-07-30 o alivio
                 # nunca chegava a pausa-los - `pausar_visao` era passado como
-                # None em conversar_fofao.py.
+                # None em conversar_jarvis.py.
                 await asyncio.sleep(0.5)
                 continue
             if not self._captura.aberta:

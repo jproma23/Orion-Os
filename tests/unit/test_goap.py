@@ -95,7 +95,7 @@ def test_plano_e_o_mais_curto_possivel():
 def test_sem_corpo_nao_ha_plano():
     """Telemetria morta = o robo nao sabe se tem corpo. Nada de mover.
 
-    Este e o estado real em que o Fofao passou 3h26 em 2026-08-02, com o Mega
+    Este e o estado real em que o Jarvis passou 3h26 em 2026-08-02, com o Mega
     morto: o Motion Core rodando e nenhuma /dev/ttyUSB do outro lado.
     """
     assert _planejar({**MUNDO_BOM, "corpo_vivo": False}, "poder_seguir_em_frente") is None

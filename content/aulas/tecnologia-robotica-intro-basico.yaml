@@ -2,10 +2,10 @@ id: tecnologia.robotica-intro.basico
 materia: tecnologia
 titulo: O que é um robô
 nivel: basico
-resumo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+resumo: Perceber, decidir e agir; graus de autonomia, com o Jarvis como exemplo.
 fonte: Wikipedia, artigos Robótica, consultados em 2026-08-14
 plano:
-  objetivo: Perceber, decidir e agir; graus de autonomia, com o Fofao como exemplo.
+  objetivo: Perceber, decidir e agir; graus de autonomia, com o Jarvis como exemplo.
   pre_requisitos:
   - Conceito basico de maquinas e eletricidade
   duracao_min: 10

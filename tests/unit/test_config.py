@@ -7,7 +7,7 @@ import yaml
 from orion.kernel.config import ConfigurationManager, ErroConfiguracaoInvalida
 
 CONFIG_MINIMA_VALIDA = {
-    "system": {"robot_name": "Fofão", "log_level": "INFO", "profile": "HOME"},
+    "system": {"robot_name": "Jarvis", "log_level": "INFO", "profile": "HOME"},
     "communication": {
         "raspberry": {"host": "10.20.20.196", "tcp_port": 5757},
         "hardware_core": {"baud_rate": 115200},
@@ -29,7 +29,7 @@ def test_carregar_config_valida(tmp_path):
     caminho = _escrever_config(tmp_path, CONFIG_MINIMA_VALIDA)
     config = ConfigurationManager(caminho).carregar()
 
-    assert config.secao("system")["robot_name"] == "Fofão"
+    assert config.secao("system")["robot_name"] == "Jarvis"
 
 
 def test_arquivo_do_projeto_e_valido():
@@ -61,7 +61,7 @@ def test_campo_obrigatorio_ausente_falha(tmp_path):
 
 def test_tipo_incorreto_falha(tmp_path):
     dados = {
-        "system": {"robot_name": "Fofão", "log_level": "INFO", "profile": "HOME"},
+        "system": {"robot_name": "Jarvis", "log_level": "INFO", "profile": "HOME"},
         "communication": {
             "raspberry": {"host": "10.20.20.196", "tcp_port": "5757"},  # deveria ser int
             "hardware_core": {"baud_rate": 115200},
@@ -107,3 +107,38 @@ def test_secao_inexistente_falha(tmp_path):
 
     with pytest.raises(ErroConfiguracaoInvalida):
         config.secao("secao_fantasma")
+
+
+def test_arquivo_local_sobrepoe_so_o_que_declara(tmp_path):
+    """O orion.local.yaml de cada maquina troca so as chaves que declara, e
+    entra nos dicionarios aninhados em vez de substituir a secao inteira."""
+    caminho = _escrever_config(tmp_path, CONFIG_MINIMA_VALIDA)
+    (tmp_path / "orion.local.yaml").write_text(
+        yaml.safe_dump({"communication": {"raspberry": {"host": "pi-os.local"}}}),
+        encoding="utf-8",
+    )
+
+    config = ConfigurationManager(caminho).carregar()
+
+    raspberry = config.secao("communication")["raspberry"]
+    assert raspberry["host"] == "pi-os.local"
+    assert raspberry["tcp_port"] == CONFIG_MINIMA_VALIDA["communication"]["raspberry"]["tcp_port"]
+
+
+def test_sem_arquivo_local_vale_o_orion_yaml(tmp_path):
+    caminho = _escrever_config(tmp_path, CONFIG_MINIMA_VALIDA)
+    config = ConfigurationManager(caminho).carregar()
+    assert config.secao("communication")["raspberry"]["host"] == (
+        CONFIG_MINIMA_VALIDA["communication"]["raspberry"]["host"]
+    )
+
+
+def test_arquivo_local_ainda_passa_pela_validacao(tmp_path):
+    """Sobrepor nao pode virar um jeito de entrar com config quebrada."""
+    caminho = _escrever_config(tmp_path, CONFIG_MINIMA_VALIDA)
+    (tmp_path / "orion.local.yaml").write_text(
+        yaml.safe_dump({"communication": {"raspberry": {"tcp_port": "5757"}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ErroConfiguracaoInvalida):
+        ConfigurationManager(caminho).carregar()

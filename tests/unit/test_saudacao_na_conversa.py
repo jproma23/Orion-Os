@@ -5,7 +5,7 @@ Queixa do dono, ao vivo:
 > *"no meio de uma caonversa ele me sauda e diz q é um prazer me ver sendo q
 > ja estou falando com ele algum tempo"*
 
-O `_conversando` que ja existia so valia DENTRO do turno (de "Fofao" ate a
+O `_conversando` que ja existia so valia DENTRO do turno (de "Jarvis" ate a
 resposta terminar). Entre um turno e outro a pessoa voltava a ser alguem que
 acabou de aparecer na frente da camera, e ouvia "que bom te ver" no meio do
 papo.
@@ -88,14 +88,14 @@ async def test_nao_cumprimenta_durante_a_propria_resposta(cenario):
 
 @pytest.mark.asyncio
 async def test_acordou_sem_resposta_e_chegada_cumprimenta(cenario):
-    """19/08: a visão reconheceu o dono 6 s depois de ele dizer "Fofão".
+    """19/08: a visão reconheceu o dono 6 s depois de ele dizer "Jarvis".
 
     O wake abria a janela de conversa na hora e a saudação morria antes de
     nascer - o robô via o dono chegar e não dizia nada. Wake sozinho não é
     conversa: quem aparece enquanto o robô acorda está CHEGANDO.
     """
     bus, ditas, relogio, saudacao = cenario
-    await saudacao._ao_acordar(None)  # "Fofão"
+    await saudacao._ao_acordar(None)  # "Jarvis"
     await _ver_pessoa(bus, saudacao)  # a visão reconhece logo depois
     assert len(ditas) == 1
     assert "João Paulo" in ditas[0]

@@ -1,9 +1,9 @@
-"""Conversa de voz ao vivo com o Fofão no Notebook (Caps 7, 9 e 13).
+"""Conversa de voz ao vivo com o Jarvis no Notebook (Caps 7, 9 e 13).
 
 Junta num processo só, no mesmo Event Bus:
   - AvatarServer (Cap 13) na porta 8090 - o kiosk do Firefox na TV mostra
     o avatar reagindo aos estados de voz de verdade;
-  - VoiceCore (Cap 9) - escuta o microfone, espera a palavra "Fofão",
+  - VoiceCore (Cap 9) - escuta o microfone, espera o nome dele (voice.wake_word),
     transcreve o comando com o Whisper;
   - AiManager (Cap 7) - responde com a IA remota (OpenRouter);
   - Sintetizador (Cap 9) - fala a resposta pela TV (HDMI).
@@ -13,10 +13,10 @@ pare o servico do preview antes de rodar este script, senao a porta 8090
 ja estara ocupada:
 
     systemctl --user stop orion-avatar.service
-    cd ~/orion-os && .venv/bin/python tools/conversar_fofao.py
+    cd ~/orion-os && .venv/bin/python tools/conversar_jarvis.py
 
 Fluxo de uso: espere o "pronto" no log (a primeira carga do Whisper pode
-demorar), diga "Fofão" perto do microfone, aguarde o avatar mudar para
+demorar), diga "Jarvis" perto do microfone, aguarde o avatar mudar para
 WAKE_DETECTED e fale o comando/pergunta. Ctrl+C para sair.
 
 Com o Motion Core de pe no Raspberry (2026-07-19), este processo agora e o
@@ -82,57 +82,16 @@ from orion.voice.vad import DetectorAtividadeSonora  # noqa: E402
 from orion.voice.voice_core import VoiceCore  # noqa: E402
 from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 
-# Grafias que o Whisper realmente produziu para "Fofão" nos testes ao vivo
-# (2026-07-18): "Fafão", "furacão", "Japão", "falfão"... Lista fixa virou
-# enxugar gelo - alem dela, o DetectorFuzzy abaixo aceita qualquer palavra
-# a ate 2 edicoes de distancia de "fofao". Ate existir um modelo de wake
-# word treinado de verdade (ver wake_word.py), e o que evita o robo
-# ignorar o dono.
-VARIACOES_FOFAO = (
-    "fofão", "fofao", "furacão", "furacao", "japão", "japao",
-    # capturadas ao vivo em 2026-07-25 com o microfone novo (indice 1): o
-    # Whisper insiste em "Fulfone"/"Fulfo" para "Fofão". Sao longas e
-    # distintas o bastante para nao disparar em fala normal - ao contrario
-    # de variantes curtas como "famo", que a distancia de edicao 2
-    # transformaria em "chamo"/"amo" e faria o robo acordar sozinho.
-    "fulfone", "fulfo", "falfão", "falfao", "fafão", "fafao",
-)
+def _palavras_ativacao(secao_voz: dict) -> tuple[str, ...]:
+    """Os nomes que acordam o robo, LIDOS DA CONFIG (voice.wake_word).
 
-
-def _distancia_edicao(a: str, b: str) -> int:
-    """Levenshtein simples (sem lib externa - strings de ~5 letras)."""
-    anterior = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        atual = [i]
-        for j, cb in enumerate(b, 1):
-            atual.append(min(
-                anterior[j] + 1,          # remocao
-                atual[j - 1] + 1,         # insercao
-                anterior[j - 1] + (ca != cb),  # troca
-            ))
-        anterior = atual
-    return anterior[-1]
-
-
-class DetectorFuzzy(DetectorPalavraAtivacao):
-    """Alem das variacoes exatas, acorda com qualquer palavra 'parecida'
-    com fofao (distancia de edicao <= 2 apos tirar acentos)."""
-
-    _ALVO = "fofao"
-
-    def verificar(self, texto_transcrito: str) -> bool:
-        if super().verificar(texto_transcrito):
-            return True
-        import re
-        import unicodedata
-
-        sem_acento = unicodedata.normalize("NFD", texto_transcrito.lower())
-        sem_acento = "".join(c for c in sem_acento if unicodedata.category(c) != "Mn")
-        return any(
-            _distancia_edicao(palavra, self._ALVO) <= 2
-            for palavra in re.findall(r"[a-z]+", sem_acento)
-            if len(palavra) >= 4
-        )
+    Ate 2026-10-25 este arquivo tinha o "fofao" escrito aqui e nunca lia a
+    config: o nome mudou para Javis no Pi em 19/09 e o Notebook continuou
+    esperando o velho, sem ninguem conseguir acordar o robo. Aceita um nome
+    ou uma lista, igual ao ModuloVoz (voice/modulo.py).
+    """
+    nomes = secao_voz["wake_word"]
+    return (nomes,) if isinstance(nomes, str) else tuple(nomes)
 
 # Mesma hora que o kernel/logger.py passou a usar em 2026-07-30: os dois logs
 # (Notebook e Pi) precisam ser comparaveis linha a linha, senao correlacionar
@@ -142,14 +101,15 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("conversar_fofao")
+logger = logging.getLogger("conversar_jarvis")
 
 
 class TranscritorComLog(Transcritor):
     """Transcritor que loga o volume (RMS) e o texto de cada janela - so
     para depuracao ao vivo: sem isso nao da para saber se o microfone esta
-    captando fraco ou se o Whisper esta entendendo errado a palavra
-    "Fofão"."""
+    captando fraco ou se o Whisper esta entendendo errado o nome dele.
+    Vale para o vigia da ativacao tambem: toda janela que passa do VAD vira
+    uma linha "ouvi (rms=...)". Se nenhuma aparece, o som nao passou do VAD."""
 
     async def transcrever(self, audio) -> str:  # type: ignore[override]
         import numpy as np
@@ -658,7 +618,7 @@ async def principal() -> None:
         # pelo Mission Planner (rapido, deterministico, chega ao Mega);
         # so a conversa livre vai para a IA.
         resposta = limpar_para_fala(await planner.processar(texto, quem_fala.pessoa_id()))
-        logger.info("Fofao respondeu: %s", resposta)
+        logger.info("Jarvis respondeu: %s", resposta)
         return resposta
 
     async def processar_comando_em_frases(texto: str):
@@ -680,7 +640,7 @@ async def principal() -> None:
         async for frase in planner.responder_em_frases(texto, quem_fala.pessoa_id()):
             limpa = limpar_para_fala(frase)
             if limpa:
-                logger.info("Fofao respondeu (frase): %s", limpa)
+                logger.info("Jarvis respondeu (frase): %s", limpa)
                 yield limpa
 
     conf_vad = secao_voz["vad"]
@@ -695,6 +655,34 @@ async def principal() -> None:
             "VAD ligado: Whisper de vigilancia so roda com som acima do ruido de fundo"
         )
 
+    # IDENTIFICACAO DE LOCUTOR POR VOZ (2026-08-19): quem fala no microfone
+    # (mesmo fora do quadro da camera) passa a ter a conversa creditada - o
+    # `quem_fala` assina `voice.person_recognized` junto com o rosto. Sem
+    # voiceprint cadastrado a identificacao devolve None sempre (conversa
+    # "da casa"), sem derrubar o boot.
+    identificador_locutor = None
+    conf_ident = secao_voz.get("identificacao_locutor") or {}
+    if conf_ident.get("habilitado"):
+        from orion.voice.identificador_locutor import IdentificadorLocutor
+
+        identificador_locutor = IdentificadorLocutor(
+            limiar_cosseno=conf_ident.get("limiar_cosseno", 0.5),
+            fonte_modelo=conf_ident.get("modelo", "speechbrain/spkrec-ecapa-voxceleb"),
+            savedir=conf_ident.get("savedir"),
+        )
+        try:
+            identificador_locutor.carregar_vozes_conhecidas(
+                await MemoryClient(comm).recall("pessoas", limite=50)
+            )
+        except Exception:
+            logger.exception(
+                "nao consegui carregar as vozes da familia - seguindo sem identificar"
+            )
+        logger.info(
+            "Identificacao de locutor por voz ativa (limiar cosseno %.3f)",
+            conf_ident.get("limiar_cosseno", 0.5),
+        )
+
     voz = VoiceCore(
         event_bus=bus,
         indice_microfone=-1,  # callback do ESP32 e a unica entrada permitida
@@ -702,12 +690,14 @@ async def principal() -> None:
         sintetizador=sintetizador,
         processar_comando=processar_comando,
         processar_comando_em_frases=processar_comando_em_frases,
-        detector_palavra_ativacao=DetectorFuzzy(VARIACOES_FOFAO),
+        detector_palavra_ativacao=DetectorPalavraAtivacao(_palavras_ativacao(secao_voz)),
+        exigir_palavra_ativacao=secao_voz["exigir_palavra_ativacao"],
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
         detector_atividade=detector_atividade,
         # Fonte obrigatoria: nunca usar o microfone local apos reinicio.
         gravar_audio=gravar_audio,
+        identificador_locutor=identificador_locutor,
     )
 
     # CHAT POR TEXTO (2026-08-03), pedido do dono: "vai q estou em outro lugar
@@ -863,8 +853,14 @@ async def principal() -> None:
         ", ".join(p.get("nome", "?") for p in (familia_conf or [])) or "(ninguem)",
     )
 
-    await sintetizador.falar("Oi! Pode falar comigo. É só me chamar de Fofão.")
-    logger.info('Pronto! Diga "Fofão" e depois o seu comando. Ctrl+C para sair.')
+    await sintetizador.falar("Oi! Eu sou o Jarvis. Pode falar comigo.")
+    if secao_voz["exigir_palavra_ativacao"]:
+        logger.info(
+            'Pronto! Diga "%s" e depois o seu comando. Ctrl+C para sair.',
+            _palavras_ativacao(secao_voz)[0].capitalize(),
+        )
+    else:
+        logger.info("Pronto! Sem palavra de ativacao: e so falar. Ctrl+C para sair.")
 
     try:
         await voz.executar()

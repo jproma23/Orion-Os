@@ -13,7 +13,7 @@ from orion.mission.comando_local import GATILHOS, SEM_GATILHO_DE_PROPOSITO, casa
     "frase,esperado",
     [
         ("acende a luz", "acender_luz"),
-        ("Fofão, apaga a luz por favor", "apagar_luz"),
+        ("Jarvis, apaga a luz por favor", "apagar_luz"),
         ("liga o ventilador", "ligar_ventilador"),
         ("olha para a esquerda", "olhar_esquerda"),
         ("olha pra cima", "olhar_cima"),
@@ -53,7 +53,7 @@ def test_negacao_nao_aciona():
 def test_conversa_normal_nao_vira_comando():
     assert casar("como foi seu dia") is None
     assert casar("voce esta bem") is None
-    assert casar("bom dia Fofao") is None
+    assert casar("bom dia Jarvis") is None
 
 
 def test_busca_leva_o_assunto_junto():

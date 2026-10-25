@@ -87,7 +87,7 @@ async def test_fluxo_completo_com_palavra_de_ativacao():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["javis", "que horas sao"]),
+        transcritor=TranscritorFalso(["jarvis", "que horas sao"]),
         sintetizador=sintetizador,
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -123,7 +123,7 @@ async def test_erro_no_processamento_ainda_fala_uma_resposta():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["javis", "oi"]),
+        transcritor=TranscritorFalso(["jarvis", "oi"]),
         sintetizador=sintetizador,
         processar_comando=processar_com_erro,
         gravar_audio=_gravar_audio_falso,
@@ -160,7 +160,7 @@ async def test_falha_ao_falar_nao_derruba_o_ciclo():
     voice = VoiceCore(
         bus,
         indice_microfone=0,
-        transcritor=TranscritorFalso(["javis", "oi"]),
+        transcritor=TranscritorFalso(["jarvis", "oi"]),
         sintetizador=SintetizadorComFalha(),
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -262,7 +262,7 @@ async def test_janela_silenciosa_pula_a_transcricao_de_vigilancia():
     async def processar(texto):
         return "nao deveria chamar"
 
-    vigia = TranscritorContador(["javis"])
+    vigia = TranscritorContador(["jarvis"])
     voice = VoiceCore(
         bus,
         indice_microfone=0,
@@ -328,11 +328,11 @@ def test_fala_humana_nao_e_confundida_com_laco():
     """O risco da mudanca e o oposto: emudecer quem falou. A ancora agora
     desliza, entao frases normais passam a ser testadas em toda posicao."""
     for frase in [
-        "Javis, acende a luz da sala",
+        "Jarvis, acende a luz da sala",
         "que horas o Kamal chega em casa",
         "você pode centralizar a sua cabeça para me ver",
         "sim, por favor",
-        "Javis! Javis!",  # enfase humana: duas vezes, nao cinco
+        "Jarvis! Jarvis!",  # enfase humana: duas vezes, nao cinco
         "vai lá no quarto e vê se o Kamal está lá",
     ]:
         assert not VoiceCore._parece_alucinacao(frase), frase
@@ -373,7 +373,7 @@ async def test_acordou_e_nao_falou_nada_nao_chega_na_ia():
         bus,
         indice_microfone=0,
         # acorda, e a janela do comando vem VAZIA (so silencio no microfone)
-        transcritor=TranscritorFalso(["javis", ""]),
+        transcritor=TranscritorFalso(["jarvis", ""]),
         sintetizador=sintetizador,
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -398,7 +398,7 @@ async def test_acordar_sem_comando_ainda_abre_a_sessao():
     """Quem diz a palavra de ativacao QUER falar - so nao chegou a tempo.
 
     Barrar a fala vazia nao pode custar a fala seguinte: sem isto, quem
-    demorasse meio segundo a mais teria que dizer "Oi javis" de novo, que e o
+    demorasse meio segundo a mais teria que dizer "Oi jarvis" de novo, que e o
     "falar em dois tempos" que o projeto ja tinha decidido nao exigir.
     """
     bus = EventBus()
@@ -414,7 +414,7 @@ async def test_acordar_sem_comando_ainda_abre_a_sessao():
         bus,
         indice_microfone=0,
         # acorda / janela do comando vazia / A PESSOA FALA na janela seguinte
-        transcritor=TranscritorFalso(["javis", "", "que horas sao"]),
+        transcritor=TranscritorFalso(["jarvis", "", "que horas sao"]),
         sintetizador=SintetizadorFalso(),
         processar_comando=processar,
         gravar_audio=_gravar_audio_falso,
@@ -446,3 +446,72 @@ def test_portao_devolve_o_motivo_de_cada_descarte():
     assert voice._motivo_para_descartar("   ") == "vazio"
     assert voice._motivo_para_descartar("FFFFFFFFFFFF") == "alucinacao"
     assert voice._motivo_para_descartar("que horas sao") is None
+
+
+@pytest.mark.asyncio
+async def test_sem_exigir_palavra_a_fala_ja_e_comando():
+    """Pedido do dono (2026-10-25): "eu falava e ele ja respondia". Sem
+    palavra de ativacao a primeira fala ja vai para a IA, e nada publica
+    voice.wake_detected - nao houve ativacao nenhuma."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    acordou = []
+    bus.subscribe("voice.wake_detected", lambda e: acordou.append(e))
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "sao dez horas"
+
+    sintetizador = SintetizadorFalso()
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["que horas sao"]),
+        sintetizador=sintetizador,
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+        exigir_palavra_ativacao=False,
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert processados == ["que horas sao"]
+    assert sintetizador.falas == ["sao dez horas"]
+    assert acordou == []
+    assert voice.estado is EstadoVoz.IDLE
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_sem_exigir_palavra_os_portoes_continuam_barrando():
+    """Sem o nome na frente, os portoes sao a unica coisa entre o barulho e a
+    cota da IA: transcricao vazia e laco do Whisper nao podem virar chamada."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "nao deveria responder"
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["", "obrigado " * 6, ""]),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+        exigir_palavra_ativacao=False,
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert processados == []
+
+    bus.parar()
+    await tarefa

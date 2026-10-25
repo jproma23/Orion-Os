@@ -162,7 +162,7 @@ def test_confirmacao_de_alvo_default_e_1_nao_3(monkeypatch):
 # ---------------------------------------------------------------------------
 # A VISAO NUNCA ERA PAUSADA NO ALIVIO DE CARGA (corrigido em 2026-07-30)
 #
-# O ModuloVisao so expunha iniciar()/encerrar(), e por isso `conversar_fofao.py`
+# O ModuloVisao so expunha iniciar()/encerrar(), e por isso `conversar_jarvis.py`
 # passava `pausar_visao=None` ao AlivioCarga. O maior consumidor de CPU/RAM do
 # Notebook (YOLO + reconhecimento facial) seguia rodando a todo vapor durante
 # um aperto de memoria. Pendencia declarada em comentario desde o merge de

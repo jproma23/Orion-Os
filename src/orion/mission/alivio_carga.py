@@ -20,7 +20,7 @@ O QUE SE SACRIFICA, E POR QUÊ NESSA ORDEM
    em CPU e memória). Ficar cego alguns minutos é melhor que travar a
    máquina - travada, ele fica cego do mesmo jeito, e surdo também.
 
-O que NÃO se desliga: a voz. Se o dono chamar "Fofão" no meio de um aperto
+O que NÃO se desliga: a voz. Se o dono chamar "Jarvis" no meio de um aperto
 de memória, o robô tem que responder - é a função mais básica dele.
 
 Ao voltar a folga, o guardião publica `diagnostic.recuperado` e tudo é

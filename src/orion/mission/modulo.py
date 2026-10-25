@@ -1,6 +1,6 @@
 """Modulo de missao/IA do Mission Core (EDR-0023).
 
-Reune o que estava espalhado dentro de tools/conversar_fofao.py: o AiManager
+Reune o que estava espalhado dentro de tools/conversar_jarvis.py: o AiManager
 (IA remota - a reserva local saiu em 2026-08-05), o MissionPlanner (Cap 7) e as
 tres pontes que atendem pedidos vindos do Pi - PonteDecisao (EDR-0022, a IA
 estrategica), PonteConselho (o Mentor) e PonteConversa (o chat de texto da

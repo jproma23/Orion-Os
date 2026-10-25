@@ -1,4 +1,4 @@
-"""Contrato de autoridade da IA sobre o Fofao (EDR-0026).
+"""Contrato de autoridade da IA sobre o Jarvis (EDR-0026).
 
 Pedido do usuario em 2026-07-28: *"gostaria de autoridade a IA para poder ter
 o controle total do robo, seguindo regras inviolaveis de contrato"*.

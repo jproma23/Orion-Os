@@ -7,7 +7,7 @@ SIGTERM que o systemd manda no stop).
 Antes desta versao o processo encerrava logo depois de publicar
 system.ready - `python -m orion` era uma cerimonia de boot que terminava
 em nada, e por isso o robo de verdade acabou vivendo dentro de
-tools/conversar_fofao.py. Este arquivo e o primeiro passo para devolver o
+tools/conversar_jarvis.py. Este arquivo e o primeiro passo para devolver o
 sistema ao lugar que o Cap 6 define.
 
 Modulos ausentes continuam tolerados (Cap 6 secao 8): o boot nao aborta

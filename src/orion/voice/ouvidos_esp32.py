@@ -1,4 +1,4 @@
-"""Ouvidos do Fofão: os dois microfones I2S do ESP32, por WiFi (Cap 9).
+"""Ouvidos do Jarvis: os dois microfones I2S do ESP32, por WiFi (Cap 9).
 
 O ESP32 lê dois mics I2S a 16 kHz e despeja `int16` little-endian
 INTERCALADO (esquerdo, direito, esquerdo, ...) num socket TCP. Este módulo é
