@@ -3,6 +3,7 @@
     .venv/bin/python tools/alimentar_memoria.py
     .venv/bin/python tools/alimentar_memoria.py --seed config/memoria_seed.yaml
     .venv/bin/python tools/alimentar_memoria.py --estado
+    .venv/bin/python tools/alimentar_memoria.py --atualizar
 
 Le a pasta `content/saber/` por padrao (um YAML por area, todos mesclados por
 categoria) e grava via MemoryAPI.saber_guardar (regra 5: ninguem abre banco
@@ -80,7 +81,9 @@ def _relatorio(db: DatabaseManager) -> dict[str, int]:
     }
 
 
-async def alimentar(seed: dict, api: MemoryAPI, db: DatabaseManager) -> None:
+async def alimentar(
+    seed: dict, api: MemoryAPI, db: DatabaseManager, atualizar: bool = False
+) -> None:
     antes = _relatorio(db)
     for categoria, registros in seed.items():
         coluna = COLUNA_CHAVE.get(categoria)
@@ -89,11 +92,22 @@ async def alimentar(seed: dict, api: MemoryAPI, db: DatabaseManager) -> None:
             continue
         for dados in registros:
             existe = db.conexao.execute(
-                f"SELECT 1 FROM {categoria} WHERE {coluna} = ? LIMIT 1",
+                f"SELECT * FROM {categoria} WHERE {coluna} = ? LIMIT 1",
                 (str(dados.get(coluna, "")),),
             ).fetchone()
             if existe:
-                print(f"  ja existe {categoria}: {dados.get(coluna)}")
+                # --atualizar (2026-10-25): o texto do content/ mudou e o banco
+                # precisa acompanhar (foi a troca do nome para Jarvis). So os
+                # campos que o content/ declara e que estao diferentes.
+                mudou = {
+                    k: v for k, v in dados.items()
+                    if k in existe.keys() and existe[k] != v
+                }
+                if atualizar and mudou:
+                    await api.saber_atualizar(categoria, existe["id"], mudou)
+                    print(f"  atualizada {categoria}: {dados.get(coluna)}")
+                else:
+                    print(f"  ja existe {categoria}: {dados.get(coluna)}")
                 continue
             await api.saber_guardar(categoria, dados)
             print(f"  gravada   {categoria}: {dados.get(coluna)}")
@@ -129,7 +143,7 @@ async def principal_async(argumentos) -> int:
     db.iniciar()
     api = MemoryAPI(db, bus)
     try:
-        await alimentar(seed, api, db)
+        await alimentar(seed, api, db, atualizar=argumentos.atualizar)
     finally:
         db.fechar()
         bus.parar()
@@ -146,6 +160,11 @@ def principal() -> int:
     )
     analisador.add_argument(
         "--estado", action="store_true", help="so mostra a contagem por categoria"
+    )
+    analisador.add_argument(
+        "--atualizar",
+        action="store_true",
+        help="regrava o texto de registros ja existentes quando o content/ mudou",
     )
     argumentos = analisador.parse_args()
 

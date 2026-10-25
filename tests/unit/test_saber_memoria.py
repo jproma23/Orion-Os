@@ -198,3 +198,57 @@ async def test_contar_repeticoes_respeita_a_janela_de_tempo(contexto):
 
     assert await api.contar_repeticoes("avancar", "falhou", 300) == 1
     assert await api.contar_repeticoes("avancar", "falhou", 3600) == 2
+
+
+@pytest.mark.asyncio
+async def test_saber_nao_casa_pedaco_de_palavra(contexto):
+    """Achado real (2026-10-25), com as duas falas do teste do dono: a
+    cobertura achava PEDACO de palavra, e conversa comum virava ficha de
+    codigo lida em voz alta."""
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "src/orion/mission/diario.py",
+         "corpo": "Diario do robo. Funcoes: hojeate, observacoesdehoje."},
+    )
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "src/orion/mission/recados.py",
+         "corpo": "Recados: guardar uma mensagem. Funcoes: mesmonome, deixar."},
+    )
+
+    assert await api.saber_buscar("Bom dia! Como voce esta hoje?", limite=3) == []
+    assert await api.saber_buscar("Diga em uma frase curta qual e o seu nome.", limite=3) == []
+
+
+@pytest.mark.asyncio
+async def test_saber_ainda_aceita_plural(contexto):
+    """A palavra inteira continua com folga de plural/genero: a fala no
+    singular acha o registro escrito no plural. (O sentido contrario nem chega
+    aqui: o FTS busca por prefixo, e "lampadas*" nao acha "lampada".)"""
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "Lampadas da cabeca", "corpo": "LEDs que ligam e apagam."},
+    )
+    assert len(await api.saber_buscar("como funciona a lampada da cabeca", limite=3)) == 1
+
+
+@pytest.mark.asyncio
+async def test_saber_atualizar_troca_o_texto_e_a_busca(contexto):
+    """2026-10-25: o nome mudou e o conhecimento gravado precisava mudar
+    junto. Depois de atualizar, a busca acha o texto novo e nao o velho."""
+    api, _ = contexto
+    ref = await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "Quem sou eu", "corpo": "Sou o Fofao, robo cuidador da casa."},
+    )
+
+    await api.saber_atualizar(
+        "conhecimentos", ref, {"corpo": "Sou o Jarvis, robo cuidador da casa."}
+    )
+
+    achados = await api.saber_buscar("quem sou eu robo cuidador", limite=3)
+    assert achados and "Jarvis" in achados[0]["corpo"]
+    # o indice tambem foi regravado: o nome velho nao acha mais nada
+    assert await api.saber_buscar("fofao", limite=3) == []

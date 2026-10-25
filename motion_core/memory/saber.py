@@ -126,9 +126,31 @@ def _cobertura_ok(consulta: str, titulo: str, corpo: str) -> bool:
     palavras = _termos(consulta)
     if not palavras:
         return False
-    alvo = _sem_acento(f"{titulo} {corpo}")
-    cobertas = sum(1 for p in palavras if p in alvo)
+    alvo = set(re.findall(r"[a-z0-9]+", _sem_acento(f"{titulo} {corpo}")))
+    cobertas = sum(1 for p in palavras if _palavra_coberta(p, alvo))
     return cobertas >= 1 if len(palavras) == 1 else cobertas >= 2
+
+
+#: Quantas letras a palavra do registro pode ter A MAIS que a da fala e ainda
+#: contar como a mesma: plural e genero ("sensor"/"sensores", "lampada"/
+#: "lampadas"). Tres ja e outra palavra ("dia"/"diario").
+_SUFIXO_TOLERADO = 2
+
+
+def _palavra_coberta(palavra: str, alvo: set[str]) -> bool:
+    """A palavra da fala aparece INTEIRA no registro (com folga de plural).
+
+    Ate 2026-10-25 isto era `palavra in texto`, que acha PEDACO de palavra -
+    e a conversa comum passou a ser respondida com fichas do codigo:
+    "Bom dia! Como voce esta hoje?" cobria "dia" (dentro de "diario") e
+    "hoje" (dentro de "observacoesdehoje") e respondia com o diario.py;
+    "qual e o seu nome" achava "nome" dentro de "mesmonome". Sem palavra de
+    ativacao, TODA fala passa por aqui antes da IA.
+    """
+    return any(
+        w == palavra or (w.startswith(palavra) and len(w) - len(palavra) <= _SUFIXO_TOLERADO)
+        for w in alvo
+    )
 
 
 def sincronizar_fts(

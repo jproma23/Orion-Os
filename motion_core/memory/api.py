@@ -469,6 +469,38 @@ class MemoryAPI:
         )
         return novo_id
 
+    async def saber_atualizar(self, categoria: str, ref_id: int, dados: dict[str, Any]) -> None:
+        """Regrava campos de uma entrada da memoria cognitiva e reindexa o FTS.
+
+        Existe desde 2026-10-25: o nome do robo mudou para Jarvis e o
+        conhecimento ja gravado continuava dizendo "Fofao" - o
+        `saber_guardar` so INSERE, e a alimentacao pulava o que ja existia.
+        Atualiza `atualizado_em` onde a tabela tem a coluna.
+        """
+        tabela = self._tabela(categoria)
+        completos = dict(dados)
+        if categoria in {"conhecimentos", "dispositivos"} and "atualizado_em" not in completos:
+            completos["atualizado_em"] = agora_iso()
+
+        def _atualizar() -> None:
+            self._validar_colunas(tabela, completos.keys())
+            atribuicoes = ", ".join(f"{coluna} = ?" for coluna in completos)
+            self._db.conexao.execute(
+                f"UPDATE {tabela} SET {atribuicoes} WHERE id = ?",
+                (*completos.values(), ref_id),
+            )
+            linha = self._db.conexao.execute(
+                f"SELECT * FROM {tabela} WHERE id = ?", (ref_id,)
+            ).fetchone()
+            if linha is not None:
+                saber.sincronizar_fts(self._db.conexao, categoria, ref_id, dict(linha))
+
+        async with self._db.lock:
+            await asyncio.to_thread(_atualizar)
+        await self._event_bus.publish(
+            "memory.updated", {"categoria": categoria, "operacao": "saber_atualizar", "id": ref_id}
+        )
+
     async def saber_buscar(self, consulta: str, limite: int = 3) -> list[dict[str, Any]]:
         """O que o ORION ja sabe que cobre a fala - o portao do "Eu ja sei?".
 

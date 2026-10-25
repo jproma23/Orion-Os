@@ -81,6 +81,10 @@ from orion.voice.transcricao import Transcritor  # noqa: E402
 from orion.voice.vad import DetectorAtividadeSonora  # noqa: E402
 from orion.voice.voice_core import VoiceCore  # noqa: E402
 from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
+from orion.vision.modulo import (  # noqa: E402
+    INTERVALO_RETENTATIVA_FAMILIA_S,
+    MAX_TENTATIVAS_FAMILIA,
+)
 
 def _palavras_ativacao(secao_voz: dict) -> tuple[str, ...]:
     """Os nomes que acordam o robo, LIDOS DA CONFIG (voice.wake_word).
@@ -670,14 +674,6 @@ async def principal() -> None:
             fonte_modelo=conf_ident.get("modelo", "speechbrain/spkrec-ecapa-voxceleb"),
             savedir=conf_ident.get("savedir"),
         )
-        try:
-            identificador_locutor.carregar_vozes_conhecidas(
-                await MemoryClient(comm).recall("pessoas", limite=50)
-            )
-        except Exception:
-            logger.exception(
-                "nao consegui carregar as vozes da familia - seguindo sem identificar"
-            )
         logger.info(
             "Identificacao de locutor por voz ativa (limiar cosseno %.3f)",
             conf_ident.get("limiar_cosseno", 0.5),
@@ -720,6 +716,38 @@ async def principal() -> None:
     logger.info("Chat por texto ativo (webui -> mission.conversa)")
 
     tarefa_saude = asyncio.create_task(reportar_saude_ao_pi())
+
+    async def carregar_vozes_da_familia() -> None:
+        """As vozes moram no banco do Pi - insiste ate o enlace responder.
+
+        Mesma corrida de boot dos rostos (vision/modulo.py, `_insistir_
+        familia`): ate 2026-10-25 a carga era UMA tentativa, feita no mesmo
+        segundo em que o enlace subia, e falhava com "Sem rota conhecida" -
+        o robo passava o dia sem reconhecer ninguem pela voz. Mesmos numeros
+        da visao, e o mesmo desistir alto no fim.
+        """
+        for tentativa in range(1, MAX_TENTATIVAS_FAMILIA + 1):
+            try:
+                identificador_locutor.carregar_vozes_conhecidas(
+                    await MemoryClient(comm).recall("pessoas", limite=50)
+                )
+                logger.info("Vozes da familia carregadas na tentativa %d", tentativa)
+                return
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "vozes da familia ainda nao (tentativa %d) - o enlace com o Pi pode "
+                    "estar subindo", tentativa, exc_info=tentativa == 1,
+                )
+            await asyncio.sleep(INTERVALO_RETENTATIVA_FAMILIA_S)
+        logger.error(
+            "Desisti de carregar as vozes apos %d tentativas - ninguem sera reconhecido "
+            "pela voz ate reiniciar", MAX_TENTATIVAS_FAMILIA,
+        )
+
+    tarefa_vozes = (
+        asyncio.create_task(carregar_vozes_da_familia())
+        if identificador_locutor is not None else None
+    )
 
     orion_api_server = uvicorn.Server(
         uvicorn.Config(orion_api_app, host='0.0.0.0', port=8081, log_level='info')
@@ -867,6 +895,8 @@ async def principal() -> None:
     finally:
         voz.parar()
         tarefa_saude.cancel()
+        if tarefa_vozes is not None:
+            tarefa_vozes.cancel()
         tarefa_orion_api.cancel()
         # PRIMEIRO o planner: ele ainda pode ter turnos por destilar, e a
         # destilacao precisa do link com o Pi (que o `comm.encerrar()` logo

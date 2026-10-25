@@ -219,8 +219,14 @@ class Autoconhecimento:
         tokens_fato = re.sub(
             r"[^\w\s]", " ", _sem_acento(linha["titulo"] + " " + linha["perguntas"])
         ).split()
+        # Inicio de palavra com folga de ate 2 letras (plural/genero), nao
+        # qualquer prefixo: "dia" nao e "diario" (2026-10-25, mesma correcao
+        # do saber_buscar no Pi - sem palavra de ativacao, toda fala passa
+        # por aqui antes da IA).
         cobertas = sum(
-            1 for p in palavras if any(t.startswith(p) for t in tokens_fato)
+            1
+            for p in palavras
+            if any(t.startswith(p) and len(t) - len(p) <= 2 for t in tokens_fato)
         )
         if cobertas < min(2, len(palavras)):
             return None
