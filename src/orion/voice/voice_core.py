@@ -456,10 +456,10 @@ class VoiceCore:
     def _eh_eco_da_propria_fala(self, texto: str) -> bool:
         """A transcricao e a voz DELE voltando pelo microfone?
 
-        A trava de tempo (`_falar_na_tela` agora espera o som acabar) e a
+        A trava de tempo (`falar()` so volta quando o som acabou) e a
         defesa principal; esta aqui e o cinto de seguranca, para o caso de o
-        som escapar por uma fresta - um atraso na serial, um buffer do I2S
-        maior que o previsto, o alto-falante e o microfone na mesma placa.
+        som escapar por uma fresta - um buffer de audio maior que o
+        previsto, o alto-falante perto do microfone.
 
         NAO COMPARA TEXTO IGUAL: o Whisper devolve a fala dele mastigada, e
         exigir igualdade nao pegaria nada. Medido no laco de 2026-09-19:

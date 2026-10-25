@@ -1,7 +1,7 @@
 # EDR-0035 — Rosto expressivo em camadas
 
 **Data:** 13/09/2026
-**Status:** Decidido
+**Status:** Abandonada em 25/10/2026: a tela ESP32-S3 saiu do robô (o Notebook ficou no lugar dela, EDR-0036). O código do Pi que falava com a tela saiu no mesmo dia; o último estado dele está no commit `48286f5`, e o firmware em `~/orion_face` no Pi.
 **Módulo:** Display Core (ESP32-S3 da tela)
 **Relacionado:** EDR-0028 (fronteira), modelo emocional de oito estados
 

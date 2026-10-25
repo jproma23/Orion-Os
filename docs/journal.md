@@ -9206,8 +9206,27 @@ De quebra, o restart do avatar revelou que o **alto-falante USB mudou de índice
 
 As três mudanças estão **só no Notebook, sem commit** (a árvore dele já tem 61 arquivos sem commit). Backups em `/tmp/*.bak-20261025`.
 
+### A tela saiu do robô, e o código dela saiu do Pi
+
+O dono, 25/10: *"a tela ja saiu substituida pelo notebook entao devemos voltar o projeto"*. Antes de remover, o trabalho de 27/09 que nunca tinha sido commitado (o rosto reagindo a eventos, +157 linhas na `ponte_serial.py`) foi commitado em `48286f5`, para ficar no histórico caso a tela volte.
+
+Saiu do Pi:
+- a **`PonteSerial`** (`display/ponte_serial.py`, 595 linhas) e os 13 testes dela;
+- a **fala pela tela**: `tocar_na_tela` e `_falar_na_tela` no `sintese.py`, a chave `falar_pela_tela` no `voice/modulo.py` e no `orion.yaml`;
+- o **microfone da tela** como degrau do `ModuloVoz`, e a ponte compartilhada no `boot.py`;
+- o avatar aberto na rede (`host="0.0.0.0"`, de `55cc108`), que só existia para a tela assinar o SSE por Wi-Fi. Voltou ao padrão, `127.0.0.1`.
+
+`ouvidos_esp32.habilitado` voltou para `true`: com a tela fora, os ouvidos são o único microfone.
+
+Ficou: a voz mais lenta (`VOZ_LENGTH_SCALE` 1,40), os portões da transcrição (`df692e8`) e o detector de eco do `voice_core.py`. O "freio do microfone" de `3f495f9` tinha duas partes. A espera pelo fim do som existia só no caminho da tela e saiu com ela, porque o alto-falante local sempre esperou pelo `sd.wait()`. O detector de eco continua.
+
+Suíte do Pi: **1266 → 1253 passam**, zero falha. A diferença é exatamente os 13 testes da ponte.
+
+**Erros meus nesta parte:** rodei `git stash` para comparar o linter com o estado anterior **enquanto a suíte rodava**, o que invalidou aquela rodada (ela foi refeita). Depois, um `pkill -f` casou com a própria linha de comando do SSH e derrubou a sessão. O stash voltou inteiro, conferido arquivo por arquivo.
+
 ### Não feito / pendente
 
 - **O firmware de hoje não foi commitado** (`pins.h`, `motor_manager.h`, `encoder_pcnt.cpp`, `main.cpp`, `tools/testar_roda.py`). O ESP32 está rodando a versão com os canais 14/15 e o `TEST_WHEEL` com a leitura dos IN.
 - A bancada continua: rodar `tools/testar_roda.py` com as rodas no ar, ler os IN e só então o encoder.
 - Juntar os códigos do Pi e do Notebook e religar o Mission Core no Pi (EDR-0036).
+- Levar para o Notebook os consertos de voz de setembro (`df692e8`, detector de eco, nome Javis completo). É o passo 2 de "voltar o projeto", e depende de os microfones dos ouvidos voltarem a mandar som.

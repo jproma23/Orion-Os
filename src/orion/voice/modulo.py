@@ -39,7 +39,6 @@ class ModuloVoz:
         processar_comando: ProcessarComando,
         frase_saudacao: str | None = SAUDACAO_PADRAO,
         nucleo: Any | None = None,
-        ouvidos_tela: Any | None = None,
     ) -> None:
         # `nucleo` injetavel: os testes exercitam o ciclo de vida sem
         # microfone, sem Whisper e sem Piper instalados.
@@ -48,12 +47,6 @@ class ModuloVoz:
         self._processar_comando = processar_comando
         self._frase_saudacao = frase_saudacao
         self._nucleo = nucleo
-        #: A ponte serial do ModuloDisplay, quando existe - ela e a dona da
-        #: porta USB da tela e tambem serve o audio do microfone de la. Quem
-        #: casa os dois modulos e o Boot Manager, que conhece os dois lados
-        #: (mesmo padrao de `processar_comando`); ModuloVoz continua sem saber
-        #: que existe um ModuloDisplay.
-        self._ouvidos_tela = ouvidos_tela
         self._sintetizador: Any | None = None
         self._tarefa: asyncio.Task | None = None
         #: Ouvidos do ESP32 (2026-09-13): a classe ja existia testada desde
@@ -124,24 +117,9 @@ class ModuloVoz:
         """So a FALA - nao toca em microfone, nem em Whisper, nem em rede."""
         from orion.voice.sintese import Sintetizador
 
-        # A fala pode sair pela CABECA (alto-falante da tela ESP32-S3) em vez
-        # do dispositivo de audio do Pi - 2026-09-16, quando o alto-falante da
-        # tela passou a funcionar. Uma saida OU a outra, nunca as duas: o robo
-        # falaria em duplicado, com eco entre elas. Quem escreve na serial e a
-        # ponte do ModuloDisplay, dona da porta; aqui so se publica o PCM.
-        tocar_na_tela = None
-        if self._conf.get("falar_pela_tela"):
-            async def tocar_na_tela(audio, taxa: int) -> None:
-                await self._event_bus.publish(
-                    "voice.audio_pcm", {"audio": audio, "taxa": taxa}
-                )
-
-            logger.info("A fala vai sair pelo alto-falante da tela (orion_face)")
-
         return Sintetizador(
             self._conf["piper_voice_path"],
             indice_dispositivo_saida=self._conf["saida_audio_indice"],
-            tocar_na_tela=tocar_na_tela,
         )
 
     async def _construir(self) -> Any:
@@ -186,19 +164,6 @@ class ModuloVoz:
                     "Ouvidos do ESP32 nao apareceram em %.1fs - caindo pro microfone local",
                     prazo_s,
                 )
-
-        # Degrau novo (2026-09-17): o microfone da propria cabeca. Vem DEPOIS
-        # dos ouvidos do ESP32 (dois mics dedicados, melhores quando estao no
-        # ar) e ANTES do microfone local, que nesta montagem nao existe - o Pi
-        # nao tem nenhum, e era por isso que o robo ficava surdo quando os
-        # ouvidos nao apareciam. Chega pelo MESMO cabo USB que leva a fala;
-        # quem le a porta e a ponte do ModuloDisplay, dona dela.
-        if gravar_audio is None and self._ouvidos_tela is not None:
-            if self._ouvidos_tela.ouvindo:
-                logger.info("Ouvindo pelo microfone da tela (orion_face)")
-                gravar_audio = self._ouvidos_tela.gravar
-            else:
-                logger.warning("A tela nao esta ouvindo - sem microfone por esse caminho")
 
         if gravar_audio is None:
             logger.info("Escolhendo o melhor microfone (Cap 9 s.6)...")

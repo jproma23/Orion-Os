@@ -59,9 +59,8 @@ communication:
     # O CAMINHO DE SAIDA DO USB JA ESTA PRONTO, MAS AINDA NAO E ESTE (2026-09-20).
     #
     # O Pi tem 4 portas e 5 candidatos: SSD, LiDAR, tela ESP32-S3, corpo e a
-    # placa de audio USB. Hoje quem esta de fora e o AUDIO - o que so nao
-    # doi porque `falar_pela_tela: true` (a fala e o microfone vem da cabeca
-    # ESP32-S3, nao do Pi). Ou seja: a porta nao sobra, ela esta emprestada.
+    # placa de audio USB. (Desde 25/10 a tela saiu do robo e a voz mora no
+    # Notebook - EDR-0036 -, entao a porta dela ficou livre.)
     #
     # A UART do header GPIO ja foi HABILITADA no Pi (enable_uart=1 +
     # dtoverlay=disable-bt no config.txt, console serial removido do
@@ -521,12 +520,6 @@ voice:
   # conectada no HDMI do notebook ("HDA Intel PCH: Android TV", confirmada
   # falando em 2026-07-18). Indices sounddevice nao sao fixos - conferir
   # com `python -m sounddevice` se mudar as portas USB/HDMI.
-  # A fala sai pelo alto-falante da TELA (cabeca ESP32-S3) em vez do
-  # dispositivo de audio do Pi - ligado em 2026-09-16, quando o alto-falante
-  # da tela passou a funcionar (os pinos DOUT/DIN do I2S estavam trocados no
-  # firmware). E uma saida OU a outra: com as duas o robo fala em duplicado.
-  # false volta tudo para saida_audio_indice abaixo.
-  falar_pela_tela: true
   saida_audio_indice: 0  # Pi: bcm2835 Headphones (hw:2,0) - antes era 4 (HDMI do notebook)
   # indices de entrada (sounddevice) reconferidos em 2026-07-24: 2a webcam
   # (USB Composite Device) desconectada fisicamente hoje, sobrou PC Camera
@@ -599,13 +592,10 @@ voice:
   #
   # `habilitado: false` volta para os microfones locais sem tocar em codigo.
   ouvidos_esp32:
-    # false desde 2026-09-17: quem ouve agora e o microfone da propria cabeca
-    # (a tela ESP32-S3, pela USB - ver display/ponte_serial.py). Os ouvidos
-    # separados continuam suportados e voltam trocando isto para true; ficaram
-    # desligados porque o ESP32 deles nao esta no ar, e ligado ele custava 6s
-    # de espera em todo boot mais um traceback de reconexao a cada 3s no log,
-    # para sempre.
-    habilitado: false
+    # true de novo desde 2026-10-25: a tela ESP32-S3, cujo microfone ouvia
+    # no lugar destes de 17/09 em diante, saiu do robo. Os ouvidos voltam a
+    # ser o unico microfone (EDR-0036: falam direto com o Notebook).
+    habilitado: true
     host: "ouvidos.local"
     porta: 9100
     # Quanto se espera o ESP32 aparecer no boot antes de cair para o

@@ -24,14 +24,11 @@ class ModuloDisplay:
         event_bus: EventBus,
         conf_visao: dict[str, Any],
         servidor: Any | None = None,
-        ponte_serial: Any | None = None,
     ) -> None:
-        # `servidor`/`ponte_serial` injetaveis para os testes nao precisarem
-        # subir HTTP nem porta serial real
+        # `servidor` injetavel para os testes nao precisarem subir HTTP
         self._event_bus = event_bus
         self._conf_visao = conf_visao
         self._servidor = servidor
-        self._ponte_serial = ponte_serial
         self._no_ar = False
 
     async def iniciar(self) -> None:
@@ -45,18 +42,8 @@ class ModuloDisplay:
                     "pan_limits_degrees": self._conf_visao["pan_limits_degrees"],
                     "tilt_limits_degrees": self._conf_visao["tilt_limits_degrees"],
                 },
-                # 0.0.0.0: o kiosk local acessa por aqui - o rosto do
-                # ESP32-S3 (orion_face) NAO usa mais este SSE, ver ponte_serial.
-                host="0.0.0.0",
             )
         await self._servidor.iniciar()
-        if self._ponte_serial is None:
-            # import local: pyserial so e exigido de quem realmente tem a
-            # placa do orion_face plugada
-            from orion.display.ponte_serial import PonteSerial
-
-            self._ponte_serial = PonteSerial(self._event_bus)
-        await self._ponte_serial.iniciar()
         self._no_ar = True
         logger.info("Avatar no ar")
 
@@ -65,11 +52,6 @@ class ModuloDisplay:
         # ao fechar, os proximos modulos ainda precisam soltar os recursos
         # deles - por isso a excecao morre aqui, so registrada.
         self._no_ar = False
-        if self._ponte_serial is not None:
-            try:
-                await self._ponte_serial.encerrar()
-            except Exception:  # noqa: BLE001
-                logger.warning("Falha ao encerrar a ponte serial", exc_info=True)
         if self._servidor is None:
             return
         try:
