@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 import serial
 
@@ -25,6 +26,83 @@ TOPICOS_REPASSADOS = (
     "voice.response_finished",
     "motion.pan_tilt",
 )
+
+#: Eventos do robo que viram REACAO do rosto (2026-09-27). O firmware entende
+#: {"evento": "rosto", "tipo": ...} (orion_face/src/net.cpp); os tipos, e o
+#: que o rosto faz com cada um, estao em orion_face/src/rosto_emo.h. Quem
+#: decide a traducao e o `TradutorRosto`, logo abaixo.
+TOPICOS_ROSTO = (
+    "vision.person_detected",
+    "vision.person_recognized",
+    "vision.person_lost",
+    "voice.status",
+)
+
+#: A visao publica a CADA quadro. O rosto so faz a festa de "pessoa nova"
+#: depois de 6s sem ninguem - repassar todo quadro so entupiria a serial, que
+#: e a mesma por onde passa a fala.
+_INTERVALO_PESSOA_S = 1.0
+
+#: Reconhecer alguem = rosto muito feliz, mas uma vez por pessoa neste
+#: intervalo. Quem fica na frente do robo seria reconhecido a cada quadro, e
+#: festa sem fim deixa de ser festa.
+_INTERVALO_RECONHECIDA_S = 300.0
+
+#: estados do VoiceCore (voice_core.EstadoVoz) em que o rosto faz cara de
+#: "estou te ouvindo" - LISTENING fica de fora: e a escuta de fundo, esperando
+#: o nome dele, e dura o dia inteiro.
+_ESTADOS_OUVINDO = ("WAKE_DETECTED", "TRANSCRIBING")
+_ESTADO_PENSANDO = "THINKING"
+
+
+class TradutorRosto:
+    """Traduz eventos do Event Bus em reacoes do rosto. Sem porta nem bus:
+    recebe (topico, dados) e devolve as linhas a mandar - por isso da para
+    testar sem hardware. `relogio` e injetavel pelo mesmo motivo."""
+
+    def __init__(self, relogio=time.monotonic) -> None:
+        self._relogio = relogio
+        self._ultima_pessoa = float("-inf")
+        self._reconhecidas: dict[object, float] = {}
+        self._ouvindo = False
+        self._pensando = False
+
+    def traduzir(self, topico: str, dados: dict) -> list[dict]:
+        if topico == "vision.person_detected":
+            agora = self._relogio()
+            if agora - self._ultima_pessoa < _INTERVALO_PESSOA_S:
+                return []
+            self._ultima_pessoa = agora
+            return [{"tipo": "pessoa"}]
+
+        if topico == "vision.person_recognized":
+            agora = self._relogio()
+            quem = dados.get("pessoa_id") or dados.get("nome")
+            if agora - self._reconhecidas.get(quem, float("-inf")) < _INTERVALO_RECONHECIDA_S:
+                return []
+            self._reconhecidas[quem] = agora
+            # "emocao" e nao "pessoa": a deteccao chega ANTES do reconhecimento,
+            # e o firmware ja gastou a festa de pessoa nova quando o nome chega.
+            return [{"tipo": "emocao", "nome": "muito_feliz", "valor": 2000}]
+
+        if topico == "vision.person_lost":
+            self._ultima_pessoa = float("-inf")
+            return [{"tipo": "pessoa_sumiu"}]
+
+        if topico == "voice.status":
+            estado = str(dados.get("estado", ""))
+            ouvindo = estado in _ESTADOS_OUVINDO
+            pensando = estado == _ESTADO_PENSANDO
+            saida = []
+            if ouvindo != self._ouvindo:
+                saida.append({"tipo": "ouvindo_inicio" if ouvindo else "ouvindo_fim"})
+            if pensando != self._pensando:
+                saida.append({"tipo": "pensando_inicio" if pensando else "pensando_fim"})
+            self._ouvindo, self._pensando = ouvindo, pensando
+            return saida
+
+        return []
+
 
 #: A fala tambem vem por aqui desde 2026-09-16 (ver orion_face/src/net.cpp:
 #: serial_task). Nao entra em TOPICOS_REPASSADOS porque nao e uma linha JSON:
@@ -117,6 +195,29 @@ def empacotar_audio(pcm: bytes) -> bytes:
     return bytes(quadro)
 
 
+def resolver_porta(porta_sugerida: str = "/dev/ttyACM0") -> str:
+    """Encontra a porta serial do orion_face (ESP32-S3).
+
+    Tolera re-enumeracao do kernel (usb disconnect/reconnect mudando de
+    ttyACM0 para ttyACM1).
+    """
+    import glob
+    from pathlib import Path
+
+    if Path(porta_sugerida).exists():
+        return porta_sugerida
+
+    por_id = glob.glob("/dev/serial/by-id/*Espressif*")
+    if por_id and Path(por_id[0]).exists():
+        return por_id[0]
+
+    acms = sorted(glob.glob("/dev/ttyACM*"))
+    if acms:
+        return acms[0]
+
+    return porta_sugerida
+
+
 class PonteSerial:
     """Escreve cada evento repassado como uma linha JSON na porta serial do
     orion_face. Nunca levanta: porta ausente ou fechada so registra e segue
@@ -149,6 +250,8 @@ class PonteSerial:
         self._quadro = bytearray()
         #: enquanto True, o buffer NAO e podado pelo teto (ver `_desempacotar`)
         self._gravando = False
+        self._encerrando = False
+        self._tradutor_rosto = TradutorRosto()
 
     @property
     def ouvindo(self) -> bool:
@@ -156,17 +259,20 @@ class PonteSerial:
         return self._serial is not None and self._tarefa_leitura is not None
 
     async def iniciar(self) -> None:
+        self._porta = resolver_porta(self._porta)
         try:
             self._serial = serial.Serial(self._porta, self._baud, timeout=0)
         except serial.SerialException as erro:
             logger.warning("orion_face inalcancavel em %s: %s", self._porta, erro)
             self._serial = None
-            return
         for topico in TOPICOS_REPASSADOS:
             self._event_bus.subscribe(topico, self._fazer_repassador(topico))
         self._event_bus.subscribe(TOPICO_AUDIO, self._receber_audio)
+        for topico in TOPICOS_ROSTO:
+            self._event_bus.subscribe(topico, self._fazer_tradutor(topico))
         self._tarefa_leitura = asyncio.create_task(self._drenar_sempre())
-        logger.info("Ponte serial com orion_face pronta (%s)", self._porta)
+        if self._serial is not None:
+            logger.info("Ponte serial com orion_face pronta (%s)", self._porta)
 
     def _fazer_repassador(self, topico: str):
         async def _repassar(evento: Evento) -> None:
@@ -179,6 +285,21 @@ class PonteSerial:
                 logger.warning("Falha ao escrever no orion_face, ponte segue tentando")
 
         return _repassar
+
+    def _fazer_tradutor(self, topico: str):
+        async def _traduzir(evento: Evento) -> None:
+            if self._serial is None:
+                return
+            for reacao in self._tradutor_rosto.traduzir(topico, evento.dados or {}):
+                logger.info("rosto <- %s (de %s)", reacao, topico)  # DIAGNOSTICO TEMPORARIO
+                linha = json.dumps({"evento": "rosto", **reacao}) + "\n"
+                try:
+                    self._serial.write(linha.encode("utf-8"))
+                except serial.SerialException:
+                    logger.warning("Falha ao escrever no orion_face, ponte segue tentando")
+                    return
+
+        return _traduzir
 
     async def _receber_audio(self, evento: Evento) -> None:
         """Assinante de `voice.audio_pcm`: solta o envio numa task e volta JA.
@@ -257,13 +378,34 @@ class PonteSerial:
     # atras - o robo responderia ao passado.
 
     async def _drenar_sempre(self) -> None:
-        """Le a serial para sempre, separando log/eventos de audio do mic."""
-        while self._serial is not None:
+        """Le a serial para sempre, reconectando se a porta cair."""
+        while not self._encerrando:
+            if self._serial is None:
+                porta = resolver_porta(self._porta)
+                try:
+                    self._serial = serial.Serial(porta, self._baud, timeout=0)
+                    self._porta = porta
+                    logger.info("Ponte serial com orion_face reconectada (%s)", porta)
+                except (serial.SerialException, OSError):
+                    await asyncio.sleep(2.0)
+                    continue
+
             try:
                 dados = self._serial.read(4096)  # timeout=0: volta na hora
-            except (serial.SerialException, OSError):
-                logger.warning("Leitura da serial do orion_face falhou", exc_info=True)
-                return
+            except (serial.SerialException, OSError) as erro:
+                logger.warning(
+                    "Leitura da serial do orion_face falhou (%s), tentando reconectar: %s",
+                    self._porta,
+                    erro,
+                )
+                try:
+                    self._serial.close()
+                except Exception:
+                    pass
+                self._serial = None
+                await asyncio.sleep(1.0)
+                continue
+
             if dados:
                 self._desempacotar(dados)
                 await asyncio.sleep(0)  # cede o loop sem dormir de verdade
@@ -440,6 +582,7 @@ class PonteSerial:
         return mono
 
     async def encerrar(self) -> None:
+        self._encerrando = True
         tarefa, self._tarefa_leitura = self._tarefa_leitura, None
         if self._serial is not None:
             self._serial.close()

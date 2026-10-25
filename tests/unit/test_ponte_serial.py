@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 import serial as pyserial
 
-from orion.display.ponte_serial import PonteSerial, empacotar_audio
+from orion.display.ponte_serial import PonteSerial, TradutorRosto, empacotar_audio
 from orion.kernel.event_bus import EventBus
 
 
@@ -227,3 +227,87 @@ async def test_porta_ausente_nao_levanta(monkeypatch, bus_rodando):
 
     await bus_rodando.publish("voice.response_started", {})
     await asyncio.sleep(0.05)  # tambem nao pode levantar aqui
+
+
+def test_resolver_porta(monkeypatch, tmp_path):
+    from orion.display.ponte_serial import resolver_porta
+
+    fake_porta = tmp_path / "ttyACM0"
+    fake_porta.touch()
+    assert resolver_porta(str(fake_porta)) == str(fake_porta)
+
+
+# ---------------------------------------------------------------------------
+# Reacoes do rosto (2026-09-27)
+# ---------------------------------------------------------------------------
+
+
+class _Relogio:
+    def __init__(self):
+        self.agora = 1000.0
+
+    def __call__(self):
+        return self.agora
+
+
+def test_rosto_pessoa_detectada_no_maximo_uma_vez_por_segundo():
+    relogio = _Relogio()
+    tradutor = TradutorRosto(relogio)
+    assert tradutor.traduzir("vision.person_detected", {"classe": "person"}) == [{"tipo": "pessoa"}]
+    relogio.agora += 0.5
+    assert tradutor.traduzir("vision.person_detected", {"classe": "person"}) == []
+    relogio.agora += 0.6
+    assert tradutor.traduzir("vision.person_detected", {"classe": "person"}) == [{"tipo": "pessoa"}]
+
+
+def test_rosto_reconhecer_alguem_faz_festa_uma_vez_por_pessoa():
+    relogio = _Relogio()
+    tradutor = TradutorRosto(relogio)
+    festa = [{"tipo": "emocao", "nome": "muito_feliz", "valor": 2000}]
+    assert tradutor.traduzir("vision.person_recognized", {"pessoa_id": 1, "nome": "Joao"}) == festa
+    relogio.agora += 60
+    assert tradutor.traduzir("vision.person_recognized", {"pessoa_id": 1, "nome": "Joao"}) == []
+    # outra pessoa nao espera a primeira
+    assert tradutor.traduzir("vision.person_recognized", {"pessoa_id": 2, "nome": "Mara"}) == festa
+    relogio.agora += 300
+    assert tradutor.traduzir("vision.person_recognized", {"pessoa_id": 1, "nome": "Joao"}) == festa
+
+
+def test_rosto_pessoa_sumiu_libera_a_proxima_deteccao():
+    relogio = _Relogio()
+    tradutor = TradutorRosto(relogio)
+    tradutor.traduzir("vision.person_detected", {})
+    assert tradutor.traduzir("vision.person_lost", {}) == [{"tipo": "pessoa_sumiu"}]
+    relogio.agora += 0.1
+    assert tradutor.traduzir("vision.person_detected", {}) == [{"tipo": "pessoa"}]
+
+
+def test_rosto_segue_os_estados_da_voz_so_nas_mudancas():
+    tradutor = TradutorRosto(_Relogio())
+    # a escuta de fundo (LISTENING) nao e "estou te ouvindo"
+    assert tradutor.traduzir("voice.status", {"estado": "LISTENING"}) == []
+    acordou = tradutor.traduzir("voice.status", {"estado": "WAKE_DETECTED"})
+    assert acordou == [{"tipo": "ouvindo_inicio"}]
+    assert tradutor.traduzir("voice.status", {"estado": "TRANSCRIBING"}) == []
+    assert tradutor.traduzir("voice.status", {"estado": "THINKING"}) == [
+        {"tipo": "ouvindo_fim"},
+        {"tipo": "pensando_inicio"},
+    ]
+    assert tradutor.traduzir("voice.status", {"estado": "SPEAKING"}) == [{"tipo": "pensando_fim"}]
+    assert tradutor.traduzir("voice.status", {"estado": "IDLE"}) == []
+
+
+@pytest.mark.asyncio
+async def test_ponte_manda_reacao_do_rosto_pela_serial(serial_fake, bus_rodando):
+    ponte = PonteSerial(bus_rodando, porta="/dev/fake")
+    await ponte.iniciar()
+
+    await bus_rodando.publish("vision.person_lost", {"timestamp": 1.0})
+    await bus_rodando.publish("voice.status", {"estado": "THINKING"})
+    await asyncio.sleep(0.05)
+
+    recebidas = [json.loads(linha) for linha in serial_fake.linhas]
+    assert {"evento": "rosto", "tipo": "pessoa_sumiu"} in recebidas
+    assert {"evento": "rosto", "tipo": "pensando_inicio"} in recebidas
+
+    await ponte.encerrar()

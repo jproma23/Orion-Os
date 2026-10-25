@@ -51,7 +51,11 @@ MARGEM_FIM_DA_FALA_S = 0.5
 #: *"ele esta falando rapido demais, precisamos que ele fale mais lento"*. O
 #: limite descrito abaixo continua valendo - pausado demais vira solene, e
 #: solene e frio -, entao subiu com margem, nao ate onde daria.
-VOZ_LENGTH_SCALE = 1.18
+#: 1.18 -> 1.40 em 2026-09-27, o dono de novo, ouvindo pela tela com o volume
+#: mais alto: *"ta falando tao rapido que embola"*. Conferido antes que nao
+#: era a tela pulando pedacos: frase de 5,4s tocada inteira, zero descarte no
+#: log do firmware. Era ritmo mesmo.
+VOZ_LENGTH_SCALE = 1.40
 VOZ_NOISE_SCALE = 0.70
 VOZ_NOISE_W_SCALE = 0.80
 
