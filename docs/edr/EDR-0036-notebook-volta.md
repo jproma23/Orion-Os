@@ -68,7 +68,7 @@ A volta foi feita **pela metade**, em 12/10:
 - O `orion-mission` foi **desligado e desabilitado no Pi**.
 - O Notebook roda o `orion-avatar` (`tools/conversar_fofao.py`) com o **código de 19/08** (`c9c45a8` + 61 arquivos sem commit). Esse código inclui o **Mission Core inteiro**.
 - A config do Notebook passou a achar o Pi por `pi-os.local` e o alto-falante virou o índice 5.
-- O robô conversa: o Notebook está ligado ao Pi (5757) e aos ouvidos (9100).
+- O Notebook está ligado ao Pi (5757) e aos ouvidos (9100), mas **não ouve ninguém**: lidos direto, os dois microfones dos ouvidos mandam 100% de zeros (25/10), e nos 7 boots do Notebook desde 04/10 não há nenhuma chamada à IA. A última voz que funcionou foi pelo microfone da tela, no Pi, em 16 a 19/09. *(Corrigido em 25/10: a primeira versão desta EDR dizia "o robô conversa", o que só vale para o chat escrito.)*
 
 O que **ainda contradiz** esta decisão:
 
@@ -76,6 +76,7 @@ O que **ainda contradiz** esta decisão:
 2. **Os códigos divergiram**: o Pi tem 38 commits que o Notebook não tem, e o Notebook tem 9 commits e 61 arquivos que o Pi não tem, incluindo o identificador de voz (SpeechBrain).
 3. **O IP fixo não foi feito**: o Pi está em 10.20.20.106, e o remote `pi` do git no Notebook ainda aponta para o .196.
 4. **O áudio gravado de "sem cérebro" não existe.**
+5. **Os ouvidos estão mudos** (ver acima): sem microfone, a voz não funciona em máquina nenhuma.
 
 ## Ordem de execução (o que falta)
 

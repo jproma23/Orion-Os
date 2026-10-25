@@ -9147,7 +9147,7 @@ Conferido hoje nas duas máquinas:
 - No Notebook, o `orion-avatar` (`tools/conversar_fofao.py`) roda o código de **19/08** (`c9c45a8` + 61 arquivos sem commit). Esse código inclui o Mission Core inteiro.
 - A única mudança de 12/10 no Notebook foi na config. O Pi passou a ser achado por `pi-os.local`, porque o IP mudou por DHCP. O alto-falante passou a ser o índice 5, porque o 4 virou a webcam.
 
-O robô conversa, mas **a memória roda no lado que a EDR-0036 diz que não guarda nada**. Os códigos divergiram nos dois sentidos: o Pi tem 38 commits que o Notebook não tem, e o Notebook tem 9 commits e 61 arquivos que o Pi não tem, entre eles o identificador de voz (SpeechBrain). Nada disso foi juntado hoje. Mexer nisso mexe no robô que está falando, então fica para uma sessão com o dono testando.
+O robô conversa pelo chat escrito (a voz está muda, ver abaixo), mas **a memória roda no lado que a EDR-0036 diz que não guarda nada**. Os códigos divergiram nos dois sentidos: o Pi tem 38 commits que o Notebook não tem, e o Notebook tem 9 commits e 61 arquivos que o Pi não tem, entre eles o identificador de voz (SpeechBrain). Nada disso foi juntado hoje. Mexer nisso mexe no robô que está falando, então fica para uma sessão com o dono testando.
 
 O **Pi trocou de IP** (de .196 para .106). O IP fixo decidido em 30/09 não foi feito, e o remote `pi` do git no Notebook ainda aponta para o endereço velho.
 
@@ -9192,6 +9192,19 @@ O `orion-motion` precisa estar parado enquanto a ferramenta usa a serial.
 - O primeiro teste foi a **40%**, com o L298N já em 5 V, potência baixa demais para mostrar qualquer coisa.
 - Escrevi a ferramenta de bancada com **aspas que se perderam no heredoc** do SSH, e ela não rodou na primeira vez.
 - O SSH do Pi passou a **fechar toda conexão antes do banner**, enquanto ping e câmera respondiam. O dono teve que reiniciar o Pi. **A causa não foi descoberta.** Depois do reinício, `get_throttled=0x0`.
+
+### Os ouvidos estão mudos desde setembro (achado no fim da manhã)
+
+"Javis não responde" tinha duas camadas:
+
+1. **O Notebook esperava "fofão".** O nome mudou no Pi em 19/09 (`d55f929`), mas o `tools/conversar_fofao.py` do Notebook tinha a palavra escrita direto no código (a config nem era lida). Trocado no Notebook para `javis`/`jarvis` com tolerância de 1 letra; a de 2 letras do "fofao" acordaria com "aviso".
+2. **Os microfones mandam zero.** Lidos direto de `ouvidos.local:9100`: 8 s, **100% das amostras iguais a zero** nos dois canais, com o dono falando, depois de religar o ESP e depois de mexer nos fios. O fluxo chega no ritmo certo (64 kB/s); quem não entrega nada são os mics. O firmware é o de 29/07, e o comentário dele já dizia que "zero absoluto" é mic sem sinal ou pino errado.
+
+Nos 7 boots do Notebook desde 04/10 não há **nenhuma** chamada à IA: ele nunca ouviu ninguém depois da volta. A última voz que funcionou foi pelo microfone da tela, no Pi (16 a 19/09). Em 17/09 os ouvidos foram deixados de lado como "fora do ar", e em 12/10 o Notebook voltou a apontar para eles.
+
+De quebra, o restart do avatar revelou que o **alto-falante USB mudou de índice** (5 → 4: o mic da webcam entrou como placa 0) e o 5 virou `sysdefault`, sem saída. O avatar caía em loop toda vez que ia falar, e o kiosk mostrava "sem conexão". A config passou a achar o alto-falante **pelo nome** (`"USB Audio Device"`). Também entrou um log `vigia ouviu: %r` no `voice_core.py`, para separar "barrado no VAD" de "o Whisper entendeu outra coisa".
+
+As três mudanças estão **só no Notebook, sem commit** (a árvore dele já tem 61 arquivos sem commit). Backups em `/tmp/*.bak-20261025`.
 
 ### Não feito / pendente
 
