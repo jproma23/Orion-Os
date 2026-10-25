@@ -87,6 +87,10 @@ _PALAVRAS_VAZIAS = frozenset(
         "desligar", "acende", "apaga", "gira", "girar", "para", "parar",
         "continua", "mostra", "mostrar", "fala", "falar", "conta", "contar",
         "diz", "dizer", "faz", "checa", "checar", "verifica", "verificar",
+        # Artigos e pergunta generica (2026-10-25): "Diga em uma frase curta
+        # qual e o seu nome" cobria "uma" + "nome" (do `mesmo_nome` de uma
+        # ficha de codigo) e respondia com o recados.py. Nao sao assunto.
+        "uma", "umas", "uns", "qual", "quais", "diga",
     }
 )
 
@@ -131,10 +135,11 @@ def _cobertura_ok(consulta: str, titulo: str, corpo: str) -> bool:
     return cobertas >= 1 if len(palavras) == 1 else cobertas >= 2
 
 
-#: Quantas letras a palavra do registro pode ter A MAIS que a da fala e ainda
-#: contar como a mesma: plural e genero ("sensor"/"sensores", "lampada"/
-#: "lampadas"). Tres ja e outra palavra ("dia"/"diario").
-_SUFIXO_TOLERADO = 2
+#: O que a palavra do registro pode ter A MAIS que a da fala e ainda contar
+#: como a mesma: plural e genero ("sensor"/"sensores", "lampada"/"lampadas",
+#: "novo"/"nova"). Era "ate 2 letras quaisquer" e "chama" casava com
+#: "chamada" (2026-10-25) - sufixo de verdade, nao contagem de letras.
+SUFIXOS_FLEXAO = ("", "s", "es", "a", "as", "o", "os")
 
 
 def _palavra_coberta(palavra: str, alvo: set[str]) -> bool:
@@ -147,10 +152,7 @@ def _palavra_coberta(palavra: str, alvo: set[str]) -> bool:
     "qual e o seu nome" achava "nome" dentro de "mesmonome". Sem palavra de
     ativacao, TODA fala passa por aqui antes da IA.
     """
-    return any(
-        w == palavra or (w.startswith(palavra) and len(w) - len(palavra) <= _SUFIXO_TOLERADO)
-        for w in alvo
-    )
+    return any(palavra + sufixo in alvo for sufixo in SUFIXOS_FLEXAO)
 
 
 def sincronizar_fts(

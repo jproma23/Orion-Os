@@ -42,6 +42,9 @@ from pathlib import Path
 
 import yaml
 
+#: Mesmos sufixos de flexao do saber_buscar (motion_core/memory/saber.py).
+_SUFIXOS_FLEXAO = ("", "s", "es", "a", "as", "o", "os")
+
 logger = logging.getLogger("orion.ensino.autoconhecimento")
 
 #: Marcas de que a pergunta e sobre ELE. Palavra inteira, sempre.
@@ -219,14 +222,15 @@ class Autoconhecimento:
         tokens_fato = re.sub(
             r"[^\w\s]", " ", _sem_acento(linha["titulo"] + " " + linha["perguntas"])
         ).split()
-        # Inicio de palavra com folga de ate 2 letras (plural/genero), nao
-        # qualquer prefixo: "dia" nao e "diario" (2026-10-25, mesma correcao
-        # do saber_buscar no Pi - sem palavra de ativacao, toda fala passa
-        # por aqui antes da IA).
+        # Palavra inteira com sufixo de plural/genero, nao qualquer prefixo:
+        # "dia" nao e "diario", "chama" nao e "chamada" (2026-10-25, mesma
+        # regra do saber_buscar no Pi - sem palavra de ativacao, toda fala
+        # passa por aqui antes da IA).
+        conjunto_fato = set(tokens_fato)
         cobertas = sum(
             1
             for p in palavras
-            if any(t.startswith(p) and len(t) - len(p) <= 2 for t in tokens_fato)
+            if any(p + sufixo in conjunto_fato for sufixo in _SUFIXOS_FLEXAO)
         )
         if cobertas < min(2, len(palavras)):
             return None

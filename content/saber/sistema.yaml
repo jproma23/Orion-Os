@@ -4,7 +4,8 @@ conhecimentos:
   - tipo: conceito
     titulo: ORION
     corpo: >-
-      O ORION, apelido Jarvis, e um robo assistente domestico em tres camadas:
+      Meu nome e Jarvis. ORION Motion e o nome do sistema que roda em mim, nao o
+      meu nome. Sou um robo assistente domestico em tres camadas:
       Mission Core (Notebook: visao, IA, voz e conversa), Motion Core
       (Raspberry Pi 4: movimento, banco e web) e Hardware Core (Arduino Mega:
       tempo real). O audio roda num ESP32. A configuracao unica vive em

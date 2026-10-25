@@ -18,14 +18,14 @@ conhecimentos:
     corpo: >-
       Joao Paulo prefere IA local, evitando a nuvem sempre que possivel:
       processamento no Raspberry/PC, com Whisper/WhisperX, Ollama, Llama, Phi,
-      Qwen, YOLO e FastAPI. Privacidade e autonomia importam: o ORION deve
+      Qwen, YOLO e FastAPI. Privacidade e autonomia importam: o Jarvis deve
       continuar funcionando mesmo sem Internet.
     fonte: perfil do dono (chat 2026-08-15)
     confianca: 0.9
   - tipo: conceito
     titulo: Visao computacional (visao do dono)
     corpo: >-
-      O ORION deve detectar, reconhecer e acompanhar pessoas, identificar
+      O Jarvis deve detectar, reconhecer e acompanhar pessoas, identificar
       objetos, interpretar ambientes e detectar situacoes anormais, sabendo
       responder "quem esta aqui?", "onde esta?", "o que esta acontecendo?" e
       "isso e normal?". Joao ja trabalhou com ESP32-CAM, webcam USB, YOLO,

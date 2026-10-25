@@ -214,11 +214,16 @@ async def test_saber_nao_casa_pedaco_de_palavra(contexto):
     await api.saber_guardar(
         "conhecimentos",
         {"titulo": "src/orion/mission/recados.py",
-         "corpo": "Recados: guardar uma mensagem. Funcoes: mesmonome, deixar."},
+         "corpo": "Recados: guardar uma mensagem. Funcoes: mesmo_nome, deixar."},
     )
 
     assert await api.saber_buscar("Bom dia! Como voce esta hoje?", limite=3) == []
     assert await api.saber_buscar("Diga em uma frase curta qual e o seu nome.", limite=3) == []
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "Aula", "corpo": "Cada aula e uma chamada de IA na autoria."},
+    )
+    assert await api.saber_buscar("Como voce se chama?", limite=3) == []
 
 
 @pytest.mark.asyncio

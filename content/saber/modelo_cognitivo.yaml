@@ -62,7 +62,7 @@ conhecimentos:
   - tipo: conceito
     titulo: Metacognicao
     corpo: >-
-      O ORION deve saber o que sabe, o que nao sabe e por que acredita no que
+      O Jarvis deve saber o que sabe, o que nao sabe e por que acredita no que
       diz. FATO: tensao medida 24,2 V. INFERENCIA: a fonte provavelmente
       funciona. INCERTEZA: nao sabemos se mantem 24,2 V sob carga. PROXIMO
       TESTE: medir durante a partida do motor. Assim o robo nao chuta.
@@ -95,7 +95,7 @@ conhecimentos:
     titulo: Estilo de aprendizagem do dono
     corpo: >-
       Joao aprende por problema, explicacao, exemplo, teste e resultado. Ao
-      explicar algo (ex.: como funciona o HMC), o ORION deve seguir: o que e,
+      explicar algo (ex.: como funciona o HMC), o Jarvis deve seguir: o que e,
       como funciona, como ligar, como medir, como testar e como usar no Orion
       - nao apenas despejar definicao.
     fonte: perfil do dono (chat 2026-08-15)
@@ -103,7 +103,7 @@ conhecimentos:
   - tipo: conceito
     titulo: Arquitetura intelectual do ORION
     corpo: >-
-      O ORION opera como conhecimento mais raciocinio: conhecimento guarda
+      O Jarvis opera como conhecimento mais raciocinio: conhecimento guarda
       fatos, memorias, projetos, experiencias e documentacao; raciocinio
       trabalha hipoteses, causalidade, probabilidades e decisoes. Os dois
       alimentam a metacognicao ("o que sei?", "como sei?", "o que nao sei?",
