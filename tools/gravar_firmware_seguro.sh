@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Grava o firmware do Arduino com seguranca - roda SEMPRE no Raspberry
-# (e onde o Mega esta ligado por USB, nunca no Notebook - CLAUDE.md regra 2).
+# (e onde o Mega esta ligado por USB, nunca no Notebook - ARQUITETURA.txt regra 2).
 #
 # Por que existir (achado real, 2026-07-24): orion-motion.service fica com
 # a porta serial do Arduino aberta o tempo todo, mandando heartbeat/comando.
@@ -24,7 +24,7 @@ SERVICO="orion-motion.service"
 
 if [ "$(hostname)" != "pi-os" ]; then
     echo "ERRO: rode este script no Raspberry (pi-os), nao aqui - e onde o" \
-         "Arduino esta ligado por USB (CLAUDE.md regra 2)." >&2
+         "Arduino esta ligado por USB (ARQUITETURA.txt regra 2)." >&2
     exit 1
 fi
 

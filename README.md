@@ -6,14 +6,14 @@
 
 <p align="center">
   <strong>Plataforma de robótica modular, offline-first.</strong><br>
-  Primeiro robô: <strong>Fofão</strong>.
+  Primeiro robô: <strong>Jarvis</strong> (antes chamado Fofão).
 </p>
 
 <p align="center">
   <a href="https://jproma23.github.io/Orion-Os/"><img alt="Diário de bordo" src="https://img.shields.io/badge/diário_de_bordo-2a3f8f?style=flat-square"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="C++" src="https://img.shields.io/badge/C++-ESP32-00979D?style=flat-square&logo=espressif&logoColor=white">
-  <img alt="Testes" src="https://img.shields.io/badge/testes-305_passando-2e7d32?style=flat-square">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-1262_passando-2e7d32?style=flat-square">
 </p>
 
 ---
@@ -36,29 +36,31 @@ trabalho pesado que pode esperar, e o Pi faz o que não pode falhar e guarda o
 estado.
 
 ```
-   ESP32 ouvidos ──Wi-Fi──► Notebook 8 GB         Vision + Voice   YOLO, rostos, Whisper, IA, Piper
-   (2 mics I2S)                  │  TCP (só eventos, nunca vídeo/áudio)
-                             Raspberry Pi 4 + SSD  Mission + Motion memória, decisão, navegação, LiDAR, web UI
-                              │ serial      │ USB
-                     ESP32 do corpo     ESP32-S3 (tela)
-                     motores, servos,   rosto e toque
+   ESP32 ouvidos ──Wi-Fi──► Notebook 8 GB         Vision + Voice   câmera DV20, YOLO, rostos, Whisper, IA, Piper
+   (2 mics I2S, OTA)             │  TCP (só eventos, nunca vídeo/áudio)
+                             Raspberry Pi 4 + SSD  Motion           corpo, LiDAR, segurança, navegação, web UI
+                              │ serial (USB)
+                     ESP32 do corpo
+                     L298N + motores, servos,
                      bússola, segurança
 ```
 
 | Unidade | Hardware | Linguagem | Responsabilidade |
 |---|---|---|---|
-| **Vision + Voice Core** | Notebook 8 GB (Debian), webcam e alto-falante USB | Python 3.13 | Rostos, YOLO, palavra de ativação, Whisper, chamadas da IA, Piper. Não guarda estado |
-| **Mission Core** | Raspberry Pi 4 (4 GB) + SSD 500 GB | Python 3.13 | Memória, recados, GOAP, decisões |
+| **Vision + Voice Core** | Notebook 8 GB (Debian), câmera DV20 e alto-falante USB | Python 3.13 | Rostos, YOLO, Whisper, chamadas da IA, Piper |
+| **Mission Core** | hoje no Notebook (o desenho é no Pi) | Python 3.13 | Memória, recados, GOAP, decisões, saudação |
 | **Motion Core** | Raspberry Pi 4 | Python 3.13 | Kernel, Behavior Core, LiDAR, fusão de sensores, interface web |
-| **Hardware Core** | ESP32 (DevKit) | C++ (PlatformIO) | Tempo real: motores DC com encoder, servos, bússola, parada de emergência |
-| **Rosto** | ESP32-S3, tela 3,5" | C++ (ESP-IDF) | Olhos, boca sincronizada com a fala, toque |
+| **Hardware Core** | ESP32 WROOM | C++ (PlatformIO) | Tempo real: L298N + motores JGB37 (6 V) com encoder, servos do pan/tilt, bússola, parada de emergência |
+| **Ouvidos** | ESP32 WROOM + 2 × INMP441 | C++ (PlatformIO) | Lê os dois microfones e manda o áudio por Wi-Fi (TCP 9100); gravado pelo ar (OTA) |
 
-> **Em 25/10/2026 a EDR-0036 está executada pela metade:** o Mission Core
-> ainda roda no Notebook, com código de agosto. Ver a EDR.
+> **A EDR-0036 está executada pela metade:** o Mission Core (memória, GOAP,
+> saudação) ainda roda no Notebook, e não no Pi como a decisão pede. A tela
+> ESP32-S3 que fazia o rosto **saiu do robô em 25/10/2026**; o rosto hoje é o
+> avatar no Notebook.
 
 As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
 
-## O que já funciona
+## O que já funciona (conferido em 31/10/2026)
 
 - **Kernel próprio** — event bus assíncrono com fila de prioridades, service
   registry, health monitor, watchdog com escalonamento e boot manager
@@ -66,26 +68,41 @@ As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
   autônomos: repouso, atender, vigília e desvio de obstáculo
 - **Protocolo** entre Pi e corpo (ESP32): quadros JSON com CRC, ACK,
   heartbeat e reconexão automática
-- **Visão** — reconhecimento facial: o robô sabe quem é da casa e dispara
-  alerta para rosto desconhecido
-- **Voz** — wake word, VAD, Whisper e resposta falada pelo Piper; a IA da conversa é o Gemini, por API
+- **Visão** — YOLO e reconhecimento facial: o robô sabe quem é da casa,
+  cumprimenta quem chega (inclusive no meio de uma conversa) e dispara alerta
+  para rosto desconhecido
+- **Voz** — ouve pelos dois microfones do ESP32 dos ouvidos, transcreve com o
+  Whisper `base` (~2 s para 5 s de fala) e responde pelo Piper; conversa sem
+  palavra de ativação. A IA da conversa é remota (Gemini/OpenRouter), por API
 - **Memória** — diário de observações em banco, com consulta determinística
   ("você viu o fulano hoje?") separada da conversa livre
 - **Navegação** — LiDAR STL-50B2, fusão de odometria e bússola publicando `motion.position`
 - **Interface web** — dashboard com o mapa do LiDAR, telemetria ao vivo,
   diagnóstico e configuração
 
+## O que ainda NÃO funciona
+
+- **As rodas nunca giraram.** O sinal sai certo do ESP32; a suspeita é a
+  alimentação do L298N (5 V não basta para a lógica dele nem para o motor).
+  Ver a sessão de 31/10/2026 no diário.
+- **A odometria** depende das rodas: sem elas, a posição não é medida.
+- **O pan/tilt** está desligado por enquanto, então a câmera não segue ninguém.
+- **Reconhecimento de voz** (saber quem fala só pela voz): o código existe, mas
+  nada cadastra a voz das pessoas.
+- **Sem internet** o robô continua seguro, mas não conversa.
+
 ## Estrutura
 
 ```
 src/orion/          kernel, communication, mission (Pi), vision e voice (Notebook), display
 motion_core/        Motion Core: behavior, navigation, memory, webui
-firmware/           Hardware Core: firmware do ESP32 do corpo (PlatformIO)
+firmware/           ESP32 do corpo (hardware_core) e dos ouvidos (ouvidos_esp32), PlatformIO
 docs/ses/           Especificação do sistema, capítulos 01 a 20
 docs/edr/           Registros de decisão de arquitetura
+docs/historico/     Planos antigos (fases, migração ROS 2) - guardados como história
 docs/journal.md     Diário de bordo — vira o blog via tools/build_blog.py
 config/orion.yaml   Configuração única do sistema
-tests/              305 testes
+tests/              1262 testes no Pi (31/10/2026)
 ```
 
 ## Como rodar
@@ -105,7 +122,9 @@ tools/check.sh            # ruff + pytest
 ```
 
 O firmware do corpo (ESP32) fica em `firmware/hardware_core/`, compilado com
-PlatformIO. Os pinos estão em `firmware/hardware_core/include/pins.h`.
+PlatformIO. Os pinos estão em `firmware/hardware_core/include/pins.h`. O dos
+ouvidos fica em `firmware/ouvidos_esp32/` (pinos, OTA e diagnóstico no README
+de lá).
 
 ## Documentação
 
@@ -115,7 +134,7 @@ PlatformIO. Os pinos estão em `firmware/hardware_core/include/pins.h`.
 | [`ARQUITETURA.txt`](ARQUITETURA.txt) | Regras invioláveis — leia antes de implementar |
 | [`docs/ses/`](docs/ses/) | Especificação completa, capítulos 01–20 |
 | [`docs/edr/`](docs/edr/) | Decisões de arquitetura e o porquê de cada uma |
-| [`PLANO_IMPLEMENTACAO.md`](PLANO_IMPLEMENTACAO.md) | Fases de desenvolvimento |
+| [`docs/historico/`](docs/historico/) | Planos antigos (fases de desenvolvimento, migração ROS 2) |
 
 ---
 

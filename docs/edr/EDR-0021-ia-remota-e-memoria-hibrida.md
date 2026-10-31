@@ -19,7 +19,7 @@ O usuário também quer uma camada de memória mais rica do que a tabela
 `conhecimento` (chave/valor simples) permite hoje: fatos e reflexões em
 texto livre, interligados por wikilinks, no estilo Obsidian.
 
-Isso tensiona com o princípio "100% offline" do `CLAUDE.md` — decisão
+Isso tensiona com o princípio "100% offline" do `ARQUITETURA.txt` — decisão
 consciente e explícita do usuário (2026-07-23), não um descuido. Não é
 abandonar o offline por completo: a proposta mantém o Ollama como
 fallback automático quando não há internet, no mesmo espírito de
@@ -59,7 +59,7 @@ Notebook ausentes já são tolerados hoje).
 - Vive **dentro do SSD do Raspberry** (`/mnt/ssd/orion/obsidian_vault/`)
   para herdar o mesmo backup diário + réplica cruzada que o `orion.db` já
   tem — nenhuma infraestrutura de backup nova precisa ser criada.
-- **Acesso só via API de memória** (regra 5 do `CLAUDE.md` — nenhum módulo
+- **Acesso só via API de memória** (regra 5 do `ARQUITETURA.txt` — nenhum módulo
   abre arquivo/banco direto): novo módulo
   `motion_core/memory/vault.py` (`VaultConhecimento`), com métodos como
   `escrever_nota(titulo, conteudo, links)`, `buscar(consulta)` (busca

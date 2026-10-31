@@ -76,7 +76,7 @@ Cap 17 = Configuração | Cap 18 = Segurança | Cap 19 = Testes | Cap 20 = Roadm
 ```
 orion-os/
 ├── ARQUITETURA.txt            ← este arquivo
-├── PLANO_IMPLEMENTACAO.md     ← fases de desenvolvimento (siga a ordem)
+├── docs/historico/PLANO_IMPLEMENTACAO.md ← fases de desenvolvimento (histórico)
 ├── config/orion.yaml          ← configuração única (Cap 17)
 ├── docs/
 │   ├── ses/                   ← especificação oficial (20 capítulos)
@@ -298,7 +298,7 @@ evidência datada por módulo (ver "Teto atual do projeto" acima).
 
 ## Ordem de implementação
 
-Siga `PLANO_IMPLEMENTACAO.md`. Resumo: Fase 0 (esqueleto) → Fase 1 (Kernel +
+Siga `docs/historico/PLANO_IMPLEMENTACAO.md`. Resumo: Fase 0 (esqueleto) → Fase 1 (Kernel +
 Event Bus) → Fase 2 (Comunicação TCP + Serial + firmware básico) → Fase 3
 (Banco/Memória) → Fase 4 (Hardware Core completo) → Fase 5 (Vision no
 Notebook) → Fase 6 (Voz + IA) → Fase 7 (Motion Core/Navegação no Raspberry +

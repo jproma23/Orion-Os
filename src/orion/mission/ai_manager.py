@@ -17,7 +17,7 @@ esta falando com ele. Tudo que nao depende de modelo continua de pe: parar,
 a hora, o diario, a saudacao pelo nome e a entrega de recado.
 
 Chave da API (OPENAI_API_KEY) nunca fixa no codigo/config (regra 6 do
-CLAUDE.md) - vem de variavel de ambiente (EDR-0021).
+ARQUITETURA.txt) - vem de variavel de ambiente (EDR-0021).
 
 O contexto entregue ao modelo passa pelo grounding
 (orion/mission/grounding.py), que diz explicitamente o que o robo NAO

@@ -4,7 +4,7 @@ Memoria de longo prazo em formato livre - fatos, reflexoes, resumos - que
 nao cabem bem na tabela `conhecimento` (so pares chave/valor simples). Cada
 nota e um arquivo `.md` num vault Obsidian de verdade (pasta com wikilinks
 `[[assim]]`), dentro do SSD do Raspberry - mesmo disco do `orion.db` (Cap
-15). Unico ponto de acesso ao diretorio (regra 5 do CLAUDE.md: nenhum
+15). Unico ponto de acesso ao diretorio (regra 5 do ARQUITETURA.txt: nenhum
 modulo abre arquivo/banco direto - so via esta classe, exposta ao Notebook
 pelos comandos `memory.nota_escrever`/`memory.nota_buscar`, ver bridge.py).
 
