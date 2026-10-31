@@ -20,10 +20,12 @@ chegada merece um cumprimento.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from orion.kernel.event_bus import EventBus, Evento
 from orion.mission.acoes_faladas import sem_marcador as _sem_marcador
@@ -41,6 +43,11 @@ TOPICO_SAUDACAO = "voice.saudacao"
 #: Meia hora: sair da sala e voltar em dois minutos não é chegar - e um robô
 #: que cumprimenta a cada passagem cansa em uma tarde.
 INTERVALO_ENTRE_SAUDACOES_S = 1800.0
+
+#: Visto ate este tempo antes de uma resposta terminar = estava na conversa.
+#: Dois minutos: cobre a pessoa que saiu do quadro por um instante enquanto
+#: falava, sem puxar para a conversa quem passou pela sala meia hora antes.
+PRESENCA_NA_CONVERSA_S = 120.0
 
 #: Depois de uma conversa, por quanto tempo ninguém "chega".
 #:
@@ -104,7 +111,12 @@ class SaudacaoEspontanea:
     #: Quantas frases anteriores o compositor recebe como "nao repita estas".
     #: Tres e o bastante para forcar palavra nova sem encher o prompt - e sem
     #: pedir o impossivel, que seria nunca repetir nada.
-    MAX_FRASES_LEMBRADAS = 3
+    #:
+    #: 3 -> 8 em 2026-10-31 (dono: *"a saudacao esta repetitiva"*). Com 3, a
+    #: quarta saudacao ja podia voltar a primeira frase - e o modelo volta
+    #: mesmo, porque "Bom dia, X. Que bom te ver" e o centro do que ele sabe
+    #: dizer. Oito frases curtas sao ~100 tokens no prompt.
+    MAX_FRASES_LEMBRADAS = 8
 
     def __init__(
         self,
@@ -119,6 +131,7 @@ class SaudacaoEspontanea:
         relogio: Callable[[], time.struct_time] | None = None,
         observacoes: Callable[[], Awaitable[list[dict]]] | None = None,
         recados=None,
+        arquivo_estado: Path | None = None,
     ) -> None:
         self._bus = event_bus
         self._falar = falar
@@ -198,8 +211,30 @@ class SaudacaoEspontanea:
         #: resposta TERMINADA marca aqui - o wake sozinho não é conversa.
         self._ultima_conversa: float | None = None
         self._janela_de_conversa_s = janela_de_conversa_s
+        #: QUEM ESTA NA CONVERSA (2026-10-31). A janela de 15 min valia para
+        #: TODO MUNDO: o dono conversava, a Marah chegou, a visao reconheceu
+        #: ela (diario 07:44:35) - e o robo nao disse nada, porque "acabou de
+        #: ter conversa" calava qualquer chegada. Dono: *"ele nao falou com
+        #: marah"*. A regra de 09/08 e sobre quem JA conversa, nao sobre quem
+        #: chega no meio. Entao:
+        #:   - visto durante a conversa = participante, nao recebe "oi";
+        #:   - conversa sem ninguem visto: o PRIMEIRO rosto e quem fala (o
+        #:     caso de 09/08 - a camera "descobre" o dono no meio do papo);
+        #:   - qualquer OUTRO rosto depois disso CHEGOU, e e cumprimentado.
+        self._participantes: set[str] = set()
+        #: nome -> ultima vez que a visao reconheceu a pessoa. E o que diz
+        #: quem estava presente quando uma resposta terminou.
+        self._ultimo_visto: dict[str, float] = {}
         #: Cumprimento em voo - ver `_ao_reconhecer`.
         self._tarefa_cumprimento: asyncio.Task | None = None
+
+        #: ONDE A MEMORIA DA SAUDACAO SOBREVIVE A UM REINICIO (2026-10-31).
+        #: `_cumprimentados` e `_frases_usadas` viviam so na RAM: cada restart
+        #: do avatar zerava os dois, e o robo cumprimentava o dono de novo -
+        #: com a MESMA frase (3 vezes em 16 min, medido no log). Opcional: sem
+        #: arquivo, tudo funciona como antes, so esquece no restart.
+        self._arquivo_estado = arquivo_estado
+        self._carregar_estado()
 
         event_bus.subscribe(TOPICO_RECONHECIDA, self._ao_reconhecer)
         event_bus.subscribe(TOPICO_ACORDOU, self._ao_acordar)
@@ -222,6 +257,12 @@ class SaudacaoEspontanea:
         self._conversando = False
         self._falando = False
         self._ultima_conversa = self._agora()
+        # Quem a camera viu ha pouco estava aqui durante este turno: faz parte
+        # da conversa, mesmo que nunca tenha sido cumprimentado.
+        agora = self._ultima_conversa
+        self._participantes.update(
+            n for n, t in self._ultimo_visto.items() if agora - t < PRESENCA_NA_CONVERSA_S
+        )
         # Quem chegou durante a resposta (reconhecido enquanto o robô falava)
         # cumprimenta AGORA que o turno acabou - a chegada não se perde.
         pendentes = list(self._pendente)
@@ -247,13 +288,24 @@ class SaudacaoEspontanea:
         nome = evento.dados.get("nome")
         if not nome:
             return  # sem identidade não há a quem cumprimentar pelo nome
-        if self._pos_conversa():
+        self._ultimo_visto[nome] = self._agora()
+        if not self._pos_conversa():
+            # A conversa acabou de vez: a lista de quem participava tambem.
+            self._participantes.clear()
+        elif nome in self._participantes or not self._participantes:
+            # Participante (ou o primeiro rosto de uma conversa em que a
+            # camera ainda nao tinha visto ninguem - e quem esta falando).
+            self._participantes.add(nome)
             # Entre turnos de uma conversa REAL (dono, 09/08): quem conversa
             # não chegou - não cumprimenta. NAO marca `_cumprimentados`: a
             # pessoa nao foi cumprimentada, so nao era hora. Marcar aqui
             # adiaria o cumprimento de verdade em meia hora a cada quadro em
             # que ela aparecesse durante a conversa.
             return
+        else:
+            # Ha conversa, com outra pessoa: esta CHEGOU agora. Cumprimenta -
+            # e passa a fazer parte, para nao ser "descoberta" de novo.
+            self._participantes.add(nome)
         # O instante da ULTIMA vez tem que ser lido AGORA, porque
         # `_chegou_agora` grava o horario de hoje em cima dele. Sem isto o
         # contexto dizia "ha 0 min" toda vez e nunca "primeira vez" - foi o
@@ -408,6 +460,55 @@ class SaudacaoEspontanea:
         usadas = self._frases_usadas.setdefault(nome, [])
         usadas.append(frase)
         del usadas[: -self.MAX_FRASES_LEMBRADAS]
+        self._salvar_estado()
+
+    def _carregar_estado(self) -> None:
+        """Le do disco quem ja foi cumprimentado e com que frases.
+
+        O arquivo guarda o relogio de PAREDE (time.time): o `_agora`
+        monotonico recomeca a cada boot e nao serve entre um processo e outro.
+        Na leitura, "ha quanto tempo" e convertido de volta para o monotonico.
+        Arquivo ausente ou estragado = comeca vazio; nunca impede o boot.
+        """
+        if self._arquivo_estado is None:
+            return
+        try:
+            dados = json.loads(Path(self._arquivo_estado).read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except Exception:  # noqa: BLE001
+            logger.warning("estado da saudacao ilegivel - comecando vazio", exc_info=True)
+            return
+        parede, agora = time.time(), self._agora()
+        for nome, quando in (dados.get("cumprimentados") or {}).items():
+            try:
+                self._cumprimentados[str(nome)] = agora - (parede - float(quando))
+            except (TypeError, ValueError):
+                continue
+        for nome, frases in (dados.get("frases_usadas") or {}).items():
+            if isinstance(frases, list):
+                self._frases_usadas[str(nome)] = [str(f) for f in frases][
+                    -self.MAX_FRASES_LEMBRADAS :
+                ]
+
+    def _salvar_estado(self) -> None:
+        if self._arquivo_estado is None:
+            return
+        parede, agora = time.time(), self._agora()
+        dados = {
+            "cumprimentados": {
+                n: parede - (agora - t) for n, t in self._cumprimentados.items()
+            },
+            "frases_usadas": self._frases_usadas,
+        }
+        try:
+            caminho = Path(self._arquivo_estado)
+            caminho.parent.mkdir(parents=True, exist_ok=True)
+            temporario = caminho.with_suffix(".tmp")
+            temporario.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")
+            temporario.replace(caminho)  # nunca deixa meio arquivo no disco
+        except Exception:  # noqa: BLE001
+            logger.warning("nao consegui guardar o estado da saudacao", exc_info=True)
 
     def _frase_da_lista(self, nome: str) -> str:
         relacao = self._relacao_de.get(nome, "")

@@ -186,3 +186,80 @@ async def test_marcador_sozinho_cai_na_frase_de_reserva():
     assert len(ditas) == 1
     assert "João Paulo" in ditas[0]
     assert "#acao" not in ditas[0]
+
+
+# --- Quem CHEGA no meio da conversa de outra pessoa (2026-10-31) -----------
+#
+# Dono: *"ele nao falou com marah"*. O diario provou que a visao reconheceu a
+# Marah (07:44:35) enquanto o dono conversava - e a janela de 15 min calou o
+# cumprimento dela, como se ela estivesse na conversa desde antes.
+
+
+async def _ver(saudacao, nome):
+    await saudacao._ao_reconhecer(Evento(TOPICO_RECONHECIDA, {"nome": nome}))
+    if saudacao._tarefa_cumprimento is not None:
+        await saudacao._tarefa_cumprimento
+        saudacao._tarefa_cumprimento = None
+
+
+@pytest.fixture
+def familia():
+    ditas: list[str] = []
+
+    async def falar(frase: str) -> None:
+        ditas.append(frase)
+
+    relogio = _Relogio()
+    saudacao = SaudacaoEspontanea(
+        EventBus(), falar, agora=relogio,
+        familia=[{"nome": "João Paulo"}, {"nome": "Marah"}],
+    )
+    return ditas, relogio, saudacao
+
+
+@pytest.mark.asyncio
+async def test_quem_chega_durante_a_conversa_de_outro_e_cumprimentado(familia):
+    """O caso de hoje: o dono conversa, a Marah aparece - ela ouve o "oi"."""
+    ditas, relogio, saudacao = familia
+    await _ver(saudacao, "João Paulo")  # o dono chega e e cumprimentado
+    ditas.clear()
+    await saudacao._ao_acordar(None)
+    await saudacao._ao_terminar_resposta(None)  # conversa real em andamento
+
+    relogio.avancar(60)
+    await _ver(saudacao, "João Paulo")  # o dono continua ali: nada
+    assert ditas == []
+
+    relogio.avancar(30)
+    await _ver(saudacao, "Marah")  # chegou no meio do papo
+    assert len(ditas) == 1 and "Marah" in ditas[0], ditas
+
+
+@pytest.mark.asyncio
+async def test_quem_chegou_no_meio_nao_e_cumprimentado_de_novo(familia):
+    ditas, relogio, saudacao = familia
+    await _ver(saudacao, "João Paulo")
+    await saudacao._ao_acordar(None)
+    await saudacao._ao_terminar_resposta(None)
+    relogio.avancar(30)
+    await _ver(saudacao, "Marah")
+    ditas.clear()
+    for _ in range(5):
+        relogio.avancar(10)
+        await _ver(saudacao, "Marah")
+    assert ditas == []
+
+
+@pytest.mark.asyncio
+async def test_camera_sem_ninguem_o_primeiro_rosto_e_quem_fala(familia):
+    """A regra de 09/08 continua: o primeiro rosto descoberto no meio de uma
+    conversa e de quem esta falando - e o segundo, diferente, chegou."""
+    ditas, relogio, saudacao = familia
+    await saudacao._ao_acordar(None)
+    await saudacao._ao_terminar_resposta(None)
+    relogio.avancar(120)
+    await _ver(saudacao, "João Paulo")
+    assert ditas == []
+    relogio.avancar(20)
+    await _ver(saudacao, "Marah")
+    assert len(ditas) == 1 and "Marah" in ditas[0]

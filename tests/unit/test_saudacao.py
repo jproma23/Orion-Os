@@ -11,10 +11,11 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from orion.kernel.event_bus import EventBus
+from orion.kernel.event_bus import EventBus, Evento
 from orion.mission.saudacao import (
     FRASES,
     FRASES_POR_RELACAO,
+    TOPICO_RECONHECIDA,
     SaudacaoEspontanea,
 )
 
@@ -432,13 +433,15 @@ async def test_lembra_no_maximo_tres_frases(bus):
 
     _montar(bus, compor=compor, relogio=relogio)
 
-    for _ in range(6):
+    n = SaudacaoEspontanea.MAX_FRASES_LEMBRADAS + 3
+    for _ in range(n):
         await _ver(bus, "Marah")
         relogio.avancar(3600)
 
     assert len(recebidas[-1]) == SaudacaoEspontanea.MAX_FRASES_LEMBRADAS
-    # as tres ULTIMAS, nao as tres primeiras
-    assert recebidas[-1] == ["frase 3", "frase 4", "frase 5"]
+    # as ULTIMAS, nao as primeiras
+    maximo = SaudacaoEspontanea.MAX_FRASES_LEMBRADAS
+    assert recebidas[-1] == [f"frase {i}" for i in range(n - maximo, n)]
 
 
 @pytest.mark.asyncio
@@ -585,3 +588,63 @@ async def test_falha_ao_consultar_recados_nao_derruba_o_cumprimento(bus):
     await _ceder()
 
     assert len(ditas) == 1, "o cumprimento tem que ter saído assim mesmo"
+
+
+# --- Memoria que sobrevive ao restart (2026-10-31) --------------------------
+# Medido no log: 3 cumprimentos ao dono em 16 min, dois com a MESMA frase -
+# cada restart do avatar zerava quem ja tinha sido cumprimentado.
+
+
+@pytest.mark.asyncio
+async def test_reinicio_nao_cumprimenta_de_novo(bus, tmp_path):
+    arquivo = tmp_path / "saudacao.json"
+    ditas = []
+
+    async def falar(frase):
+        ditas.append(frase)
+
+    primeira = SaudacaoEspontanea(bus, falar, arquivo_estado=arquivo)
+    await primeira._ao_reconhecer(Evento(TOPICO_RECONHECIDA, {"nome": "Marah"}))
+    await primeira._tarefa_cumprimento
+    assert len(ditas) == 1
+
+    # o processo reinicia: objeto novo, relogio monotonico novo
+    segunda = SaudacaoEspontanea(EventBus(), falar, arquivo_estado=arquivo)
+    await segunda._ao_reconhecer(Evento(TOPICO_RECONHECIDA, {"nome": "Marah"}))
+    assert segunda._tarefa_cumprimento is None
+    assert len(ditas) == 1
+
+
+@pytest.mark.asyncio
+async def test_reinicio_lembra_as_frases_ja_ditas(bus, tmp_path):
+    arquivo = tmp_path / "saudacao.json"
+    recebidas = []
+
+    async def compor(nome, descricao, contexto, evitar):
+        recebidas.append(list(evitar))
+        return "Bom dia, Marah. Que bom te ver."
+
+    async def falar(frase):
+        pass
+
+    primeira = SaudacaoEspontanea(bus, falar, compor=compor, arquivo_estado=arquivo)
+    await primeira._ao_reconhecer(Evento(TOPICO_RECONHECIDA, {"nome": "Marah"}))
+    await primeira._tarefa_cumprimento
+
+    segunda = SaudacaoEspontanea(
+        EventBus(), falar, compor=compor, arquivo_estado=arquivo,
+        intervalo_entre_saudacoes_s=0.0,
+    )
+    await segunda._ao_reconhecer(Evento(TOPICO_RECONHECIDA, {"nome": "Marah"}))
+    await segunda._tarefa_cumprimento
+    assert recebidas[-1] == ["Bom dia, Marah. Que bom te ver."]
+
+
+def test_arquivo_estragado_nao_impede_o_boot(bus, tmp_path):
+    arquivo = tmp_path / "saudacao.json"
+    arquivo.write_text("{isto nao e json", encoding="utf-8")
+
+    async def falar(frase):
+        pass
+
+    SaudacaoEspontanea(bus, falar, arquivo_estado=arquivo)  # nao levanta

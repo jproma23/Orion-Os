@@ -875,6 +875,9 @@ async def principal() -> None:
         # mas seriam duas ideias do que e um recado, e a proxima mudanca
         # precisaria lembrar das duas.
         recados=recados,
+        # Sobrevive a restart: sem isto cada reinicio do avatar fazia ele
+        # cumprimentar de novo, com a mesma frase (2026-10-31).
+        arquivo_estado=Path("data/saudacao_estado.json"),
     )
     logger.info(
         "Saudacao espontanea ativa para: %s",

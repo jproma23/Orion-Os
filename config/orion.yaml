@@ -441,7 +441,11 @@ vision:
   # CH340 do Arduino migrando de ttyUSB0 para ttyUSB1 (ver docs/journal.md).
   # A URL fixa evita essa classe inteira de problema; so muda se a porta do
   # servico no Pi mudar.
-  camera_indice_principal: "http://pi-os.local:8091/stream"
+  # 2026-10-31: a DV20 do pan/tilt mudou para a USB do NOTEBOOK (decisao de
+  # 30/09: o video nao passa pela rede, so os eventos). O stream do Pi ficou
+  # mostrando "NO SIGNAL" e a visao estava cega sem nenhum erro no log.
+  # by-id e nao /dev/videoN: o indice muda conforme a ordem dos cabos.
+  camera_indice_principal: "/dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0"
   camera_indice_luminosidade: 0 # camera integrada do notebook (estimativa de brilho)
   # NOTA: camera_indice_luminosidade nao e lido por nenhum codigo hoje
   # (verificado por grep em 2026-07-27) - e config morta, mantida so para
@@ -512,7 +516,11 @@ voice:
   # e o que sobrou depois que os portoes anti-invencao foram consertados
   # (96e96d9). O preco sao ~6 s a mais antes de o robo comecar a pensar.
   # DESFAZER E UMA LINHA: voltar para "base" aqui e reiniciar o servico.
-  whisper_model: "small"    # 8 GB comportam; ver EDR-0019 para o base
+  # 2026-10-31: small -> base. Medido no Notebook com YOLO+rosto rodando, frase
+  # de 5 s: small 6,1 s (mais lento que a propria fala), base 2,0 s, mesmo
+  # texto (os dois erram "Jarvis", que nao importa sem palavra de ativacao).
+  # Dono: "a velocidade esta lenta". beam_size 5->1 nao muda nada (5,7 s).
+  whisper_model: "base"
   # modelo das janelas de vigilancia da wake word. Testado "tiny" ao vivo
   # (2026-07-18): rapido, mas errava demais ("Fofão" virava "Loco"/"Fofa no")
   # e o robo nao acordava - com este mic, "base" e o minimo confiavel.
@@ -624,7 +632,10 @@ voice:
   vad:
     habilitado: true
     fator_acima_do_ruido: 2.5
-    rms_minimo: 0.003
+    # 2026-10-31: 0.003 -> 0.03. O ganho dos ouvidos dobrou (firmware >>12) e
+    # o ruido de fundo passou a ~0.013: com 0.003 o Whisper rodava a cada 5 s
+    # em silencio. Voz medida a 0.15 - folga de 5x.
+    rms_minimo: 0.03
     janelas_de_historico: 30
   # IDENTIFICACAO DE LOCUTOR POR VOZ (2026-08-19, trazida do Notebook em
   # 2026-10-25): saber QUEM falou so pela voz, no nivel do reconhecimento
