@@ -9373,3 +9373,5 @@ A quadratura funciona: a ordem de A e B se inverte com o sentido.
 O "direito" do firmware (25/26) é a roda que fica à direita de quem olha o robô de frente pela câmera. Qual lado é a frente do robô ainda falta confirmar, quando ele andar com as duas rodas.
 
 Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
+
+**Resolvido no mesmo dia: era mau contato.** O dono refez o contato do IN1 e a roda esquerda passou a girar nos dois sentidos (1418 e 1415 pulsos em 1 s, com a ordem A/B invertendo). O código não mudou entre o teste que falhava e o que passou. As duas rodas e os dois encoders funcionam nos dois sentidos. Esse sintoma (um sentido só, com o sinal certo medido na perna do ESP) aponta para o conector ou a solda do pino IN da placa.
