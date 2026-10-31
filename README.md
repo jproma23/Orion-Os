@@ -5,7 +5,7 @@
 <h1 align="center">ORION OS</h1>
 
 <p align="center">
-  <strong>Plataforma de robótica modular, offline-first.</strong><br>
+  <strong>Plataforma de robótica modular para robôs domésticos autônomos.</strong><br>
   Primeiro robô: <strong>Jarvis</strong> (antes chamado Fofão).
 </p>
 
@@ -13,7 +13,7 @@
   <a href="https://jproma23.github.io/Orion-Os/"><img alt="Diário de bordo" src="https://img.shields.io/badge/diário_de_bordo-2a3f8f?style=flat-square"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="C++" src="https://img.shields.io/badge/C++-ESP32-00979D?style=flat-square&logo=espressif&logoColor=white">
-  <img alt="Testes" src="https://img.shields.io/badge/testes-1262_passando-2e7d32?style=flat-square">
+  <img alt="Testes" src="https://img.shields.io/badge/testes-pytest_+_ruff-2e7d32?style=flat-square">
 </p>
 
 ---
@@ -48,15 +48,14 @@ estado.
 | Unidade | Hardware | Linguagem | Responsabilidade |
 |---|---|---|---|
 | **Vision + Voice Core** | Notebook 8 GB (Debian), câmera DV20 e alto-falante USB | Python 3.13 | Rostos, YOLO, Whisper, chamadas da IA, Piper |
-| **Mission Core** | hoje no Notebook (o desenho é no Pi) | Python 3.13 | Memória, recados, GOAP, decisões, saudação |
+| **Mission Core** | Raspberry Pi 4 (junto do Motion) | Python 3.13 | Memória, recados, GOAP, decisões, saudação, ações faladas |
 | **Motion Core** | Raspberry Pi 4 | Python 3.13 | Kernel, Behavior Core, LiDAR, fusão de sensores, interface web |
-| **Hardware Core** | ESP32 WROOM | C++ (PlatformIO) | Tempo real: L298N + motores JGB37 (6 V) com encoder, servos do pan/tilt, bússola, parada de emergência |
+| **Hardware Core** | ESP32 WROOM | C++ (PlatformIO) | Tempo real: L298N + motores JGB37 (6 V, redução 1:168) com encoder e PID a 50 Hz, servos do pan/tilt, bússola, parada de emergência |
 | **Ouvidos** | ESP32 WROOM + 2 × INMP441 | C++ (PlatformIO) | Lê os dois microfones e manda o áudio por Wi-Fi (TCP 9100); gravado pelo ar (OTA) |
 
-> **A EDR-0036 está executada pela metade:** o Mission Core (memória, GOAP,
-> saudação) ainda roda no Notebook, e não no Pi como a decisão pede. A tela
-> ESP32-S3 que fazia o rosto **saiu do robô em 25/10/2026**; o rosto hoje é o
-> avatar no Notebook.
+> O Mission Core (memória, GOAP, saudação, ações faladas) roda no Pi, como a
+> EDR-0036 pede. A tela ESP32-S3 que fazia o rosto **saiu do robô em
+> 25/10/2026**; o rosto hoje é o avatar no Notebook.
 
 As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
 
@@ -76,16 +75,26 @@ As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
   palavra de ativação. A IA da conversa é remota (Gemini/OpenRouter), por API
 - **Memória** — diário de observações em banco, com consulta determinística
   ("você viu o fulano hoje?") separada da conversa livre
-- **Navegação** — LiDAR STL-50B2, fusão de odometria e bússola publicando `motion.position`
+- **Rodas** — motores DC com encoder e PID de velocidade a 50 Hz; anda reto
+  corrigindo o rumo pela bússola e pelos encoders (desvio de 0,07° na bancada)
+  e aceita velocidade contínua (`CMD_VEL`), a língua do Nav2. Medidas do corpo
+  conferidas na bancada: roda de 60 mm, redução 1:168, bitola efetiva 0,27 m
+- **Ações faladas com medida** — "anda trinta centímetros", "vira noventa
+  graus", "calibra a bússola"; cada movimento é conferido pelo LiDAR depois
+- **Navegação** — LiDAR 360° (STL-50B2) com trava de colisão provada no mundo
+  real (parou sozinho a 50 cm de uma parede); odometria medida pelo encoder e
+  bússola calibrada pelo próprio robô, girando
 - **Interface web** — dashboard com o mapa do LiDAR, telemetria ao vivo,
   diagnóstico e configuração
 
 ## O que ainda NÃO funciona
 
-- **As rodas nunca giraram.** O sinal sai certo do ESP32; a suspeita é a
-  alimentação do L298N (5 V não basta para a lógica dele nem para o motor).
-  Ver a sessão de 31/10/2026 no diário.
-- **A odometria** depende das rodas: sem elas, a posição não é medida.
+- **Andar sozinho pela casa.** Hoje ele anda por comando. Falta o mapa
+  (SLAM do Nav2): refazer um caminho só pela odometria acumula erro e já
+  terminou em parede.
+- **O LiDAR fica a 45 cm do chão**: é cego para obstáculo baixo (degrau,
+  rodapé, cabo, pé de cadeira), e uma fatia de 15° bem na frente está tampada
+  por uma peça do próprio robô.
 - **O pan/tilt** está desligado por enquanto, então a câmera não segue ninguém.
 - **Reconhecimento de voz** (saber quem fala só pela voz): o código existe, mas
   nada cadastra a voz das pessoas.
@@ -100,9 +109,10 @@ firmware/           ESP32 do corpo (hardware_core) e dos ouvidos (ouvidos_esp32)
 docs/ses/           Especificação do sistema, capítulos 01 a 20
 docs/edr/           Registros de decisão de arquitetura
 docs/historico/     Planos antigos (fases, migração ROS 2) - guardados como história
+nav2/               Nav2 + SLAM num container ROS 2, ligado só quando precisa
 docs/journal.md     Diário de bordo — vira o blog via tools/build_blog.py
 config/orion.yaml   Configuração única do sistema
-tests/              1262 testes no Pi (31/10/2026)
+tests/              suíte pytest (roda no Pi e no Notebook)
 ```
 
 ## Como rodar
