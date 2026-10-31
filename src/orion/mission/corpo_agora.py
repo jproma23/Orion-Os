@@ -53,9 +53,9 @@ _RUIDO_CM = 4.0
 #: O resultado do ultimo movimento so vale como "o que acabei de fazer" por
 #: este tempo; depois disso ele vira passado e sai do prompt.
 _VALIDADE_ULTIMO_S = 600.0
-#: Teto da espera pelo fim do movimento. 200 cm a 40% leva ~10 s; a
-#: calibracao da bussola leva 25 s.
-_ESPERA_MAX_S = 35.0
+#: Teto da espera pelo fim do movimento. Com a roda de 60 mm (medida em
+#: 2026-10-31) o robo anda ~5 cm/s a 40%: os 200 cm do teto levam ~40 s.
+_ESPERA_MAX_S = 60.0
 _INTERVALO_S = 0.3
 
 _MOVIMENTOS = frozenset({"MOVE_DISTANCE", "TURN_LEFT", "TURN_RIGHT", "CALIBRATE_COMPASS"})

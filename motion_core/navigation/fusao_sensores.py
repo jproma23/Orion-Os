@@ -12,7 +12,30 @@ uma responsabilidade distinta de planejamento de movimento. Os dois
 assinam o mesmo topico de telemetria de forma independente pelo Event Bus,
 sem se conhecerem (regra #1).
 
-## Decisao de escopo (atualizada em 2026-08-17)
+## 2026-10-31: os passos viraram ENCODER - a pose passou a ser MEDIDA
+
+O motor de passo saiu (DC com encoder desde 2026-09-13) e o firmware manda em
+`passos_esquerda`/`passos_direita` os PULSOS CONTADOS pelo encoder de cada
+roda (`deslocamentoAcumulado`, motor_manager.h). Isso e medicao da roda, nao
+comando: com o rele aberto a roda nao gira e a pose nao anda. Com a roda no
+ar ela gira e a pose anda - o encoder mede a RODA, nao o chao; quem confere o
+chao e o LiDAR. `steps_per_meter` no orion.yaml virou pulsos por metro.
+
+E a ORIENTACAO deixou de ser o rumo cru da bussola, por dois defeitos achados
+ao preparar o Nav2:
+
+1. o rumo da bussola cresce no sentido HORARIO e a orientacao daqui (e o yaw
+   do ROS) no ANTI-HORARIO - virar a esquerda fazia o mapa girar para a
+   direita;
+2. o rumo era usado mesmo SEM calibracao (a telemetria completa manda
+   `rumo_graus` sempre que a bussola esta conectada).
+
+Agora e a mesma fusao complementar do firmware: o encoder integra a cada
+leitura, e a bussola - so se `rumo_valido` - puxa devagar (TAU_BUSSOLA_S)
+para o rumo absoluto, convertido para a convencao ENU do ROS (0 = leste,
+90 = norte, anti-horario).
+
+## Decisao de escopo (atualizada em 2026-08-17 - historico, ver acima)
 
 Odometria basica = PASSOS POR SOFTWARE + BUSSOLA (decisao do dono). O encoder
 fisico foi cancelado, entao a pose viaja marcada como ESTIMATIVA (`origem:
@@ -68,6 +91,18 @@ logger = logging.getLogger("motion_core.navigation.fusao_sensores")
 #: mais de a odometria ser exata). Por isso este modulo declara a origem como
 #: comando e usa a bussola para a orientacao sempre que o rumo for valido.
 ORIGEM_PASSOS_COMANDADOS = "passos_comandados"
+#: Desde 2026-10-31: os "passos" sao pulsos contados pelo encoder da roda.
+ORIGEM_ENCODER = "encoder"
+
+#: Quao devagar a bussola corrige a orientacao integrada do encoder. A
+#: bussola le a 10 Hz e o motor ligado perto dela faz ruido - mais devagar
+#: que a malha do firmware (1 s) porque aqui a amostra chega a cada 500 ms.
+TAU_BUSSOLA_S = 2.0
+
+
+def yaw_da_bussola_rad(rumo_graus: float) -> float:
+    """Rumo da bussola (0 = norte, HORARIO) -> yaw ENU (0 = leste, anti-horario)."""
+    return math.radians((90.0 - rumo_graus) % 360.0)
 
 
 class FusaoSensores:
@@ -92,8 +127,24 @@ class FusaoSensores:
         self._passos_esquerda_anterior: int | None = None
         self._passos_direita_anterior: int | None = None
         self._instante_anterior_s: float | None = None
+        #: A orientacao ja foi alinhada a bussola alguma vez? A primeira
+        #: leitura valida ALINHA de uma vez; as seguintes so puxam devagar.
+        self._ancorada = False
 
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_receber_telemetria)
+
+    @staticmethod
+    def _rumo_valido(payload: dict[str, Any]) -> float | None:
+        """O rumo da bussola, ou None se ela nao esta valida.
+
+        A telemetria REDUZIDA so manda `rumo_graus` quando ele e valido, sem
+        o campo `rumo_valido`; a COMPLETA manda os dois, e o rumo mesmo sem
+        calibracao. Por isso: ausente = valido so se o rumo veio.
+        """
+        rumo = payload.get("rumo_graus")
+        if rumo is None or payload.get("rumo_valido", True) is False:
+            return None
+        return float(rumo)
 
     @property
     def pose_atual(self) -> tuple[float, float, float]:
@@ -127,9 +178,10 @@ class FusaoSensores:
             # um salto de quadro quando o rumo valido chegar na amostra
             # seguinte (a integracao comecaria do referencial local e a
             # bussola corrigiria tudo de uma vez).
-            rumo_graus = payload.get("rumo_graus")
+            rumo_graus = self._rumo_valido(payload)
             if rumo_graus is not None:
-                self._orientacao_rad = math.radians(rumo_graus % 360)
+                self._orientacao_rad = yaw_da_bussola_rad(rumo_graus)
+                self._ancorada = True
             return
 
         delta_esquerda = passos_esquerda - self._passos_esquerda_anterior
@@ -179,40 +231,38 @@ class FusaoSensores:
         # para a esquerda (orientacao aumenta, convencao matematica CCW).
         delta_orientacao_rad = (distancia_direita_m - distancia_esquerda_m) / self._wheel_base_m
 
-        # ORIENTACAO: a bussola manda (2026-08-17, decisao do dono).
+        # ORIENTACAO: encoder + bussola em fusao complementar (2026-10-31).
         #
-        # O rumo absoluto da bussola cancela a deriva de rotacao do dead
-        # reckoning - a pose vira um mapa referenciado ao norte magnetico, e
-        # o passo a passo so cuida de QUANTO andou. Sem rumo valido (bussola
-        # ausente/descalibrada), a orientacao volta a ser integrada do delta
-        # diferencial - a pose continua existindo, so perde a ancora.
-        rumo_graus = payload.get("rumo_graus")
+        # O encoder da o giro a cada leitura; a bussola, SO quando valida,
+        # puxa devagar para o rumo absoluto. A primeira leitura valida alinha
+        # de uma vez - antes dela a orientacao era relativa ao ponto de
+        # partida e nao ha o que suavizar.
+        orientacao_anterior_rad = self._orientacao_rad
+        orientacao_rad = orientacao_anterior_rad + delta_orientacao_rad
+        rumo_graus = self._rumo_valido(payload)
         if rumo_graus is not None:
-            orientacao_rad = math.radians(rumo_graus % 360)
-            orientacao_origem = "bussola"
+            erro = yaw_da_bussola_rad(rumo_graus) - orientacao_rad
+            erro = (erro + math.pi) % (2 * math.pi) - math.pi  # o lado mais curto
+            peso = 1.0 if not self._ancorada else min(1.0, delta_tempo_s / TAU_BUSSOLA_S)
+            orientacao_rad += peso * erro
+            self._ancorada = True
+            orientacao_origem = "encoder+bussola"
         else:
-            orientacao_rad = (self._orientacao_rad + delta_orientacao_rad) % (2 * math.pi)
-            orientacao_origem = "integrada"
-        self._orientacao_rad = orientacao_rad
+            orientacao_origem = "encoder"
+        self._orientacao_rad = orientacao_rad % (2 * math.pi)
 
         # integracao "ponto medio": projeta x/y usando a orientacao na METADE
-        # do movimento (media entre a orientacao antes e depois do passo),
-        # em vez de so a orientacao antiga (Euler simples) - erro menor
-        # quando o robo gira e anda no mesmo intervalo de telemetria. Com
-        # bussola valida a "antes" e a atual diferem pelo delta do proprio
-        # intervalo, que a media suaviza.
-        orientacao_anterior_rad = self._orientacao_rad - delta_orientacao_rad
+        # do giro medido pelo encoder (Euler simples erraria mais quando o
+        # robo gira e anda no mesmo intervalo de telemetria).
         orientacao_media_rad = orientacao_anterior_rad + delta_orientacao_rad / 2.0
         self._x_m += distancia_centro_m * math.cos(orientacao_media_rad)
         self._y_m += distancia_centro_m * math.sin(orientacao_media_rad)
 
         velocidade_m_s = distancia_centro_m / delta_tempo_s
 
-        # A pose diz de onde veio: e ESTIMATIVA a partir do que foi
-        # comandado (nunca MEDIDA - o encoder fisico foi cancelado), e vai
-        # marcada como tal. Quem exibe nao tem como saber isso por conta
-        # propria, e foi assim que a interface passou a afirmar 85 cm com os
-        # motores desligados.
+        # A pose diz de onde veio: o encoder MEDE a roda (2026-10-31). Ainda
+        # e a roda e nao o chao - roda no ar ou patinando anda aqui e nao no
+        # mundo - e e por isso que a conversa confere o movimento pelo LiDAR.
         await self._event_bus.publish(
             "motion.position",
             {
@@ -220,8 +270,8 @@ class FusaoSensores:
                 "y_m": round(self._y_m, 4),
                 "orientacao_graus": round(math.degrees(self._orientacao_rad), 2),
                 "velocidade_m_s": round(velocidade_m_s, 4),
-                "origem": ORIGEM_PASSOS_COMANDADOS,
-                "medida": False,
+                "origem": ORIGEM_ENCODER,
+                "medida": True,
                 "orientacao_origem": orientacao_origem,
             },
         )

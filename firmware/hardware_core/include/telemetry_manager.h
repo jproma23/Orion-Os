@@ -76,6 +76,7 @@ class TelemetryManager {
     // com "bussola+encoder" e as rodas iguais = o robo escorregou.
     destino["reta_fonte"] = _motores.fonteReta();
     destino["reta_desvio_graus"] = _motores.desvioRetaGraus();
+    destino["roda_travada"] = _motores.rodaTravada();
   }
 
   void preencherPayload(JsonObject destino) {
@@ -134,6 +135,7 @@ class TelemetryManager {
     // com "bussola+encoder" e as rodas iguais = o robo escorregou.
     destino["reta_fonte"] = _motores.fonteReta();
     destino["reta_desvio_graus"] = _motores.desvioRetaGraus();
+    destino["roda_travada"] = _motores.rodaTravada();
   }
 
  private:

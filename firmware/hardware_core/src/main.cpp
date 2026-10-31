@@ -628,6 +628,14 @@ void loop() {
     }
   }
 
+  // Movimento com fim (distancia/angulo) nao e cortado pelo homem-morto: ele
+  // para sozinho no alvo, e a roda travada (motor_manager.h) cobre o caso de
+  // a roda nao andar. Com a roda de 60 mm, 50 cm levam ~10 s - mais que os
+  // 5 s do homem-morto, que cortaria todo pedido no meio (2026-10-31).
+  if (motores.movimentoComFim()) {
+    ultimoComandoRecebido = millis();
+  }
+
   bool acionouParadaAgora = safety.avaliar(motores, ultimoComandoRecebido);
   if (acionouParadaAgora) {
     // "frente_desconhecida" tambem bloqueia o movimento, mas nao e a mesma
