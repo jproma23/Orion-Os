@@ -100,10 +100,16 @@ constexpr bool DIR_INVERTIDO_DIREITO = true;
 // A; o B esta ligado e declarado para a quadratura futura.
 // GPIO 34 nao tem pull-up interno: se o encoder esquerdo nao contar, falta
 // um resistor de 10k do amarelo para o 3,3 V. O 14 tem (o encoder_pcnt liga).
-constexpr uint8_t ENCODER_ESQ = 34;    // fio amarelo, esquerdo
-constexpr uint8_t ENCODER_ESQ_B = 35;  // fio verde, esquerdo (ainda nao lido)
-constexpr uint8_t ENCODER_DIR = 14;    // fio amarelo, direito
-constexpr uint8_t ENCODER_DIR_B = 27;  // fio verde, direito (ainda nao lido)
+// TROCADOS EM 2026-10-31, por MEDICAO: com a roda DIREITA (IN 25/26) girando,
+// uma varredura de todos os pinos (TEST_WHEEL "varrer") viu so o 34 e o 35
+// mudarem (1765 vezes em 1 s cada); com ela parada, nenhum. O dono confirmou:
+// "motor direito 34 e 35". O mapa antigo lia a roda direita no 14 e a
+// esquerda no 34 - cada roda olhava o encoder da OUTRA, e as duas davam 0.
+// O 34/35 nao tem pull-up interno e nao precisou: o encoder dirige o fio.
+constexpr uint8_t ENCODER_ESQ = 14;    // fio amarelo, esquerdo
+constexpr uint8_t ENCODER_ESQ_B = 27;  // fio verde, esquerdo (ainda nao lido)
+constexpr uint8_t ENCODER_DIR = 34;    // fio amarelo, direito
+constexpr uint8_t ENCODER_DIR_B = 35;  // fio verde, direito (ainda nao lido)
 
 // --- Ultrassonicos: REMOVIDOS DO ROBO em 2026-09-19 ---
 // Eram dois HC-SR04 (frente em 32/34, tras em 33/35) e o servo do radar em

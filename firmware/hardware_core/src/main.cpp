@@ -191,6 +191,29 @@ void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg
   float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
   uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
 
+  // VARREDURA (2026-10-31): a roda girou e o encoder contou 0, com os fios
+  // parados no nivel do pull-up - cara de fio em OUTRO pino. Com
+  // "varrer": true, o laco abaixo tambem le TODOS os pinos onde um fio de
+  // encoder poderia estar e conta quantas vezes cada um mudou de nivel.
+  // So LE: PIN_INPUT_ENABLE liga o buffer de entrada sem tirar a funcao do
+  // pino (saida de servo, I2C, rele continuam iguais). Os IN do motor ficam
+  // de fora porque o proprio PWM os faz piscar. Rodar uma vez com
+  // potencia 0 (base) e outra girando: o pino que so muda girando e o fio.
+  static const uint8_t PINOS_VARRER[] = {0, 2, 4, 5, 12, 13, 14, 15, 16, 17,
+                                         18, 19, 21, 22, 23, 27, 34, 35};
+  constexpr size_t N_VARRER = sizeof(PINOS_VARRER);
+  const bool varrer = p["varrer"] | false;
+  uint8_t nivelVarrer[N_VARRER] = {0};
+  uint8_t nivelIniVarrer[N_VARRER] = {0};
+  uint32_t mudancasVarrer[N_VARRER] = {0};
+  if (varrer) {
+    for (size_t i = 0; i < N_VARRER; i++) {
+      PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[PINOS_VARRER[i]]);
+      nivelVarrer[i] = nivelIniVarrer[i] =
+          gpio_get_level(static_cast<gpio_num_t>(PINOS_VARRER[i]));
+    }
+  }
+
   uint8_t pinoA = esquerda ? pinos::ENCODER_ESQ : pinos::ENCODER_DIR;
   uint8_t pinoB = esquerda ? pinos::ENCODER_ESQ_B : pinos::ENCODER_DIR_B;
   pinMode(pinoB, pinoB < 34 ? INPUT_PULLUP : INPUT);  // A ja e do PCNT
@@ -222,6 +245,12 @@ void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg
     }
     if (b != bAnt) bordasB++;
     aAnt = a; bAnt = b;
+    if (varrer) {
+      for (size_t i = 0; i < N_VARRER; i++) {
+        uint8_t n = gpio_get_level(static_cast<gpio_num_t>(PINOS_VARRER[i]));
+        if (n != nivelVarrer[i]) { mudancasVarrer[i]++; nivelVarrer[i] = n; }
+      }
+    }
     esp_task_wdt_reset();
   }
   motores.parar();
@@ -244,6 +273,17 @@ void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg
   payload["in_ativo_alto_pct"] = amostras ? 100.0f * ativoAlto / amostras : -1.0f;
   payload["in_outro"] = inOutro;
   payload["in_outro_alto_pct"] = amostras ? 100.0f * outroAlto / amostras : -1.0f;
+  if (varrer) {
+    // "pino": [nivel_inicial, mudancas] - todos, para ver tambem quem ficou parado
+    JsonObject v = payload["varredura"].to<JsonObject>();
+    char chave[4];
+    for (size_t i = 0; i < N_VARRER; i++) {
+      snprintf(chave, sizeof(chave), "%u", PINOS_VARRER[i]);
+      JsonArray par = v[chave].to<JsonArray>();
+      par.add(nivelIniVarrer[i]);
+      par.add(mudancasVarrer[i]);
+    }
+  }
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 

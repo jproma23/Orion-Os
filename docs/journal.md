@@ -9351,3 +9351,25 @@ O firmware de bancada de 25/10 (`pins.h` com IN em 32/33/25/26 e encoders em 34/
 5. O `orion-camera-stream` do Pi ficou sem câmera (serve "NO SIGNAL").
 6. YOLO de reserva no Pi, com fila (proposta do dono, não iniciada).
 7. Ruído: o Notebook ainda roda o Mission Core; o desenho de 30/09 era no Pi (EDR-0036).
+
+### Tarde de 31/10 — as rodas giram, e os encoders contam
+
+**A roda girou pela primeira vez.** Com 5 V no L298N: silêncio total, com o LED aceso. Com **10 V**: girou. A causa de 25/10 estava confirmada: a lógica do L298N não liga as saídas com 5 V na entrada. A 10 V o motor de 6 V recebe ~7–8 V a 100%, então os testes rodam a **75%** até existir um teto de PWM no firmware.
+
+**Os encoders estavam cruzados.** Com a roda girando, eles davam 0 nos dois motores. Entrou no `TEST_WHEEL` uma varredura opcional (`"varrer": true`): ela **só lê** 18 pinos e conta quantas vezes cada um muda. Parado, só os servos (19/23) piscavam. Girando a roda direita (IN 25/26), **só o 34 e o 35 mudaram (1765 vezes em 1 s)**. O mapa antigo lia a roda direita no 14 e a esquerda no 34, ou seja, cada roda olhava o encoder da outra. O `pins.h` foi trocado para direita = 34/35 e esquerda = 14/27. O dono confirmou a fiação dos dois motores.
+
+Medido a 75%, 1 s:
+
+| roda/sentido | pulsos | subida de A com B |
+|---|---|---|
+| direita + | 1717 | alto |
+| direita − | 1643 | baixo |
+| esquerda (o sentido que funciona) | ~1490 | alto |
+
+A quadratura funciona: a ordem de A e B se inverte com o sentido.
+
+**A roda esquerda só gira para um lado.** Trocando os fios 32↔33 no L298N, **o defeito seguiu o pino IN1 da placa**, e não o fio. Um jumper novo no IN1 também não resolveu. Sobram a solda do IN1 ou o canal 1 do chip queimado. Sem o outro sentido não há ré nem giro no lugar, então o conserto tem que ser no hardware (solda, ou um TB6612FNG). A roda direita gira bem nos dois sentidos.
+
+O "direito" do firmware (25/26) é a roda que fica à direita de quem olha o robô de frente pela câmera. Qual lado é a frente do robô ainda falta confirmar, quando ele andar com as duas rodas.
+
+Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
