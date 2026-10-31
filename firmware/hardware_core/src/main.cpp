@@ -185,7 +185,40 @@ void responderCalibrarBussola(const char* origem, const char* idMsg) {
 // de IN move, se o canal A conta, se o B conta, e em que ordem os dois
 // chegam (a ordem e o sentido). Bloqueia no maximo 1,2 s - abaixo dos 2 s do
 // watchdog, que ainda assim e alimentado no laco. So para rodas no ar.
+// TEST_WHEEL com "lado": "ambos" (2026-10-31): as duas rodas juntas, com a
+// regra de espelhamento do movimento normal. "sentido" 1 = frente do robo,
+// -1 = re. Responde os pulsos de cada roda - quem olha diz se o robo seria
+// empurrado para a frente e se as duas giram juntas.
+void responderTesteAmbas(JsonObjectConst p, const char* origem, const char* idMsg) {
+  bool frente = (p["sentido"] | 1) >= 0;
+  float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
+  uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
+  int64_t esqIni = motores.pulsosBrutos(true), dirIni = motores.pulsosBrutos(false);
+  motores.testeAmbasMalhaAberta(frente, fracao);
+  unsigned long inicio = millis();
+  while (millis() - inicio < duracaoMs) {
+    esp_task_wdt_reset();
+    delay(5);
+  }
+  motores.parar();
+
+  JsonDocument payload;
+  payload["lado"] = "ambos";
+  payload["sentido"] = frente ? 1 : -1;
+  payload["potencia_percent"] = fracao * 100.0f;
+  payload["duracao_ms"] = duracaoMs;
+  payload["pulsos_esq"] = motores.pulsosBrutos(true) - esqIni;
+  payload["pulsos_dir"] = motores.pulsosBrutos(false) - dirIni;
+  payload["dir_invertido_esq"] = pinos::DIR_INVERTIDO_ESQUERDO;
+  payload["dir_invertido_dir"] = pinos::DIR_INVERTIDO_DIREITO;
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
 void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg) {
+  if (strcmp(p["lado"] | "esq", "ambos") == 0) {
+    responderTesteAmbas(p, origem, idMsg);
+    return;
+  }
   bool esquerda = strcmp(p["lado"] | "esq", "dir") != 0;
   bool sentidoIn1 = (p["sentido"] | 1) >= 0;
   float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);

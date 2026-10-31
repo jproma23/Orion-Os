@@ -9375,3 +9375,9 @@ O "direito" do firmware (25/26) é a roda que fica à direita de quem olha o rob
 Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
 
 **Resolvido no mesmo dia: era mau contato.** O dono refez o contato do IN1 e a roda esquerda passou a girar nos dois sentidos (1418 e 1415 pulsos em 1 s, com a ordem A/B invertendo). O código não mudou entre o teste que falhava e o que passou. As duas rodas e os dois encoders funcionam nos dois sentidos. Esse sintoma (um sentido só, com o sinal certo medido na perna do ESP) aponta para o conector ou a solda do pino IN da placa.
+
+**As duas rodas juntas: frente e ré funcionam.** O `TEST_WHEEL` ganhou o modo `"lado": "ambos"`, com a mesma regra de espelhamento do andar normal (frente = IN1 na esquerda e IN4 na direita, porque `DIR_INVERTIDO_DIREITO = true`). No primeiro teste o robô **giraria no lugar**: os fios da roda esquerda ainda estavam trocados (32↔33) desde o diagnóstico do IN1. Com os fios de volta ao original, frente → ré → frente → ré andou junto (esq ~1360, dir ~1450–1515 pulsos em 1 s, a 75%). **O `pins.h` estava certo, e não foi mexido.** O "motores espelhados: gira no próprio eixo" de agosto era fiação.
+
+Firmware gravado: sha256 `1dbaeff0f2aa9dc0…`.
+
+Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual lado é a frente em relação à câmera, e um teto de PWM no firmware (com 10 V, o motor de 6 V não pode receber 100%).

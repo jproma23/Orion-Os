@@ -241,6 +241,20 @@ class MotorManager {
     _aplicarPonte(roda, sentidoIn1, static_cast<uint32_t>(fracao * PWM_DUTY_MAX));
   }
 
+  //: As DUAS rodas em malha aberta, com a MESMA regra de espelhamento do
+  //: movimento normal (`_atualizarRoda`: saida > 0 = frente, e o lado com
+  //: dirInvertido troca o par de IN). Existe para a bancada provar, antes do
+  //: PID, que "frente" no firmware empurra o robo para a frente de verdade
+  //: (2026-10-31). `frente`: true = frente do robo, false = re.
+  void testeAmbasMalhaAberta(bool frente, float fracao) {
+    parar();
+    uint32_t duty = static_cast<uint32_t>(constrain(fracao, 0.0f, 1.0f) * PWM_DUTY_MAX);
+    for (EstadoRoda* roda : {&_esquerda, &_direita}) {
+      bool sentidoIn1 = roda->dirInvertido ? !frente : frente;
+      _aplicarPonte(*roda, sentidoIn1, duty);
+    }
+  }
+
   int64_t pulsosBrutos(bool esquerda) const {
     return (esquerda ? _esquerda : _direita).encoder.pulsos();
   }
