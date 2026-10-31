@@ -9351,3 +9351,46 @@ O firmware de bancada de 25/10 (`pins.h` com IN em 32/33/25/26 e encoders em 34/
 5. O `orion-camera-stream` do Pi ficou sem câmera (serve "NO SIGNAL").
 6. YOLO de reserva no Pi, com fila (proposta do dono, não iniciada).
 7. Ruído: o Notebook ainda roda o Mission Core; o desenho de 30/09 era no Pi (EDR-0036).
+
+### Tarde de 31/10 — as rodas giram, e os encoders contam
+
+**A roda girou pela primeira vez.** Com 5 V no L298N: silêncio total, com o LED aceso. Com **10 V**: girou. A causa de 25/10 estava confirmada: a lógica do L298N não liga as saídas com 5 V na entrada. A 10 V o motor de 6 V recebe ~7–8 V a 100%, então os testes rodam a **75%** até existir um teto de PWM no firmware.
+
+**Os encoders estavam cruzados.** Com a roda girando, eles davam 0 nos dois motores. Entrou no `TEST_WHEEL` uma varredura opcional (`"varrer": true`): ela **só lê** 18 pinos e conta quantas vezes cada um muda. Parado, só os servos (19/23) piscavam. Girando a roda direita (IN 25/26), **só o 34 e o 35 mudaram (1765 vezes em 1 s)**. O mapa antigo lia a roda direita no 14 e a esquerda no 34, ou seja, cada roda olhava o encoder da outra. O `pins.h` foi trocado para direita = 34/35 e esquerda = 14/27. O dono confirmou a fiação dos dois motores.
+
+Medido a 75%, 1 s:
+
+| roda/sentido | pulsos | subida de A com B |
+|---|---|---|
+| direita + | 1717 | alto |
+| direita − | 1643 | baixo |
+| esquerda (o sentido que funciona) | ~1490 | alto |
+
+A quadratura funciona: a ordem de A e B se inverte com o sentido.
+
+**A roda esquerda só gira para um lado.** Trocando os fios 32↔33 no L298N, **o defeito seguiu o pino IN1 da placa**, e não o fio. Um jumper novo no IN1 também não resolveu. Sobram a solda do IN1 ou o canal 1 do chip queimado. Sem o outro sentido não há ré nem giro no lugar, então o conserto tem que ser no hardware (solda, ou um TB6612FNG). A roda direita gira bem nos dois sentidos.
+
+O "direito" do firmware (25/26) é a roda que fica à direita de quem olha o robô de frente pela câmera. Qual lado é a frente do robô ainda falta confirmar, quando ele andar com as duas rodas.
+
+Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
+
+**Resolvido no mesmo dia: era mau contato.** O dono refez o contato do IN1 e a roda esquerda passou a girar nos dois sentidos (1418 e 1415 pulsos em 1 s, com a ordem A/B invertendo). O código não mudou entre o teste que falhava e o que passou. As duas rodas e os dois encoders funcionam nos dois sentidos. Esse sintoma (um sentido só, com o sinal certo medido na perna do ESP) aponta para o conector ou a solda do pino IN da placa.
+
+**As duas rodas juntas: frente e ré funcionam.** O `TEST_WHEEL` ganhou o modo `"lado": "ambos"`, com a mesma regra de espelhamento do andar normal (frente = IN1 na esquerda e IN4 na direita, porque `DIR_INVERTIDO_DIREITO = true`). No primeiro teste o robô **giraria no lugar**: os fios da roda esquerda ainda estavam trocados (32↔33) desde o diagnóstico do IN1. Com os fios de volta ao original, frente → ré → frente → ré andou junto (esq ~1360, dir ~1450–1515 pulsos em 1 s, a 75%). **O `pins.h` estava certo, e não foi mexido.** O "motores espelhados: gira no próprio eixo" de agosto era fiação.
+
+Firmware gravado: sha256 `1dbaeff0f2aa9dc0…`.
+
+Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual lado é a frente em relação à câmera, e um teto de PWM no firmware (com 10 V, o motor de 6 V não pode receber 100%).
+
+**Frente e lados confirmados pelo dono, com as rodas no ar:** o comando FRENTE leva o robô para o **lado da câmera**, e a roda que o firmware chama de "direita" (IN 25/26, encoder 34/35) é a **direita do robô** (olhando para a frente dele). Nenhuma mudança no código: os nomes e o espelhamento estavam certos.
+
+**Teste repetido com 50% (31/10, ~12:25), confirmado pelo dono ("girou certo").** Duas rodadas iguais, 0,8 s por movimento, o dono olhando as rodas no ar. A ordem foi esquerda (frente, ré), direita (frente, ré) e as duas juntas (frente, ré):
+
+| movimento | 1ª rodada | 2ª rodada |
+|---|---|---|
+| esquerda frente / ré | 551 / 555 | 541 / 555 |
+| direita frente / ré | 659 / 616 | 662 / 613 |
+| ambas frente (esq / dir) | 520 / 586 | 519 / 581 |
+| ambas ré (esq / dir) | 537 / 633 | 530 / 629 |
+
+As duas rodadas batem (diferença < 2%), e a ordem A/B inverte com o sentido nas duas rodas. **A direita dá 10–15% mais pulsos que a esquerda com o mesmo PWM**: sem PID, o robô no chão vai puxar para a esquerda. Isso é trabalho do controle de velocidade (malha fechada com os encoders), não de fiação.
