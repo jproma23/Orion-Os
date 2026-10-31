@@ -91,13 +91,26 @@ constexpr uint32_t PWM_FREQ_HZ = 20000;      // acima do audivel
 constexpr uint8_t PWM_RESOLUCAO_BITS = 10;   // duty 0-1023
 constexpr uint32_t PWM_DUTY_MAX = (1u << PWM_RESOLUCAO_BITS) - 1;
 
+// CANAIS LEDC DOS MOTORES: 14 e 15, NUNCA 0 e 1 (bug achado em 2026-10-25).
+// A ESP32Servo distribui canais a partir do 0: o pan pega o 0 e o tilt o 1.
+// Com o motor tambem no 0/1, o attach() dos servos (que roda DEPOIS do
+// motores.iniciar()) reconfigurava os canais para 50 Hz - o motor recebia
+// pulso de servo e nao girava, e todo ledcWrite do motor mexia no pan. Os
+// canais 14/15 sao do grupo low-speed, que a ESP32Servo so alcanca depois
+// de ocupar outros 12 canais.
+constexpr uint8_t CANAL_LEDC_ESQ = 14;
+constexpr uint8_t CANAL_LEDC_DIR = 15;
+
 enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
 
 struct EstadoRoda {
   uint8_t pinoIn1 = 0;
   uint8_t pinoIn2 = 0;
-  uint8_t pinoPwm = 0;
+  uint8_t pinoEn = 0;
   uint8_t canalLedc = 0;
+  //: qual IN esta com o PWM agora (0xFF = nenhum). O PWM vai no IN do
+  //: sentido em que a roda gira; o outro IN fica em LOW (pins.h, 25/10).
+  uint8_t pinoPwmAtivo = 0xFF;
   int unidadePcnt = 0;
   int pinoEncoder = 0;
   //: este lado esta montado espelhado (pins.h) - inverte so a saida da
@@ -134,10 +147,10 @@ class MotorManager {
     digitalWrite(pinos::RELE_MOTORES, HIGH);
 
     _configurarRoda(_esquerda, pinos::MOTOR_ESQ_IN1, pinos::MOTOR_ESQ_IN2,
-                     pinos::MOTOR_ESQ_PWM, 0, 0, pinos::ENCODER_ESQ,
+                     pinos::MOTOR_ESQ_EN, 0, CANAL_LEDC_ESQ, pinos::ENCODER_ESQ,
                      pinos::DIR_INVERTIDO_ESQUERDO);
     _configurarRoda(_direita, pinos::MOTOR_DIR_IN3, pinos::MOTOR_DIR_IN4,
-                     pinos::MOTOR_DIR_PWM, 1, 1, pinos::ENCODER_DIR,
+                     pinos::MOTOR_DIR_EN, 1, CANAL_LEDC_DIR, pinos::ENCODER_DIR,
                      pinos::DIR_INVERTIDO_DIREITO);
   }
 
@@ -218,6 +231,20 @@ class MotorManager {
     _desligarRele();
   }
 
+  // BANCADA (TEST_WHEEL, 2026-10-25): uma roda so, potencia fixa, SEM PID -
+  // para conferir fiacao de motor e encoder com as rodas no ar. Quem chama e
+  // responsavel por parar() depois. sentidoIn1 = PWM no IN1/IN3 (pins.h).
+  void testeMalhaAberta(bool esquerda, bool sentidoIn1, float fracao) {
+    parar();
+    EstadoRoda& roda = esquerda ? _esquerda : _direita;
+    fracao = constrain(fracao, 0.0f, 1.0f);
+    _aplicarPonte(roda, sentidoIn1, static_cast<uint32_t>(fracao * PWM_DUTY_MAX));
+  }
+
+  int64_t pulsosBrutos(bool esquerda) const {
+    return (esquerda ? _esquerda : _direita).encoder.pulsos();
+  }
+
   bool emMovimento() const {
     return !_esquerda.concluido || !_direita.concluido;
   }
@@ -244,12 +271,12 @@ class MotorManager {
   void _ligarRele() { digitalWrite(pinos::RELE_MOTORES, LOW); }
   static void _desligarRele() { digitalWrite(pinos::RELE_MOTORES, HIGH); }
 
-  void _configurarRoda(EstadoRoda& roda, uint8_t in1, uint8_t in2, uint8_t pwm,
+  void _configurarRoda(EstadoRoda& roda, uint8_t in1, uint8_t in2, uint8_t en,
                         int unidadePcnt, int canalLedc, int pinoEncoder,
                         bool dirInvertido) {
     roda.pinoIn1 = in1;
     roda.pinoIn2 = in2;
-    roda.pinoPwm = pwm;
+    roda.pinoEn = en;
     roda.canalLedc = canalLedc;
     roda.unidadePcnt = unidadePcnt;
     roda.pinoEncoder = pinoEncoder;
@@ -260,9 +287,12 @@ class MotorManager {
     digitalWrite(in1, LOW);
     digitalWrite(in2, LOW);
 
+    // ENA/ENB sempre habilitados (pins.h). Quem para a roda e IN1=IN2=LOW.
+    pinMode(en, OUTPUT);
+    digitalWrite(en, HIGH);
+
     ledcSetup(canalLedc, PWM_FREQ_HZ, PWM_RESOLUCAO_BITS);
-    ledcAttachPin(pwm, canalLedc);
-    ledcWrite(canalLedc, 0);
+    roda.pinoPwmAtivo = 0xFF;
 
     roda.encoder.iniciar(unidadePcnt, pinoEncoder);
   }
@@ -284,9 +314,34 @@ class MotorManager {
     roda.pulsosAlvo = -1;
     roda.concluido = true;
     roda.pid.zerar();
+    _soltarPwm(roda);
+  }
+
+  // Tira o PWM do IN que estava com ele e deixa os dois IN em LOW (roda
+  // solta). pinMode de novo porque, depois do ledcDetachPin, o pino nao
+  // volta sozinho a ser GPIO comum.
+  static void _soltarPwm(EstadoRoda& roda) {
+    ledcWrite(roda.canalLedc, 0);
+    if (roda.pinoPwmAtivo != 0xFF) {
+      ledcDetachPin(roda.pinoPwmAtivo);
+      roda.pinoPwmAtivo = 0xFF;
+    }
+    pinMode(roda.pinoIn1, OUTPUT);
+    pinMode(roda.pinoIn2, OUTPUT);
     digitalWrite(roda.pinoIn1, LOW);
     digitalWrite(roda.pinoIn2, LOW);
-    ledcWrite(roda.canalLedc, 0);
+  }
+
+  // Liga o PWM no IN do sentido pedido. So mexe no roteamento quando o
+  // sentido muda; no resto do tempo e um ledcWrite.
+  static void _aplicarPonte(EstadoRoda& roda, bool sentidoIn1, uint32_t duty) {
+    uint8_t ativo = sentidoIn1 ? roda.pinoIn1 : roda.pinoIn2;
+    if (roda.pinoPwmAtivo != ativo) {
+      _soltarPwm(roda);
+      ledcAttachPin(ativo, roda.canalLedc);
+      roda.pinoPwmAtivo = ativo;
+    }
+    ledcWrite(roda.canalLedc, duty);
   }
 
   void _atualizarRoda(EstadoRoda& roda, float dt_s) {
@@ -316,15 +371,8 @@ class MotorManager {
     float saida = roda.pid.atualizar(roda.alvoRadS, medidoRadS, dt_s);
     float saidaFisica = roda.dirInvertido ? -saida : saida;
 
-    if (saidaFisica >= 0) {
-      digitalWrite(roda.pinoIn1, HIGH);
-      digitalWrite(roda.pinoIn2, LOW);
-    } else {
-      digitalWrite(roda.pinoIn1, LOW);
-      digitalWrite(roda.pinoIn2, HIGH);
-    }
     uint32_t duty = static_cast<uint32_t>(fabsf(saidaFisica) * PWM_DUTY_MAX);
-    ledcWrite(roda.canalLedc, duty);
+    _aplicarPonte(roda, saidaFisica >= 0, duty);
   }
 };
 

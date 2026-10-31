@@ -49,16 +49,23 @@ namespace pinos {
 // ESP32 dedicado separado). SUBSTITUI os 2x TB6600 -> 2x NEMA17 que
 // ocupavam este lugar.
 //
-// Pinos REAPROVEITADOS dos steppers aposentados: os 4 de STEP/DIR viram
-// IN1-IN4 do L298N, e o ENABLE_MOTORES (que nem estava fisicamente ligado)
-// vira um dos PWM. O outro PWM usa o GPIO que tinha ficado livre com o
-// cancelamento do encoder antigo (ver historico abaixo).
-constexpr uint8_t MOTOR_ESQ_IN1 = 27;  // era STEP_ESQUERDO
-constexpr uint8_t MOTOR_ESQ_IN2 = 14;  // era DIR_ESQUERDO
-constexpr uint8_t MOTOR_DIR_IN3 = 25;  // era STEP_DIREITO
-constexpr uint8_t MOTOR_DIR_IN4 = 26;  // era DIR_DIREITO
-constexpr uint8_t MOTOR_ESQ_PWM = 13;  // era ENABLE_MOTORES (nunca ligado antes)
-constexpr uint8_t MOTOR_DIR_PWM = 15;  // livre desde o cancelamento do encoder antigo (2026-08-17)
+// FIACAO REAL (dono, 2026-10-25): IN1..IN4 nos GPIO 32, 33, 25, 26. O
+// mapa anterior (27/14/25/26 + PWM em 13/15) nunca chegou a ser a fiacao
+// fisica. ENA/ENB NAO vem do ESP32: a velocidade e PWM nos proprios IN (o
+// pino do sentido "ativo" recebe o PWM e o outro fica em LOW). Os GPIO 13 e
+// 15 continuam declarados e ficam em HIGH o tempo todo: se o ENA/ENB estiver
+// com jumper, nao fazem nada; se um dia alguem passar fio do ENA/ENB para
+// eles, o motor continua habilitado em vez de parar mudo.
+//
+// QUAL PAR E QUAL LADO ainda nao foi visto na bancada: 32/33 = esquerdo e
+// 25/26 = direito segue o mapa antigo (25/26 ja eram do direito). Se a
+// roda que gira for a outra, troca-se aqui, nao no fio.
+constexpr uint8_t MOTOR_ESQ_IN1 = 32;  // era TRIG do ultrassom frontal
+constexpr uint8_t MOTOR_ESQ_IN2 = 33;  // era TRIG do ultrassom traseiro
+constexpr uint8_t MOTOR_DIR_IN3 = 25;
+constexpr uint8_t MOTOR_DIR_IN4 = 26;
+constexpr uint8_t MOTOR_ESQ_EN = 13;  // sempre HIGH - ver acima
+constexpr uint8_t MOTOR_DIR_EN = 15;  // sempre HIGH - strapping, so pesa no reset
 
 // MOTORES ESPELHADOS NA MONTAGEM (medido na bancada em 2026-08-05, com os
 // steppers - a mesma montagem fisica de rodas continua): os dois motores se
@@ -81,13 +88,22 @@ constexpr bool DIR_INVERTIDO_DIREITO = true;
 // SafetyManager de verdade, e nao valia arriscar seguranca por resolucao de
 // encoder.
 //
-// Os ultrassons sairam do robo. GPIO 34 e 35 estao LIVRES agora, e sao
+// Os ultrassons sairam do robo. GPIO 34 e 35 ficaram livres e, desde
+// 2026-10-25, sao o encoder esquerdo (A e B). Sao
 // input-only - exatamente o que um canal B de encoder precisa. Quem for
 // atras de quadratura completa (a odometria hoje roda com um encoder so,
 // decisao de custo de 13/08) comeca por aqui: os pinos existem e nao
 // disputam mais nada.
-constexpr uint8_t ENCODER_ESQ = 39;  // livre
-constexpr uint8_t ENCODER_DIR = 36;  // era BATERIA_SENSE
+// PLACA DO DONO NAO TEM GPIO 36 NEM 39 (dono, 2026-10-25) - o mapa antigo
+// punha os encoders neles, ou seja, em pino nenhum. Fiacao real:
+// esquerdo A=34, B=35; direito A=14, B=27. O firmware ainda le so o canal
+// A; o B esta ligado e declarado para a quadratura futura.
+// GPIO 34 nao tem pull-up interno: se o encoder esquerdo nao contar, falta
+// um resistor de 10k do amarelo para o 3,3 V. O 14 tem (o encoder_pcnt liga).
+constexpr uint8_t ENCODER_ESQ = 34;    // fio amarelo, esquerdo
+constexpr uint8_t ENCODER_ESQ_B = 35;  // fio verde, esquerdo (ainda nao lido)
+constexpr uint8_t ENCODER_DIR = 14;    // fio amarelo, direito
+constexpr uint8_t ENCODER_DIR_B = 27;  // fio verde, direito (ainda nao lido)
 
 // --- Ultrassonicos: REMOVIDOS DO ROBO em 2026-09-19 ---
 // Eram dois HC-SR04 (frente em 32/34, tras em 33/35) e o servo do radar em
@@ -95,7 +111,8 @@ constexpr uint8_t ENCODER_DIR = 36;  // era BATERIA_SENSE
 // o LiDAR STL-50B2, ligado ao Raspberry, com 12 setores de 360 graus a
 // 2,5 Hz - contra 7 angulos numa varredura de 2,1 segundos.
 //
-// Os pinos 32, 33, 34, 35 e 18 estao LIVRES. Ficam listados aqui como
+// O 18 esta LIVRE; 32/33 viraram IN1/IN2 e 34/35 o encoder esquerdo
+// (2026-10-25). Ficam listados aqui como
 // livres, e nao apagados em silencio, porque a proxima pessoa que precisar
 // de um pino vai procurar nesta lista.
 
@@ -121,7 +138,13 @@ constexpr uint8_t SERVO_TILT = 23;  // (Mega: 11)
 // --- Reles de energia (CONFIRMADO 2026-07-23) ---
 // RELE_MOTORES: agora alimenta o L298N (antes, os TB6600). Mesma logica de
 // fail-safe: HIGH = motores SEM energia, LOW so enquanto anda de verdade.
-constexpr uint8_t RELE_MOTORES = 5;  // (Mega: 12, antes 13)
+//
+// O RELE SAIU DO ROBO (dono, 2026-10-25): o L298N esta direto na fonte. O
+// pino continua sendo escrito, mas nao corta nada - o motor so para porque
+// IN1=IN2=LOW. Consequencia: NO BOOT E NO RESET do ESP32 os IN ficam
+// flutuando por alguns milissegundos e a ponte esta energizada; a roda pode
+// dar um tranco. Antes o rele cobria essa janela.
+constexpr uint8_t RELE_MOTORES = 5;  // (Mega: 12, antes 13) - sem rele desde 25/10
 // RELE_VENTILADOR: fisicamente DESCONECTADO desde 2026-07-24.
 constexpr uint8_t RELE_VENTILADOR = 17;  // (Mega: 7)
 

@@ -9230,3 +9230,124 @@ Suíte do Pi: **1266 → 1253 passam**, zero falha. A diferença é exatamente o
 - A bancada continua: rodar `tools/testar_roda.py` com as rodas no ar, ler os IN e só então o encoder.
 - Juntar os códigos do Pi e do Notebook e religar o Mission Core no Pi (EDR-0036).
 - Levar para o Notebook os consertos de voz de setembro (`df692e8`, detector de eco, nome Javis completo). É o passo 2 de "voltar o projeto", e depende de os microfones dos ouvidos voltarem a mandar som.
+
+
+## Sessão de 2026-10-31 — o robô voltou a ouvir, a enxergar e a falar com quem chega; as rodas esperam um buck
+
+Manhã de bancada, com o dono na mesma rede e eu pelo Windows (Tailscale até o Pi, e do Pi até o Notebook). As duas máquinas tinham acabado de ser ligadas.
+
+### Check dos sistemas (07:01–07:05)
+
+| Sistema | Estado no começo |
+|---|---|
+| Pi 4 (10.20.20.106) | 43 °C, `throttled=0x0`, 3 GB livres; `orion-motion` e câmera de pé, `orion-mission` parado de propósito (a memória roda no Notebook desde 12/10) |
+| LiDAR | `ttyUSB0` do Pi, quadros `AA 55` chegando |
+| Corpo (ESP32, CP2102) | **fora do Pi**: o Motion Core tentava a cada 30 s. O dono ligou às 07:04 (`ttyUSB1`); voltou em IDLE com a bússola lendo (32,8 µT) |
+| Notebook (10.20.20.195) | `orion-avatar` de pé, Whisper `small`, câmera apontando para o stream do Pi |
+| Ouvidos | com o firmware de **varredura** de 25/10 (sem WiFi): o Voice Core esperando `ouvidos.local:9100` |
+
+### Ouvidos: OTA primeiro, depois o diagnóstico, e era o WS solto
+
+O dono tem **um cabo USB só**, e ele fica no corpo. O firmware gravado nos ouvidos (varredura) não tinha WiFi nem OTA, então foi preciso o cabo **uma última vez**. O diagnóstico novo (`firmware/ouvidos_esp32/diagnostico/`) já veio com WiFi + ArduinoOTA e com o resultado em texto na TCP 9101. O OTA foi provado antes de soltar o cabo: o mesmo firmware regravado pelo ar, `Result: OK`.
+
+O diagnóstico alterna o resistor interno do pino SD (GPIO 33):
+
+```
+[PULL-UP     ] A naozero=256 tudo1=256 ... cru ffffffff ffffffff
+[PULL-DOWN   ] A naozero=0   tudo1=0   ... cru 00000000 00000000
+```
+
+A leitura **seguia o resistor**: ninguém dirigia o fio. Isso aponta para causa física comum aos dois mics (sem 3,3 V/GND, sem clock, ou SD solto), e não para código, porque os pinos eram os de julho. O dono achou: **o WS tinha soltado do GPIO 25.** Soldado, os dois canais variaram nos três modos (A até ±29.000, B até ±33.000 em 24 bits).
+
+Firmware normal regravado **pelo ar**, agora com OTA embutido. Prova ponta a ponta com um bipe de 880/1320 Hz no alto-falante USB do Notebook, gravando dos ouvidos ao mesmo tempo:
+
+| | silêncio | durante o bipe |
+|---|---|---|
+| mic A | ~180 rms | 3.600–4.900 |
+| mic B | ~160 rms | 4.600–8.500 |
+
+**Ganho:** "Jarvis" chegou a rms 0,0064 e o Whisper descartou a palavra (confiança −1,27 contra o portão de −1,00). `DESLOCAMENTO_GANHO` 13 → 12 (2x), pelo ar. Depois disso: `ouvi (rms=0.1500): 'Olá, Jarvis!'` → `falando: Olá! Tudo bem por aqui.`
+
+Os três firmwares dos ouvidos viviam soltos no Notebook (`~/build_ouvidos`, `~/build_diagmic`, `~/build_scan`). Entraram no repo em `firmware/ouvidos_esp32/`, com README (pinos, rede, OTA, ganho, como diagnosticar).
+
+### Velocidade: o Whisper `small` era mais lento que a fala
+
+Medido no Notebook com YOLO e rosto rodando, frase de 5 s (sintetizada pelo Piper):
+
+| modelo | tempo | texto |
+|---|---|---|
+| small, beam 5 | 6,1 s | "Pervis, que horas são agora e como está o tempo lá fora?" |
+| small, beam 1 | 5,7 s | igual |
+| **base** | **2,0 s** | "Termiz, que horas são agora, e como está o tempo lá fora." |
+| base, sem timestamps + beam 1 | 1,86 s | igual |
+| base, 4 threads | 2,18 s | igual (não ajuda) |
+| tiny | 1,22 s | "É a vez que a hora são agora…" (estraga) |
+
+Trocado para `base`; o nome errado não importa porque não há palavra de ativação desde 25/10. Dono: *"ficou bom"*. O VAD `rms_minimo` foi de 0,003 para 0,03: com o ganho dobrado, o ruído de fundo (~0,013) fazia o Whisper rodar a cada 5 s em silêncio.
+
+**O que sobra de lentidão é desenho, não modelo:** a janela de escuta é FIXA de 5 s (`duracao_comando_s`), mesmo que a pessoa fale 1 s, e a IA leva ~4 s. Parar de gravar no fim da fala vale até 3 s por resposta; não foi feito.
+
+### Visão: estava cega sem nenhum erro
+
+O stream do Pi (`:8091/snapshot`) devolvia a imagem **"NO SIGNAL"**: a DV20 do pan/tilt está na USB do **Notebook** (decisão de 30/09), mas a config ainda lia o vídeo do Pi. O OpenCV abria o stream e processava a tela preta sem reclamar. `camera_indice_principal` passou para `/dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0` (25 fps lidos direto).
+
+Duas vezes o teste deu "não estou vendo nada", e as duas vezes a visão estava certa: **o pan/tilt está desligado por enquanto** (dono) e a câmera solta cai para trás, apontando para o teto. A outra câmera do Notebook (Sunplus "PC Camera") também estava virada para o teto. Com a câmera endireitada, "o que você está vendo?" → **"João Paulo"**.
+
+O diário do banco provou o resto: `pessoa_vista João Paulo` às 07:41, 07:43 e 07:56, e **`pessoa_vista Marah` às 07:44:35**, com a Marah de fato na frente. As distâncias de um rosto medido contra os três cadastros: Marah 0,392, Kamal 0,594, João Paulo 0,709. **Alguém que não é o Kamal ficou a 0,594 dele**, e o limiar é 0,6: o limiar padrão do `face_recognition` está frouxo para esta família. Não foi mexido (falta medir o dono e a Marah separados).
+
+Detalhe de desenho que confunde: a resposta de "o que você vê" **pula a classe `person` do YOLO** e só cita gente cujo rosto foi achado. De costas ou longe, a resposta é "não estou vendo nada" mesmo com o YOLO vendo uma pessoa.
+
+### Ele via a Marah e não falava com ela
+
+Dono: *"ele não falou com marah"*. A causa estava no `saudacao.py`: a janela de 15 min depois de uma conversa (a regra de 09/08, "quem conversa não chegou") calava **qualquer** chegada, não só a de quem conversava. Agora:
+
+- visto durante a conversa = participante, não recebe "oi";
+- conversa sem ninguém visto: o primeiro rosto é de quem fala (preserva o caso de 09/08);
+- qualquer outro rosto depois disso **chegou**, e é cumprimentado.
+
+Dono: *"a saudação está repetitiva"*. Duas causas: os cumprimentados e as frases já ditas viviam **só na RAM**, e cada restart do avatar zerava os dois (3 cumprimentos ao dono em 16 min, dois com a mesma frase: "Bom dia, João Paulo. Que bom ver você por aqui logo cedo."). **Os restarts foram meus**, nos testes. Agora a memória vai para `data/saudacao_estado.json` (relógio de parede, troca atômica, arquivo estragado não impede o boot) e guarda as últimas 8 frases em vez de 3.
+
+5 testes novos; os do caso da Marah **falham no código antigo** (2 failed) e passam no novo. Suíte do Notebook: **1253 passed**. Commit `98ce327` (no Notebook, branch `pi-master`, trazido ao Pi por `git fetch notebook` + fast-forward).
+
+### Reconhecimento de voz: órfão (e o dono disse que não é prioridade)
+
+O `identificador_locutor.py` lê `pessoas.embedding_voz`, e **nenhum código grava essa coluna**: os três cadastros têm rosto e nenhum tem voz. O `localizacao.py` (direção da voz com os dois mics) também não é chamado por ninguém. Dono: *"reconhecimento de voz não é tão importante, visão computacional sim"*. Ficou registrado e parado.
+
+### YOLO no Pi? Medido antes de mover
+
+O dono propôs levar o YOLO para o Pi com uma fila, se o Notebook estivesse sobrecarregado. Medido:
+
+| | Pi 4 | Notebook |
+|---|---|---|
+| YOLOv8n, 320 px | 337 ms (3 fps), os 4 núcleos | ~125 ms |
+| YOLOv8n, 640 px | 1153 ms | — |
+| CPU livre | quase toda | 66% |
+
+O Notebook não está sobrecarregado: a visão pede só 2 fps, e o maior consumidor dele é o **Firefox do avatar (~50% de um núcleo)**, mais que o processo do robô (~45%). A proposta ficou como **reserva**: YOLO leve no Pi (1 fps) só quando o Notebook some ou atrasa. Não implementado; o dono decidiu manter a visão no Notebook.
+
+### Rodas: o L298N alimentado com 5 V não liga a própria lógica
+
+Em 25/10 os IN saíam certos do ESP32 e nenhuma roda girou. Hoje o dono contou a alimentação: **bateria de 21 V → buck de 5 V → L298N**, motor JGB37 de **6 V**.
+
+O L298N (bipolar) perde 2–3 V até o motor, e o **regulador de 5 V interno** dele (jumper 5V-EN) precisa de ~7 V na entrada. Com 5 V no borne, a lógica ficava com ~3 V e talvez nem entendesse os IN, e o motor receberia ~2,5–3 V. **Hipótese forte, ainda não provada.**
+
+Plano combinado: buck ajustado para **8 V** (lógica ok, ~6 V no motor a 100%, sem limite de PWM no firmware). Não ligar os 21 V direto: o motor de 6 V levaria pulsos de ~19 V. Para o robô andar com peso, a troca recomendada é um **TB6612FNG ou DRV8833** (perdem ~0,3 V). O dono foi buscar um buck ajustável.
+
+O firmware de bancada de 25/10 (`pins.h` com IN em 32/33/25/26 e encoders em 34/35/14/27, canais LEDC 14/15, `TEST_WHEEL` lendo o nível real dos IN, `tools/testar_roda.py`) foi **commitado hoje**. O binário recompilado desse código tem sha256 `5cd1bffd…a223291`.
+
+### Erros meus
+
+- **Os restarts do avatar nos testes fizeram ele cumprimentar o dono três vezes**, e quase passei isso como defeito só do código.
+- O primeiro OTA falhou por eu usar `--upload-protocol` na linha de comando do `pio` (não existe); virou um `env:ota` no `platformio.ini`.
+- Dois patches grandes morreram no shell local por aspas no heredoc; passaram como arquivo.
+- Disse "a câmera do pan/tilt" quando ainda não sabia que ela tinha mudado para o Notebook; só o "NO SIGNAL" mostrou.
+
+### Pendente
+
+1. **Rodas**: buck em 8 V, rodas no ar, `tools/testar_roda.py` a 100% (o dono confirma antes). Medir OUT1–OUT2 se não girar.
+2. **Limiar do rosto** 0,6 → ~0,5, depois de medir o dono e a Marah separados.
+3. Janela de escuta que termina no fim da fala (até −3 s por resposta).
+4. "Estou vendo uma pessoa" quando o YOLO vê gente sem rosto.
+5. O `orion-camera-stream` do Pi ficou sem câmera (serve "NO SIGNAL").
+6. YOLO de reserva no Pi, com fila (proposta do dono, não iniciada).
+7. Ruído: o Notebook ainda roda o Mission Core; o desenho de 30/09 era no Pi (EDR-0036).
