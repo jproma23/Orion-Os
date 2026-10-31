@@ -9410,3 +9410,25 @@ Pedidos do dono, na mesma conversa: *"o robo precisa entender seu corpo e seus c
 **Provado ponta a ponta, pelo chat:** "anda trinta centímetros para frente" → `MOVE_DISTANCE 30 cm, 40%` → rodas giraram e pararam sozinhas (confirmado pelo dono) → LiDAR: 139 cm antes, 139 depois → perguntado "você conseguiu andar?", ele respondeu "Não saí do lugar". Certo: as rodas estavam no ar. Suíte do Pi verde (1278 + os novos).
 
 Falta: calibrar a bússola no chão e provar a reta com ela; medir a redução (pulsos por volta) e a bitola, que entram na conta de cm e graus; ligar o Nav2 (container `orion-nav2`, parado há 5 semanas) às ações faladas.
+
+## 31/10 (fim da tarde) — as medidas reais do corpo e o controle das rodas a 50 Hz
+
+Preparando o Nav2, a odometria se mostrou errada em três números e um sinal. O dono mediu com fita e contou voltas de roda:
+
+| medida | antes (suposto) | agora |
+|---|---|---|
+| roda motriz | 200 mm | **60 mm** |
+| bitola (eixo a eixo) | 0,30 m (config) / 0,45 m (firmware) | **0,36 m** |
+| redução do JGB37-520 | 1:90 | **1:168** (medida) |
+| pulsos por metro | 2546 (config) / 3151 (firmware) | **19608** |
+| robô | 50 × 30 × 65 cm | **39 × 30 × 45 cm**, roda de apoio a 25 cm |
+
+**A redução foi medida contando voltas, com as rodas no ar:** 9900 pulsos deram ~2,8 voltas e 35360 deram 9,5. O 1:168 prevê 2,68 e 9,57; o 1:150 prevê 3,0 e 10,7 (descartado). Depois de gravado o 1:168, mandar "3 voltas" deixou a marca da roda no mesmo ponto. A etiqueta do motor diz **DC 6V 35RPM**: \`VELOCIDADE_MAXIMA_RODA_RAD_S\` virou a nominal (3,66 rad/s), e quem segura o motor de 6 V na bateria de 10 V passa a ser o PID, não uma regra de "não passar de 75%". Firmware e \`orion.yaml\` agora são presos por \`tests/unit/test_medidas_corpo.py\`.
+
+**O desvio de 7° a 60% não era a reta: era o PID rodando sobre ruído.** O controle rodava a cada volta do \`loop()\`, e entre duas voltas a roda conta 0 ou 1 pulso — a velocidade medida pulava entre zero e valores enormes. Com a malha a **50 Hz fixos**, o desvio máximo caiu para **0,07° a 60% e 0,08° a 40%**, com as rodas terminando a 1 pulso uma da outra em 11 mil. Entraram junto, como proteção para bateria fraca: anti-windup no \`velocity_pid.cpp\` e "nivelar pela roda mais fraca" (se a roda que precisa acelerar está no teto, o alvo das duas desce até ela).
+
+**Roda travada no lugar do homem-morto para movimento com fim.** Com a roda de 60 mm o robô anda ~5 cm/s, e "anda 50 cm" passou a durar mais que os 5 s do homem-morto. Movimento com fim (distância ou ângulo) não é mais cortado por ele; em troca, roda mandada girar que não conta pulso por 1,5 s desliga os motores (\`roda_travada\` na telemetria).
+
+**Odometria do Motion Core:** a pose agora é \`origem: encoder, medida: true\` (os "passos" são pulsos do encoder desde a volta do motor DC). E a orientação tinha dois defeitos que fariam o mapa do Nav2 girar ao contrário: o rumo da bússola entrava cru (ele cresce no sentido horário; o yaw do ROS, no anti-horário) e entrava **mesmo sem calibração**. Agora é a fusão complementar encoder + bússola (τ 2 s), só com \`rumo_valido\`, convertida para ENU.
+
+**Não provado ainda:** a reta e a odometria com a bússola (ela não está calibrada — precisa do robô no chão) e a distância percorrida no chão (o ajuste fino de ~2% vem do LiDAR, em \`odometry_correction_factor\`).

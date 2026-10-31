@@ -45,17 +45,25 @@
 namespace orion {
 
 // --- Geometria e mecanica desta montagem ---
-constexpr float RODA_DIAMETRO_M = 0.200f;  // roda de 200 mm (mesma medida de antes)
+// MEDIDO pelo dono em 2026-10-31: 60 mm. O 200 mm era da montagem antiga e
+// fazia toda distancia sair 3,3x MENOR que a pedida ("50 cm" andava 15 cm).
+// TEM que bater com chassi.roda_diametro_m do orion.yaml (teste preso).
+constexpr float RODA_DIAMETRO_M = 0.060f;
 
 // BITOLA (distancia centro a centro das rodas) NUNCA foi medida nesta
 // montagem - o mesmo problema que ja existia com PASSOS_POR_GRAU no codigo
 // de steppers. 0,45 m e um palpite plausivel pra um robo pequeno; MEDIR e
 // corrigir antes de confiar em qualquer TURN_* com angulo.
-constexpr float BITOLA_M = 0.45f;  // SUSPEITO - nunca medido, ver acima
+// MEDIDO pelo dono em 2026-10-31: 36 cm de eixo a eixo das rodas. TEM que
+// bater com motion.wheel_base_m do orion.yaml (teste preso).
+constexpr float BITOLA_M = 0.36f;
 
-// Reducao do JGB37-520: DECISAO PROVISORIA 1:90 (peca ainda a caminho,
-// RETOMADA_MIGRACAO.md 2026-09-13).
-constexpr float REDUCAO_ENGRENAGEM = 90.0f;
+// Reducao do JGB37-520 (etiqueta "DC 6V 35RPM"): 1:168, MEDIDA na bancada em
+// 2026-10-31 com o dono contando voltas da roda: 9900 pulsos deram ~2,8
+// voltas e 35360 deram 9,5 (previsto pelo 1:168: 2,68 e 9,57). O 1:90 era
+// palpite de setembro e fazia toda distancia sair 1,87x MAIOR que a pedida.
+// TEM que bater com motion.steps_per_meter do orion.yaml (teste preso).
+constexpr float REDUCAO_ENGRENAGEM = 168.0f;
 // PPR do encoder no eixo do MOTOR (antes da reducao): CONFIRMADO em
 // 2026-09-20 pelo manual do fabricante que veio com a peca - deixou de ser
 // chute. O texto da ficha, literal:
@@ -80,11 +88,12 @@ constexpr float PULSOS_POR_METRO = PULSOS_POR_VOLTA_RODA / (PI * RODA_DIAMETRO_M
 // circulo de raio = bitola/2. O PI cancela dos dois lados.
 constexpr float PULSOS_POR_GRAU = PULSOS_POR_VOLTA_RODA * BITOLA_M / (360.0f * RODA_DIAMETRO_M);
 
-// Velocidade angular MAXIMA da RODA (nao do motor antes da reducao), em
-// rad/s. PLACEHOLDER - sem bancada ainda. A ficha do JGB37-520 na reducao
-// 1:90 da algo perto de 35-55 rpm sem carga (~3,7-5,8 rad/s); usamos um
-// valor conservador ate medir de verdade.
-constexpr float VELOCIDADE_MAXIMA_RODA_RAD_S = 4.0f;
+// Velocidade angular MAXIMA da RODA, em rad/s: a NOMINAL da etiqueta, 35 rpm
+// a 6 V (35 x 2pi / 60 = 3,66). E de proposito a de 6 V: a bateria e de 10 V,
+// e com 100% = rotacao nominal o PID nunca pede ao motor mais do que ele gira
+// na tensao dele - quem limita o motor de 6 V passa a ser a malha, e nao uma
+// regra de "nao passar de 75%" que so existia na memoria de quem testava.
+constexpr float VELOCIDADE_MAXIMA_RODA_RAD_S = 3.66f;
 
 // --- Ponte H L298N (EDR-0031: driver que o dono ja tinha) ---
 constexpr uint32_t PWM_FREQ_HZ = 20000;      // acima do audivel
@@ -123,19 +132,39 @@ enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
 // devagar (constante RETA_TAU_BUSSOLA_S) para o rumo verdadeiro. Sem bussola
 // calibrada, fica so o encoder - que existe sempre.
 //
-// GANHOS SAO PRIMEIRO PALPITE: 10 graus de desvio -> 0,5 rad/s de diferenca
-// (com 2 rad/s de base, a correcao fica em 25%). Teto de 40% da base para a
-// correcao nunca inverter uma roda. Ajustar com o robo no chao.
-constexpr float RETA_KP = 0.05f;            // rad/s por grau
-constexpr float RETA_KI = 0.02f;            // rad/s por grau*s
+// GANHOS (bancada 2026-10-31, rodas no ar): com 0,05/0,02 a 40% o desvio
+// ficava em +-1 grau, mas a 60% as DUAS rodas saturavam (bateria fraca: a
+// esquerda nao passava de 1,56 rad/s, a direita de 1,72) e o desvio subia
+// devagar ate 7 graus - a correcao era fraca demais para frear a roda forte
+// o bastante. 0,12/0,04 vence essa diferenca com ~3 graus. Teto de 40% da
+// base para a correcao nunca inverter uma roda. Reajustar no chao.
+constexpr float RETA_KP = 0.12f;            // rad/s por grau
+constexpr float RETA_KI = 0.04f;            // rad/s por grau*s
 constexpr float RETA_INTEGRAL_MAX = 25.0f;  // grau*s
 constexpr float RETA_CORRECAO_MAX = 0.4f;   // fracao da velocidade base
 constexpr float RETA_TAU_BUSSOLA_S = 1.0f;  // quao devagar a bussola corrige o encoder
+// NIVELAR PELA RODA MAIS FRACA (2026-10-31): se a roda que precisa acelerar
+// ja esta no teto do PWM e nao alcanca, nenhuma correcao a faz ir mais rapido
+// - o alvo das DUAS desce ate o que ela consegue. Medido: a 60% com bateria
+// fraca a esquerda parava em 1,56 rad/s e o desvio ia a 7 graus.
+constexpr float RETA_TAU_NIVELAR_S = 0.5f;   // quao rapido o alvo desce
+constexpr float RETA_BASE_MINIMA = 0.3f;     // nunca abaixo de 30% do pedido
 // +1 se o rumo da bussola CRESCE quando o robo gira no sentido horario
 // (visto de cima). E o normal com o modulo de face para cima; montado de
 // cabeca para baixo, o rumo cresce ao contrario e isto vira -1.
 // CONFERIR: girar o robo a mao para a direita e ver `rumo_graus` subir.
 constexpr float RUMO_SENTIDO_HORARIO = 1.0f;
+
+// RODA TRAVADA (2026-10-31): roda mandada girar que nao conta pulso nenhum por
+// este tempo para o movimento inteiro. Com a roda de 60 mm o robo anda ~5
+// cm/s, e um movimento com fim (MOVE_DISTANCE, TURN com graus) passou a durar
+// mais que os 5 s do homem-morto - entao ele deixou de valer para movimento
+// com fim (main.cpp), e ESTA e a protecao que ficou no lugar: motor ligado
+// sem a roda andar (travada, sem energia, encoder solto) desliga sozinho.
+constexpr unsigned long TEMPO_RODA_TRAVADA_MS = 1500;
+
+// Periodo da malha de controle (PID de velocidade + reta): 50 Hz.
+constexpr unsigned long PERIODO_CONTROLE_US = 20000;
 
 struct EstadoRoda {
   uint8_t pinoIn1 = 0;
@@ -156,6 +185,10 @@ struct EstadoRoda {
   VelocidadePid pid;
 
   float alvoRadS = 0.0f;
+  //: Velocidade medida no ultimo ciclo (rad/s, com sinal) e se o PWM estava
+  //: no teto - a malha da reta usa os dois para nivelar pela roda mais fraca.
+  float medidoRadS = 0.0f;
+  bool saturada = false;
   //: -1 = movimento continuo (ate parar() ser chamado). >=0 = quantidade de
   //: pulsos a percorrer antes de zerar alvoRadS sozinho.
   int64_t pulsosAlvo = -1;
@@ -169,6 +202,8 @@ struct EstadoRoda {
   //: movimentos.
   int64_t deslocamentoAcumulado = 0;
   bool concluido = true;  // true quando nao ha movimento com alvo pendente
+  //: millis() do ultimo pulso contado (ou do inicio do movimento).
+  unsigned long ultimoPulsoMs = 0;
 };
 
 class MotorManager {
@@ -208,6 +243,12 @@ class MotorManager {
       _ultimaAtualizacaoUs = agora;
       return;
     }
+    // RITMO FIXO (2026-10-31). Ate aqui o controle rodava a cada volta do
+    // loop(), milhares de vezes por segundo: entre duas voltas a roda conta 0
+    // ou 1 pulso, e a "velocidade medida" pulava entre zero e valores enormes
+    // - o PID trabalhava sobre ruido. A 20 ms a roda conta ~15-20 pulsos a
+    // 40%, e a medida fica estavel.
+    if (agora - _ultimaAtualizacaoUs < PERIODO_CONTROLE_US) return;
     float dt_s = (agora - _ultimaAtualizacaoUs) / 1000000.0f;
     _ultimaAtualizacaoUs = agora;
 
@@ -227,6 +268,7 @@ class MotorManager {
 
   void andarFrente(float velocidadePercent) {
     _ligarRele();
+    _movimentoFinito = false;
     _tipo = TipoMovimento::FRENTE;
     _iniciarMovimento(_esquerda, true, velocidadePercent, -1);
     _iniciarMovimento(_direita, true, velocidadePercent, -1);
@@ -242,6 +284,7 @@ class MotorManager {
   // sensor nenhum apontado para tras.
   void andarRe(float velocidadePercent) {
     _ligarRele();
+    _movimentoFinito = false;
     _tipo = TipoMovimento::RE;
     _iniciarMovimento(_esquerda, false, velocidadePercent, -1);
     _iniciarMovimento(_direita, false, velocidadePercent, -1);
@@ -250,6 +293,7 @@ class MotorManager {
 
   void andarDistancia(float distanciaCm, float velocidadePercent) {
     _ligarRele();
+    _movimentoFinito = true;
     int64_t pulsos = static_cast<int64_t>(fabsf(distanciaCm) * (PULSOS_POR_METRO / 100.0f));
     bool frente = distanciaCm >= 0;
     _tipo = frente ? TipoMovimento::FRENTE : TipoMovimento::RE;
@@ -260,6 +304,7 @@ class MotorManager {
 
   void girarContinuo(bool sentidoHorario, float velocidadePercent) {
     _ligarRele();
+    _movimentoFinito = false;
     _tipo = TipoMovimento::GIRO;
     _iniciarMovimento(_esquerda, sentidoHorario, velocidadePercent, -1);
     _iniciarMovimento(_direita, !sentidoHorario, velocidadePercent, -1);
@@ -267,6 +312,7 @@ class MotorManager {
 
   void girarGraus(float graus, bool sentidoHorario, float velocidadePercent) {
     _ligarRele();
+    _movimentoFinito = true;
     int64_t pulsos = static_cast<int64_t>(fabsf(graus) * PULSOS_POR_GRAU);
     _tipo = TipoMovimento::GIRO;
     _iniciarMovimento(_esquerda, sentidoHorario, velocidadePercent, pulsos);
@@ -318,6 +364,14 @@ class MotorManager {
 
   bool girandoNoLugar() const { return movimentoAtual() == TipoMovimento::GIRO; }
 
+  //: O movimento em curso para sozinho (distancia ou angulo pedido)? O
+  //: homem-morto do main.cpp nao corta estes - quem os protege e a roda
+  //: travada, logo abaixo.
+  bool movimentoComFim() const { return emMovimento() && _movimentoFinito; }
+  //: O ultimo movimento parou porque uma roda nao contou pulso por
+  //: TEMPO_RODA_TRAVADA_MS. Fica marcado ate o proximo movimento.
+  bool rodaTravada() const { return _rodaTravada; }
+
   //: Quem a malha da reta esta seguindo: "bussola+encoder", "encoder" ou
   //: "nenhuma" (fora de uma reta).
   const char* fonteReta() const {
@@ -343,11 +397,14 @@ class MotorManager {
   TipoMovimento _tipo = TipoMovimento::NENHUM;
   unsigned long _ultimaAtualizacaoUs = 0;
 
+  bool _movimentoFinito = false;
+  bool _rodaTravada = false;
   bool _rumoValido = false;
   float _rumoGraus = 0.0f;
   float _retaRumoAlvo = 0.0f;
   bool _retaTemRumoAlvo = false;
   float _retaBaseRadS = 0.0f;
+  float _retaBasePedidaRadS = 0.0f;
   float _retaIntegral = 0.0f;
   float _retaDesvio = 0.0f;
   float _retaDesvioEncoderAnterior = 0.0f;
@@ -360,6 +417,8 @@ class MotorManager {
     _retaTemRumoAlvo = _rumoValido;
     _retaRumoAlvo = _rumoGraus;
     _retaBaseRadS = _esquerda.alvoRadS;
+    _retaBasePedidaRadS = _esquerda.alvoRadS;
+    _esquerda.saturada = _direita.saturada = false;
     _retaIntegral = 0.0f;
     _retaDesvio = 0.0f;
     _retaDesvioEncoderAnterior = 0.0f;
@@ -390,6 +449,19 @@ class MotorManager {
       float beta = constrain(dt_s / RETA_TAU_BUSSOLA_S, 0.0f, 1.0f);
       _retaDesvio += beta * (desvioBussola - _retaDesvio);
     }
+
+    // Quem precisa ACELERAR: desvio para a esquerda (positivo) = a esquerda
+    // ficou para tras. Se ela esta no teto e abaixo da base, a base desce na
+    // direcao da velocidade que ela de fato faz; senao volta ao pedido.
+    EstadoRoda& lenta = _retaDesvio >= 0.0f ? _esquerda : _direita;
+    float pedida = fabsf(_retaBasePedidaRadS);
+    float base = fabsf(_retaBaseRadS);
+    float alvoBase = pedida;
+    if (lenta.saturada && fabsf(lenta.medidoRadS) < base) {
+      alvoBase = fmaxf(fabsf(lenta.medidoRadS), RETA_BASE_MINIMA * pedida);
+    }
+    base += constrain(dt_s / RETA_TAU_NIVELAR_S, 0.0f, 1.0f) * (alvoBase - base);
+    _retaBaseRadS = _retaBasePedidaRadS >= 0.0f ? base : -base;
 
     _retaIntegral = constrain(_retaIntegral + _retaDesvio * dt_s, -RETA_INTEGRAL_MAX, RETA_INTEGRAL_MAX);
     float limite = RETA_CORRECAO_MAX * fabsf(_retaBaseRadS);
@@ -435,6 +507,8 @@ class MotorManager {
     roda.pulsosAlvo = pulsos;
     roda.pulsosInicioMovimento = roda.encoder.pulsos();
     roda.pulsosAnterior = roda.pulsosInicioMovimento;
+    roda.ultimoPulsoMs = millis();
+    _rodaTravada = false;
     roda.concluido = false;
     roda.pid.zerar();
   }
@@ -482,6 +556,16 @@ class MotorManager {
     roda.pulsosAnterior = pulsosAtuais;
     roda.deslocamentoAcumulado += static_cast<int64_t>(roda.sinalMovimento) * deltaPulsos;
 
+    if (deltaPulsos > 0) {
+      roda.ultimoPulsoMs = millis();
+    } else if (millis() - roda.ultimoPulsoMs > TEMPO_RODA_TRAVADA_MS) {
+      // Para as DUAS: uma roda andando sozinha faz o robo girar sem ninguem
+      // ter pedido giro.
+      _rodaTravada = true;
+      parar();
+      return;
+    }
+
     // Movimento com alvo finito (MOVE_DISTANCE / TURN_* com angulo): para
     // sozinho quando percorre os pulsos pedidos - equivalente ao
     // passosRestantes==0 da versao de steppers. Magnitude pura: canal
@@ -499,6 +583,8 @@ class MotorManager {
                         (deltaPulsos / dt_s) * (2.0f * PI / PULSOS_POR_VOLTA_RODA);
 
     float saida = roda.pid.atualizar(roda.alvoRadS, medidoRadS, dt_s);
+    roda.medidoRadS = medidoRadS;
+    roda.saturada = fabsf(saida) >= 0.99f;
     float saidaFisica = roda.dirInvertido ? -saida : saida;
 
     uint32_t duty = static_cast<uint32_t>(fabsf(saidaFisica) * PWM_DUTY_MAX);

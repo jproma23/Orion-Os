@@ -204,11 +204,14 @@ communication:
 # varre um círculo de ~58,3 cm ao rodar sobre o próprio centro. Decidir
 # "posso girar aqui" olhando só os 50 cm raspa o canto.
 chassi:
-  largura_m: 0.50          # ponto mais largo
+  # MEDIDAS DO DONO, 2026-10-31 (fita metrica, nao suposicao):
+  largura_m: 0.39          # ponto mais largo
   profundidade_m: 0.30
-  altura_m: 0.65           # define por baixo do que ele passa
-  roda_diametro_m: 0.200   # anda 0,6283 m por volta (pi * d)
-  microstep_tb6600: "1/8"  # S1=OFF S2=ON S3=OFF -> 1600 passos/volta
+  altura_m: 0.45           # define por baixo do que ele passa
+  roda_diametro_m: 0.060   # roda motriz de 60 mm: anda 0,1885 m por volta
+  roda_apoio_distancia_m: 0.25  # do eixo das rodas motrizes a roda de apoio
+  # TEM que bater com RODA_DIAMETRO_M em firmware/.../motor_manager.h
+  # (tests/unit/test_medidas_corpo.py prende os dois).
   # PENDENTE - medir e preencher:
   #   bitola_m: distância centro a centro das duas rodas. Entra na odometria
   #     diferencial (fusao_sensores.py) e no cálculo de graus por passo.
@@ -227,25 +230,26 @@ chassi:
 motion:
   max_speed_percent: 60
   acceleration_percent: 40
-  # CORRIGIDO 2026-07-29 (era 4000). Derivado, nao digitado:
-  #   1600 passos/volta (TB6600 em 1/8) / (PI * 0,200 m de roda) = 2546
-  # O 4000 vinha de calcular a circunferencia como 2*diametro em vez de
-  # PI*diametro - o robo andava PI/2 = 1,571x mais do que o comandado.
-  # TEM que bater com PASSOS_POR_METRO em firmware/.../motor_manager.h.
-  steps_per_meter: 2546          # base; ajustado pela autocalibracao
+  # PULSOS DE ENCODER POR METRO desde 2026-10-31 (o nome ficou de quando eram
+  # passos de motor de passo). Derivado, nao digitado:
+  #   11 pulsos/volta do motor x 2 bordas x 168 de reducao = 3696 por volta
+  #   3696 / (PI * 0,060 m de roda) = 19608
+  # A reducao 1:168 foi MEDIDA contando voltas da roda (2026-10-31: 35360
+  # pulsos = 9,5 voltas). TEM que bater com PULSOS_POR_METRO em
+  # firmware/.../motor_manager.h (tests/unit/test_medidas_corpo.py prende).
+  # O ajuste fino (~2%) vem do teste no chao, em odometry_correction_factor.
+  steps_per_meter: 19608
 
-  # ENCODER FISICO CANCELADO (decisao do dono 2026-08-17). A odometria e
-  # feita por passos comandados + bussola (fusao_sensores.py); nao ha mais
-  # sensor de roda. GPIO 15/16 que seriam do encoder estao livres em pins.h.
+  # O encoder VOLTOU (motor DC com encoder, 2026-09-13) e conta os pulsos que
+  # vao em passos_esquerda/passos_direita - a pose e MEDIDA da roda.
   odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
   autocalibrate_on_first_boot: true
   min_front_distance_cm: 25      # parada reativa (Camada 1)
   min_rear_distance_cm: 20
   mission_timeout_s: 30
-  wheel_base_m: 0.30             # distância entre as rodas (bitola), usada na
-  # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
-  # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
-  # medir com o chassi real e ajustar aqui quando os motores forem montados.
+  wheel_base_m: 0.36             # bitola MEDIDA pelo dono em 2026-10-31 (36 cm
+  # de eixo a eixo). Entra na odometria diferencial (fusao_sensores.py) e
+  # TEM que bater com BITOLA_M do firmware (test_medidas_corpo.py).
 
 navigation:
   follow_distance_m: 1.2

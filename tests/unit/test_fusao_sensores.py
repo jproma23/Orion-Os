@@ -1,10 +1,10 @@
 """Testes da Fusao de Sensores (Cap 12 s.8).
 
-Odometria basica = passos por software + BUSSOLA (decisao do dono 2026-08-17).
-O encoder fisico foi cancelado, entao a pose sempre viaja como ESTIMATIVA
-(`medida: false`, `origem: passos_comandados`); a orientacao usa o rumo
-ABSOLUTO da bussola quando valido e, sem ele, volta a ser integrada do delta
-diferencial. Toda a odometria e validada com telemetria SINTETICA, nunca com
+Desde 2026-10-31 os "passos" sao pulsos do ENCODER (`origem: encoder`,
+`medida: true`), e a orientacao e a fusao complementar encoder + bussola: o
+encoder integra, e a bussola - so quando valida - puxa devagar, convertida da
+convencao dela (0 = norte, horario) para o yaw do ROS (0 = leste,
+anti-horario). Toda a odometria e validada com telemetria SINTETICA, nunca com
 deslocamento real (ver docstring do modulo). A seguranca da IMU saiu em
 2026-08-18 junto com a MPU6050 - nao existe mais aqui.
 """
@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 
 import motion_core.navigation.fusao_sensores as _fusao_mod
-from motion_core.navigation.fusao_sensores import ORIGEM_PASSOS_COMANDADOS, FusaoSensores
+from motion_core.navigation.fusao_sensores import ORIGEM_ENCODER, FusaoSensores
 from orion.kernel.event_bus import EventBus, Evento
 
 CONFIG_MOTION = {
@@ -102,7 +102,7 @@ async def test_andar_reto_incrementa_x_sem_girar(cenario):
     assert pos["x_m"] == pytest.approx(1.0, abs=1e-3)
     assert pos["y_m"] == pytest.approx(0.0, abs=1e-3)
     assert pos["orientacao_graus"] == pytest.approx(0.0, abs=1e-3)
-    assert pos["orientacao_origem"] == "integrada"
+    assert pos["orientacao_origem"] == "encoder"
 
 
 @pytest.mark.asyncio
@@ -206,102 +206,124 @@ async def test_re_so_de_um_lado_gira_para_o_outro(cenario):
     assert cenario.posicoes[0]["orientacao_graus"] == pytest.approx(esperado_graus, rel=1e-3)
 
 
-# ---------- orientacao: a bussola manda (2026-08-17) ----------
+# ---------- orientacao: encoder + bussola (2026-10-31) ----------
 
 
 @pytest.mark.asyncio
-async def test_bussola_valida_ancora_a_orientacao_no_norte(cenario):
-    """Com rumo valido, a orientacao e o rumo ABSOLUTO da bussola, nao a
-    integracao dos passos. Andar reto a 90° (norte magnetico) move y, nao x.
-    """
-    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0, rumo_graus=90.0)
+async def test_bussola_valida_alinha_na_convencao_do_ros(cenario):
+    """Rumo 0 (norte) e yaw 90 no ROS: andar reto vai para +y, nao +x."""
     await cenario.enviar_telemetria(
-        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO, rumo_graus=90.0
+        passos_esquerda=0, passos_direita=0, rumo_graus=0.0, rumo_valido=True
     )
-
+    await cenario.enviar_telemetria(
+        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO,
+        rumo_graus=0.0, rumo_valido=True,
+    )
     pose = cenario.posicoes[-1]
     assert pose["orientacao_graus"] == pytest.approx(90.0, abs=1e-3)
-    assert pose["orientacao_origem"] == "bussola"
-    # direcao do movimento segue a bussola: 90° anda no eixo y
+    assert pose["orientacao_origem"] == "encoder+bussola"
     assert pose["x_m"] == pytest.approx(0.0, abs=1e-3)
     assert pose["y_m"] == pytest.approx(1.0, abs=1e-3)
 
 
 @pytest.mark.asyncio
-async def test_bussola_absoluta_ignora_deriva_do_dead_reckoning(cenario):
-    """Giro diferencial sem bussola acumularia deriva; com rumo valido a
-    orientacao publicada e SEMPRE o rumo, nao o delta integrado."""
-    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0, rumo_graus=200.0)
-    # direita anda mais que esquerda - sem bussola giraria para esquerda
-    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=1200, rumo_graus=200.0)
-
-    pose = cenario.posicoes[-1]
-    assert pose["orientacao_graus"] == pytest.approx(200.0, abs=1e-3)
-    assert pose["orientacao_origem"] == "bussola"
-
-
-@pytest.mark.asyncio
-async def test_bussola_atravessando_0_360_nao_inventa_giro(cenario):
-    """Rumo 350 -> 10 atravessa o norte magnetico. Como o rumo e absoluto,
-    nao ha 340 graus de giro fantasma: a orientacao vira 10, direto."""
-    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0, rumo_graus=350.0)
+async def test_virar_a_direita_na_bussola_diminui_o_yaw(cenario):
+    """REGRESSAO do sinal: o rumo cresce no HORARIO; o yaw, no anti-horario.
+    Antes, o rumo entrava cru - virar a direita fazia o mapa girar a esquerda."""
     await cenario.enviar_telemetria(
-        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO, rumo_graus=10.0
+        passos_esquerda=0, passos_direita=0, rumo_graus=0.0, rumo_valido=True
+    )
+    for _ in range(40):  # parado, a bussola agora diz leste (90)
+        await cenario.enviar_telemetria(
+            passos_esquerda=0, passos_direita=0, rumo_graus=90.0, rumo_valido=True
+        )
+    # convergiu para yaw 0 (leste) vindo de 90 - DIMINUIU
+    assert cenario.posicoes[-1]["orientacao_graus"] % 360 == pytest.approx(0.0, abs=0.5) or (
+        cenario.posicoes[-1]["orientacao_graus"] == pytest.approx(360.0, abs=0.5)
     )
 
+
+@pytest.mark.asyncio
+async def test_bussola_sem_calibracao_e_ignorada(cenario):
+    """REGRESSAO: a telemetria completa manda rumo_graus mesmo SEM calibracao,
+    e ele era usado. `rumo_valido: false` tem que deixar so o encoder."""
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, rumo_graus=200.0, rumo_valido=False
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO,
+        rumo_graus=200.0, rumo_valido=False,
+    )
     pose = cenario.posicoes[-1]
-    assert pose["orientacao_graus"] == pytest.approx(10.0, abs=1e-3)
-    assert pose["orientacao_origem"] == "bussola"
+    assert pose["orientacao_origem"] == "encoder"
+    assert pose["orientacao_graus"] == pytest.approx(0.0, abs=1e-3)
+    assert pose["x_m"] == pytest.approx(1.0, abs=1e-3)
 
 
 @pytest.mark.asyncio
-async def test_sem_rumo_orientacao_e_integrada(cenario):
-    """Sem bussola (ausente/descalibrada), a orientacao volta ao dead
-    reckoning - a pose existe, so perde a ancora no norte."""
+async def test_depois_de_alinhada_a_bussola_nao_da_salto(cenario, monkeypatch):
+    """Alinhada uma vez, uma leitura de bussola discrepante (ruido do motor)
+    nao vira salto de pose: ela so puxa devagar. TAU enorme isola isso do
+    relogio - o asyncio tambem chama o monotonic que o Cenario acelera."""
+    monkeypatch.setattr(_fusao_mod, "TAU_BUSSOLA_S", 1e9)
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, rumo_graus=350.0, rumo_valido=True
+    )
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, rumo_graus=10.0, rumo_valido=True
+    )
+    # rumo 350 = yaw 100; a leitura de 10 (yaw 80) quase nao mexe
+    assert cenario.posicoes[-1]["orientacao_graus"] == pytest.approx(100.0, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_bussola_atravessando_o_norte_vai_pelo_lado_curto(cenario):
+    """Rumo 350 -> 10 sao 20 graus, nao 340: convergindo, o yaw para em 80
+    sem dar a volta."""
+    await cenario.enviar_telemetria(
+        passos_esquerda=0, passos_direita=0, rumo_graus=350.0, rumo_valido=True
+    )
+    vistos = []
+    for _ in range(40):
+        await cenario.enviar_telemetria(
+            passos_esquerda=0, passos_direita=0, rumo_graus=10.0, rumo_valido=True
+        )
+        vistos.append(cenario.posicoes[-1]["orientacao_graus"])
+    assert vistos[-1] == pytest.approx(80.0, abs=0.5)
+    assert all(79.5 <= v <= 100.0 for v in vistos), "deu a volta pelo lado longo"
+
+
+@pytest.mark.asyncio
+async def test_sem_rumo_orientacao_e_do_encoder(cenario):
     await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
     await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=1200)
 
     pose = cenario.posicoes[-1]
-    assert pose["orientacao_origem"] == "integrada"
+    assert pose["orientacao_origem"] == "encoder"
     assert pose["orientacao_graus"] > 0
 
 
 @pytest.mark.asyncio
-async def test_bussola_chegando_na_segunda_leitura_ancora_a_pose(cenario):
-    """Bussola que so aparece depois: a primeira leitura integra (0°), a
-    segunda com rumo valido ancora a orientacao ao norte sem esperar."""
-    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
-    await cenario.enviar_telemetria(
-        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO, rumo_graus=45.0
-    )
-
-    pose = cenario.posicoes[-1]
-    assert pose["orientacao_graus"] == pytest.approx(45.0, abs=1e-3)
-    assert pose["orientacao_origem"] == "bussola"
+async def test_telemetria_reduzida_sem_campo_valido_usa_o_rumo(cenario):
+    """A telemetria reduzida so manda rumo_graus quando ele e valido, sem o
+    campo rumo_valido - ai a presenca do rumo ja diz que vale."""
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0, rumo_graus=0.0)
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0, rumo_graus=0.0)
+    assert cenario.posicoes[-1]["orientacao_origem"] == "encoder+bussola"
 
 
-# ---------- a pose declara que e ESTIMATIVA (encoder cancelado) ----------
+# ---------- a pose e MEDIDA pelo encoder (2026-10-31) ----------
 
 
 @pytest.mark.asyncio
-async def test_pose_por_passos_comandados_nao_se_declara_medida(cenario):
-    """REGRESSAO do que a interface afirmou em producao em 2026-07-30.
-
-    Com os motores FISICAMENTE DESCONECTADOS dos drivers e as rodas suspensas,
-    a tela mostrava `y = 0.8541 m` e `orientacao = 79.68 graus`. O numero vem
-    de `passos_esquerda`, que conta os pulsos que o firmware ENVIA ao TB6600 -
-    comando, nao medicao. Nada no laco pode desmentir o comando.
-
-    Com o encoder cancelado (2026-08-17), a pose SEMPRE e estimativa - a
-    interface precisa se calar sobre medicao em qualquer caso.
-    """
+async def test_pose_do_encoder_se_declara_medida(cenario):
+    """Os passos sao pulsos do encoder desde a volta do motor DC: medicao da
+    roda. A pose de 2026-07-30 (85 cm com os motores desconectados) vinha de
+    passos COMANDADOS - com encoder, motor sem girar nao conta pulso."""
     await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
     await cenario.enviar_telemetria(
         passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO
     )
-
-    assert cenario.posicoes, "nenhuma pose publicada"
     pose = cenario.posicoes[-1]
-    assert pose["medida"] is False, "pose por passos comandados se declarou medida"
-    assert pose["origem"] == ORIGEM_PASSOS_COMANDADOS
-
+    assert pose["medida"] is True
+    assert pose["origem"] == ORIGEM_ENCODER
