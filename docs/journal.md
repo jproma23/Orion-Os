@@ -9381,3 +9381,5 @@ Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
 Firmware gravado: sha256 `1dbaeff0f2aa9dc0…`.
 
 Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual lado é a frente em relação à câmera, e um teto de PWM no firmware (com 10 V, o motor de 6 V não pode receber 100%).
+
+**Frente e lados confirmados pelo dono, com as rodas no ar:** o comando FRENTE leva o robô para o **lado da câmera**, e a roda que o firmware chama de "direita" (IN 25/26, encoder 34/35) é a **direita do robô** (olhando para a frente dele). Nenhuma mudança no código: os nomes e o espelhamento estavam certos.
