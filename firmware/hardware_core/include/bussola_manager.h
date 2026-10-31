@@ -99,7 +99,14 @@ constexpr float AMPLITUDE_MINIMA_CALIBRACAO_GAUSS = 0.08f;
 constexpr int EEPROM_ENDERECO_BUSSOLA = 64;
 // Magico NOVO (era 0x6310): invalida de proposito a calibracao do chip
 // anterior - ver o item 4 do cabecalho.
-constexpr uint16_t EEPROM_MAGICO_BUSSOLA = 0x5883;
+// 0x5884 (2026-10-31): a struct ganhou eixos e sinal - a calibracao antiga
+// (so X/Y fixos) nao vale mais.
+constexpr uint16_t EEPROM_MAGICO_BUSSOLA = 0x5884;
+
+// Amostras guardadas durante a calibracao (10 Hz x 25 s = 250). Servem para
+// descobrir, DEPOIS de achar o centro e a escala, para que lado o rumo anda
+// enquanto o robo gira - e assim o sinal da montagem (2026-10-31).
+constexpr int MAX_AMOSTRAS_CALIBRACAO = 300;
 
 // ALINHAMENTO DOS EIXOS <<< AJUSTAR QUANDO MONTAR NO FOFAO.
 // O rumo usa o plano X/Y do chip: "norte" esta onde o eixo X apontar
@@ -114,10 +121,21 @@ constexpr uint16_t EEPROM_MAGICO_BUSSOLA = 0x5883;
 // torta e fora do lugar, por causa do ferro e dos imas por perto. O offset
 // traz o centro de volta ao zero (hard-iron); a escala desentorta os eixos
 // achatados (soft-iron).
+//
+// EIXOS E SINAL DESCOBERTOS NA CALIBRACAO (2026-10-31). O rumo usava sempre
+// o plano X/Y do chip, e o modulo no robo nao esta deitado com X/Y na
+// horizontal: girando o robo em 8 paradas de 45 graus, o rumo so pulava
+// entre ~75 e ~270 - um dos eixos apontava para cima e media o campo
+// vertical, que nao muda com o giro. Agora a calibracao escolhe os DOIS
+// eixos que mais variam no giro (os horizontais, qualquer que seja a
+// posicao do modulo) e, se o robo girou num sentido conhecido, descobre se
+// o rumo sobe ou desce com ele (modulo de cabeca para baixo inverte).
 struct CalibracaoBussola {
   uint16_t magico;
   float offsetX, offsetY, offsetZ;
   float escalaX, escalaY, escalaZ;
+  uint8_t eixoA, eixoB;  // 0 = X, 1 = Y, 2 = Z: o plano horizontal
+  int8_t sinal;          // +1: rumo cresce no sentido horario; -1: inverso
 };
 
 class BussolaManager {
@@ -163,22 +181,19 @@ class BussolaManager {
     }
 
     // Aplica a calibracao: tira o deslocamento e desentorta a escala.
-    float mx = (bx - _cal.offsetX) * _cal.escalaX;
-    float my = (by - _cal.offsetY) * _cal.escalaY;
-    float mz = (bz - _cal.offsetZ) * _cal.escalaZ;
+    float m[3];
+    _corrigir(bx, by, bz, _cal, m);
 
     // Intensidade do campo ja calibrado, em microtesla. Este numero deveria
     // ficar PARADO por mais que o robo gire - e o melhor teste de qualidade
     // que existe. Se ele oscila muito, a calibracao esta ruim ou tem motor
     // ligado perto demais.
-    _campoUt = sqrt(mx * mx + my * my + mz * mz) / _lsbPorGauss * 100.0f;
+    _campoUt = sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]) / _lsbPorGauss * 100.0f;
 
     // Compensacao de inclinacao REMOVIDA (2026-08-18): ela usava o
     // acelerometro da MPU6050, que foi descartada desta placa. Sem ela, o
-    // rumo so vale com o robo nivelado (plano X/Y) - ver o cabecalho.
-    float graus = atan2(-my, mx) * 180.0f / PI;
-
-    if (graus < 0) graus += 360.0f;
+    // rumo so vale com o robo nivelado - no plano que a calibracao achou.
+    float graus = _rumoDe(m, _cal);
     _rumoGraus = graus;
     _temLeitura = true;
   }
@@ -186,8 +201,13 @@ class BussolaManager {
   // Comeca a coleta de min/max. Quem chama volta na hora - a coleta acontece
   // ao longo das proximas voltas do loop(), enquanto o robo gira. Recusa se
   // o modulo nao estiver conectado ou se ja houver uma em andamento.
-  bool iniciarCalibracao() {
+  // `girandoHorario`: o robo vai girar no sentido horario durante a coleta
+  // (CALIBRATE_COMPASS com "girar"). So assim da para descobrir o SINAL da
+  // montagem - girando a mao, o sentido e desconhecido e fica +1.
+  bool iniciarCalibracao(bool girandoHorario = false) {
     if (!_conectado || _calibrando) return false;
+    _girandoHorario = girandoHorario;
+    _nAmostras = 0;
     _minX = _minY = _minZ = 32767;
     _maxX = _maxY = _maxZ = -32768;
     _inicioCalibracaoMs = millis();
@@ -204,6 +224,14 @@ class BussolaManager {
   bool rumoValido() const { return _conectado && _calibrada && _temLeitura && !_calibrando; }
   float rumoGraus() const { return _rumoGraus; }
   float campoUt() const { return _campoUt; }
+  //: Eixos usados no rumo ("XY", "YZ"...) - diagnostico da montagem.
+  const char* eixosRumo() const {
+    static const char* NOMES[3][3] = {{"", "XY", "XZ"}, {"YX", "", "YZ"}, {"ZX", "ZY", ""}};
+    return NOMES[_cal.eixoA % 3][_cal.eixoB % 3];
+  }
+  //: Quanto o rumo andou na ultima calibracao girando (graus, com o sinal ja
+  //: aplicado). Uma volta inteira ou mais = coleta boa.
+  float voltaCalibracaoGraus() const { return _voltaCalibracaoGraus; }
   // Quanto falta da calibracao em andamento, em ms (0 se nao ha nenhuma).
   unsigned long restanteCalibracaoMs() const {
     if (!_calibrando) return 0;
@@ -302,6 +330,24 @@ class BussolaManager {
     if (y > _maxY) _maxY = y;
     if (z < _minZ) _minZ = z;
     if (z > _maxZ) _maxZ = z;
+    if (_nAmostras < MAX_AMOSTRAS_CALIBRACAO) {
+      _amostras[_nAmostras][0] = x;
+      _amostras[_nAmostras][1] = y;
+      _amostras[_nAmostras][2] = z;
+      _nAmostras++;
+    }
+  }
+
+  static void _corrigir(int16_t x, int16_t y, int16_t z, const CalibracaoBussola& c, float m[3]) {
+    m[0] = (x - c.offsetX) * c.escalaX;
+    m[1] = (y - c.offsetY) * c.escalaY;
+    m[2] = (z - c.offsetZ) * c.escalaZ;
+  }
+
+  static float _rumoDe(const float m[3], const CalibracaoBussola& c) {
+    float graus = atan2(-m[c.eixoB], m[c.eixoA]) * 180.0f / PI * c.sinal;
+    graus = fmodf(graus, 360.0f);
+    return graus < 0 ? graus + 360.0f : graus;
   }
 
   void _fecharCalibracao() {
@@ -315,43 +361,52 @@ class BussolaManager {
     // AMPLITUDE_MINIMA_CALIBRACAO_GAUSS).
     float amplitudeMinima = AMPLITUDE_MINIMA_CALIBRACAO_GAUSS * _lsbPorGauss;
 
-    // SO X E Y SAO EXIGIDOS.
-    //
-    // Exigir amplitude nos tres eixos era heranca de bancada, onde o modulo
-    // era girado na mao em todas as direcoes. Num robo terrestre isso nunca
-    // acontece: ele gira em torno do proprio eixo vertical, entao o Z fica
-    // praticamente constante e a calibracao seria recusada no fim dos 25 s,
-    // sempre.
-    //
-    // Para rumo com o robo nivelado o que importa e o plano X/Y - e a
-    // calibracao PRECISA ser feita com tudo montado, porque o que se quer
-    // medir e justamente o ferro e os imas do proprio Fofao.
-    if (ampX < amplitudeMinima || ampY < amplitudeMinima) {
+    // Os dois eixos que MAIS variaram no giro sao o plano horizontal.
+    float amp[3] = {ampX, ampY, ampZ};
+    uint8_t menor = 0;
+    if (amp[1] < amp[menor]) menor = 1;
+    if (amp[2] < amp[menor]) menor = 2;
+    uint8_t a = menor == 0 ? 1 : 0;
+    uint8_t b = menor == 2 ? 1 : 2;
+    if (amp[a] < amplitudeMinima || amp[b] < amplitudeMinima) {
       _ultimaCalibracaoOk = false;
       return;
     }
 
-    _cal.magico = EEPROM_MAGICO_BUSSOLA;
-    _cal.offsetX = (_maxX + _minX) / 2.0f;
-    _cal.offsetY = (_maxY + _minY) / 2.0f;
+    CalibracaoBussola nova;
+    nova.magico = EEPROM_MAGICO_BUSSOLA;
+    nova.offsetX = (_maxX + _minX) / 2.0f;
+    nova.offsetY = (_maxY + _minY) / 2.0f;
+    nova.offsetZ = (_maxZ + _minZ) / 2.0f;
+    float media = (amp[a] + amp[b]) / 2.0f;
+    // Eixo que quase nao variou (o vertical) fica com escala 1: dividir pela
+    // amplitude dele inventaria um campo enorme a partir de ruido.
+    nova.escalaX = ampX >= amplitudeMinima ? media / ampX : 1.0f;
+    nova.escalaY = ampY >= amplitudeMinima ? media / ampY : 1.0f;
+    nova.escalaZ = ampZ >= amplitudeMinima ? media / ampZ : 1.0f;
+    nova.eixoA = a;
+    nova.eixoB = b;
+    nova.sinal = 1;
 
-    float media = (ampX + ampY) / 2.0f;
-    _cal.escalaX = media / ampX;
-    _cal.escalaY = media / ampY;
-
-    // Z so e corrigido se ele REALMENTE girou (calibracao na mao, fora do
-    // robo). Girando so em torno do eixo vertical, (maxZ+minZ)/2 nao e o
-    // offset de hard-iron - e o proprio campo vertical da Terra somado a
-    // ele. E o rumo usa so o plano X/Y, entao mexer em Z nao ajuda em
-    // nada. Na duvida, nao corrige.
-    if (ampZ >= amplitudeMinima) {
-      _cal.offsetZ = (_maxZ + _minZ) / 2.0f;
-      _cal.escalaZ = media / ampZ;
-    } else {
-      _cal.offsetZ = 0.0f;
-      _cal.escalaZ = 1.0f;
+    // SINAL: refaz o rumo de cada amostra com a calibracao nova e soma o
+    // quanto ele andou. O robo girou no sentido horario; se o rumo DESCEU,
+    // o modulo esta invertido (de cabeca para baixo, ou eixos trocados).
+    float volta = 0.0f;
+    for (int i = 1; i < _nAmostras; i++) {
+      float m0[3], m1[3];
+      _corrigir(_amostras[i - 1][0], _amostras[i - 1][1], _amostras[i - 1][2], nova, m0);
+      _corrigir(_amostras[i][0], _amostras[i][1], _amostras[i][2], nova, m1);
+      float d = _rumoDe(m1, nova) - _rumoDe(m0, nova);
+      if (d > 180.0f) d -= 360.0f;
+      if (d < -180.0f) d += 360.0f;
+      volta += d;
     }
-
+    if (_girandoHorario && volta < 0.0f) {
+      nova.sinal = -1;
+      volta = -volta;
+    }
+    _voltaCalibracaoGraus = volta;
+    _cal = nova;
     EEPROM.put(EEPROM_ENDERECO_BUSSOLA, _cal);
     // commit() OBRIGATORIO no ESP32 - ver o item 3 do cabecalho deste
     // arquivo. Sem ele os 25 s de giro que o dono acabou de fazer com o
@@ -369,6 +424,8 @@ class BussolaManager {
     // sem calibracao em vez de calcular rumo sobre lixo.
     if (!(dados.escalaX > 0.01f) || !(dados.escalaY > 0.01f) || !(dados.escalaZ > 0.01f)) return;
     if (dados.escalaX > 100.0f || dados.escalaY > 100.0f || dados.escalaZ > 100.0f) return;
+    if (dados.eixoA > 2 || dados.eixoB > 2 || dados.eixoA == dados.eixoB) return;
+    if (dados.sinal != 1 && dados.sinal != -1) return;
     _cal = dados;
     _calibrada = true;
   }
@@ -391,9 +448,14 @@ class BussolaManager {
 
   int16_t _minX = 0, _maxX = 0, _minY = 0, _maxY = 0, _minZ = 0, _maxZ = 0;
 
+  bool _girandoHorario = false;
+  int _nAmostras = 0;
+  int16_t _amostras[MAX_AMOSTRAS_CALIBRACAO][3];
+  float _voltaCalibracaoGraus = 0.0f;
+
   // Sem calibracao: offset zero e escala 1 = o valor cru, que so serve para
   // ver se o sensor esta vivo, nunca para navegar.
-  CalibracaoBussola _cal{0, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
+  CalibracaoBussola _cal{0, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0, 1, 1};
 };
 
 }  // namespace orion

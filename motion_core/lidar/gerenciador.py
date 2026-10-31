@@ -30,6 +30,7 @@ import glob
 import logging
 import time
 from collections import deque
+from dataclasses import replace
 from typing import Any
 
 import serial
@@ -87,6 +88,11 @@ class LidarManager:
         self._baud = int(config_lidar.get("baud_rate", 230400))
         self._setores = int(config_lidar.get("setores", 12))
         self._min_mm = float(config_lidar.get("min_distancia_mm", 50))
+        #: Em que angulo DO LIDAR fica a frente do robo (2026-10-31). Ver
+        #: `angulo_frente_graus` no orion.yaml: a montagem estava girada 255
+        #: graus do que o codigo supunha, e a trava de colisao vigiava as costas.
+        frente = float(config_lidar.get("angulo_frente_graus", 90.0))
+        self._giro_montagem = (90.0 - frente) % 360.0
         self._max_mm = float(config_lidar.get("max_distancia_mm", 12000))
         self._confianca_min = int(config_lidar.get("confianca_minima", 0))
 
@@ -301,6 +307,16 @@ class LidarManager:
         scan = self._driver.acumular_scan(list(self._quadros))
         if not scan:
             return None
+        if self._giro_montagem:
+            # Gira o referencial do LiDAR para o do ROBO antes de qualquer
+            # outra conta: daqui para a frente 90 graus e a frente do corpo
+            # (convencao do projeto), para setores, raios e todo consumidor.
+            scan = {
+                int(angulo + self._giro_montagem) % 360: replace(
+                    ponto, angulo_graus=(ponto.angulo_graus + self._giro_montagem) % 360.0
+                )
+                for angulo, ponto in scan.items()
+            }
 
         largura = 360.0 / self._setores
         setores: list[dict[str, Any]] = []
@@ -326,6 +342,19 @@ class LidarManager:
                     "distancia_cm": None if distancia_mm is None else round(distancia_mm / 10.0, 1),
                 }
             )
+
+        # OS RAIOS GRAU A GRAU (2026-10-31), alem dos 12 setores. Os setores
+        # servem a decisao rapida ("tem algo na frente?"); o mapa (SLAM do
+        # Nav2) e a calibracao da montagem precisam da forma da sala, e 12
+        # minimos de 30 graus nao a tem. Indice = grau do LiDAR (0..359),
+        # valor em cm ou None sem eco. ~2 KB por varredura.
+        raios_cm: list[float | None] = [None] * 360
+        for angulo, ponto in scan.items():
+            if (
+                self._min_mm <= ponto.distancia_mm <= self._max_mm
+                and ponto.confianca >= self._confianca_min
+            ):
+                raios_cm[int(angulo) % 360] = round(ponto.distancia_mm / 10.0, 1)
 
         if cobertos == 0:
             # NENHUM setor mediu: nao ha varredura nenhuma para entregar. Este
@@ -385,6 +414,7 @@ class LidarManager:
             "setores_cobertos": cobertos,
             "setores_total": self._setores,
             "pontos": len(scan),
+            "raios_cm": raios_cm,
             "rpm": round(velocidade_media / 360.0 * 60.0, 1),
             "timestamp_s": round(time.monotonic(), 2),
         }

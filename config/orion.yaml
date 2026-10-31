@@ -210,6 +210,12 @@ chassi:
   altura_m: 0.45           # define por baixo do que ele passa
   roda_diametro_m: 0.060   # roda motriz de 60 mm: anda 0,1885 m por volta
   roda_apoio_distancia_m: 0.25  # do eixo das rodas motrizes a roda de apoio
+  # MEDIDAS DO LIDAR (2026-10-31): em cima, a 45 cm do chao (cego para tudo
+  # mais baixo), ~8 cm atras da ponta da frente - com a trava parada, o LiDAR
+  # mediu 48 cm e a fita deu ~40 da ponta ate a parede. Ainda NAO usado em
+  # codigo: quem quiser "X cm do para-choque" soma isto.
+  lidar_altura_m: 0.45
+  lidar_recuo_m: 0.08
   # TEM que bater com RODA_DIAMETRO_M em firmware/.../motor_manager.h
   # (tests/unit/test_medidas_corpo.py prende os dois).
   # PENDENTE - medir e preencher:
@@ -247,9 +253,10 @@ motion:
   min_front_distance_cm: 25      # parada reativa (Camada 1)
   min_rear_distance_cm: 20
   mission_timeout_s: 30
-  wheel_base_m: 0.36             # bitola MEDIDA pelo dono em 2026-10-31 (36 cm
-  # de eixo a eixo). Entra na odometria diferencial (fusao_sensores.py) e
-  # TEM que bater com BITOLA_M do firmware (test_medidas_corpo.py).
+  wheel_base_m: 0.27             # bitola EFETIVA, medida girando com a bussola
+  # calibrada (2026-10-31): a fita deu 0,36, mas o robo girava 1,35x o pedido.
+  # Entra na odometria diferencial (fusao_sensores.py) e TEM que bater com
+  # BITOLA_M do firmware (test_medidas_corpo.py).
 
 navigation:
   follow_distance_m: 1.2
@@ -320,6 +327,14 @@ lidar:
   port: "/dev/lidar"
   baud_rate: 230400           # MEDIDO: em 115200 nao sai um byte sequer
   setores: 12                 # numero de leques de 360/setores graus
+  # EM QUE ANGULO DO LIDAR FICA A FRENTE DO ROBO (lado da camera). MEDIDO em
+  # 2026-10-31 andando 19 cm para a frente e voltando, com os raios grau a
+  # grau: a direcao que encurtou foi 346 graus na ida e 344 na volta. O codigo
+  # supunha 90 sem nunca ter medido - a trava de colisao vigiava as COSTAS e
+  # o robo quase tombou encostando numa parede. O gerenciador gira tudo para
+  # que, publicado, 90 seja a frente (convencao do projeto: 0 esquerda, 90
+  # frente, 180 direita - sentido conferido girando o robo).
+  angulo_frente_graus: 345
   min_distancia_mm: 50        # abaixo disso e poeira/no proprio robo
   max_distancia_mm: 12000     # limite do sensor (12 m)
   # Intensidade do retorno. O COIN-D6 usa 0..63; o STL-50B2 usa 0..255. Com 0

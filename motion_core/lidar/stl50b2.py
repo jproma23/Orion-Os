@@ -52,6 +52,15 @@ BAUD_PADRAO = 230400
 #: O sensor manda o angulo em centesimos de grau (0..35999).
 ESCALA_ANGULO = 100.0
 
+#: E a DISTANCIA EM QUARTOS DE MILIMETRO (2026-10-31) - a mesma unidade da
+#: familia Delta-2. Ate aqui o campo era lido como milimetro e TUDO saia 4x
+#: mais longe: o robo "nunca via nada a menos de 1 m", a trava de 50 cm so
+#: disparava com algo a ~12 cm e ele bateu duas vezes em parede. Medido com o
+#: encoder: re de 20,4 e 20,8 cm afastando de uma parede mudou a leitura em
+#: 89,6 e 92,0 (fator 4,4 = 4 / cos ~25 graus do raio usado). As "faixas cegas"
+#: de 10-15 graus eram as colunas do proprio suporte, a ~5 cm.
+ESCALA_DISTANCIA = 4
+
 #: Distancia 1 ou 2 mm NAO e objeto colado na lente: e o codigo de "nao
 #: recebi eco". Sem este filtro a navegacao enxerga uma parede inexistente
 #: encostada no robo e trava.
@@ -163,7 +172,7 @@ def decodificar_quadro(quadro: bytes) -> QuadroLidar | None:
         pontos.append(
             PontoLidar(
                 angulo_graus=angulos[i],
-                distancia_mm=_u16_le(quadro, base + 1),
+                distancia_mm=_u16_le(quadro, base + 1) // ESCALA_DISTANCIA,
                 confianca=quadro[base],
             )
         )

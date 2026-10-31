@@ -9454,3 +9454,19 @@ O Nav2 comanda **velocidade contínua** (v em m/s, w em rad/s), e o firmware só
 **MAS ele quase tombou encostando numa parede, e a trava do LiDAR (frente < 45 cm) nunca disparou.** Investigação aberta:
 - o LiDAR está **em cima, a 45 cm do chão** (dono): é cego para tudo mais baixo — rodapé, degrau, cabo, pé de cadeira, a bateria no chão. Isso vale para sempre até existir um sensor baixo (o ToF planejado);
 - em seguida, com o dono andando em volta do robô a ~50 cm, **o LiDAR não mudou nada**: o mais perto ficou fixo em 157 cm, mesmo setor, 20 leituras — com 345 pontos por volta chegando normalmente. A suspeita é o LiDAR não estar enxergando o entorno do robô (montagem, obstrução ou outro lugar). **Até isso ser resolvido, nada anda sozinho.**
+
+## 31/10 (noite, depois) — por que ele batia: o LiDAR media 4x mais longe
+
+Resolvida a investigação aberta acima. Em ordem de descoberta:
+
+**1. A frente do LiDAR estava 255° fora do que o código supunha.** Com os raios agora publicados grau a grau (\`raios_cm\` no \`lidar.scan\`), o robô andou 19 cm e voltou: a direção que encurtou foi 346° na ida e 344° na volta. O código supunha 90 e nunca tinha medido — a trava de colisão vigiava as COSTAS. Novo campo \`lidar.angulo_frente_graus: 345\`; o gerenciador gira tudo antes de publicar, então para todo consumidor 90 continua sendo a frente.
+
+**2. A bússola não calibrava: o módulo não está deitado.** Girando o robô em 8 paradas de 45°, o rumo só pulava entre ~75 e ~270 — um eixo do chip apontava para cima e media o campo vertical. A calibração agora **escolhe os dois eixos que mais variam** no giro e, girando num sentido conhecido, **descobre o sinal** da montagem (o dono avisou que o módulo está de cabeça para baixo). Calibrou pelo cérebro ("Jarvis, calibra a bússola"): campo estável em 21–22 µT girando para todos os lados. A calibração gira a 70% (a 30%, com a roda de 60 mm, nem dava uma volta em 25 s).
+
+**3. O robô girava 1,35x o pedido.** Com a bússola boa: pedido 90°, medido +121/−125; oito passos de 45° somaram 488°. As rodas fazem a velocidade pedida (bancada), então quem erra é a bitola: a **efetiva é 0,27 m** (a fita deu 0,36). Depois: 90° pedidos → 93–97°. Foi isso que fez a "meia volta" do vídeo ser quase uma volta inteira.
+
+**4. O LiDAR lia a distância 4x maior — a causa das batidas.** Ele "nunca viu nada a menos de 1 m" a sessão inteira. Com o robô de frente para uma parede a ~40 cm, ela aparecia a 146; dando ré de 20,4 e 20,8 cm (encoder), a leitura subiu 89,6 e 92,0 — fator 4,4 = 4 / cos(~25°) do raio usado. **O campo de distância do STL-50B2 vem em quartos de milímetro** (a unidade da família Delta-2), e era lido como milímetro: a trava de "50 cm" só disparava com algo a ~12 cm. Corrigido em \`stl50b2.py\` (\`ESCALA_DISTANCIA = 4\`), com teste de regressão. Conferido: parede a ~81 cm → LiDAR 82. Das quatro "faixas cegas", três sumiram (eram efeito da escala).
+
+**Sobra uma faixa cega REAL: 90–104°, bem na frente** — "sem eco" mesmo com a escala certa, então há algo físico a menos de 5 cm do LiDAR tampando 15° da frente. Um objeto fino a 50 cm cabe ali. A conferir no hardware.
+
+Também neste dia: o dono dirigiu o robô pela casa por comandos curtos (girar X°, andar X m), e uma volta "de memória" pela odometria bateu duas vezes — erro que acumula; quem resolve é localizar pelo mapa (SLAM), agora possível com o LiDAR medindo certo.

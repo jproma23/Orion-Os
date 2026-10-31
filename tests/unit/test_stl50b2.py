@@ -22,7 +22,11 @@ def montar_quadro(
     intensidade: int = 0x80,
     pontos: int = stl50b2.PONTOS_POR_QUADRO,
 ) -> bytes:
-    """Monta um quadro valido de 85 bytes, como o sensor mandaria."""
+    """Monta um quadro valido de 85 bytes, como o sensor mandaria.
+
+    `distancia_mm` e a distancia REAL; no fio ela vai em quartos de milimetro
+    (ESCALA_DISTANCIA), como o sensor manda - com teto de 16 bits.
+    """
     dados = bytearray()
     dados += stl50b2.HEADER_INICIO
     dados += pontos.to_bytes(2, "big")  # contagem e BIG endian
@@ -31,7 +35,8 @@ def montar_quadro(
     dados += bytes([0x00, 0x00])  # campo nao decifrado
     for _ in range(stl50b2.PONTOS_POR_QUADRO):
         dados += bytes([intensidade])
-        dados += distancia_mm.to_bytes(2, "little")
+        bruto = min(distancia_mm * stl50b2.ESCALA_DISTANCIA, 0xFFFF)
+        dados += bruto.to_bytes(2, "little")
     assert len(dados) == stl50b2.TAMANHO_QUADRO, len(dados)
     return bytes(dados)
 
@@ -49,6 +54,17 @@ def test_quadro_valido_decodifica_25_pontos():
     assert quadro.pontos[-1].angulo_graus == pytest.approx(37.0, abs=0.01)
     assert quadro.pontos[0].distancia_mm == 1234
     assert quadro.pontos[0].confianca == 0x80
+
+
+def test_distancia_vem_em_quartos_de_milimetro():
+    """REGRESSAO 2026-10-31: o campo era lido como milimetro e tudo saia 4x
+    mais longe - o robo bateu em parede com a trava de 50 cm ligada. Medido
+    com o encoder: re de 20 cm afastando da parede mudou a leitura em ~90."""
+    dados = bytearray(montar_quadro(10.0, 37.0))
+    base = stl50b2.DESLOCAMENTO_PONTOS
+    dados[base + 1 : base + 3] = (4000).to_bytes(2, "little")  # 4000 quartos de mm
+    quadro = stl50b2.decodificar_quadro(bytes(dados))
+    assert quadro.pontos[0].distancia_mm == 1000
 
 
 def test_angulos_interpolados_com_wrap_de_360():

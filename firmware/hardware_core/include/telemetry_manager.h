@@ -120,6 +120,8 @@ class TelemetryManager {
     if (_bussola.conectado()) {
       destino["bussola_calibrada"] = _bussola.calibrada();
       destino["bussola_calibrando"] = _bussola.calibrando();
+      destino["bussola_eixos"] = _bussola.eixosRumo();
+      destino["bussola_volta_calibracao_graus"] = _bussola.voltaCalibracaoGraus();
       destino["rumo_valido"] = _bussola.rumoValido();
       destino["rumo_graus"] = _bussola.rumoGraus();
       // Deveria ficar parado por mais que o robo gire - oscilacao grande

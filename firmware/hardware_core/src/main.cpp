@@ -178,8 +178,9 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
 // firmware so nao precisa de ninguem para lembrar de parar.
 void responderCalibrarBussola(JsonObjectConst p, const char* origem, const char* idMsg) {
   JsonDocument payload;
-  bool ok = bussola.iniciarCalibracao();
-  if (ok && (p["girar"] | false)) {
+  bool girar = p["girar"] | false;
+  bool ok = bussola.iniciarCalibracao(girar);
+  if (ok && girar) {
     // Devagar: a bussola le a 10 Hz, e em 25 s a 30% o robo da varias
     // voltas - amostras de todos os lados, sem borrar.
     motores.girarContinuo(true, p["velocidade_percent"] | 30.0f);
