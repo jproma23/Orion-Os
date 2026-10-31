@@ -9383,3 +9383,14 @@ Firmware gravado: sha256 `1dbaeff0f2aa9dc0…`.
 Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual lado é a frente em relação à câmera, e um teto de PWM no firmware (com 10 V, o motor de 6 V não pode receber 100%).
 
 **Frente e lados confirmados pelo dono, com as rodas no ar:** o comando FRENTE leva o robô para o **lado da câmera**, e a roda que o firmware chama de "direita" (IN 25/26, encoder 34/35) é a **direita do robô** (olhando para a frente dele). Nenhuma mudança no código: os nomes e o espelhamento estavam certos.
+
+**Teste repetido com 50% (31/10, ~12:25), confirmado pelo dono ("girou certo").** Duas rodadas iguais, 0,8 s por movimento, o dono olhando as rodas no ar. A ordem foi esquerda (frente, ré), direita (frente, ré) e as duas juntas (frente, ré):
+
+| movimento | 1ª rodada | 2ª rodada |
+|---|---|---|
+| esquerda frente / ré | 551 / 555 | 541 / 555 |
+| direita frente / ré | 659 / 616 | 662 / 613 |
+| ambas frente (esq / dir) | 520 / 586 | 519 / 581 |
+| ambas ré (esq / dir) | 537 / 633 | 530 / 629 |
+
+As duas rodadas batem (diferença < 2%), e a ordem A/B inverte com o sentido nas duas rodas. **A direita dá 10–15% mais pulsos que a esquerda com o mesmo PWM**: sem PID, o robô no chão vai puxar para a esquerda. Isso é trabalho do controle de velocidade (malha fechada com os encoders), não de fiação.
