@@ -59,6 +59,27 @@ estado.
 
 As regras invioláveis estão em [`ARQUITETURA.txt`](ARQUITETURA.txt).
 
+## Os módulos
+
+As peças que compõem o robô. As fotos **ilustram o tipo de peça** (licença
+livre, créditos embaixo de cada uma e em [`CREDITOS.md`](docs/assets/modulos/CREDITOS.md)) —
+não são fotos do ORION montado.
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/modulos/raspberry-pi-4.webp" alt="Raspberry Pi 4" width="170"><br><b>Raspberry Pi 4</b><br>Motion + Mission Core<br><sub>Foto: Laserlicht, CC BY-SA 4.0</sub></td>
+<td align="center" width="25%"><img src="docs/assets/modulos/esp32-devkit.webp" alt="ESP32 DevKit" width="170"><br><b>ESP32</b><br>Hardware Core (corpo) e ouvidos<br><sub>Foto: Ubahnverleih, CC0</sub></td>
+<td align="center" width="25%"><img src="docs/assets/modulos/lidar-2d.webp" alt="LiDAR 2D 360 graus" width="130"><br><b>LiDAR 360°</b><br>STL-50B2, a 45 cm do chão<br><sub>Ilustrativo (RPLIDAR) · Foto: Cacunnin, CC BY-SA 4.0</sub></td>
+<td align="center" width="25%"><img src="docs/assets/modulos/bussola-hmc5883l.webp" alt="Bússola HMC5883L" width="150"><br><b>Bússola</b><br>GY-271, calibrada girando<br><sub>Foto: Ctg4Rahat, CC BY 3.0</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/assets/modulos/motor-dc-reducao.webp" alt="Motor DC com redução" width="170"><br><b>Motores</b><br>JGB37-520, 6 V, 1:168, com encoder<br><sub>Ilustrativo · Foto: Zach Hoeken, CC BY-SA 2.0</sub></td>
+<td align="center"><img src="docs/assets/modulos/l298n.webp" alt="Ponte H L298N" width="170"><br><b>Ponte H L298N</b><br>Aciona os dois motores<br><sub>Foto: Les Pounder, CC BY-SA 2.0</sub></td>
+<td align="center"><img src="docs/assets/modulos/webcam-usb.webp" alt="Webcam USB" width="170"><br><b>Câmera USB</b><br>Rostos e objetos (YOLO)<br><sub>Ilustrativo · Foto: WrS.tm.pl, CC0</sub></td>
+<td align="center"><b>Ouvidos</b><br>ESP32 + 2 microfones I2S INMP441, áudio por Wi-Fi<br><sub>(sem foto livre do INMP441)</sub></td>
+</tr>
+</table>
+
 ## O que já funciona (conferido em 31/10/2026)
 
 - **Kernel próprio** — event bus assíncrono com fila de prioridades, service
