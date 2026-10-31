@@ -687,7 +687,11 @@ class NavigationCore:
             # evaporaram sem deixar rastro. Esse continua em WARNING; a rotina
             # do joystick desce para DEBUG, onde da para ler quando se procura.
             acao_anterior = anterior.get("acao")
-            registrar = logger.debug if acao_anterior == "MANUAL" else logger.warning
+            # MANUAL (joystick) e VELOCIDADE (Nav2, 10 Hz) sao fluxos: o novo
+            # sempre substitui o velho, e avisar cada um so encheria o log.
+            registrar = (
+                logger.debug if acao_anterior in ("MANUAL", "VELOCIDADE") else logger.warning
+            )
             registrar(
                 "navegacao: comando %r DESCARTADO sem executar - %r chegou antes "
                 "(o ultimo vence, nao ha fila)",
@@ -716,6 +720,8 @@ class NavigationCore:
                     dados.get("velocidade_percent"),
                     dados.get("distancia_cm"),
                 )
+            elif acao == "VELOCIDADE":
+                await self.definir_velocidade(dados["v_m_s"], dados["w_rad_s"])
             elif acao == "GIRAR":
                 await self.girar(
                     graus=dados["graus"],
@@ -837,6 +843,20 @@ class NavigationCore:
         await self._comm.send(DESTINO_HARDWARE, payload)
 
     # ---------- GIRAR (primitiva de manobra) ----------
+
+    async def definir_velocidade(self, v_m_s: float, w_rad_s: float) -> None:
+        """Velocidade continua do Nav2 -> CMD_VEL no firmware (2026-10-31).
+
+        NAO espera o robo ficar ocioso, ao contrario do `executar_manual`: a
+        10 Hz cada mensagem e a continuacao da anterior, e esperar faria o
+        robo parar entre elas. Quem para e o proprio firmware, se as
+        mensagens pararem de chegar por 0,5 s.
+        """
+        await self._mudar_modo(ModoNavegacao.MANUAL)
+        await self._comm.send(
+            DESTINO_HARDWARE,
+            {"comando": "CMD_VEL", "v_m_s": float(v_m_s), "w_rad_s": float(w_rad_s)},
+        )
 
     async def girar(
         self, graus: float, sentido: str, velocidade_percent: float | None = None

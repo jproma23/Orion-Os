@@ -9432,3 +9432,25 @@ Preparando o Nav2, a odometria se mostrou errada em três números e um sinal. O
 **Odometria do Motion Core:** a pose agora é \`origem: encoder, medida: true\` (os "passos" são pulsos do encoder desde a volta do motor DC). E a orientação tinha dois defeitos que fariam o mapa do Nav2 girar ao contrário: o rumo da bússola entrava cru (ele cresce no sentido horário; o yaw do ROS, no anti-horário) e entrava **mesmo sem calibração**. Agora é a fusão complementar encoder + bússola (τ 2 s), só com \`rumo_valido\`, convertida para ENU.
 
 **Não provado ainda:** a reta e a odometria com a bússola (ela não está calibrada — precisa do robô no chão) e a distância percorrida no chão (o ajuste fino de ~2% vem do LiDAR, em \`odometry_correction_factor\`).
+
+## 31/10 (noite) — CMD_VEL: o corpo passa a falar a língua do Nav2
+
+O Nav2 comanda **velocidade contínua** (v em m/s, w em rad/s), e o firmware só falava "frente ATÉ STOP / gira ATÉ STOP". A ponte antiga traduzia isso em liga-desliga — frente OU giro, nunca curva, ré em passos de 5 cm — e o robô andaria aos trancos.
+
+- **Firmware:** comando \`CMD_VEL\` → cinemática diferencial (cada roda faz v ∓ w·bitola/2), as duas rodas encolhem juntas se a curva pedir mais do que uma alcança, **watchdog próprio de 0,5 s** (o Nav2 manda a 10 Hz), roda travada só conta se a roda foi mandada girar acima de 0,3 rad/s.
+- **PID de velocidade:** os ganhos de setembro eram palpite — pedindo 5 cm/s a roda fazia 3,6 depois de 1 s. Entrou **feedforward proporcional** (0,25 de duty por rad/s) e a integral ficou mais rápida (ki 0,15 → 0,8). Medido com as rodas no ar:
+
+| fase | pedido esq / dir (m/s) | medido |
+|---|---|---|
+| frente | 0,050 / 0,050 | 0,048 / 0,049 |
+| curva | 0,014 / 0,086 | 0,014 / 0,087 |
+| giro | −0,072 / +0,072 | −0,070 / +0,070 |
+| ré | −0,040 / −0,040 | −0,041 / −0,040 |
+
+- **Pi:** \`POST /velocidade\` na webui → \`navigation.comando\` VELOCIDADE → \`NavigationCore.definir_velocidade\` → CMD_VEL, **sem** o \`_aguardar_ocioso\` do joystick (que pararia o robô entre duas mensagens). A ponte \`bridge_cmd_vel.py\` foi reescrita para repassar o Twist a 10 Hz, e o \`docker-compose\` passou a MONTAR \`nav2/src\` em vez de só copiar — mudar uma ponte não exige mais rebuild da imagem de 2,3 GB.
+
+**No chão (dono filmando):** gira uma volta, anda 40 cm, meia volta, volta 40 cm, tudo por \`/velocidade\` com o LiDAR vigiando a frente — "ficou top". A odometria pelos encoders fechou o percurso a 1 cm / 3,5 cm do ponto de partida, virado 175° (ideal 180°).
+
+**MAS ele quase tombou encostando numa parede, e a trava do LiDAR (frente < 45 cm) nunca disparou.** Investigação aberta:
+- o LiDAR está **em cima, a 45 cm do chão** (dono): é cego para tudo mais baixo — rodapé, degrau, cabo, pé de cadeira, a bateria no chão. Isso vale para sempre até existir um sensor baixo (o ToF planejado);
+- em seguida, com o dono andando em volta do robô a ~50 cm, **o LiDAR não mudou nada**: o mais perto ficou fixo em 157 cm, mesmo setor, 20 leituras — com 345 pontos por volta chegando normalmente. A suspeita é o LiDAR não estar enxergando o entorno do robô (montagem, obstrução ou outro lugar). **Até isso ser resolvido, nada anda sozinho.**

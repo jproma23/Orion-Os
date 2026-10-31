@@ -110,7 +110,17 @@ constexpr uint32_t PWM_DUTY_MAX = (1u << PWM_RESOLUCAO_BITS) - 1;
 constexpr uint8_t CANAL_LEDC_ESQ = 14;
 constexpr uint8_t CANAL_LEDC_DIR = 15;
 
-enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
+// VELOCIDADE (2026-10-31): v e w continuos, vindos do Nav2 (CMD_VEL). Quem
+// controla o rumo ai e o Nav2 - a malha da reta NAO roda nesse tipo.
+enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO, VELOCIDADE };
+
+// CMD_VEL tem watchdog proprio e CURTO: o Nav2 manda a 10-20 Hz, e se ele
+// calar (container caiu, ponte travou, Wi-Fi piscou) o robo para em meio
+// segundo - nao nos 5 s do homem-morto geral.
+constexpr unsigned long CMD_VEL_TIMEOUT_MS = 500;
+// Abaixo disto a roda nem vence o atrito: nao conta como "mandada girar" para
+// a deteccao de roda travada (senao um w pequeno do Nav2 a dispararia).
+constexpr float CMD_VEL_MINIMO_TRAVA_RAD_S = 0.3f;
 
 // --- MANTER A RETA: bussola + encoder (2026-10-31) ---
 // Pedido do dono: "controle pid orientado pela bussola para corrigir
@@ -252,6 +262,11 @@ class MotorManager {
     float dt_s = (agora - _ultimaAtualizacaoUs) / 1000000.0f;
     _ultimaAtualizacaoUs = agora;
 
+    if (_tipo == TipoMovimento::VELOCIDADE && millis() - _ultimoCmdVelMs > CMD_VEL_TIMEOUT_MS) {
+      parar();
+      return;
+    }
+
     if ((_tipo == TipoMovimento::FRENTE || _tipo == TipoMovimento::RE) &&
         !_esquerda.concluido && !_direita.concluido) {
       _corrigirReta(dt_s);
@@ -317,6 +332,34 @@ class MotorManager {
     _tipo = TipoMovimento::GIRO;
     _iniciarMovimento(_esquerda, sentidoHorario, velocidadePercent, pulsos);
     _iniciarMovimento(_direita, !sentidoHorario, velocidadePercent, pulsos);
+  }
+
+  // CMD_VEL: velocidade linear (m/s, + = frente) e angular (rad/s, + =
+  // anti-horario, convencao ROS). Cinematica diferencial: cada roda faz
+  // v -+ w*bitola/2. Se uma passar do maximo, as DUAS encolhem na mesma
+  // proporcao - preserva a CURVA pedida, que e o que o Nav2 planejou.
+  // v = w = 0 para. Chamar de novo a cada mensagem: e isso que alimenta o
+  // watchdog de CMD_VEL_TIMEOUT_MS.
+  void definirVelocidade(float v_m_s, float w_rad_s) {
+    _ultimoCmdVelMs = millis();
+    float raio = RODA_DIAMETRO_M / 2.0f;
+    float esq = (v_m_s - w_rad_s * BITOLA_M / 2.0f) / raio;
+    float dir = (v_m_s + w_rad_s * BITOLA_M / 2.0f) / raio;
+    float maior = fmaxf(fabsf(esq), fabsf(dir));
+    if (maior > VELOCIDADE_MAXIMA_RODA_RAD_S) {
+      esq *= VELOCIDADE_MAXIMA_RODA_RAD_S / maior;
+      dir *= VELOCIDADE_MAXIMA_RODA_RAD_S / maior;
+    }
+    if (fabsf(esq) < 1e-3f && fabsf(dir) < 1e-3f) {
+      parar();
+      return;
+    }
+    _ligarRele();
+    _movimentoFinito = false;
+    bool novo = _tipo != TipoMovimento::VELOCIDADE;
+    _tipo = TipoMovimento::VELOCIDADE;
+    _alvoVelocidade(_esquerda, esq, novo);
+    _alvoVelocidade(_direita, dir, novo);
   }
 
   void parar() {
@@ -398,6 +441,7 @@ class MotorManager {
   unsigned long _ultimaAtualizacaoUs = 0;
 
   bool _movimentoFinito = false;
+  unsigned long _ultimoCmdVelMs = 0;
   bool _rodaTravada = false;
   bool _rumoValido = false;
   float _rumoGraus = 0.0f;
@@ -513,6 +557,24 @@ class MotorManager {
     roda.pid.zerar();
   }
 
+  // Alvo de uma roda no modo VELOCIDADE. So zera o PID quando o movimento
+  // COMECA ou a roda INVERTE: a 10-20 Hz o alvo muda pouco a cada mensagem,
+  // e zerar a integral toda vez faria a roda nunca chegar na velocidade.
+  void _alvoVelocidade(EstadoRoda& roda, float alvoRadS, bool novo) {
+    int8_t sinal = alvoRadS >= 0.0f ? 1 : -1;
+    if (novo || roda.concluido || sinal != roda.sinalMovimento) {
+      roda.sinalMovimento = sinal;
+      roda.pulsosInicioMovimento = roda.encoder.pulsos();
+      roda.pulsosAnterior = roda.pulsosInicioMovimento;
+      roda.ultimoPulsoMs = millis();
+      roda.pid.zerar();
+      _rodaTravada = false;
+    }
+    roda.alvoRadS = alvoRadS;
+    roda.pulsosAlvo = -1;
+    roda.concluido = false;
+  }
+
   void _pararRoda(EstadoRoda& roda) {
     roda.alvoRadS = 0.0f;
     roda.pulsosAlvo = -1;
@@ -556,7 +618,9 @@ class MotorManager {
     roda.pulsosAnterior = pulsosAtuais;
     roda.deslocamentoAcumulado += static_cast<int64_t>(roda.sinalMovimento) * deltaPulsos;
 
-    if (deltaPulsos > 0) {
+    bool mandadaGirar = _tipo != TipoMovimento::VELOCIDADE ||
+                        fabsf(roda.alvoRadS) >= CMD_VEL_MINIMO_TRAVA_RAD_S;
+    if (deltaPulsos > 0 || !mandadaGirar) {
       roda.ultimoPulsoMs = millis();
     } else if (millis() - roda.ultimoPulsoMs > TEMPO_RODA_TRAVADA_MS) {
       // Para as DUAS: uma roda andando sozinha faz o robo girar sem ninguem

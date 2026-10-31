@@ -16,5 +16,9 @@ services:
     # (`nav2.sob_demanda: false` no orion.yaml), volte isto para
     # `unless-stopped` tambem, senao ninguem sobe o Nav2.
     restart: "no"
+    # O codigo das pontes MONTADO e nao so copiado na imagem (2026-10-31):
+    # mudar uma ponte nao exige rebuild de uma imagem de 2,3 GB no Pi.
+    volumes:
+      - ./src:/opt/orion_nav2/src:ro
     environment:
       - ROS_DOMAIN_ID=0
