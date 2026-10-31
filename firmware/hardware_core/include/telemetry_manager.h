@@ -71,6 +71,11 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+    // A malha que mantem a reta (2026-10-31): quem ela segue e quanto o
+    // robo desviou. Desvio grande so com "encoder" = uma roda mais fraca;
+    // com "bussola+encoder" e as rodas iguais = o robo escorregou.
+    destino["reta_fonte"] = _motores.fonteReta();
+    destino["reta_desvio_graus"] = _motores.desvioRetaGraus();
   }
 
   void preencherPayload(JsonObject destino) {
@@ -124,6 +129,11 @@ class TelemetryManager {
     destino["passos_esquerda"] = _motores.passosAcumuladosEsquerda();
     destino["passos_direita"] = _motores.passosAcumuladosDireita();
     destino["em_movimento"] = _motores.emMovimento();
+    // A malha que mantem a reta (2026-10-31): quem ela segue e quanto o
+    // robo desviou. Desvio grande so com "encoder" = uma roda mais fraca;
+    // com "bussola+encoder" e as rodas iguais = o robo escorregou.
+    destino["reta_fonte"] = _motores.fonteReta();
+    destino["reta_desvio_graus"] = _motores.desvioRetaGraus();
   }
 
  private:

@@ -103,6 +103,40 @@ constexpr uint8_t CANAL_LEDC_DIR = 15;
 
 enum class TipoMovimento : uint8_t { NENHUM, FRENTE, RE, GIRO };
 
+// --- MANTER A RETA: bussola + encoder (2026-10-31) ---
+// Pedido do dono: "controle pid orientado pela bussola para corrigir
+// problemas de alinhamento na direcao" e "usando o encoder junto". Medido na
+// bancada no mesmo dia: com o MESMO PWM, a roda direita da 10-15% mais
+// pulsos que a esquerda - no chao o robo puxaria para a esquerda.
+//
+// E uma malha POR CIMA do PID de velocidade de cada roda: ela nao mexe no
+// PWM, mexe no ALVO de velocidade. Desvio para a esquerda (positivo) -> a
+// esquerda acelera e a direita freia na mesma medida. A conta vale igual
+// para frente e para re.
+//
+// O DESVIO E UMA FUSAO COMPLEMENTAR dos dois sensores:
+//   - o ENCODER ve na hora qualquer diferenca entre as rodas, sem ruido -
+//     mas nao ve escorregao e acumula erro com o tempo;
+//   - a BUSSOLA da o rumo absoluto - mas e lenta (10 Hz) e o motor ligado
+//     perto dela faz ruido.
+// Entao o desvio anda junto com o encoder a cada ciclo, e a bussola o puxa
+// devagar (constante RETA_TAU_BUSSOLA_S) para o rumo verdadeiro. Sem bussola
+// calibrada, fica so o encoder - que existe sempre.
+//
+// GANHOS SAO PRIMEIRO PALPITE: 10 graus de desvio -> 0,5 rad/s de diferenca
+// (com 2 rad/s de base, a correcao fica em 25%). Teto de 40% da base para a
+// correcao nunca inverter uma roda. Ajustar com o robo no chao.
+constexpr float RETA_KP = 0.05f;            // rad/s por grau
+constexpr float RETA_KI = 0.02f;            // rad/s por grau*s
+constexpr float RETA_INTEGRAL_MAX = 25.0f;  // grau*s
+constexpr float RETA_CORRECAO_MAX = 0.4f;   // fracao da velocidade base
+constexpr float RETA_TAU_BUSSOLA_S = 1.0f;  // quao devagar a bussola corrige o encoder
+// +1 se o rumo da bussola CRESCE quando o robo gira no sentido horario
+// (visto de cima). E o normal com o modulo de face para cima; montado de
+// cabeca para baixo, o rumo cresce ao contrario e isto vira -1.
+// CONFERIR: girar o robo a mao para a direita e ver `rumo_graus` subir.
+constexpr float RUMO_SENTIDO_HORARIO = 1.0f;
+
 struct EstadoRoda {
   uint8_t pinoIn1 = 0;
   uint8_t pinoIn2 = 0;
@@ -160,6 +194,13 @@ class MotorManager {
   void habilitar() {}
   void desabilitar() { parar(); }
 
+  // O rumo da bussola de agora, para a malha da reta. Chamar em todo loop()
+  // ANTES de atualizar(). `valido` = conectada, calibrada e com leitura.
+  void informarRumo(bool valido, float graus) {
+    _rumoValido = valido;
+    _rumoGraus = graus;
+  }
+
   // Chamar em todo loop() - roda o PID das duas rodas com o dt real.
   void atualizar() {
     unsigned long agora = micros();
@@ -169,6 +210,11 @@ class MotorManager {
     }
     float dt_s = (agora - _ultimaAtualizacaoUs) / 1000000.0f;
     _ultimaAtualizacaoUs = agora;
+
+    if ((_tipo == TipoMovimento::FRENTE || _tipo == TipoMovimento::RE) &&
+        !_esquerda.concluido && !_direita.concluido) {
+      _corrigirReta(dt_s);
+    }
 
     _atualizarRoda(_esquerda, dt_s);
     _atualizarRoda(_direita, dt_s);
@@ -184,6 +230,7 @@ class MotorManager {
     _tipo = TipoMovimento::FRENTE;
     _iniciarMovimento(_esquerda, true, velocidadePercent, -1);
     _iniciarMovimento(_direita, true, velocidadePercent, -1);
+    _iniciarReta();
   }
 
   // RE CONTINUA. Faltava: `andarFrente` ignora o SINAL da velocidade (ela
@@ -198,6 +245,7 @@ class MotorManager {
     _tipo = TipoMovimento::RE;
     _iniciarMovimento(_esquerda, false, velocidadePercent, -1);
     _iniciarMovimento(_direita, false, velocidadePercent, -1);
+    _iniciarReta();
   }
 
   void andarDistancia(float distanciaCm, float velocidadePercent) {
@@ -207,6 +255,7 @@ class MotorManager {
     _tipo = frente ? TipoMovimento::FRENTE : TipoMovimento::RE;
     _iniciarMovimento(_esquerda, frente, velocidadePercent, pulsos);
     _iniciarMovimento(_direita, frente, velocidadePercent, pulsos);
+    _iniciarReta();
   }
 
   void girarContinuo(bool sentidoHorario, float velocidadePercent) {
@@ -269,6 +318,18 @@ class MotorManager {
 
   bool girandoNoLugar() const { return movimentoAtual() == TipoMovimento::GIRO; }
 
+  //: Quem a malha da reta esta seguindo: "bussola+encoder", "encoder" ou
+  //: "nenhuma" (fora de uma reta).
+  const char* fonteReta() const {
+    TipoMovimento tipo = movimentoAtual();
+    if (tipo != TipoMovimento::FRENTE && tipo != TipoMovimento::RE) return "nenhuma";
+    return _rumoValido ? "bussola+encoder" : "encoder";
+  }
+  //: Desvio de rumo da reta, em graus (positivo = desviou para a esquerda).
+  //: Fica com o valor da ultima reta depois que ela acaba - e isso que a
+  //: telemetria quer mostrar.
+  float desvioRetaGraus() const { return _retaDesvio; }
+
   long passosAcumuladosEsquerda() const {
     return static_cast<long>(_esquerda.deslocamentoAcumulado);
   }
@@ -281,6 +342,61 @@ class MotorManager {
   EstadoRoda _direita;
   TipoMovimento _tipo = TipoMovimento::NENHUM;
   unsigned long _ultimaAtualizacaoUs = 0;
+
+  bool _rumoValido = false;
+  float _rumoGraus = 0.0f;
+  float _retaRumoAlvo = 0.0f;
+  bool _retaTemRumoAlvo = false;
+  float _retaBaseRadS = 0.0f;
+  float _retaIntegral = 0.0f;
+  float _retaDesvio = 0.0f;
+  float _retaDesvioEncoderAnterior = 0.0f;
+  int64_t _retaEsqInicio = 0;
+  int64_t _retaDirInicio = 0;
+
+  // Guarda o rumo e os encoders de PARTIDA. Chamado depois de
+  // _iniciarMovimento, quando o alvo das duas rodas ja e o mesmo.
+  void _iniciarReta() {
+    _retaTemRumoAlvo = _rumoValido;
+    _retaRumoAlvo = _rumoGraus;
+    _retaBaseRadS = _esquerda.alvoRadS;
+    _retaIntegral = 0.0f;
+    _retaDesvio = 0.0f;
+    _retaDesvioEncoderAnterior = 0.0f;
+    _retaEsqInicio = _esquerda.deslocamentoAcumulado;
+    _retaDirInicio = _direita.deslocamentoAcumulado;
+  }
+
+  // -180..180: quanto falta girar de `atual` ate `alvo`, pelo lado mais curto.
+  static float _diferencaAngular(float alvo, float atual) {
+    return fmodf(alvo - atual + 540.0f, 360.0f) - 180.0f;
+  }
+
+  void _corrigirReta(float dt_s) {
+    // ENCODER: tracao diferencial - o robo girou (dDir - dEsq) / bitola
+    // radianos para a ESQUERDA. Em pulsos, cada grau de giro no lugar e
+    // PULSOS_POR_GRAU em CADA roda, dai o 2 no denominador.
+    float dEsq = static_cast<float>(_esquerda.deslocamentoAcumulado - _retaEsqInicio);
+    float dDir = static_cast<float>(_direita.deslocamentoAcumulado - _retaDirInicio);
+    float desvioEncoder = (dDir - dEsq) / (2.0f * PULSOS_POR_GRAU);
+    _retaDesvio += desvioEncoder - _retaDesvioEncoderAnterior;
+    _retaDesvioEncoderAnterior = desvioEncoder;
+
+    // BUSSOLA: so corrige se havia rumo valido na PARTIDA (senao nao ha alvo
+    // absoluto) e se ainda ha agora. Rumo caindo para a esquerda = desvio
+    // positivo, a mesma convencao do encoder.
+    if (_retaTemRumoAlvo && _rumoValido) {
+      float desvioBussola = RUMO_SENTIDO_HORARIO * _diferencaAngular(_retaRumoAlvo, _rumoGraus);
+      float beta = constrain(dt_s / RETA_TAU_BUSSOLA_S, 0.0f, 1.0f);
+      _retaDesvio += beta * (desvioBussola - _retaDesvio);
+    }
+
+    _retaIntegral = constrain(_retaIntegral + _retaDesvio * dt_s, -RETA_INTEGRAL_MAX, RETA_INTEGRAL_MAX);
+    float limite = RETA_CORRECAO_MAX * fabsf(_retaBaseRadS);
+    float correcao = constrain(RETA_KP * _retaDesvio + RETA_KI * _retaIntegral, -limite, limite);
+    _esquerda.alvoRadS = _retaBaseRadS + correcao;
+    _direita.alvoRadS = _retaBaseRadS - correcao;
+  }
 
   void _ligarRele() { digitalWrite(pinos::RELE_MOTORES, LOW); }
   static void _desligarRele() { digitalWrite(pinos::RELE_MOTORES, HIGH); }

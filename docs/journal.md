@@ -9394,3 +9394,19 @@ Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual l
 | ambas ré (esq / dir) | 537 / 633 | 530 / 629 |
 
 As duas rodadas batem (diferença < 2%), e a ordem A/B inverte com o sentido nas duas rodas. **A direita dá 10–15% mais pulsos que a esquerda com o mesmo PWM**: sem PID, o robô no chão vai puxar para a esquerda. Isso é trabalho do controle de velocidade (malha fechada com os encoders), não de fiação.
+
+## 31/10 (tarde) — o corpo ensinado ao cérebro
+
+Pedidos do dono, na mesma conversa: *"o robo precisa entender seu corpo e seus comandos"*, *"controle pid orientado pela bussola"*, *"usando o encoder junto"*, *"ensine o robo a calibrar sua bussola atraves de movimentos das rodas"*, *"usando os dados do sensor lidar"*, *"onde o movimento pode ser conferido"*.
+
+**Firmware (gravado):** a reta agora é mantida por uma malha POR CIMA do PID de velocidade de cada roda, com o desvio vindo de uma fusão complementar — o encoder acompanha a diferença entre as rodas a cada ciclo e a bússola puxa devagar (τ = 1 s) para o rumo verdadeiro; sem bússola calibrada fica só o encoder. Telemetria nova: `reta_fonte` e `reta_desvio_graus`. `CALIBRATE_COMPASS` com `"girar": true` gira no próprio eixo a 30% e para sozinho quando a coleta de 25 s acaba (o homem-morto não corta esse giro). Rodas no ar, `MOVE_DISTANCE` 50 cm a 40%: **1575 / 1575 pulsos**, desvio ~1° — antes, no mesmo PWM, a direita corria 10–15% a mais. A parte da bússola ainda NÃO foi provada (ela não está calibrada).
+
+**Gravar o corpo:** use `/dev/serial/by-id/usb-Silicon_Labs_CP2102...`. Depois de religar o Pi, ttyUSB0 e ttyUSB1 trocam; gravar na porta errada dá "Invalid head of packet (0xF8)" e parece pedir o botão BOOT — não pede.
+
+**Cérebro:** os movimentos falados têm MEDIDA (`#acao:andar_para_frente 30`, ré, girar X graus, `calibrar_bussola`) — nenhum anda mais "até alguém mandar parar". `mission/corpo_agora.py` põe no prompt o espaço livre medido pelo LiDAR (frente, direita, trás, esquerda) e a bússola, e CONFERE cada movimento medindo antes e depois. O autoconhecimento (`sobre_mim.yaml`) estava ligado só no caminho do Notebook; agora o Mission Core do Pi o reconstrói a cada subida, e o arquivo ganhou LiDAR, bússola e a lista de movimentos.
+
+**Defeito antigo achado no caminho:** desde que o Mission Core foi para o Pi, o `boot.py` registrava o link com o Motion Core sem `alcancaveis_via=["hardware_core"]` — **todo comando falado de hardware morria em "Sem rota conhecida para o destino hardware_core"** e o robô dizia "não consegui". O caminho do Notebook sempre declarou a rota.
+
+**Provado ponta a ponta, pelo chat:** "anda trinta centímetros para frente" → `MOVE_DISTANCE 30 cm, 40%` → rodas giraram e pararam sozinhas (confirmado pelo dono) → LiDAR: 139 cm antes, 139 depois → perguntado "você conseguiu andar?", ele respondeu "Não saí do lugar". Certo: as rodas estavam no ar. Suíte do Pi verde (1278 + os novos).
+
+Falta: calibrar a bússola no chão e provar a reta com ela; medir a redução (pulsos por volta) e a bitola, que entram na conta de cm e graus; ligar o Nav2 (container `orion-nav2`, parado há 5 semanas) às ações faladas.
