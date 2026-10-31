@@ -189,6 +189,21 @@ async def test_manual_espera_hardware_ficar_ocioso_antes_de_mover(cenario):
 
 
 @pytest.mark.asyncio
+async def test_velocidade_do_nav2_nao_espera_ocioso(cenario):
+    """CMD_VEL (2026-10-31): o Nav2 manda a 10 Hz, e cada mensagem e a
+    continuacao da anterior. Esperar o hardware ficar IDLE - como o MANUAL
+    faz - pararia o robo entre duas mensagens."""
+    await cenario.bus.publish("motion.status", {"estado": "EXECUTING_MISSION"})
+    await cenario.bus.aguardar_fila_vazia()
+
+    await asyncio.wait_for(cenario.nav.definir_velocidade(0.05, 0.2), timeout=1.0)
+
+    assert cenario.nav.modo is ModoNavegacao.MANUAL
+    enviado = Mensagem.from_bytes(cenario.transporte.enviados[-1]).payload
+    assert enviado == {"comando": "CMD_VEL", "v_m_s": 0.05, "w_rad_s": 0.2}
+
+
+@pytest.mark.asyncio
 async def test_manual_obedece_mesmo_com_obstaculo_frontal(cenario):
     """MANUAL OBEDECE 100% (dono, 2026-08-18): comando do operador passa
     mesmo com obstaculo medido - o obstaculo vira evento de informacao e

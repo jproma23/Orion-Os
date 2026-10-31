@@ -130,6 +130,11 @@ COMANDOS_SEM_VOLANTE = frozenset(
     {"STOP", "LIGHT_ON", "LIGHT_OFF", "FAN_ON", "FAN_OFF"}
 )
 
+#: Tetos do `/velocidade` (2026-10-31). Roda de 60 mm a 35 rpm nominais =
+#: 0,11 m/s; girando no lugar, 2 x 0,11 / 0,36 m de bitola = 0,61 rad/s.
+VELOCIDADE_LINEAR_MAX_M_S = 0.11
+VELOCIDADE_ANGULAR_MAX_RAD_S = 0.6
+
 COMANDOS_PERMITIDOS = frozenset(
     {
         "MOVE_FORWARD",
@@ -337,6 +342,7 @@ class WebUIServer:
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_post("/comando", self._handler_comando)
+        self._app.router.add_post("/velocidade", self._handler_velocidade)
         self._app.router.add_post("/controle", self._handler_controle)
         self._app.router.add_post("/goal_nav2", self._handler_goal_nav2)
         self._app.router.add_post("/cabeca", self._handler_cabeca)
@@ -483,6 +489,44 @@ class WebUIServer:
 
         await self._event_bus.publish("navigation.comando", {"acao": "MANUAL", **payload})
         return web.json_response({"ok": True, "comando": comando})
+
+    async def _handler_velocidade(self, request: web.Request) -> web.Response:
+        """Velocidade CONTINUA (v em m/s, w em rad/s) - o caminho do Nav2.
+
+        Existe a parte do `/comando` de proposito (2026-10-31). O Nav2 manda
+        velocidade a 10 Hz, e o `/comando` foi feito para o joystick: cada
+        movimento la espera o anterior acabar (`_aguardar_ocioso`) e o
+        vocabulario e discreto (frente ATE STOP, gira ATE STOP). A ponte
+        antiga traduzia v e w nisso e o robo andava aos trancos, sem curva.
+
+        Mesmas regras de quem pode dirigir que o `/comando`. Os tetos sao os
+        do corpo (roda de 60 mm a 35 rpm: ~0,11 m/s); o firmware ainda encolhe
+        as duas rodas juntas se a curva pedir mais que uma roda alcanca.
+        """
+        try:
+            corpo = await request.json()
+            v = float(corpo.get("v_m_s", 0.0))
+            w = float(corpo.get("w_rad_s", 0.0))
+        except Exception:
+            return web.json_response(
+                {"erro": "corpo precisa ser JSON com v_m_s e w_rad_s"}, status=400
+            )
+        if not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para dirigir o robô", "precisa_senha": True},
+                status=401,
+            )
+        if not self.operador_tem_o_volante():
+            return web.json_response(
+                {"erro": "o volante esta com a IA - toque em MANUAL para assumir"},
+                status=409,
+            )
+        v = max(-VELOCIDADE_LINEAR_MAX_M_S, min(v, VELOCIDADE_LINEAR_MAX_M_S))
+        w = max(-VELOCIDADE_ANGULAR_MAX_RAD_S, min(w, VELOCIDADE_ANGULAR_MAX_RAD_S))
+        await self._event_bus.publish(
+            "navigation.comando", {"acao": "VELOCIDADE", "v_m_s": v, "w_rad_s": w}
+        )
+        return web.json_response({"ok": True, "v_m_s": v, "w_rad_s": w})
 
     async def _handler_index(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "index.html")

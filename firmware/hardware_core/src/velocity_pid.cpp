@@ -17,11 +17,11 @@ float VelocidadePid::atualizar(float alvo_rad_s, float medido_rad_s, float dt_s)
   if (_integral > _ganhos.integral_max) _integral = _ganhos.integral_max;
   if (_integral < -_ganhos.integral_max) _integral = -_ganhos.integral_max;
 
-  float feedforward = 0.0f;
+  float feedforward = _ganhos.kff_ganho * alvo_rad_s;
   if (alvo_rad_s > 0.0f) {
-    feedforward = _ganhos.kff_zona_morta;
+    feedforward += _ganhos.kff_zona_morta;
   } else if (alvo_rad_s < 0.0f) {
-    feedforward = -_ganhos.kff_zona_morta;
+    feedforward -= _ganhos.kff_zona_morta;
   }
 
   float saida = feedforward + _ganhos.kp * erro + _integral;
