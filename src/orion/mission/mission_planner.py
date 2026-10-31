@@ -32,6 +32,7 @@ from orion.ensino.banco_aulas import normalizar_nivel as _normalizar_nivel
 from orion.mission.acoes_faladas import MARCADOR, AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
+from orion.mission.acoes_faladas import parametros_do_comando as _parametros_do_comando
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.mission.ai_manager import SEM_IA, AiManager
 from orion.mission.comando_local import casar as _casar_comando_local
@@ -44,7 +45,13 @@ from orion.mission.memory_client import MemoryClient
 from orion.mission.jarvis_plugins import get_registry, execute_plugin
 logger = logging.getLogger("orion.mission.mission_planner")
 
-CallbackComandoHardware = Callable[[str], Awaitable[None]]
+#: Manda um COMMAND ao firmware: `(comando)` ou `(comando, parametros)`. Os
+#: parametros (2026-10-31) carregam a MEDIDA do movimento - distancia_cm,
+#: graus, velocidade. Sem eles "anda para frente" andava sem fim.
+CallbackComandoHardware = Callable[..., Awaitable[None]]
+#: O corpo AGORA, em texto para o modelo ler: o que o LiDAR ve em volta, a
+#: bussola e o que o ultimo movimento fez de verdade. None = nada a dizer.
+CallbackEstadoCorpo = Callable[[], Awaitable[str | None]]
 #: Move os servos da cabeca para um angulo absoluto (pan, tilt) em graus.
 CallbackCabeca = Callable[[float, float], Awaitable[None]]
 #: Guarda um recado (para_quem, texto, de_quem). Devolve se CONSEGUIU - e o
@@ -387,7 +394,12 @@ class MissionPlanner:
         professor=None,
         autoconhecimento=None,
         ementas=None,
+        estado_corpo: CallbackEstadoCorpo | None = None,
     ) -> None:
+        #: O corpo agora (LiDAR, bussola, ultimo movimento conferido) - entra
+        #: no prompt junto do catalogo de acoes. Sem isto o modelo decidia
+        #: "anda para frente" sem saber se havia uma parede a 20 cm.
+        self._estado_corpo = estado_corpo
         #: Responde "o que voce ensina?" a partir do mapa das ementas.
         self._ementas = ementas
         # A escuta da escolha de aula dura UM turno (modo aula,
@@ -606,6 +618,17 @@ class MissionPlanner:
         # strings, custa nada, e cache aqui so criaria uma segunda versao do
         # catalogo com prazo de validade proprio.
         contexto["acoes"] = _bloco_acoes()
+        # O CORPO AGORA vai colado ao catalogo, e nao num bloco proprio: e
+        # onde o modelo decide se vai agir, e o mapa e o que faz essa decisao
+        # ter fundamento. Falhar aqui so tira a informacao - nunca a conversa.
+        if self._estado_corpo is not None:
+            try:
+                corpo = await self._estado_corpo()
+            except Exception:
+                logger.exception("falha ao ler o estado do corpo")
+                corpo = None
+            if corpo:
+                contexto["acoes"] += "\n\n" + corpo
 
         # A familia entra SEMPRE, e primeiro: nao depende de rede, de banco nem
         # de diario, e e o que faz ele falar com uma pessoa em vez de com um
@@ -975,7 +998,7 @@ class MissionPlanner:
         )
         try:
             if acao.entrega == "hardware":
-                await self._despachar_comando(acao)
+                await self._despachar_comando(acao, argumento)
             elif acao.entrega == "cabeca":
                 await self._despachar_cabeca(acao)
             elif acao.entrega == "recado":
@@ -1050,10 +1073,16 @@ class MissionPlanner:
             return f"Procurei sobre {termo} e nao encontrei nada na Wikipedia."
         return achado.para_falar()
 
-    async def _despachar_comando(self, acao: AcaoFalada) -> None:
+    async def _despachar_comando(self, acao: AcaoFalada, argumento: str = "") -> None:
         if self._enviar_comando_hardware is None:
             raise _SemCaminho("sem callback de comando de hardware")
-        await self._enviar_comando_hardware(acao.comando)
+        parametros = _parametros_do_comando(acao, argumento)
+        if parametros:
+            await self._enviar_comando_hardware(acao.comando, parametros)
+        else:
+            # So o nome, como sempre foi: quem implementa o callback com um
+            # parametro so (luz, ventilador, testes antigos) continua valendo.
+            await self._enviar_comando_hardware(acao.comando)
 
     async def _despachar_cabeca(self, acao: AcaoFalada) -> None:
         if self._mover_cabeca is None:

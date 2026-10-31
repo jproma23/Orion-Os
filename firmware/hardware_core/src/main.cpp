@@ -65,6 +65,9 @@ constexpr unsigned long INTERVALO_TELEMETRIA_MOVENDO_MS = 200;
 unsigned long ultimoHeartbeat = 0;
 unsigned long ultimaTelemetria = 0;
 unsigned long ultimoComandoRecebido = 0;
+// O robo esta girando no lugar PARA calibrar a bussola (CALIBRATE_COMPASS
+// com "girar": true). O loop() para as rodas quando a coleta acaba.
+bool girandoParaCalibrar = false;
 
 // Instrumentacao do tempo de volta do loop (2026-07-25). Motivo real: o
 // ultrassom e lido por sondagem, e o eco de um obstaculo a 30 cm dura so
@@ -167,12 +170,23 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
 // pediu acompanha o fim pelos campos `bussola_calibrando`/`bussola_calibrada`
 // da telemetria, que sai a cada 500 ms.
 //
-// Durante a coleta o robo precisa GIRAR para todos os lados - quem comanda
-// isso e o Raspberry (regra 3: o Arduino nunca decide movimento sozinho).
-void responderCalibrarBussola(const char* origem, const char* idMsg) {
+// Durante a coleta o robo precisa GIRAR para todos os lados. Com "girar":
+// true (2026-10-31, pedido do dono: "ensine o robo a calibrar sua bussola
+// atraves de movimentos das rodas") quem gira e ele mesmo: devagar, no
+// proprio eixo, e PARA SOZINHO quando a coleta acaba. A decisao de girar
+// continua sendo do Raspberry (regra 3) - e ele quem manda o "girar"; o
+// firmware so nao precisa de ninguem para lembrar de parar.
+void responderCalibrarBussola(JsonObjectConst p, const char* origem, const char* idMsg) {
   JsonDocument payload;
   bool ok = bussola.iniciarCalibracao();
+  if (ok && (p["girar"] | false)) {
+    // Devagar: a bussola le a 10 Hz, e em 25 s a 30% o robo da varias
+    // voltas - amostras de todos os lados, sem borrar.
+    motores.girarContinuo(true, p["velocidade_percent"] | 30.0f);
+    girandoParaCalibrar = true;
+  }
   payload["ok"] = ok;
+  payload["girando"] = girandoParaCalibrar;
   payload["duracao_ms"] = orion::DURACAO_CALIBRACAO_BUSSOLA_MS;
   if (!ok) {
     payload["erro"] = bussola.conectado() ? "calibracao_ja_em_andamento" : "bussola_desconectada";
@@ -336,7 +350,7 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
     return;
   }
   if (strcmp(comando, "CALIBRATE_COMPASS") == 0) {
-    responderCalibrarBussola(origem, idMsg);
+    responderCalibrarBussola(msg["payload"], origem, idMsg);
     return;
   }
 
@@ -578,6 +592,8 @@ void loop() {
     }
   }
 
+  // A bussola de agora vai para a malha que mantem a reta (motor_manager.h).
+  motores.informarRumo(bussola.rumoValido(), bussola.rumoGraus());
   motores.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
   // bateria.atualizar();  // ver nota em setup() - pino virou encoder
@@ -595,6 +611,20 @@ void loop() {
     if (custo > 100) {  // 100us: separa leitura de verdade de retorno imediato
       tempoBussolaAcumuladoUs += custo;
       leiturasBussola++;
+    }
+  }
+
+  // Giro da calibracao: acaba sozinho quando a coleta acaba (25 s). Se
+  // alguem mandou STOP no meio, as rodas ja pararam e so falta esquecer.
+  if (girandoParaCalibrar) {
+    if (!bussola.calibrando() || !motores.emMovimento()) {
+      motores.parar();
+      girandoParaCalibrar = false;
+    } else {
+      // O homem-morto (5 s sem comando) pararia o giro no meio da coleta.
+      // Aqui ha um fim garantido - a propria calibracao - entao o giro conta
+      // como comando vivo ate ela acabar.
+      ultimoComandoRecebido = millis();
     }
   }
 

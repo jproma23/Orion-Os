@@ -84,9 +84,11 @@ class _ConfigFalsa:
 class _CommFalso:
     def __init__(self):
         self.links = {}
+        self.alcancaveis = {}
 
-    def adicionar_link(self, nome, transporte):
+    def adicionar_link(self, nome, transporte, alcancaveis_via=None):
         self.links[nome] = transporte
+        self.alcancaveis[nome] = list(alcancaveis_via or [])
 
 
 class _BusFalso:
@@ -140,6 +142,9 @@ async def test_boot_insiste_ate_o_motion_core_abrir_a_porta(monkeypatch):
     assert ok is True
     assert len(tentativas) == 4, "deveria ter insistido ate a porta abrir"
     assert "motion_core" in comm.links, "sem o link, toda chamada de memoria morre"
+    # O corpo mora atras do Motion Core: sem esta rota, "anda para frente"
+    # morria em "Sem rota conhecida para o destino 'hardware_core'".
+    assert comm.alcancaveis["motion_core"] == ["hardware_core"]
     assert bus.publicados == [], "nao e erro: o Motion Core so estava subindo"
 
 

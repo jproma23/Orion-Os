@@ -9,17 +9,20 @@ webui).
 Depende do ComunicacaoService porque o planner precisa mandar comando ao
 Hardware Core e consultar a memoria, e porque as pontes atendem pedidos
 que chegam pelo enlace com o Pi. Continua sem conhecer outros modulos: tudo
-que sai daqui sai pelo Event Bus (regra 1 do ARQUITETURA.txt).
+que sai daqui sai pelo Event Bus (regra 1 do CLAUDE.md).
 """
 from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from orion.kernel.event_bus import EventBus
 
 logger = logging.getLogger("orion.mission.modulo")
+
+_RAIZ_PROJETO = Path(__file__).resolve().parents[3]
 
 
 class ModuloMissao:
@@ -40,6 +43,7 @@ class ModuloMissao:
         self._ia = ia
         self._planner: Any | None = None
         self._pronto = False
+        self._corpo: Any | None = None
 
     async def iniciar(self) -> None:
         from orion.mission.decisao_estrategica import PonteDecisao
@@ -50,10 +54,23 @@ class ModuloMissao:
         if self._ia is None:
             self._ia = self._construir_ia()
 
+        from orion.mission.corpo_agora import URL_ESTADO_PADRAO, CorpoAgora
+
+        # O corpo agora (2026-10-31): o mapa do LiDAR e a bussola entram no
+        # prompt, e cada movimento e conferido pelo LiDAR antes/depois.
+        self._corpo = CorpoAgora(self._conf.get("url_estado_corpo") or URL_ESTADO_PADRAO)
+
         self._planner = MissionPlanner(
             self._ia,
             enviar_comando_hardware=self._enviar_comando_hardware,
             memory_client=MemoryClient(self._comm),
+            # O QUE ELE SABE DO PROPRIO CORPO. Estava ligado so no
+            # tools/conversar_jarvis.py (o caminho do Notebook); desde que a
+            # voz e o chat passaram por este modulo, no Pi, ninguem o passava
+            # - e a pergunta "como voce anda?" caia na IA, que inventa sobre
+            # hardware. Achado em 2026-10-31.
+            autoconhecimento=self._construir_autoconhecimento(),
+            estado_corpo=self._corpo.texto,
         )
 
         # A IA estrategica do maestro (EDR-0022) manda "mission.decidir" pelo
@@ -93,6 +110,27 @@ class ModuloMissao:
             openai_base_url=self._conf.get("openai_base_url"),
         )
 
+    @staticmethod
+    def _construir_autoconhecimento() -> Any | None:
+        """O indice do `content/sobre_mim.yaml`, RECONSTRUIDO a cada subida.
+
+        Reconstruir e nao reaproveitar: o indice so era refeito por
+        `tools/aulas.py`, na mao. Editar o YAML e esquecer o comando deixava o
+        robo respondendo a versao velha do proprio corpo - e e exatamente o
+        arquivo que muda quando o hardware muda. Sao 15 fatos: custa nada.
+        """
+        try:
+            from orion.ensino.autoconhecimento import Autoconhecimento, carregar_arquivo
+            from orion.ensino.banco_aulas import caminho_padrao
+
+            auto = Autoconhecimento(caminho_padrao(_RAIZ_PROJETO))
+            total = auto.construir(carregar_arquivo(_RAIZ_PROJETO / "content" / "sobre_mim.yaml"))
+            logger.info("autoconhecimento: %d fatos sobre o proprio corpo", total)
+            return auto
+        except Exception:  # noqa: BLE001 - sem ele o robo conversa, so nao sabe de si
+            logger.exception("autoconhecimento indisponivel - perguntas do corpo vao para a IA")
+            return None
+
     def _registrar_mentor(self) -> None:
         """Mentor de comportamento: tolerado ausente (Cap 6 s.8).
 
@@ -112,14 +150,26 @@ class ModuloMissao:
         except Exception:  # noqa: BLE001
             logger.warning("Mentor de comportamento indisponivel - seguindo sem ele", exc_info=True)
 
-    async def _enviar_comando_hardware(self, comando: str) -> None:
-        """Manda um COMMAND ao Mega pela cadeia TCP -> serial e espera o ACK.
+    async def _enviar_comando_hardware(
+        self, comando: str, parametros: dict[str, Any] | None = None
+    ) -> None:
+        """Manda um COMMAND ao ESP32 pela cadeia TCP -> serial e espera o ACK.
 
-        O Notebook nunca fala com o Hardware Core direto (regra 2 do ARQUITETURA.txt): o
-        comando vai para "hardware_core" e o Raspberry o repassa pela serial.
+        `parametros` (2026-10-31) leva a medida do movimento: distancia_cm,
+        graus, velocidade_percent. Movimento passa pelo `CorpoAgora`, que
+        mede com o LiDAR antes e depois - o ACK so diz que o ESP32 recebeu,
+        nao que a roda andou.
         """
-        await self._comm.send("hardware_core", {"comando": comando})
-        logger.info("Comando '%s' entregue ao Hardware Core (ACK recebido)", comando)
+        mensagem = {"comando": comando, **(parametros or {})}
+
+        async def enviar() -> None:
+            await self._comm.send("hardware_core", mensagem)
+
+        if self._corpo is not None and self._corpo.e_movimento(comando):
+            await self._corpo.conferir(comando, parametros or {}, enviar)
+        else:
+            await enviar()
+        logger.info("Comando %s entregue ao Hardware Core (ACK recebido)", mensagem)
 
     async def processar(self, texto: str) -> str:
         """Entrada de texto -> resposta. Usada pela voz e pelo chat da web."""

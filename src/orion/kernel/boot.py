@@ -140,7 +140,12 @@ async def _conectar_raspberry(
             )
             await asyncio.sleep(INTERVALO_RETENTATIVA_RASPBERRY_S)
 
-    comm.adicionar_link("motion_core", cliente)
+    # `alcancaveis_via`: o corpo (ESP32) mora ATRAS do Motion Core, na serial
+    # dele. Sem declarar isto, todo comando falado - luz, andar, girar -
+    # morria em "Sem rota conhecida para o destino 'hardware_core'" e o robo
+    # dizia "nao consegui". O caminho do Notebook (tools/conversar_jarvis.py)
+    # sempre declarou; este, do Mission Core no Pi, esqueceu (2026-10-31).
+    comm.adicionar_link("motion_core", cliente, alcancaveis_via=["hardware_core"])
     try:
         info = await descobrir(comm, "motion_core", event_bus, timeout_s=TIMEOUT_CONEXAO_RASPBERRY_S)
     except (ErroVersaoIncompativel, ErroComunicacao) as erro:
