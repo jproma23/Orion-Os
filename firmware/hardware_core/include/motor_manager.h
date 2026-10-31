@@ -54,9 +54,15 @@ constexpr float RODA_DIAMETRO_M = 0.060f;
 // montagem - o mesmo problema que ja existia com PASSOS_POR_GRAU no codigo
 // de steppers. 0,45 m e um palpite plausivel pra um robo pequeno; MEDIR e
 // corrigir antes de confiar em qualquer TURN_* com angulo.
-// MEDIDO pelo dono em 2026-10-31: 36 cm de eixo a eixo das rodas. TEM que
-// bater com motion.wheel_base_m do orion.yaml (teste preso).
-constexpr float BITOLA_M = 0.36f;
+// BITOLA EFETIVA, MEDIDA GIRANDO (2026-10-31): a fita deu 36 cm de eixo a
+// eixo, mas com 0,36 o robo girava ~1,35x o pedido - pedido 90, bussola
+// calibrada mediu +121 e -125; oito passos de 45 somaram 488 graus. Com as
+// rodas fazendo a velocidade pedida (bancada: 0,070 para 0,072 m/s), quem
+// erra e a bitola: 0,36 / 1,35 = 0,27. O que vale para a conta e onde o pneu
+// toca o chao, nao a fita. Foi esse erro que fez a "meia volta" do video ser
+// quase uma volta inteira - e o robo seguir para a parede.
+// TEM que bater com motion.wheel_base_m do orion.yaml (teste preso).
+constexpr float BITOLA_M = 0.27f;
 
 // Reducao do JGB37-520 (etiqueta "DC 6V 35RPM"): 1:168, MEDIDA na bancada em
 // 2026-10-31 com o dono contando voltas da roda: 9900 pulsos deram ~2,8

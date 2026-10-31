@@ -317,7 +317,10 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
             "espaco livre em volta"
         ),
         comando="CALIBRATE_COMPASS",
-        parametros={"girar": True, "velocidade_percent": 30.0},
+        # 70% e nao 30%: com a roda de 60 mm (2026-10-31) 30% dava MENOS de
+        # uma volta nos 25 s da coleta, e a bussola precisa ver todos os
+        # lados. A 70% sao ~1,7 volta.
+        parametros={"girar": True, "velocidade_percent": 70.0},
         resposta="Vou girar devagar por uns 25 segundos para calibrar a bussola.",
     ),
     # ---- O que o catalogo do robo tinha e a voz nao alcancava ------------
