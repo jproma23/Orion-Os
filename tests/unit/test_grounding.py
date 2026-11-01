@@ -288,3 +288,14 @@ def test_oito_direcoes_dizem_quanto_ele_anda_e_a_mais_aberta():
     assert "Direção mais aberta: frente-direita (120 cm)" in texto
     assert "trás-direita sem eco" in texto
     assert "~40 cm de largura" in texto
+
+
+def test_linha_de_desvio_em_mm():
+    texto = bloco_corpo(
+        {
+            "livre_por_direcao": (("frente", 50.0),),
+            "desvio_frontal": {"obstaculo_mm": 450, "esquerda_mm": 400.0, "direita_mm": 250.0},
+        }
+    )
+    assert "OBSTÁCULO no meu caminho a 450 mm" in texto
+    assert "400 mm para a ESQUERDA ou 250 mm para a DIREITA" in texto

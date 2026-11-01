@@ -107,6 +107,23 @@ def _linha_rumo(rumo_graus: Any) -> str:
     )
 
 
+def _linha_desvio(desvio, tem_lidar: bool) -> str:
+    """Quando e quanto desviar, em mm (2026-11-01, pedido do dono)."""
+    if not tem_lidar:
+        return "- desvio: não sei agora (sem varredura do LiDAR)"
+    if not desvio:
+        return "- desvio: nada no meu caminho no próximo 1 metro à frente - não preciso desviar"
+    lados = []
+    if desvio.get("esquerda_mm") is not None:
+        lados.append(f"{desvio['esquerda_mm']:.0f} mm para a ESQUERDA")
+    if desvio.get("direita_mm") is not None:
+        lados.append(f"{desvio['direita_mm']:.0f} mm para a DIREITA")
+    base = f"- desvio: OBSTÁCULO no meu caminho a {desvio['obstaculo_mm']:.0f} mm à frente"
+    if not lados:
+        return base + "; nenhum desvio de até 800 mm abre caminho - melhor virar ou voltar"
+    return base + "; para passar preciso me deslocar " + " ou ".join(lados)
+
+
 def _linhas_8_direcoes(livres) -> str:
     """O que E obstaculo, para um corpo da largura dele (2026-11-01).
 
@@ -156,6 +173,7 @@ def bloco_corpo(
         "chão: o que for MAIS BAIXO - pé de cama, caixa, brinquedo - ele NÃO vê. "
         "Quem vê o chão é a câmera)",
         _linhas_8_direcoes(r.get("livre_por_direcao")),
+        _linha_desvio(r.get("desvio_frontal"), bool(r.get("livre_por_direcao"))),
         _linha_rumo(r.get("rumo_graus")),
         (
             f"- onde estou (encoder das rodas): x={float(r['posicao_x_m']):.2f} m, "

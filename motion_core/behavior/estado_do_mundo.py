@@ -113,6 +113,60 @@ def livre_no_corredor(raios_cm, eixo_graus: float, meia_largura_cm: float) -> fl
     return menor
 
 
+#: Ate onde o desvio olha o caminho a frente, e o maior desvio testado.
+ALCANCE_DESVIO_MM = 1000.0
+DESVIO_MAXIMO_MM = 800.0
+PASSO_DESVIO_MM = 50.0
+
+
+def desvio_frontal(
+    raios_cm, meia_largura_cm: float = 20.0, alcance_mm: float = ALCANCE_DESVIO_MM
+) -> dict | None:
+    """QUANTO DESVIAR, EM MM (2026-11-01). O dono: "ela precisa saber quando
+    desviar e o quanto desvia em mm".
+
+    Olha o caminho a frente ate `alcance_mm` numa faixa da largura do corpo.
+    Livre: None (nao ha o que desviar). Com algo no caminho, desloca a faixa
+    de lado, 50 em 50 mm, e acha o MENOR deslocamento para cada lado que
+    deixa o caminho livre ate o alcance. E medida, nao decisao: quem escolhe
+    o lado e quando comecar e a IA.
+
+    Devolve {"obstaculo_mm", "esquerda_mm", "direita_mm"} - os dois ultimos
+    None quando nenhum desvio ate DESVIO_MAXIMO_MM abre o caminho.
+    """
+    pontos = []
+    for angulo, distancia in enumerate(raios_cm or ()):
+        if distancia is None:
+            continue
+        desvio = math.radians(angulo - 90.0)  # 90 = frente
+        x = distancia * 10.0 * math.cos(desvio)  # mm a frente
+        y = distancia * 10.0 * math.sin(desvio)  # mm para a DIREITA (+)
+        if 0 < x <= alcance_mm:
+            pontos.append((x, y))
+    meia_mm = meia_largura_cm * 10.0
+
+    def bloqueado(deslocamento: float) -> list:
+        return [x for x, y in pontos if abs(y - deslocamento) < meia_mm]
+
+    no_caminho = bloqueado(0.0)
+    if not no_caminho:
+        return None
+
+    def menor_livre(sinal: int) -> float | None:
+        passo = PASSO_DESVIO_MM
+        while passo <= DESVIO_MAXIMO_MM:
+            if not bloqueado(sinal * passo):
+                return passo
+            passo += PASSO_DESVIO_MM
+        return None
+
+    return {
+        "obstaculo_mm": round(min(no_caminho)),
+        "esquerda_mm": menor_livre(-1),
+        "direita_mm": menor_livre(+1),
+    }
+
+
 @dataclass(frozen=True)
 class RetratoDoMundo:
     """Foto imutável do mundo num instante, para quem for decidir.
@@ -171,6 +225,8 @@ class RetratoDoMundo:
     #: (direcao, cm ou None) para as 8 direcoes - quanto ele pode ANDAR em
     #: cada uma antes de algo bater no corpo. Ver `livre_no_corredor`.
     livre_por_direcao: tuple = ()
+    #: Ver `desvio_frontal`. None = caminho a frente livre (ou sem LiDAR).
+    desvio_frontal: dict | None = None
 
     def resumo(self) -> str:
         """Uma linha legível - útil em log e para explicar decisão."""
@@ -460,6 +516,7 @@ class EstadoDoMundo:
             rumo_graus=do_mega("rumo_graus", "rumo_valido"),
             posicao_x_m=(posicao or {}).get("x_m"),
             posicao_y_m=(posicao or {}).get("y_m"),
+            desvio_frontal=desvio_frontal(raios, MEIA_LARGURA_CORPO_CM) if raios else None,
             livre_por_direcao=(
                 tuple(
                     (nome, livre_no_corredor(raios, eixo, MEIA_LARGURA_CORPO_CM))
