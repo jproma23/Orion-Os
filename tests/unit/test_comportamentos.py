@@ -1213,3 +1213,38 @@ async def test_girar_sem_achar_saida_nao_tira_o_girar_do_planejador():
     assert "virar_direita" not in ia._acoes_sem_efeito
     # E ele continua tentando, que e o comportamento certo.
     assert ia._acao_atual in ("virar_esquerda", "virar_direita")
+
+
+@pytest.mark.asyncio
+async def test_velocidade_do_nav2_conta_como_operador_no_volante():
+    """2026-11-01: o Nav2 guiava pelo /velocidade e o maestro achava que
+    ninguem dirigia - em 3 min devolvia o volante a IA e o Nav2 levava 409."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(ControleManual(bus))
+    laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
+
+    await bus.publish("navigation.comando", {"acao": "VELOCIDADE", "v_m_s": 0.1, "w_rad_s": 0.0})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "controle_manual"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_pedir_manual_de_novo_zera_o_cronometro():
+    """2026-11-01: MANUAL tocado de novo era ignorado e o volante voltava a IA
+    21 s depois, contando da primeira entrega."""
+    bus = EventBus()
+    maestro = BehaviorCore(bus)
+    await maestro.definir_modo_controle(MODO_MANUAL)
+    maestro._ultima_atividade_manual -= 170.0
+    antes = maestro._ultima_atividade_manual
+    await maestro.definir_modo_controle(MODO_MANUAL)
+    assert maestro._ultima_atividade_manual > antes + 100

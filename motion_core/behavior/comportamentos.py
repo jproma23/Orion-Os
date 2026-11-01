@@ -1008,7 +1008,11 @@ class ControleManual(Comportamento):
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
 
     async def _ao_receber_comando(self, evento: Evento) -> None:
-        if evento.dados.get("acao") != "MANUAL":
+        # VELOCIDADE tambem e o operador dirigindo (2026-11-01): o /velocidade
+        # serve o joystick continuo e a ponte do Nav2. Sem isto o maestro via
+        # o Nav2 guiando o robo como "ninguem no volante" e, em 3 minutos,
+        # devolvia as rodas a IA - e o /velocidade passava a responder 409.
+        if evento.dados.get("acao") not in ("MANUAL", "VELOCIDADE"):
             return
         ja_ativo = self.quer_rodar()
         self._ultimo_comando_monotonic = time.monotonic()
