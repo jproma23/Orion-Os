@@ -410,6 +410,23 @@ async def principal() -> None:
     bus.subscribe("vision.person_detected", _repassar_presenca)
     bus.subscribe("vision.person_lost", _repassar_perda)
 
+    # OBJETOS QUE A CAMERA VE (2026-11-01). O dono: "ele nao usa a visao
+    # computacional". O YOLO via cadeira, tv, gato - e o Pi, onde a IA
+    # estrategica decide, nunca ficava sabendo: so pessoas eram repassadas.
+    # Mesmo estrangulamento da presenca, mas POR CLASSE: uma cadeira parada
+    # nao pode calar o gato que acabou de entrar.
+    ultimo_repasse_objeto: dict[str, float] = {}
+
+    async def _repassar_objeto(evento) -> None:
+        classe = str(evento.dados.get("classe", ""))
+        agora = time.monotonic()
+        if agora - ultimo_repasse_objeto.get(classe, 0.0) < INTERVALO_PRESENCA_S:
+            return
+        ultimo_repasse_objeto[classe] = agora
+        await _repassar_ao_pi(evento)
+
+    bus.subscribe("vision.object_detected", _repassar_objeto)
+
     # QUEM e a pessoa - e nao so que ha uma. Ligado em 2026-07-29, e a falta
     # dele deixava TRES coisas mortas ao mesmo tempo no Pi:
     #
