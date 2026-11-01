@@ -1015,7 +1015,18 @@ class MissionPlanner:
             # caminho existe para nao repetir. Quem esta ouvindo precisa saber
             # que nao pode contar com isso.
             return "Desculpe, nao consegui guardar isso."
-        except Exception:
+        except Exception as erro:
+            # A TRAVA DO LIDAR DIZ POR QUE (2026-11-01). O Pi recusa comando
+            # de roda com obstaculo no caminho e manda o motivo no NACK
+            # ("obstaculo a 24 cm para frente"). Ate aqui ele virava
+            # "Nao consegui" e o dono achava que o robo estava quebrado.
+            motivo = str(erro)
+            if "obstaculo a " in motivo:
+                trecho = motivo.split("obstaculo a ", 1)[1].split(" (limite", 1)[0]
+                logger.info("acao %r recusada pela trava do LiDAR: %s", acao.nome, trecho)
+                return f"Nao vou andar: tem um obstaculo a {trecho}."
+            if "nao ando as cegas" in motivo:
+                return "Nao vou andar: estou sem leitura do LiDAR agora."
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
 
