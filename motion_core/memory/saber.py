@@ -130,9 +130,17 @@ def _cobertura_ok(consulta: str, titulo: str, corpo: str) -> bool:
     palavras = _termos(consulta)
     if not palavras:
         return False
+    if len(palavras) == 1:
+        # FALA DE UMA PALAVRA SO: ela tem que ser o ASSUNTO, isto e, estar no
+        # TITULO (2026-11-01). Antes valia achar no corpo, e "precisa da re"
+        # (sobra so "precisa") respondeu lendo em voz alta "Principios
+        # intelectuais do dono. Realidade: ..." - o corpo dele tem "precisa".
+        # "o que e um BME280?" continua achando a ficha cujo titulo e BME280.
+        titulo_alvo = set(re.findall(r"[a-z0-9]+", _sem_acento(titulo)))
+        return _palavra_coberta(palavras[0], titulo_alvo)
     alvo = set(re.findall(r"[a-z0-9]+", _sem_acento(f"{titulo} {corpo}")))
     cobertas = sum(1 for p in palavras if _palavra_coberta(p, alvo))
-    return cobertas >= 1 if len(palavras) == 1 else cobertas >= 2
+    return cobertas >= 2
 
 
 #: O que a palavra do registro pode ter A MAIS que a da fala e ainda contar
