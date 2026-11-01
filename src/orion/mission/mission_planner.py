@@ -1215,8 +1215,25 @@ class MissionPlanner:
             nome = str(reconhecido.get("nome") or "").strip()
             if nome:
                 itens.append(f"o {nome}")
-        if int(cena.get("desconhecidos") or 0) > 0:
+        desconhecidos = int(cena.get("desconhecidos") or 0)
+        if desconhecidos > 0:
             itens.append("alguem que eu nao conheco")
+        # GENTE SEM ROSTO TAMBEM E GENTE (2026-11-01). A classe `person` e
+        # pulada acima porque quem tem rosto achado ja entra pelo nome ou como
+        # desconhecido. Mas de costas, longe ou de lado o rosto nao e achado,
+        # e ate aqui a resposta era "nao estou vendo nada" com o YOLO vendo
+        # alguem. Conta as pessoas que sobram depois dos rostos.
+        pessoas = int(cena.get("pessoas") or 0)
+        if not pessoas and any(
+            isinstance(o, dict) and o.get("classe") == "person"
+            for o in cena.get("objetos") or []
+        ):
+            pessoas = 1
+        sem_rosto = pessoas - len(cena.get("reconhecidos") or []) - desconhecidos
+        if sem_rosto == 1:
+            itens.append("uma pessoa")
+        elif sem_rosto > 1:
+            itens.append(f"{sem_rosto} pessoas")
         if not itens:
             return "Nao estou vendo nada na minha frente agora."
         if len(itens) == 1:

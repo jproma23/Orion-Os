@@ -847,3 +847,31 @@ async def test_cena_velha_nao_entra_no_contexto():
 
     contexto = ai.chamadas[0][1]
     assert "visao_agora" not in (contexto or {}), "cena ausente virou afirmacao"
+
+
+@pytest.mark.asyncio
+async def test_pessoa_sem_rosto_vira_uma_pessoa():
+    """De costas ou longe o rosto nao e achado - e ainda e gente (2026-11-01)."""
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(objetos=[{"classe": "person", "confianca": 0.5}]),
+    )
+
+    resposta = await planner.processar("o que voce esta vendo?")
+
+    assert resposta == "Na minha frente agora estou vendo uma pessoa."
+
+
+@pytest.mark.asyncio
+async def test_pessoa_reconhecida_nao_vira_tambem_uma_pessoa():
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(
+            objetos=[{"classe": "person", "confianca": 0.9}],
+            reconhecidos=[{"nome": "Joao Paulo", "pessoa_id": 1}],
+        ),
+    )
+
+    resposta = await planner.processar("o que voce esta vendo?")
+
+    assert resposta == "Na minha frente agora estou vendo o Joao Paulo."

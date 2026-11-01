@@ -363,6 +363,16 @@ vision:
   # Fofao parar de enxergar gente de longe, este e o primeiro numero a subir.
   yolo_imgsz: 320
   confidence_threshold: 0.55
+  # So para a resposta "o que voce esta vendo" (2026-11-01). 0,55 serve
+  # para mover a cabeca e gerar eventos, onde falso positivo custa caro;
+  # para LISTAR objetos era rigoroso demais e calava copo, celular e
+  # controle. Os eventos e a cabeca continuam no confidence_threshold.
+  confianca_para_descrever: 0.35
+  # A CABECA SEGUE ROSTO E PESSOA DE NOVO (2026-11-01 noite, dono: "religa o
+  # seguir rosto e pessoa"). Tinha sido desligado de manha (ebcd59d, "muito
+  # chefe"). A cabeca tem DOIS donos - esta visao e o AcompanharPessoa do Pi -
+  # entao olhar o log por briga nos servos.
+  cabeca_segue_pessoa: true
   # De quantos em quantos quadros rodar o RECONHECIMENTO FACIAL (2026-07-30).
   #
   # 1 = todo quadro (o comportamento anterior a esta chave).

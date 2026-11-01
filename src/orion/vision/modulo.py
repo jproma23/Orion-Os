@@ -346,6 +346,7 @@ class ModuloVisao:
             # tenha a chave - o Pi e o Notebook nem sempre atualizam a config
             # no mesmo instante.
             reconhecer_rosto_a_cada=self._conf.get("face_recognition_every_n_frames", 1),
+            confianca_para_descrever=self._conf.get("confianca_para_descrever"),
         )
 
 
