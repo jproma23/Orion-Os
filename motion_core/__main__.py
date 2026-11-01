@@ -963,7 +963,13 @@ async def principal() -> None:
             # ser lido NA HORA de planejar. Passar o retrato ja montado aqui
             # congelaria o mundo no instante do boot - exatamente o "dado velho
             # nao e dado" que o EstadoDoMundo existe para impedir.
-            retrato=mundo.retrato,
+            #
+            # DESLIGADO POR PADRAO (2026-11-01, dono: "muito chefe para pouco
+            # indio"). Com o GOAP a IA escolhia um objetivo e ele traduzia em
+            # acao por conta propria - e girou para a parede seis vezes. Agora
+            # a IA escolhe a acao direto, com o retrato das 8 direcoes na mao.
+            # Volta com `behavior.ia_estrategica.goap: true`.
+            retrato=mundo.retrato if conf_ia_estrategica.get("goap", False) else None,
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
@@ -997,7 +1003,10 @@ async def principal() -> None:
         )
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
-    intervalo_ronda_s = config.secao("behavior").get("ronda_automatica_intervalo_s", 90.0)
+    # 0 POR PADRAO (2026-11-01, mesmo motivo do GOAP): a ronda a cada 90 s era
+    # mais um chefe mexendo a cabeca por conta propria. Ela continua no
+    # catalogo da IA - quem decide fazer ronda e a IA.
+    intervalo_ronda_s = config.secao("behavior").get("ronda_automatica_intervalo_s", 0.0)
 
     async def _pedir_ronda_periodica() -> None:
         """Faz a camera principal observar o ambiente quando o robo esta livre.
