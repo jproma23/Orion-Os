@@ -630,6 +630,7 @@ async def principal() -> None:
                 "posicao_x_m": r.posicao_x_m,
                 "posicao_y_m": r.posicao_y_m,
                 "objetos_vistos": r.objetos_vistos,
+                "livre_por_direcao": r.livre_por_direcao,
                 "bateria_nivel": r.bateria_nivel,
                 "estado_hardware": r.estado_hardware,
                 "telemetria_viva": r.telemetria_viva,

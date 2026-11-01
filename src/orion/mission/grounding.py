@@ -107,6 +107,35 @@ def _linha_rumo(rumo_graus: Any) -> str:
     )
 
 
+def _linhas_8_direcoes(livres) -> str:
+    """O que E obstaculo, para um corpo da largura dele (2026-11-01).
+
+    O dono: "so preciso das informacoes que nao chegam a IA para ela saber o
+    que e obstaculo". Os 4 lados acima sao o mais perto de cada fatia de
+    120 graus - uma cadeira na diagonal fechava a frente inteira. Aqui e
+    quanto ele ANDA em cada direcao ate algo entrar no corredor do corpo.
+    """
+    if not livres:
+        return "- quanto posso andar em cada direção: não sei agora (sem varredura do LiDAR)"
+    partes = []
+    melhor_nome, melhor_cm = None, -1.0
+    for nome, cm in livres:
+        if cm is None:
+            partes.append(f"{nome} sem eco")
+            continue
+        partes.append(f"{nome} {float(cm):.0f} cm")
+        if float(cm) > melhor_cm:
+            melhor_nome, melhor_cm = nome, float(cm)
+    linha = (
+        "- quanto posso ANDAR em cada direção até algo bater no meu corpo "
+        "(meu corpo tem ~40 cm de largura; medido do centro do LiDAR, minha "
+        "frente fica 8 cm à frente dele): " + ", ".join(partes)
+    )
+    if melhor_nome is not None:
+        linha += f". Direção mais aberta: {melhor_nome} ({melhor_cm:.0f} cm)"
+    return linha + ". 'Sem eco' = nada medido ali: livre, ou perto demais (menos de 10 cm), ou vidro"
+
+
 def bloco_corpo(
     retrato: dict[str, Any] | None, limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM
 ) -> str:
@@ -126,6 +155,7 @@ def bloco_corpo(
         "- (essas distâncias são do LiDAR, que gira 360° num plano a 45 cm do "
         "chão: o que for MAIS BAIXO - pé de cama, caixa, brinquedo - ele NÃO vê. "
         "Quem vê o chão é a câmera)",
+        _linhas_8_direcoes(r.get("livre_por_direcao")),
         _linha_rumo(r.get("rumo_graus")),
         (
             f"- onde estou (encoder das rodas): x={float(r['posicao_x_m']):.2f} m, "

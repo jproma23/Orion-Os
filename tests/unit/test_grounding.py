@@ -272,3 +272,19 @@ def test_retrato_fala_dos_sentidos_de_verdade():
     assert "x=0.50 m, y=-0.25 m" in texto
     assert "chair (à esquerda), tv (à frente)" in texto
     assert "45 cm do chão" in texto
+
+
+def test_oito_direcoes_dizem_quanto_ele_anda_e_a_mais_aberta():
+    texto = bloco_corpo(
+        {
+            "livre_por_direcao": (
+                ("frente", 45.0), ("frente-direita", 120.0), ("direita", 98.0),
+                ("trás-direita", None), ("trás", 100.0), ("trás-esquerda", 80.0),
+                ("esquerda", 30.0), ("frente-esquerda", 33.0),
+            )
+        }
+    )
+    assert "frente 45 cm" in texto
+    assert "Direção mais aberta: frente-direita (120 cm)" in texto
+    assert "trás-direita sem eco" in texto
+    assert "~40 cm de largura" in texto

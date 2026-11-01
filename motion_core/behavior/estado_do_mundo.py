@@ -26,6 +26,7 @@ decide a encarar a incerteza em vez de ignorá-la.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -73,6 +74,43 @@ class _Campo:
     def escrever(self, valor: Any) -> None:
         self.valor = valor
         self.instante = time.monotonic()
+
+
+#: As 8 direcoes, na convencao do projeto (0 esquerda, 90 frente, 180 direita).
+DIRECOES_8 = (
+    ("frente", 90.0),
+    ("frente-direita", 135.0),
+    ("direita", 180.0),
+    ("trás-direita", 225.0),
+    ("trás", 270.0),
+    ("trás-esquerda", 315.0),
+    ("esquerda", 0.0),
+    ("frente-esquerda", 45.0),
+)
+
+#: Meia largura do corpo para o corredor: 0,36 m de bitola medida na fita +
+#: rodas = ~0,40 m; 20 cm de cada lado do eixo do movimento.
+MEIA_LARGURA_CORPO_CM = 20.0
+
+
+def livre_no_corredor(raios_cm, eixo_graus: float, meia_largura_cm: float) -> float | None:
+    """Quanto da para andar na direcao `eixo_graus` antes de um ponto do
+    LiDAR entrar no CORREDOR da largura do corpo (2026-11-01).
+
+    E isto, e nao a menor distancia de uma fatia, que diz o que e obstaculo:
+    parede ao lado num corredor nao bate; caixa na frente bate. None = nenhum
+    ponto medido no corredor (livre ate o alcance, ou perto demais/vidro).
+    """
+    menor: float | None = None
+    for angulo, distancia in enumerate(raios_cm or ()):
+        if distancia is None:
+            continue
+        desvio = math.radians(angulo - eixo_graus)
+        avanco = distancia * math.cos(desvio)
+        if avanco > 0 and abs(distancia * math.sin(desvio)) < meia_largura_cm:
+            if menor is None or avanco < menor:
+                menor = avanco
+    return menor
 
 
 @dataclass(frozen=True)
@@ -130,6 +168,9 @@ class RetratoDoMundo:
     posicao_y_m: float | None = None
     #: "classe (lado)" de cada objeto que a camera viu nos ultimos segundos.
     objetos_vistos: tuple = ()
+    #: (direcao, cm ou None) para as 8 direcoes - quanto ele pode ANDAR em
+    #: cada uma antes de algo bater no corpo. Ver `livre_no_corredor`.
+    livre_por_direcao: tuple = ()
 
     def resumo(self) -> str:
         """Uma linha legível - útil em log e para explicar decisão."""
@@ -159,6 +200,7 @@ class EstadoDoMundo:
         self._alerta = _Campo()
         self._risco_frente = _Campo()
         self._posicao = _Campo()
+        self._raios = _Campo()
         #: classe -> (lado, instante). Ver `_ao_ver_objeto`.
         self._objetos: dict[str, tuple[str, float]] = {}
         self._voz_ativa = False
@@ -218,6 +260,9 @@ class EstadoDoMundo:
         setores = evento.dados.get("setores")
         if setores is not None:
             self._lidar.escrever(setores)
+        raios = evento.dados.get("raios_cm")
+        if raios and len(raios) == 360:
+            self._raios.escrever(list(raios))
 
     #: Meia-largura da janela que conta como FRENTE e como TRAS, em graus.
     #:
@@ -395,6 +440,7 @@ class EstadoDoMundo:
         # "está livre" - ver `_distancia_em`.
         setores = self._lidar.ler(VALIDADE_LIDAR_S, agora)
         posicao = self._posicao.ler(VALIDADE_TELEMETRIA_S, agora)
+        raios = self._raios.ler(VALIDADE_LIDAR_S, agora)
 
         return RetratoDoMundo(
             obstaculo_frente_cm=self._distancia_em(setores, self._GRAUS_FRENTE),
@@ -414,6 +460,14 @@ class EstadoDoMundo:
             rumo_graus=do_mega("rumo_graus", "rumo_valido"),
             posicao_x_m=(posicao or {}).get("x_m"),
             posicao_y_m=(posicao or {}).get("y_m"),
+            livre_por_direcao=(
+                tuple(
+                    (nome, livre_no_corredor(raios, eixo, MEIA_LARGURA_CORPO_CM))
+                    for nome, eixo in DIRECOES_8
+                )
+                if raios
+                else ()
+            ),
             objetos_vistos=tuple(
                 f"{classe} ({lado})"
                 for classe, (lado, instante) in sorted(self._objetos.items())
