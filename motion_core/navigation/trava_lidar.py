@@ -21,6 +21,13 @@ corredor nao trava; caixa na frente, sim. Giro no lugar sempre passa.
 recusado. E se o obstaculo aparece DURANTE um movimento continuo (CMD_VEL,
 MOVE_CONTINUOUS), recusar o proximo comando nao basta - ela manda STOP.
 
+INFORMA, NAO BLOQUEIA - POR PADRAO (mesmo dia, decisao do dono: "nada tem
+que ser bloqueante, mas informar os obstaculos; a IA desvia"). E a regra de
+julho ("sem travas, com estudo de risco") reafirmada, agora que o retrato
+da IA traz os quatro lados do LiDAR. Com `bloquear=False` o comando sempre
+passa e o obstaculo vira aviso no log; o modo que recusa e para continua
+aqui e volta com `motion.trava_lidar.bloquear: true`.
+
 LIMITE FISICO QUE ELA NAO RESOLVE: o LiDAR varre um plano a
 `lidar_altura_m` do chao. O que for mais baixo (pe de cama, caixa,
 brinquedo) ele nao ve, e esta trava tambem nao.
@@ -72,7 +79,9 @@ class TravaLidar:
         meia_largura_cm: float = 25.0,
         idade_max_s: float = 1.5,
         relogio=time.monotonic,
+        bloquear: bool = False,
     ) -> None:
+        self._bloquear = bloquear
         self._distancia_cm = distancia_cm
         self._meia_largura_cm = meia_largura_cm
         self._idade_max_s = idade_max_s
@@ -104,6 +113,11 @@ class TravaLidar:
             return None
         motivo = self._bloqueio(sentido)
         if motivo is None:
+            self._sentido_em_curso = sentido
+            return None
+        if not self._bloquear:
+            # So informa: quem decide desviar e a IA, que ve os 4 lados.
+            logger.warning("LiDAR avisa (sem bloquear) em %s: %s", comando, motivo)
             self._sentido_em_curso = sentido
             return None
         logger.warning("trava do LiDAR recusou %s: %s", comando, motivo)
@@ -148,7 +162,7 @@ class TravaLidar:
         if sentido is None:
             return
         motivo = self._bloqueio(sentido)
-        if motivo is not None and self._parar is not None:
+        if motivo is not None and self._parar is not None and self._bloquear:
             logger.warning("trava do LiDAR PAROU o movimento em curso: %s", motivo)
             self._sentido_em_curso = None
             await self._parar()
@@ -156,7 +170,7 @@ class TravaLidar:
     async def _ao_falhar(self, evento: Evento) -> None:
         self._raios_cm = None
         self._recebido_em = None
-        if self._sentido_em_curso is not None and self._parar is not None:
+        if self._sentido_em_curso is not None and self._parar is not None and self._bloquear:
             logger.warning("trava do LiDAR PAROU o movimento em curso: o LiDAR falhou")
             self._sentido_em_curso = None
             await self._parar()

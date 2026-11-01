@@ -32,7 +32,7 @@ def _raios(**pontos: float) -> list:
 
 
 async def _trava_com_scan(raios, relogio=None) -> TravaLidar:
-    trava = TravaLidar(EventBus(), relogio=relogio or Relogio())
+    trava = TravaLidar(EventBus(), relogio=relogio or Relogio(), bloquear=True)
     await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": raios}))
     return trava
 
@@ -84,7 +84,7 @@ async def test_obstaculo_longe_deixa_andar():
 
 
 def test_sem_lidar_nao_anda_as_cegas():
-    trava = TravaLidar(EventBus())
+    trava = TravaLidar(EventBus(), bloquear=True)
     assert "sem leitura" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
     assert trava.motivo_recusa({"comando": "STOP"}) is None
 
@@ -148,3 +148,19 @@ async def test_porteiro_barra_o_comando_repassado_do_notebook_e_devolve_nack():
     await servico.encerrar()
     bus.parar()
     await tarefa
+
+
+@pytest.mark.asyncio
+async def test_por_padrao_so_informa_e_nao_bloqueia():
+    """Decisao do dono (2026-11-01): nada bloqueia; a IA ve e desvia."""
+    trava = TravaLidar(EventBus(), relogio=Relogio())
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=20.0)}))
+    paradas = []
+
+    async def parar():
+        paradas.append(True)
+
+    trava.ligar_parada(parar)
+    assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=10.0)}))
+    assert paradas == []

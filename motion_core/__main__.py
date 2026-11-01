@@ -440,6 +440,8 @@ async def principal() -> None:
         distancia_cm=float(conf_trava.get("distancia_cm", 35.0)),
         meia_largura_cm=float(conf_trava.get("meia_largura_cm", 25.0)),
         idade_max_s=float(conf_trava.get("idade_max_s", 1.5)),
+        # Decisao do dono (2026-11-01): informa, nao bloqueia - a IA desvia.
+        bloquear=bool(conf_trava.get("bloquear", False)),
     )
 
     async def _parar_rodas() -> None:
