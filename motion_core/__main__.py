@@ -944,6 +944,8 @@ async def principal() -> None:
             event_bus,
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
+            # os sensores respondem em poucos segundos; a 1a consulta espera
+            espera_inicial_s=float(conf_ia_estrategica.get("espera_inicial_s", 20.0)),
             # O quadro do mundo (EstadoDoMundo + grounding) vai no prompt de
             # quem DECIDE, e nao so no do conselheiro desligado - ate
             # 2026-07-29 esta IA recebia uma linha de contexto e decidia

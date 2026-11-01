@@ -394,10 +394,16 @@ class IaEstrategica(Comportamento):
         montar_contexto=None,
         retrato=None,
         objetivos_validos: tuple[str, ...] = modelo_goap.NOMES_OBJETIVOS,
+        espera_inicial_s: float = 0.0,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
+        #: Quanto esperar antes da PRIMEIRA consulta (2026-11-01). Sem isto
+        #: ela saia no instante da subida, antes de LiDAR, bussola e corpo
+        #: responderem: a IA recebia "nao sei" em tudo e "perdi contato com
+        #: meu corpo" - cota gasta para decidir no escuro.
+        self._espera_inicial_s = espera_inicial_s
         #: O QUE LIGA O GOAP (2026-08-03). Callable que devolve o
         #: `RetratoDoMundo` - tipicamente `EstadoDoMundo.retrato`.
         #:
@@ -495,6 +501,8 @@ class IaEstrategica(Comportamento):
         self._reconsiderar.set()
 
     async def _loop_consulta(self) -> None:
+        if self._espera_inicial_s > 0:
+            await asyncio.sleep(self._espera_inicial_s)
         while self._executando:
             await self._consultar()
             # Espera o intervalo normal OU um pedido de pressa, o que vier
