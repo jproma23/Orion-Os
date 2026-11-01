@@ -492,7 +492,9 @@ voice:
   # chamam o robo, e ele continua se apresentando como Fofao.
   # So vale para a ATIVACAO POR VOZ: enquanto nao houver microfone ligado
   # (ver docs/journal.md), nenhum dos dois nomes e ouvido.
-  wake_word: ["jarvis"]
+  # 2026-11-01: "boku" e "defai" a pedido do dono. Conferido que nao
+  # disparam com boca, foco, desafio, de fato; casam com bocu e de fai.
+  wake_word: ["jarvis", "boku", "defai"]
   # SEM PALAVRA DE ATIVACAO (2026-10-25, decisao do dono: "prefiro sem
   # palavra de ativacao"). false = a conversa fica sempre aberta e toda fala
   # vira comando; o wake_word acima so vale com true.
