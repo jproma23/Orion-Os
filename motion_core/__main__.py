@@ -435,13 +435,15 @@ async def principal() -> None:
     # chega ao ESP32 se o corredor a frente (ou atras) estiver livre. Ver
     # motion_core/navigation/trava_lidar.py.
     conf_trava = config_motion.get("trava_lidar", {})
+    # EDR-0037 (01/11 tarde): BLOQUEIA por padrao - um yaml sem a chave fica
+    # no lado seguro. 50 cm frente/tras no autonomo, piso de 15 cm no manual.
     trava_lidar = TravaLidar(
         event_bus,
-        distancia_cm=float(conf_trava.get("distancia_cm", 35.0)),
+        distancia_cm=float(conf_trava.get("distancia_cm", 50.0)),
         meia_largura_cm=float(conf_trava.get("meia_largura_cm", 25.0)),
-        idade_max_s=float(conf_trava.get("idade_max_s", 1.5)),
-        # Decisao do dono (2026-11-01): informa, nao bloqueia - a IA desvia.
-        bloquear=bool(conf_trava.get("bloquear", False)),
+        idade_max_s=float(conf_trava.get("idade_max_s", 0.6)),
+        bloquear=bool(conf_trava.get("bloquear", True)),
+        piso_manual_cm=float(conf_trava.get("piso_manual_cm", 15.0)),
     )
 
     async def _parar_rodas() -> None:
@@ -451,6 +453,8 @@ async def principal() -> None:
             logger.warning("trava do LiDAR: STOP nao chegou ao Hardware Core")
 
     trava_lidar.ligar_parada(_parar_rodas)
+    # Watchdog: andando e o LiDAR calado alem de idade_max_s -> STOP.
+    tarefa_watchdog_trava = asyncio.create_task(trava_lidar.vigiar())
     comm.definir_porteiro("hardware_core", trava_lidar.motivo_recusa)
     FusaoSensores(event_bus, config_motion)
     # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
@@ -514,10 +518,21 @@ async def principal() -> None:
         conf_vision = {}
         logger.warning("secao `vision` ausente no orion.yaml - Vision Engine desligado")
     vision_engine = None
-    if conf_vision:
+    # DESLIGADO POR PADRAO (2026-11-01). Desde 30/09 a camera (DV20) mora na
+    # USB do Notebook e o stream do Pi (:8091) foi desligado: este engine
+    # ficava publicando vision.camera_error a cada 3 s (5 em 15 s medidos),
+    # e antes disso, com o ustreamer de pe, rodava o YOLO na tela "NO SIGNAL"
+    # parecendo saudavel. Volta com vision.pi_engine_ativo: true quando houver
+    # camera no Pi (o YOLO de reserva).
+    if conf_vision and not conf_vision.get("pi_engine_ativo", False):
+        logger.info("Vision Engine do Pi desligado (vision.pi_engine_ativo: false)")
+    elif conf_vision:
         classes = conf_vision.get("pi_classes_interesse")
         if classes is None:
             classes = sorted(CLASSES_PESSOAS_ANIMAIS)
+        # O YOLO chama as classes compostas com ESPACO ("cell phone"); a
+        # lista do yaml usava sublinhado e as 15 compostas nunca casavam.
+        classes = [str(c).replace("_", " ") for c in classes]
         vision_engine = VisionEngine(
             event_bus,
             camera_url=conf_vision.get("camera_url_pi", "http://127.0.0.1:8091/stream"),
@@ -971,6 +986,15 @@ async def principal() -> None:
             # a IA escolhe a acao direto, com o retrato das 8 direcoes na mao.
             # Volta com `behavior.ia_estrategica.goap: true`.
             retrato=mundo.retrato if conf_ia_estrategica.get("goap", False) else None,
+            # A IA ESCOLHE INTENCAO, NAO MANOBRA (2026-11-01, dono: "a ia nao
+            # precisa fazer manobras, isso sai caro" / "a ia so decide onde ir
+            # e o corpo usa os motores e sensores para ir"). Na 1a volta do
+            # autonomo com o freio novo ela escolheu desviar_esquerda_mm: girou
+            # 90 graus para uma parede a 47 cm e a trava recusou. Quem desvia e
+            # o EXPLORE (desvio_local.py). Sem a chave, o catalogo inteiro.
+            acoes_validas=tuple(
+                conf_ia_estrategica.get("acoes_permitidas") or contrato.NOMES
+            ),
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
@@ -1140,6 +1164,7 @@ async def principal() -> None:
     logger.info("Motion Core: iniciando desligamento seguro")
     heartbeat.parar()
     tarefa_heartbeat.cancel()
+    tarefa_watchdog_trava.cancel()
     tarefa_recentragem.cancel()
     if tarefa_ronda is not None:
         tarefa_ronda.cancel()

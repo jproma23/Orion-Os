@@ -21,12 +21,22 @@ corredor nao trava; caixa na frente, sim. Giro no lugar sempre passa.
 recusado. E se o obstaculo aparece DURANTE um movimento continuo (CMD_VEL,
 MOVE_CONTINUOUS), recusar o proximo comando nao basta - ela manda STOP.
 
-INFORMA, NAO BLOQUEIA - POR PADRAO (mesmo dia, decisao do dono: "nada tem
-que ser bloqueante, mas informar os obstaculos; a IA desvia"). E a regra de
-julho ("sem travas, com estudo de risco") reafirmada, agora que o retrato
-da IA traz os quatro lados do LiDAR. Com `bloquear=False` o comando sempre
-passa e o obstaculo vira aviso no log; o modo que recusa e para continua
-aqui e volta com `motion.trava_lidar.bloquear: true`.
+BLOQUEIA POR PADRAO (EDR-0037, 01/11 a tarde). De manha ela foi posta em
+"so informa" (a IA desvia). A tarde, com ela assim, o robo bateu na comoda e
+na parede: o LiDAR mediu 34 e 25 cm, ela avisou no log e deixou passar.
+Decisao do dono: 50 cm na frente, 50 cm atras, e no MANUAL um piso duro de
+15 cm nos dois sentidos (o operador manda, mas nao encosta). Desviar e
+trabalho do desvio local do EXPLORE; esta trava e a rede por baixo dele.
+
+WATCHDOG: andando e sem varredura nova ha mais de `idade_max_s`, manda STOP
+(`checar_watchdog`, chamado em laco por `vigiar`). Antes so o `lidar.error`
+(3 s de silencio) parava um movimento em curso.
+
+O MOVIMENTO EM CURSO ACABA quando chega um giro, um STOP, um CMD_VEL sem
+avanco, ou quando a telemetria diz que o corpo parou (depois de um tempo do
+comando, para nao confundir "ainda nao comecou" com "ja acabou"). Antes so
+STOP/CMD_VEL o encerravam: depois de um MOVE_DISTANCE para a frente, um giro
+perto da parede seria parado pela trava.
 
 LIMITE FISICO QUE ELA NAO RESOLVE: o LiDAR varre um plano a
 `lidar_altura_m` do chao. O que for mais baixo (pe de cama, caixa,
@@ -34,11 +44,13 @@ brinquedo) ele nao ve, e esta trava tambem nao.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
 from typing import Any
 
+from motion_core.navigation.desvio_local import FRACAO_CEGA_MAXIMA, fracao_sem_eco
 from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("motion_core.navigation.trava_lidar")
@@ -52,6 +64,14 @@ ANGULO_DO_SENTIDO = {FRENTE: 90.0, TRAS: 270.0}
 
 #: Abaixo disto a velocidade linear do CMD_VEL conta como parado (giro puro).
 VELOCIDADE_PARADO_M_S = 0.01
+
+#: Comandos que giram no lugar: encerram o avanco em curso.
+COMANDOS_DE_GIRO = frozenset({"TURN_LEFT", "TURN_RIGHT"})
+#: Telemetria "parado" so encerra o movimento depois deste tempo do comando -
+#: logo apos o envio o corpo ainda nao comecou a andar.
+TELEMETRIA_PARADO_APOS_S = 1.0
+#: Intervalo do laco do watchdog.
+INTERVALO_WATCHDOG_S = 0.1
 
 
 def sentido_do_comando(payload: dict[str, Any]) -> str | None:
@@ -75,14 +95,20 @@ class TravaLidar:
     def __init__(
         self,
         event_bus: EventBus,
-        distancia_cm: float = 35.0,
+        distancia_cm: float = 50.0,
         meia_largura_cm: float = 25.0,
-        idade_max_s: float = 1.5,
+        idade_max_s: float = 0.6,
         relogio=time.monotonic,
-        bloquear: bool = False,
+        bloquear: bool = True,
+        piso_manual_cm: float = 15.0,
     ) -> None:
         self._bloquear = bloquear
         self._distancia_cm = distancia_cm
+        self._piso_manual_cm = piso_manual_cm
+        #: Modo de controle do maestro ("autonomo" / "manual"). No manual vale
+        #: o piso, nao o limite cheio.
+        self._modo_controle = "autonomo"
+        self._comando_em_curso_em: float | None = None
         self._meia_largura_cm = meia_largura_cm
         self._idade_max_s = idade_max_s
         self._relogio = relogio
@@ -95,6 +121,8 @@ class TravaLidar:
         self._parar = None
         event_bus.subscribe("lidar.scan", self._ao_receber_scan)
         event_bus.subscribe("lidar.error", self._ao_falhar)
+        event_bus.subscribe("behavior.modo_controle", self._ao_mudar_modo)
+        event_bus.subscribe("comm.mensagem.telemetry", self._ao_receber_telemetria)
 
     def ligar_parada(self, parar) -> None:
         """`parar`: coroutine sem argumentos que manda STOP ao Hardware Core."""
@@ -107,21 +135,29 @@ class TravaLidar:
         comando = payload.get("comando")
         sentido = sentido_do_comando(payload)
         if sentido is None:
-            if comando in ("STOP", "CMD_VEL"):
-                # STOP, ou CMD_VEL de giro puro / zero: nada mais em curso.
+            if comando in ("STOP", "CMD_VEL") or comando in COMANDOS_DE_GIRO:
+                # STOP, giro, ou CMD_VEL de giro puro / zero: o avanco acabou.
                 self._sentido_em_curso = None
             return None
         motivo = self._bloqueio(sentido)
         if motivo is None:
-            self._sentido_em_curso = sentido
+            self._marcar_em_curso(sentido)
             return None
         if not self._bloquear:
-            # So informa: quem decide desviar e a IA, que ve os 4 lados.
             logger.warning("LiDAR avisa (sem bloquear) em %s: %s", comando, motivo)
-            self._sentido_em_curso = sentido
+            self._marcar_em_curso(sentido)
             return None
         logger.warning("trava do LiDAR recusou %s: %s", comando, motivo)
         return motivo
+
+    def _marcar_em_curso(self, sentido: str) -> None:
+        self._sentido_em_curso = sentido
+        self._comando_em_curso_em = self._relogio()
+
+    @property
+    def limite_cm(self) -> float:
+        """O limite que vale agora: o piso no manual, o cheio no autonomo."""
+        return self._piso_manual_cm if self._modo_controle == "manual" else self._distancia_cm
 
     def _bloqueio(self, sentido: str) -> str | None:
         if self._raios_cm is None or self._recebido_em is None:
@@ -129,10 +165,44 @@ class TravaLidar:
         idade = self._relogio() - self._recebido_em
         if idade > self._idade_max_s:
             return f"leitura do LiDAR velha ({idade:.1f}s) - nao ando as cegas"
+        if sentido == FRENTE:
+            # Frente cega e obstaculo: o sensor perde a parede perto e de
+            # frente (ver desvio_local.FRACAO_CEGA_MAXIMA). So o AVANCO; re e
+            # giro seguem livres.
+            fracao = fracao_sem_eco(self._raios_cm, ANGULO_DO_SENTIDO[FRENTE])
+            if fracao > FRACAO_CEGA_MAXIMA:
+                return f"frente cega ({fracao:.0%} dos raios sem eco) - pode ser parede perto"
         perto = self._mais_perto_no_corredor(sentido)
-        if perto is not None and perto < self._distancia_cm:
-            return f"obstaculo a {perto:.0f} cm para {sentido} (limite {self._distancia_cm:.0f} cm)"
+        limite = self.limite_cm
+        if perto is not None and perto < limite:
+            return f"obstaculo a {perto:.0f} cm para {sentido} (limite {limite:.0f} cm)"
         return None
+
+    async def checar_watchdog(self) -> None:
+        """Andando e o LiDAR calado alem de `idade_max_s`: STOP."""
+        if self._sentido_em_curso is None or not self._bloquear or self._parar is None:
+            return
+        if self._recebido_em is None:
+            idade = None
+        else:
+            idade = self._relogio() - self._recebido_em
+        if idade is not None and idade <= self._idade_max_s:
+            return
+        logger.warning(
+            "trava do LiDAR PAROU o movimento em curso: sem varredura ha %s",
+            "tempo indeterminado" if idade is None else f"{idade:.1f}s",
+        )
+        self._sentido_em_curso = None
+        await self._parar()
+
+    async def vigiar(self) -> None:
+        """Laco do watchdog - rodar como task durante a vida do Motion Core."""
+        while True:
+            try:
+                await self.checar_watchdog()
+            except Exception:
+                logger.exception("trava do LiDAR: watchdog falhou - seguindo")
+            await asyncio.sleep(INTERVALO_WATCHDOG_S)
 
     def _mais_perto_no_corredor(self, sentido: str) -> float | None:
         """Menor avanco (cm, ao longo do movimento) ate um ponto dentro do
@@ -166,6 +236,22 @@ class TravaLidar:
             logger.warning("trava do LiDAR PAROU o movimento em curso: %s", motivo)
             self._sentido_em_curso = None
             await self._parar()
+
+    async def _ao_mudar_modo(self, evento: Evento) -> None:
+        modo = evento.dados.get("modo")
+        if modo:
+            self._modo_controle = str(modo)
+
+    async def _ao_receber_telemetria(self, evento: Evento) -> None:
+        """Corpo parado (depois de dar tempo ao comando) = avanco acabou."""
+        if self._sentido_em_curso is None or self._comando_em_curso_em is None:
+            return
+        payload = evento.dados.get("payload") or evento.dados
+        if payload.get("em_movimento") is not False:
+            return
+        if self._relogio() - self._comando_em_curso_em < TELEMETRIA_PARADO_APOS_S:
+            return
+        self._sentido_em_curso = None
 
     async def _ao_falhar(self, evento: Evento) -> None:
         self._raios_cm = None

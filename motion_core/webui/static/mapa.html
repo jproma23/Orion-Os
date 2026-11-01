@@ -22,9 +22,27 @@
 
 <main class="pagina-mapa">
   <section class="painel painel--radar">
-    <h2>Mapa 360° — LiDAR LD06</h2>
+    <h2>Mapa 360° — LiDAR STL-50B2</h2>
+    <div class="zoom">
+      <span>alcance:</span>
+      <button data-alcance="100">1 m</button>
+      <button data-alcance="200" class="ativo">2 m</button>
+      <button data-alcance="600">6 m</button>
+    </div>
     <canvas id="radar" width="600" height="600"></canvas>
     <p id="radar-status" class="radar-status">nenhuma varredura ainda</p>
+  </section>
+
+  <section class="painel">
+    <h2>Espaço livre (corredor do corpo)</h2>
+    <dl>
+      <dt>Frente</dt><dd id="livre-frente">—</dd>
+      <dt>Trás</dt><dd id="livre-tras">—</dd>
+      <dt>Esquerda</dt><dd id="livre-esquerda">—</dd>
+      <dt>Direita</dt><dd id="livre-direita">—</dd>
+    </dl>
+    <p class="radar-status">Medido do LiDAR, numa faixa da largura do robô. Em vermelho:
+      dentro da trava (50 cm). A frente é o lado da câmera.</p>
   </section>
 
   <section class="painel">
@@ -38,6 +56,6 @@
   </section>
 </main>
 
-<script src="mapa.js?v=20260727"></script>
+<script src="mapa.js?v=20261101b"></script>
 </body>
 </html>

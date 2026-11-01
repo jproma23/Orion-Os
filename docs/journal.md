@@ -9470,3 +9470,36 @@ Resolvida a investigação aberta acima. Em ordem de descoberta:
 **Sobra uma faixa cega REAL: 90–104°, bem na frente** — "sem eco" mesmo com a escala certa, então há algo físico a menos de 5 cm do LiDAR tampando 15° da frente. Um objeto fino a 50 cm cabe ali. A conferir no hardware.
 
 Também neste dia: o dono dirigiu o robô pela casa por comandos curtos (girar X°, andar X m), e uma volta "de memória" pela odometria bateu duas vezes — erro que acumula; quem resolve é localizar pelo mapa (SLAM), agora possível com o LiDAR medindo certo.
+
+## 01/11 (tarde e noite) — bateu duas vezes; o freio volta, o EXPLORE desvia, e a frente do LiDAR estava 34° errada
+
+**O que aconteceu.** Em autônomo, a IA escolheu `explorar`, e o robô bateu na cômoda às 16:20. Depois o MANUAL voltou sozinho para o autônomo (a regra dos 3 min), e às 16:26 ele bateu na parede. O LiDAR **mediu** a cômoda chegando (77 → 51 → 41 → 34 → 25 cm), mas três coisas falharam juntas:
+- a trava estava em "só avisa" (`1dd1e89`);
+- o EXPLORE andava 30 cm sem conferir se cabiam: com 25,7 cm livres, mandou 30;
+- o EXPLORE ainda chamava o radar que saiu do robô, e esperava 3 s em cada passo. Era o "anda e para".
+
+**O que mudou** (EDR-0037):
+- trava bloqueando por padrão: 50 cm na frente e atrás, 15 cm no manual nos dois sentidos (decisão do dono);
+- STOP no meio do avanço, watchdog de 0,6 s e frente cega = obstáculo;
+- desvio local no EXPLORE (`desvio_local.py`);
+- velocidade a 30%;
+- a IA só escolhe intenções, sem manobras.
+
+A suíte do Pi deu **1341 passed**. No chão, a primeira decisão da IA com o freio (desviar 150 mm) girou o robô para uma parede a 47 cm, e **a trava recusou o avanço**.
+
+**A frente do LiDAR: `angulo_frente_graus` mudou de 345 para 19.**
+- Foi medida com a parede de frente: reta em 36 pontos, com desvio máximo de 0,5 cm.
+- O dono confirmou com a parede encostada à direita, que aparece em 180°.
+- O 345 de 31/10 pegou a borda da faixa onde o sensor perde parede perto e de frente (~3/4 das varreduras sem eco em 30 s de leitura bruta).
+- Não há peça do robô na visão do LiDAR, então `min_distancia_mm` desceu de 100 para 50.
+- Teste por movimento, com trechos retos no manual: os rumos ficaram entre 74° e 93°, e o melhor trecho deu 79°. Ou seja, o 19 está certo com erro de no máximo ~10°.
+
+**O mapa da webui foi refeito** a pedido do dono: um ponto por grau, a distância em cm escrita a cada 10°, o mouse mostra grau + cm, o robô aparece em escala (39 × 30 cm, LiDAR 8 cm atrás da ponta) e a caixa da trava aparece desenhada. Dono: "agora ficou bom".
+
+**Vision Engine do Pi desligado** (`vision.pi_engine_ativo: false`). Ele lia o stream `:8091`, que não existe mais, e publicava `vision.camera_error` a cada 3 s. As classes escritas com sublinhado (`cell_phone`) agora casam com o nome do YOLO (`cell phone`).
+
+**Bússola congelada desde ~16:10.** `rumo 223.8003` e `campo 9.997 µT` vieram idênticos em todos os pacotes, com o robô girando. Quando a leitura I2C falha, o firmware mantém o último valor e continua dizendo `rumo_valido: true` (`bussola_manager.h:173`). A orientação da posição continua certa pelos encoders. Pendente: cortar a energia do ESP32 e corrigir o firmware para avisar a falha.
+
+**Também neste dia:**
+- A voz não falou no boot. O alto-falante USB apareceu depois da saudação (33 s), e o erro derrubou a conversa. Reiniciado.
+- A câmera do Notebook estava apontada para o teto.

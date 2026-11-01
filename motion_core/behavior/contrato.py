@@ -142,7 +142,8 @@ _CATALOGO: tuple[Acao, ...] = (
     ),
     Acao(
         nome="explorar",
-        descricao="andar um trecho curto a frente, se estiver livre",
+        # 2026-11-01: o EXPLORE agora desvia sozinho pelo LiDAR (desvio_local).
+        descricao="explorar a casa: o corpo anda e desvia sozinho dos obstaculos",
         topico="navigation.comando",
         dados={"acao": "EXPLORE"},
         move_rodas=True,
