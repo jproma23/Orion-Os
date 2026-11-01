@@ -27,7 +27,9 @@ def test_campo_ausente_vira_nao_sei_explicito() -> None:
     olhar, e não como a parede que o rótulo antigo sugeria.
     """
     texto = bloco_corpo({})
-    assert texto.count(SEM_DADO) == 3  # traseira, bateria, estado
+    assert texto.count(SEM_DADO) == 2  # bateria, estado
+    # os lados do LiDAR (desde 2026-11-01) dizem "não sei" com o motivo
+    assert texto.count("o LiDAR não mediu nada nesse lado") == 3
     assert "NÃO SEI a distância" in texto
 
 
@@ -44,7 +46,7 @@ def test_corpo_com_dados_mostra_valores() -> None:
     # 34 cm com limiar de 25 e caminho livre, e o texto tem que dizer isso -
     # ate 2026-07-29 saia como "obstáculo à frente: 34.0 cm" e a IA parava.
     assert "CAMINHO LIVRE por 34 cm" in texto
-    assert "21.0 cm" in texto
+    assert "atrás de mim: OBSTÁCULO a 21 cm" in texto  # 21 < 25: perto demais
     assert SEM_DADO not in texto
 
 
@@ -185,7 +187,7 @@ def test_espaco_atras_usa_o_nome_certo_do_campo():
     texto = bloco_corpo({"obstaculo_tras_cm": 94.0})
 
     assert "94" in texto
-    assert "espaço atrás de mim: não sei" not in texto
+    assert "atrás de mim: não sei" not in texto
 
 
 def test_contexto_convida_a_explorar():
@@ -247,3 +249,26 @@ def test_regra_continua_proibindo_inventar_observacao() -> None:
 def test_regra_segue_no_contexto_completo() -> None:
     texto = montar_contexto(retrato={"obstaculo_frente_cm": 100.0})
     assert REGRA_ANTI_INVENCAO in texto
+
+
+def test_retrato_fala_dos_sentidos_de_verdade():
+    """Queixa do dono (2026-11-01): ele nao usava bussola, LiDAR nem visao."""
+    texto = bloco_corpo(
+        {
+            "obstaculo_frente_cm": 80.0,
+            "obstaculo_esquerda_cm": 12.0,
+            "obstaculo_direita_cm": 150.0,
+            "obstaculo_tras_cm": None,
+            "rumo_graus": 236.0,
+            "posicao_x_m": 0.5,
+            "posicao_y_m": -0.25,
+            "objetos_vistos": ("chair (à esquerda)", "tv (à frente)"),
+        },
+        limiar_obstaculo_cm=25.0,
+    )
+    assert "à minha esquerda: OBSTÁCULO a 12 cm" in texto
+    assert "à minha direita: livre por 150 cm" in texto
+    assert "236° (sudoeste" in texto
+    assert "x=0.50 m, y=-0.25 m" in texto
+    assert "chair (à esquerda), tv (à frente)" in texto
+    assert "45 cm do chão" in texto

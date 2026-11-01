@@ -117,6 +117,20 @@ class RetratoDoMundo:
     #: Default False para não quebrar quem constrói o retrato à mão (testes).
     risco_frontal_assumido: bool = False
 
+    # --- OS SENTIDOS QUE A IA NAO CONHECIA (2026-11-01) ---
+    # O dono, vendo o robo bater: "ele nao sabe usar a bussola como
+    # referencia, nao sabe que tem um sensor de pontos para se guiar, nao
+    # usa a visao computacional". Os sensores mediam; o retrato e que so
+    # contava frente e tras. Agora conta os quatro lados do LiDAR, o rumo
+    # da bussola, a posicao pelo encoder e o que a camera ve AGORA.
+    obstaculo_esquerda_cm: float | None = None
+    obstaculo_direita_cm: float | None = None
+    rumo_graus: float | None = None
+    posicao_x_m: float | None = None
+    posicao_y_m: float | None = None
+    #: "classe (lado)" de cada objeto que a camera viu nos ultimos segundos.
+    objetos_vistos: tuple = ()
+
     def resumo(self) -> str:
         """Uma linha legível - útil em log e para explicar decisão."""
         def fmt(v: Any, sufixo: str = "") -> str:
@@ -144,6 +158,9 @@ class EstadoDoMundo:
         self._pessoa = _Campo()
         self._alerta = _Campo()
         self._risco_frente = _Campo()
+        self._posicao = _Campo()
+        #: classe -> (lado, instante). Ver `_ao_ver_objeto`.
+        self._objetos: dict[str, tuple[str, float]] = {}
         self._voz_ativa = False
 
         # Corpo do robô: telemetria periódica vinda do Mega pela ponte serial.
@@ -179,6 +196,11 @@ class EstadoDoMundo:
         event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("vision.person_lost", self._ao_perder_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
+        # Objetos que a camera ve (cadeira, tv, gato...) - chegam do Notebook
+        # encaminhados, estrangulados la a 1/s por classe (2026-11-01).
+        event_bus.subscribe("vision.object_detected", self._ao_ver_objeto)
+        # Pose pela roda (encoder) com rumo fundido a bussola - mesmo processo.
+        event_bus.subscribe("motion.position", self._ao_receber_posicao)
         # A navegação declarando que andou sem saber o que havia à frente.
         # CONFERIDO ANTES DE ASSINAR (a regra que este projeto aprendeu a
         # duras penas): `navigation.risco_assumido` é publicado pelo
@@ -209,6 +231,8 @@ class EstadoDoMundo:
     #: 180° = direita, 270° = TRAS.
     _GRAUS_FRENTE = 90.0
     _GRAUS_TRAS = 270.0
+    _GRAUS_ESQUERDA = 0.0
+    _GRAUS_DIREITA = 180.0
 
     def _distancia_em(self, setores, centro_graus: float) -> float | None:
         """Menor distancia medida na janela em torno de `centro_graus`.
@@ -298,6 +322,27 @@ class EstadoDoMundo:
         # Vence na hora: sumiu de vista, não há mais ninguém presente.
         self._pessoa = _Campo()
 
+    #: Largura do quadro da camera (640x480): divide em terços para dizer
+    #: de que lado o objeto esta. Com a cabeca centrada, e o lado do ROBO.
+    _LARGURA_QUADRO = 640.0
+
+    async def _ao_ver_objeto(self, evento: Evento) -> None:
+        classe = evento.dados.get("classe")
+        caixa = evento.dados.get("caixa") or ()
+        if not classe:
+            return
+        lado = "à frente"
+        if len(caixa) == 4:
+            centro = (float(caixa[0]) + float(caixa[2])) / 2.0
+            if centro < self._LARGURA_QUADRO / 3:
+                lado = "à esquerda"
+            elif centro > 2 * self._LARGURA_QUADRO / 3:
+                lado = "à direita"
+        self._objetos[str(classe)] = (lado, time.monotonic())
+
+    async def _ao_receber_posicao(self, evento: Evento) -> None:
+        self._posicao.escrever(dict(evento.dados))
+
     async def _ao_receber_alerta(self, evento: Evento) -> None:
         self._alerta.escrever(evento.dados.get("tipo", "desconhecido"))
 
@@ -349,6 +394,7 @@ class EstadoDoMundo:
         # se for recente (`VALIDADE_LIDAR_S`), e None é "não sei", nunca
         # "está livre" - ver `_distancia_em`.
         setores = self._lidar.ler(VALIDADE_LIDAR_S, agora)
+        posicao = self._posicao.ler(VALIDADE_TELEMETRIA_S, agora)
 
         return RetratoDoMundo(
             obstaculo_frente_cm=self._distancia_em(setores, self._GRAUS_FRENTE),
@@ -363,4 +409,14 @@ class EstadoDoMundo:
             ouvindo=self._voz_ativa,
             telemetria_viva=viva,
             risco_frontal_assumido=bool(self._risco_frente.ler(VALIDADE_RISCO_S, agora)),
+            obstaculo_esquerda_cm=self._distancia_em(setores, self._GRAUS_ESQUERDA),
+            obstaculo_direita_cm=self._distancia_em(setores, self._GRAUS_DIREITA),
+            rumo_graus=do_mega("rumo_graus", "rumo_valido"),
+            posicao_x_m=(posicao or {}).get("x_m"),
+            posicao_y_m=(posicao or {}).get("y_m"),
+            objetos_vistos=tuple(
+                f"{classe} ({lado})"
+                for classe, (lado, instante) in sorted(self._objetos.items())
+                if agora - instante <= VALIDADE_VISAO_S
+            ),
         )

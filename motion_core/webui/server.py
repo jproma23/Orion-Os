@@ -981,6 +981,12 @@ class WebUIServer:
             estado["mundo"] = {
                 "obstaculo_frente_cm": r.obstaculo_frente_cm,
                 "obstaculo_tras_cm": r.obstaculo_tras_cm,
+                "obstaculo_esquerda_cm": r.obstaculo_esquerda_cm,
+                "obstaculo_direita_cm": r.obstaculo_direita_cm,
+                "rumo_graus": r.rumo_graus,
+                "posicao_x_m": r.posicao_x_m,
+                "posicao_y_m": r.posicao_y_m,
+                "objetos_vistos": r.objetos_vistos,
                 "pessoa_presente": r.pessoa_presente,
                 "pessoa_nome": r.pessoa_nome,
                 "telemetria_viva": r.telemetria_viva,

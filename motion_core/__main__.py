@@ -622,6 +622,12 @@ async def principal() -> None:
                 # `distancia_tras_cm`, nome que o RetratoDoMundo nunca teve, e
                 # "espaco atras de mim" saia como "nao sei" SEMPRE.
                 "obstaculo_tras_cm": r.obstaculo_tras_cm,
+                "obstaculo_esquerda_cm": r.obstaculo_esquerda_cm,
+                "obstaculo_direita_cm": r.obstaculo_direita_cm,
+                "rumo_graus": r.rumo_graus,
+                "posicao_x_m": r.posicao_x_m,
+                "posicao_y_m": r.posicao_y_m,
+                "objetos_vistos": r.objetos_vistos,
                 "bateria_nivel": r.bateria_nivel,
                 "estado_hardware": r.estado_hardware,
                 "telemetria_viva": r.telemetria_viva,

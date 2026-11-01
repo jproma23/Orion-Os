@@ -72,6 +72,30 @@ def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
     )
 
 
+def _linha_lado(rotulo: str, distancia_cm: Any, limiar_cm: float) -> str:
+    """Esquerda/direita/atras pelo LiDAR, no mesmo tom da frente."""
+    if distancia_cm is None or distancia_cm == "":
+        return f"- {rotulo}: não sei (o LiDAR não mediu nada nesse lado)"
+    valor = float(distancia_cm)
+    if valor < limiar_cm:
+        return f"- {rotulo}: OBSTÁCULO a {valor:.0f} cm"
+    return f"- {rotulo}: livre por {valor:.0f} cm"
+
+
+_PONTOS_CARDEAIS = ("norte", "nordeste", "leste", "sudeste", "sul", "sudoeste", "oeste", "noroeste")
+
+
+def _linha_rumo(rumo_graus: Any) -> str:
+    if rumo_graus is None:
+        return "- para onde aponto (bússola): não sei agora"
+    valor = float(rumo_graus) % 360.0
+    cardeal = _PONTOS_CARDEAIS[int((valor + 22.5) // 45) % 8]
+    return (
+        f"- para onde aponto (bússola): {valor:.0f}° ({cardeal}; 0° é o norte). "
+        "É a minha referência para virar um ângulo certo e voltar ao rumo"
+    )
+
+
 def bloco_corpo(
     retrato: dict[str, Any] | None, limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM
 ) -> str:
@@ -83,7 +107,27 @@ def bloco_corpo(
         # existia no RetratoDoMundo, entao esta linha dizia "não sei" SEMPRE.
         # Mesmo padrão de produtor e consumidor com contratos diferentes que
         # mordeu o diário, o FOLLOW e o EstadoDoMundo neste mesmo dia.
-        _linha("espaço atrás de mim", r.get("obstaculo_tras_cm"), " cm"),
+        _linha_lado("à minha esquerda", r.get("obstaculo_esquerda_cm"), limiar_obstaculo_cm),
+        _linha_lado("à minha direita", r.get("obstaculo_direita_cm"), limiar_obstaculo_cm),
+        _linha_lado("atrás de mim", r.get("obstaculo_tras_cm"), limiar_obstaculo_cm),
+        # Os quatro lados vem do LiDAR, que varre um PLANO a 45 cm do chao:
+        # dito com todas as letras para a IA nao achar que "livre" e "vazio".
+        "- (essas distâncias são do LiDAR, que gira 360° num plano a 45 cm do "
+        "chão: o que for MAIS BAIXO - pé de cama, caixa, brinquedo - ele NÃO vê. "
+        "Quem vê o chão é a câmera)",
+        _linha_rumo(r.get("rumo_graus")),
+        (
+            f"- onde estou (encoder das rodas): x={float(r['posicao_x_m']):.2f} m, "
+            f"y={float(r['posicao_y_m']):.2f} m desde que liguei "
+            "(a roda mede; se patinar, isto erra)"
+            if r.get("posicao_x_m") is not None and r.get("posicao_y_m") is not None
+            else "- onde estou (encoder das rodas): não sei agora"
+        ),
+        (
+            "- a câmera vê agora: " + ", ".join(r["objetos_vistos"])
+            if r.get("objetos_vistos")
+            else "- a câmera não vê nenhum objeto conhecido agora"
+        ),
         _linha("bateria", r.get("bateria_nivel")),
         _linha("estado do corpo", r.get("estado_hardware")),
     ]
@@ -221,7 +265,11 @@ def bloco_visao_agora(frase: str | None) -> str:
 #: opções não é um convite.
 DISPOSICAO = """QUEM EU SOU E COMO DEVO AGIR:
 
-- Eu sou o Jarvis: tenho corpo, rodas, uma cabeça que gira, radar, câmera e voz.
+- Eu sou o Jarvis: tenho corpo e rodas com encoder (medem quanto andei), uma
+  bússola (para onde aponto), um LiDAR que gira 360° e mede distância em todas
+  as direções, uma câmera na cabeça que gira (reconhece pessoas e objetos),
+  dois microfones e voz. Uso os sentidos JUNTOS: o LiDAR para não bater, a
+  bússola para virar certo, a câmera para ver o que o LiDAR não vê.
   Existo para cuidar da casa e das pessoas dela - e para isso preciso CONHECER
   o lugar onde vivo.
 - As ações da lista que me deram são as minhas FERRAMENTAS. Elas existem para
