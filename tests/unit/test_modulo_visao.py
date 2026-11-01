@@ -338,3 +338,23 @@ def test_ver_agora_com_nucleo_sem_o_metodo_devolve_none_sem_levantar():
     modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoFalso())
 
     assert modulo.ver_agora() is None
+
+
+def test_foto_agora_delega_ao_nucleo():
+    class NucleoComFoto:
+        def ultimo_frame_jpeg(self):
+            return b"\xff\xd8jpeg"
+
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoComFoto())
+
+    assert modulo.foto_agora() == b"\xff\xd8jpeg"
+
+
+def test_foto_agora_sem_nucleo_ou_quebrado_devolve_none_sem_levantar():
+    class NucleoQuebrado:
+        def ultimo_frame_jpeg(self):
+            raise RuntimeError("camera pegou fogo")
+
+    assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=None).foto_agora() is None
+    assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoQuebrado()).foto_agora() is None
+    assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoFalso()).foto_agora() is None

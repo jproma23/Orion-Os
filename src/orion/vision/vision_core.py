@@ -168,6 +168,18 @@ class VisionCore:
         cv2.imwrite(caminho, self._ultimo_frame)
         return caminho
 
+    def ultimo_frame_jpeg(self, qualidade: int = 80) -> bytes | None:
+        """A ultima imagem lida, em JPEG, para o snapshot da API (2026-11-01).
+
+        Mesmo motivo do `salvar_ultimo_frame`: a camera USB so aceita um
+        leitor, entao quem quer ver a imagem PEDE ao dono em vez de abrir o
+        dispositivo. None se ainda nao houve frame.
+        """
+        if self._ultimo_frame is None:
+            return None
+        ok, jpeg = cv2.imencode(".jpg", self._ultimo_frame, [cv2.IMWRITE_JPEG_QUALITY, qualidade])
+        return jpeg.tobytes() if ok else None
+
     def ver_agora(self) -> dict | None:
         """O que a camera ve neste instante - a ultima cena processada.
 

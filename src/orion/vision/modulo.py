@@ -219,6 +219,21 @@ class ModuloVisao:
             logger.debug("falha ao consultar a visao atual", exc_info=True)
             return None
 
+    def foto_agora(self) -> bytes | None:
+        """O ultimo quadro da camera em JPEG, ou None (2026-11-01).
+
+        Serve o `/camera/snapshot.jpg` da API: ver de fora o que o robo ve,
+        sem disputar a camera com o Vision Core. Nunca levanta.
+        """
+        foto = getattr(self._nucleo, "ultimo_frame_jpeg", None)
+        if foto is None:
+            return None
+        try:
+            return foto()
+        except Exception:
+            logger.debug("falha ao gerar o snapshot da camera", exc_info=True)
+            return None
+
     def pausar(self) -> None:
         """Suspende a visao inteira sob pressao de memoria (EDR-0020).
 

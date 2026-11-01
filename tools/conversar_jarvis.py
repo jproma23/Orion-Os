@@ -67,7 +67,7 @@ from orion.mission.internet import ConsultaInternet  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.mission.jarvis_plugins import get_registry  # noqa: E402
-from orion_api import set_mission_planner, app as orion_api_app  # noqa: E402
+from orion_api import set_camera, set_mission_planner, app as orion_api_app  # noqa: E402
 import uvicorn  # noqa: E402
 from orion.mission.ponte_conselho import PonteConselho  # noqa: E402
 from orion.mission.ponte_conversa import PonteConversa  # noqa: E402
@@ -783,6 +783,9 @@ async def principal() -> None:
     # ha na frente recebe o que a camera ve agora - e nao o diario da meia
     # hora atras, nem a IA achando no escuro (o modelo nao ve o frame).
     planner.registrar_consultar_visao(modulo_visao.ver_agora)
+    # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo
+    # mesmo dono da camera (2026-11-01).
+    set_camera(modulo_visao.foto_agora)
 
     # Atende os pedidos de alivio do Guardiao de RAM que roda no Pi. Ate
     # 2026-07-19 esse pedido era publicado e ninguem escutava - a protecao

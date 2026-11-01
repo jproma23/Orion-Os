@@ -352,3 +352,30 @@ async def test_ver_agora_cena_velha_deve_dizer_que_nao_esta_vendo(monkeypatch):
 
     bus.parar()
     await tarefa
+
+
+# ---------------------------------------------------------------------------
+# Snapshot da API (2026-11-01): o dono da camera entrega o quadro em JPEG.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ultimo_frame_jpeg_entrega_o_quadro_lido():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    vision = VisionCore(
+        bus,
+        captura=CapturaFalsa([_frame_fake()]),
+        detector=DetectorFalso([]),
+        reconhecedor=ReconhecedorFalso([]),
+    )
+
+    assert vision.ultimo_frame_jpeg() is None  # ainda nao houve frame
+
+    await vision.processar_um_frame()
+
+    jpeg = vision.ultimo_frame_jpeg()
+    assert jpeg is not None and jpeg[:2] == b"\xff\xd8"  # assinatura JPEG
+
+    bus.parar()
+    await tarefa
