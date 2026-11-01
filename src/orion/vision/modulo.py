@@ -320,7 +320,15 @@ class ModuloVisao:
                 tilt_max_graus=tilt_max,
                 velocidade_max_graus_s=self._conf["servo_max_speed_deg_s"],
             ),
-            publicar_pan_tilt=self._publicar_pan_tilt or self._mover_servos,
+            # A CAMERA NAO MEXE MAIS A CABECA SOZINHA (2026-11-01, dono: muito
+            # chefe para pouco indio). A visao segue vendo, reconhecendo e
+            # informando; quem vira a cabeca e a IA (ou o joystick). Volta com
+            # vision.cabeca_segue_pessoa: true no orion.yaml.
+            publicar_pan_tilt=(
+                (self._publicar_pan_tilt or self._mover_servos)
+                if self._conf.get("cabeca_segue_pessoa", False)
+                else None
+            ),
             # Quadros seguidos com a mesma deteccao antes de confirmar o alvo
             # e mover o servo. Vinha FIXO em 3 aqui (contra a regra 6 da
             # arquitetura) e por isso nunca aparecia em investigacao nenhuma;
