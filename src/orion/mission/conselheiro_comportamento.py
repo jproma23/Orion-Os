@@ -60,6 +60,10 @@ class Conselho:
     # Preenchido quando o conselho foi recusado - vira log e vai para a
     # interface, para dar para auditar por que a IA foi ignorada.
     recusa: str = ""
+    #: O NUMERO da acao (2026-11-01): mm em `andar_mm`/`desviar_*_mm`, graus
+    #: em `girar_*_graus`, 0 nas outras. O dono: "ela precisa saber quando
+    #: desviar e o quanto desvia em mm" - saber sem poder mandar nao servia.
+    valor: float = 0.0
 
 
 def _schema(opcoes: list[str]) -> dict:
@@ -76,8 +80,9 @@ def _schema(opcoes: list[str]) -> dict:
                 "properties": {
                     "comportamento": {"type": "string", "enum": opcoes},
                     "motivo": {"type": "string"},
+                    "valor": {"type": "number"},
                 },
-                "required": ["comportamento", "motivo"],
+                "required": ["comportamento", "motivo", "valor"],
                 "additionalProperties": False,
             },
         },
@@ -159,7 +164,11 @@ class ConselheiroComportamento:
                     "content": (
                         f"{contexto_texto}\n\n"
                         f"Escolha o comportamento mais adequado agora e diga o motivo "
-                        f"em uma frase curta."
+                        f"em uma frase curta. Em `valor` ponha o NUMERO da acao: "
+                        f"milimetros nas que terminam em _mm (ex.: andar_mm 400, "
+                        f"desviar_direita_mm 250 - use as distancias e o desvio em mm "
+                        f"que eu te dei), graus nas que terminam em _graus "
+                        f"(ex.: girar_direita_graus 45), e 0 nas demais."
                     ),
                 },
             ],
@@ -202,4 +211,8 @@ class ConselheiroComportamento:
                 recusa=f"comportamento invalido: {comportamento!r}",
             )
 
-        return Conselho(comportamento=comportamento, motivo=motivo, aceito=True)
+        try:
+            valor = float(dados.get("valor") or 0.0)
+        except (TypeError, ValueError):
+            valor = 0.0
+        return Conselho(comportamento=comportamento, motivo=motivo, aceito=True, valor=valor)
