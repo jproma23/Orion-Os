@@ -650,6 +650,19 @@ class WebUIServer:
     def _acesso_local_permitido(request: web.Request) -> bool:
         return request.remote in ENDERECOS_LOCAIS
 
+    def _senha_exigida(self) -> bool:
+        """SEM SENHA POR PADRAO (2026-11-01, decisao do dono: "sem senha").
+
+        A senha nunca chegou a ser criada (ORION_SENHA_CONFIG ausente), entao
+        de fora da rede o joystick so devolvia 401 - nada que o dono
+        digitasse entrava. Liberado por padrao; o login continua inteiro no
+        codigo e volta com `display.web.exigir_senha: true` no orion.yaml.
+        Risco aceito: quem estiver no Wi-Fi de casa ou no Tailscale dirige.
+        O STOP nunca exigiu senha e continua assim.
+        """
+        conf_web = self._config.secao("display")["web"] if self._config else {}
+        return bool(conf_web.get("exigir_senha", False))
+
     def _acesso_permitido(self, request: web.Request) -> bool:
         """Do proprio Raspberry, ou com sessao aberta por senha.
 
@@ -657,6 +670,8 @@ class WebUIServer:
         no teclado do robo passou por uma barreira fisica, e exigir senha ali
         so atrapalharia a manutencao.
         """
+        if not self._senha_exigida():
+            return True
         if self._acesso_local_permitido(request):
             return True
         token = request.cookies.get(COOKIE_SESSAO)
