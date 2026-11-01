@@ -53,6 +53,9 @@ class NavFalsa:
     async def _aguardar_ocioso(self):
         pass
 
+    async def _aguardar_movimento_terminar(self):
+        pass
+
     executar_explore = nav.NavigationCore.executar_explore
 
 
@@ -103,3 +106,44 @@ async def test_explore_sem_varredura_recente_nao_anda_as_cegas():
     await robo.executar_explore()
     assert robo.avancos == []
     assert robo.obstaculos == ["frente_desconhecida"]
+
+
+@pytest.mark.asyncio
+async def test_espera_o_movimento_comecar_antes_de_esperar_ocioso(monkeypatch):
+    """O caso de 01/11 17:31: logo apos o envio o corpo ainda esta IDLE, e a
+    espera antiga voltava na hora - dois giros sairam no mesmo segundo."""
+    import asyncio
+
+    monkeypatch.setattr(nav, "INTERVALO_CHECAGEM_OCIOSO_S", 0.01)
+    estados = iter(["IDLE", "IDLE", "EXECUTING_MISSION", "EXECUTING_MISSION", "IDLE"])
+
+    class Corpo:
+        _estado_hardware = "IDLE"
+        esperou_ocioso_com = None
+
+        async def _aguardar_ocioso(self):
+            self.esperou_ocioso_com = self._estado_hardware
+
+        _aguardar_movimento_terminar = nav.NavigationCore._aguardar_movimento_terminar
+
+    corpo = Corpo()
+
+    async def mudar():
+        for estado in estados:
+            corpo._estado_hardware = estado
+            await asyncio.sleep(0.02)
+
+    tarefa = asyncio.create_task(mudar())
+    await corpo._aguardar_movimento_terminar()
+    tarefa.cancel()
+    assert corpo.esperou_ocioso_com == "EXECUTING_MISSION", (
+        "so pode esperar o fim depois de ver o movimento comecar"
+    )
+
+
+@pytest.mark.asyncio
+async def test_explore_segue_andando_e_desviando_alem_de_6_passos():
+    robo = NavFalsa(_raios(300.0))
+    robo.parar_no_avanco = 10
+    await robo.executar_explore()
+    assert len(robo.avancos) == 10, "o trecho antigo parava no 6o passo"

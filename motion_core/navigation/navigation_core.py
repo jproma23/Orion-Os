@@ -85,7 +85,11 @@ DISTANCIA_SEGMENTO_EXPLORE_CM = 30.0
 #: deslocamento real nao e medido (nao ha encoder de roda - ver
 #: `fusao_sensores.py`): sem odometria confiavel, quem sabe onde o robo esta e o
 #: radar a cada 30 cm, e nao a conta de passos.
-SEGMENTOS_POR_EXPLORE = 6
+SEGMENTOS_POR_EXPLORE = 40
+#: (2026-11-01 noite) Eram 6 e o trecho acabava em ~30 s; depois o robo ficava
+#: parado ate a proxima consulta da IA (5 min). A IA escolhe EXPLORAR uma vez -
+#: intencao - e o corpo segue andando e desviando ate ficar sem saida, chegar
+#: um comando ou completar os 40 passos.
 #: (2026-11-01) Eram 4 avancos; agora cada passo pode ser um AVANCO ou um GIRO
 #: de desvio (ver desvio_local.py), entao 6 passos cobrem ~4 avancos com dois
 #: desvios no meio.
@@ -97,6 +101,11 @@ SEGMENTOS_POR_EXPLORE = 6
 ESPERA_VARREDURA_APOS_GIRO_S = 0.6
 #: Varredura mais velha que isto nao serve para decidir um passo.
 IDADE_MAXIMA_VARREDURA_S = 1.5
+#: Quanto esperar o corpo COMECAR um movimento recem-mandado. Logo apos o
+#: envio o estado ainda e IDLE, e `_aguardar_ocioso` passava direto - medido
+#: em 01/11 17:31: dois giros de 120 graus e dois avancos sairam no mesmo
+#: segundo, cada um atropelando o anterior.
+ESPERA_INICIO_MOVIMENTO_S = 1.5
 
 #: comandos manuais que o modo MANUAL repassa direto ao Hardware Core
 #: (Cap 10 s.5) - qualquer outro nome e rejeitado com navigation.error.
@@ -485,6 +494,21 @@ class NavigationCore:
         estado = evento.dados.get("estado")
         if estado:
             self._estado_hardware = estado
+
+    async def _aguardar_movimento_terminar(self) -> None:
+        """Espera o movimento recem-mandado COMECAR e depois TERMINAR.
+
+        `_aguardar_ocioso` sozinho nao basta logo apos um envio: o corpo ainda
+        nao saiu de IDLE e a espera volta na hora. Aqui primeiro se espera o
+        estado sair de IDLE (ate ESPERA_INICIO_MOVIMENTO_S - um giro ou avanco
+        muito curto pode acabar antes de ser visto, e tudo bem), depois que
+        ele volte.
+        """
+        esperado = 0.0
+        while self._estado_hardware != "EXECUTING_MISSION" and esperado < ESPERA_INICIO_MOVIMENTO_S:
+            await asyncio.sleep(INTERVALO_CHECAGEM_OCIOSO_S)
+            esperado += INTERVALO_CHECAGEM_OCIOSO_S
+        await self._aguardar_ocioso()
 
     async def _aguardar_ocioso(self) -> None:
         """Espera o Hardware Core sair de EXECUTING_MISSION antes de mandar
@@ -1259,7 +1283,7 @@ class NavigationCore:
             elif decisao.acao == GIRAR:
                 sentido = "DIREITA" if decisao.valor > 0 else "ESQUERDA"
                 await self.girar(abs(decisao.valor), sentido)
-                await self._aguardar_ocioso()
+                await self._aguardar_movimento_terminar()
                 await asyncio.sleep(ESPERA_VARREDURA_APOS_GIRO_S)
             else:
                 await self._publicar_obstaculo(
@@ -1301,7 +1325,7 @@ class NavigationCore:
             # decisao e o envio. Nao insiste - devolve a decisao.
             logger.warning("explore: avanco recusado/nao entregue: %s", erro)
             return False
-        await self._aguardar_ocioso()
+        await self._aguardar_movimento_terminar()
         await self._event_bus.publish(
             "navigation.segment_completed", {"graus": 0.0, "distancia_cm": distancia_cm}
         )
