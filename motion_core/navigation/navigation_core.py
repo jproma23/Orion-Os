@@ -728,6 +728,8 @@ class NavigationCore:
                     sentido=dados["sentido"],
                     velocidade_percent=dados.get("velocidade_percent"),
                 )
+            elif acao == "DESVIAR":
+                await self.desviar(lado=dados["lado"], mm=float(dados["mm"]))
             elif acao == "GOTO":
                 await self.executar_goto(
                     graus=dados.get("graus", 0.0),
@@ -899,6 +901,26 @@ class NavigationCore:
         )
 
     # ---------- GOTO / segmentos (base tambem usada pelo PATROL) ----------
+
+    async def desviar(self, lado: str, mm: float) -> bool:
+        """Desloca o robo `mm` milimetros para o lado e volta ao rumo (2026-11-01).
+
+        Robo diferencial nao anda de lado: gira 90 graus para o lado, anda o
+        deslocamento e gira 90 de volta. A IA escolhe o lado e o quanto (o
+        retrato da o desvio minimo em mm); aqui so se cumpre. O trecho reto e
+        um GOTO, entao obstaculo no meio encerra o trecho e devolve a decisao.
+        """
+        lado = str(lado).upper()
+        if lado not in SENTIDOS_DE_GIRO:
+            raise ErroNavegacao(f"lado de desvio desconhecido: {lado!r}")
+        volta = "DIREITA" if lado == "ESQUERDA" else "ESQUERDA"
+        await self.girar(90.0, lado)
+        completou = await self.executar_goto(graus=0.0, distancia_cm=abs(mm) / 10.0)
+        await self.girar(90.0, volta)
+        await self._event_bus.publish(
+            "navigation.desvio", {"lado": lado, "mm": abs(mm), "completou": completou}
+        )
+        return completou
 
     async def executar_goto(
         self, graus: float, distancia_cm: float, velocidade_percent: float | None = None

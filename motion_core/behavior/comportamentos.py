@@ -404,6 +404,8 @@ class IaEstrategica(Comportamento):
         #: responderem: a IA recebia "nao sei" em tudo e "perdi contato com
         #: meu corpo" - cota gasta para decidir no escuro.
         self._espera_inicial_s = espera_inicial_s
+        #: o NUMERO que veio com a acao (mm ou graus) - ver contrato.Acao.parametro
+        self._valor_atual = 0.0
         #: O QUE LIGA O GOAP (2026-08-03). Callable que devolve o
         #: `RetratoDoMundo` - tipicamente `EstadoDoMundo.retrato`.
         #:
@@ -553,9 +555,13 @@ class IaEstrategica(Comportamento):
             ok = resposta.payload.get("ok")
             escolha = resposta.payload.get("comportamento") if ok else None
             motivo = resposta.payload.get("motivo", "") if ok else ""
+            try:
+                valor = float(resposta.payload.get("valor") or 0.0) if ok else 0.0
+            except (TypeError, ValueError):
+                valor = 0.0
         except Exception:
             logger.debug("IA indisponivel (sem Notebook/internet?)", exc_info=True)
-            escolha, motivo = None, ""
+            escolha, motivo, valor = None, "", 0.0
 
         if em_goap:
             nome_acao, motivo = self._planejar(escolha, motivo)
@@ -566,8 +572,11 @@ class IaEstrategica(Comportamento):
                 logger.info("maestro: IA respondeu %r, fora do contrato - abstendo", escolha)
             nome_acao = acao.nome if acao is not None else None
 
-        mudou = nome_acao != self._acao_atual
+        # O numero conta como mudanca: "andar 400" depois de "andar 200" e
+        # outra ordem, e tem que ser executada de novo.
+        mudou = nome_acao != self._acao_atual or valor != self._valor_atual
         self._acao_atual = nome_acao
+        self._valor_atual = valor
         self._motivo_atual = motivo
         if mudou:
             self._reavaliar()
@@ -769,7 +778,22 @@ class IaEstrategica(Comportamento):
                 "plano": list(self._plano_atual),
             },
         )
-        logger.info("maestro: IA decidiu '%s' (%s)", self._acao_atual, self._motivo_atual)
+        dados = dict(acao.dados) if acao is not None else {}
+        if acao is not None and acao.parametro:
+            valor = abs(float(self._valor_atual or 0.0))
+            if valor <= 0:
+                # Acao com numero sem numero nao e ordem: e ordem pela metade.
+                logger.info("maestro: IA escolheu '%s' sem valor - abstendo", acao.nome)
+                acao = None
+            else:
+                valor = min(valor, acao.maximo) if acao.maximo else valor
+                dados[acao.parametro] = valor * acao.escala
+        logger.info(
+            "maestro: IA decidiu '%s'%s (%s)",
+            self._acao_atual,
+            f" {self._valor_atual:g}" if self._valor_atual else "",
+            self._motivo_atual,
+        )
         if acao is not None:
             # UMA vez por ativacao, nunca em laco: repetir empurraria o robo
             # indefinidamente enquanto a IA mantivesse a mesma decisao.
@@ -778,7 +802,7 @@ class IaEstrategica(Comportamento):
             # autonomo passa pela navegacao, que checa obstaculo antes de
             # avancar (regra 2 do contrato). O `_avancar` que existia aqui
             # ate 2026-07-28 falava direto com o Arduino e pulava essa camada.
-            await self._event_bus.publish(acao.topico, dict(acao.dados))
+            await self._event_bus.publish(acao.topico, dados)
 
         if acao is not None and acao.delega_para:
             # ACAO DELEGADA: publica e SAI (2026-07-30).

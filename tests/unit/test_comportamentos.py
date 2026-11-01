@@ -1248,3 +1248,48 @@ async def test_pedir_manual_de_novo_zera_o_cronometro():
     antes = maestro._ultima_atividade_manual
     await maestro.definir_modo_controle(MODO_MANUAL)
     assert maestro._ultima_atividade_manual > antes + 100
+
+
+class _ComunicacaoComValor(_ComunicacaoFalsa):
+    def __init__(self, acao: str, valor: float) -> None:
+        super().__init__(acao=acao)
+        self._valor = valor
+
+    async def request(self, destino, payload, timeout_s=None):
+        resposta = await super().request(destino, payload, timeout_s)
+        resposta.payload["valor"] = self._valor
+        return resposta
+
+
+async def _executar_ia_com(acao: str, valor: float) -> list[dict]:
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos = []
+    bus.subscribe("navigation.comando", lambda e: comandos.append(e.dados))
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    ia = IaEstrategica(bus, _ComunicacaoComValor(acao, valor))
+    maestro.registrar(ia)
+    laco = asyncio.create_task(maestro.executar())
+    await ia._consultar()
+    await asyncio.sleep(0.1)
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+    return comandos
+
+
+@pytest.mark.asyncio
+async def test_ia_manda_o_numero_andar_400_mm_vira_goto_de_40_cm():
+    """2026-11-01: o dono quer que ela saiba e MANDE quanto andar/desviar."""
+    comandos = await _executar_ia_com("andar_mm", 400)
+    assert {"acao": "GOTO", "graus": 0.0, "distancia_cm": 40.0} in comandos
+
+
+@pytest.mark.asyncio
+async def test_numero_acima_do_teto_e_cortado_e_sem_numero_nao_anda():
+    assert {"acao": "GIRAR", "sentido": "DIREITA", "graus": 180.0} in await _executar_ia_com(
+        "girar_direita_graus", 720
+    )
+    assert await _executar_ia_com("andar_mm", 0) == []
