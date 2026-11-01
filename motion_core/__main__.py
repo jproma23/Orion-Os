@@ -54,6 +54,7 @@ from motion_core.memory.replica_pendente import (
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
+from motion_core.navigation.trava_lidar import TravaLidar
 from motion_core.navigation.gerente_nav2 import GerenteNav2
 from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
@@ -429,6 +430,26 @@ async def principal() -> None:
     config_motion = config.secao("motion")
     config_navigation = config.secao("navigation")
     navigation = NavigationCore(event_bus, comm, config_motion, config_navigation)
+    # TRAVA DO LIDAR (2026-11-01): porteiro do enlace com as rodas. Todo
+    # comando que anda - do Notebook, da webui, do maestro ou do Nav2 - so
+    # chega ao ESP32 se o corredor a frente (ou atras) estiver livre. Ver
+    # motion_core/navigation/trava_lidar.py.
+    conf_trava = config_motion.get("trava_lidar", {})
+    trava_lidar = TravaLidar(
+        event_bus,
+        distancia_cm=float(conf_trava.get("distancia_cm", 35.0)),
+        meia_largura_cm=float(conf_trava.get("meia_largura_cm", 25.0)),
+        idade_max_s=float(conf_trava.get("idade_max_s", 1.5)),
+    )
+
+    async def _parar_rodas() -> None:
+        try:
+            await comm.send("hardware_core", {"comando": "STOP"})
+        except ErroComunicacao:
+            logger.warning("trava do LiDAR: STOP nao chegou ao Hardware Core")
+
+    trava_lidar.ligar_parada(_parar_rodas)
+    comm.definir_porteiro("hardware_core", trava_lidar.motivo_recusa)
     FusaoSensores(event_bus, config_motion)
     # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
     # COMO chegar (mapa, costmap, replanejamento); o Motion Core decide ONDE.
