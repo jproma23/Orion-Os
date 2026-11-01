@@ -515,3 +515,77 @@ async def test_sem_exigir_palavra_os_portoes_continuam_barrando():
 
     bus.parar()
     await tarefa
+
+
+# ---------------------------------------------------------------------------
+# Portao de eco POR TEMPO (2026-11-01). Caso real: ele disse "Oi de novo.
+# Tudo em ordem por ai?", ouviu "Onde o novo? Tudo em hora em por ai?" - o
+# portao por texto nao reconheceu - e, conversando com o eco, mandou as rodas
+# andarem. A janela gravada enquanto ele fala tem que virar silencio.
+# ---------------------------------------------------------------------------
+
+
+class SintetizadorQueFalou(SintetizadorFalso):
+    def __init__(self, falou: bool) -> None:
+        super().__init__()
+        self._falou = falou
+
+    def falou_desde(self, instante: float, rastro_s: float) -> bool:
+        return self._falou
+
+
+async def _gravar_com_som(duracao: float):
+    import numpy as np
+
+    return np.full(16000, 0.2, dtype="float32")
+
+
+async def _sessao_sem_palavra(sintetizador) -> list[str]:
+    from orion.voice.vad import DetectorAtividadeSonora
+
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "sao dez horas"
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["Onde o novo? Tudo em hora em por ai?"]),
+        sintetizador=sintetizador,
+        processar_comando=processar,
+        gravar_audio=_gravar_com_som,
+        exigir_palavra_ativacao=False,
+        detector_atividade=DetectorAtividadeSonora(),
+    )
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+    bus.parar()
+    await tarefa
+    return processados
+
+
+@pytest.mark.asyncio
+async def test_janela_gravada_enquanto_ele_fala_nao_vira_comando():
+    assert await _sessao_sem_palavra(SintetizadorQueFalou(falou=True)) == []
+
+
+@pytest.mark.asyncio
+async def test_janela_sem_fala_dele_continua_virando_comando():
+    processados = await _sessao_sem_palavra(SintetizadorQueFalou(falou=False))
+    assert processados == ["Onde o novo? Tudo em hora em por ai?"]
+
+
+def test_falou_desde_conta_a_fala_em_curso_e_o_rastro():
+    from types import SimpleNamespace
+
+    from orion.voice.sintese import Sintetizador
+
+    calado = SimpleNamespace(falando=False, fim_ultima_fala=10.0)
+    assert Sintetizador.falou_desde(calado, 10.5, 1.0)  # rastro ainda chegando
+    assert not Sintetizador.falou_desde(calado, 11.5, 1.0)  # calou antes da janela
+    falando = SimpleNamespace(falando=True, fim_ultima_fala=float("-inf"))
+    assert Sintetizador.falou_desde(falando, 99.0, 1.0)

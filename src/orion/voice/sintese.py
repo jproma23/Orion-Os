@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import time
 import wave
 
 import numpy as np
@@ -94,6 +95,12 @@ class Sintetizador:
         #: foi assim que o primeiro recado entregue da historia do projeto se
         #: perdeu, com a pessoa na frente ouvindo.
         self._trava_fala = asyncio.Lock()
+        #: QUANDO ele falou, para a escuta descartar o proprio eco por TEMPO
+        #: (2026-11-01). `falando` cobre a fala em curso; `fim_ultima_fala` e
+        #: o instante (time.monotonic) em que a ultima terminou. Mora aqui
+        #: porque TODA fala passa por `falar` - resposta, saudacao, recado.
+        self.falando = False
+        self.fim_ultima_fala = float("-inf")
         self._voz = PiperVoice.load(caminho_modelo)
         self._indice_dispositivo_saida = indice_dispositivo_saida
         self._aplicar_timbre = aplicar_timbre
@@ -154,4 +161,14 @@ class Sintetizador:
         # `synthesize_wav` deixaria dois `sd.play()` se cruzarem, que e a
         # metade do problema que mata o processo. Ver `_trava_fala`.
         async with self._trava_fala:
-            await asyncio.to_thread(_sintetizar_e_reproduzir)
+            self.falando = True
+            try:
+                await asyncio.to_thread(_sintetizar_e_reproduzir)
+            finally:
+                self.falando = False
+                self.fim_ultima_fala = time.monotonic()
+
+    def falou_desde(self, instante: float, rastro_s: float) -> bool:
+        """True se ele estava falando a partir de `instante` (monotonic),
+        contando `rastro_s` de audio ainda em transito depois de calar."""
+        return self.falando or self.fim_ultima_fala + rastro_s > instante
