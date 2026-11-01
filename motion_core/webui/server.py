@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 from aiohttp import web
 
 from motion_core.behavior.behavior_core import MODO_MANUAL, MODOS_DE_CONTROLE
@@ -37,6 +38,13 @@ DIRETORIO_ESTATICO = Path(__file__).parent / "static"
 #: "acesso restrito") - a pedido do usuario, restrito ao proprio
 #: Raspberry, nem o resto da rede local ve essa pagina.
 ENDERECOS_LOCAIS = frozenset({"127.0.0.1", "::1"})
+
+#: De onde vem a imagem da camera (2026-11-01). A DV20 agora mora no USB do
+#: NOTEBOOK e o Vision Core de la e o dono dela; o stream do Pi (:8091) foi
+#: desligado. O Pi so REPASSA o snapshot, para a pagina continuar na mesma
+#: origem - inclusive pelo Tailscale, que nao alcanca o Notebook.
+#: Sobrescreva com `display.web.camera_snapshot_url` no orion.yaml.
+CAMERA_SNAPSHOT_URL_PADRAO = "http://10.20.20.195:8081/camera/snapshot.jpg"
 
 #: Variavel de ambiente com a senha da pagina CONFIGURACAO. Vive em
 #: config/secrets.env (gitignored), NUNCA no codigo: este repositorio e
@@ -341,6 +349,7 @@ class WebUIServer:
         self._app = web.Application(middlewares=[_revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
+        self._app.router.add_get("/camera/snapshot.jpg", self._handler_camera_snapshot)
         self._app.router.add_post("/comando", self._handler_comando)
         self._app.router.add_post("/velocidade", self._handler_velocidade)
         self._app.router.add_post("/controle", self._handler_controle)
@@ -908,6 +917,28 @@ class WebUIServer:
             {"ok": True, "goal": {"x_m": x, "y_m": y, "yaw_rad": yaw}}
         )
 
+    async def _handler_camera_snapshot(self, request: web.Request) -> web.Response:
+        """Repassa o ultimo quadro do Vision Core do Notebook (2026-11-01).
+
+        503 quando o Notebook ou a visao estao fora - a pagina mostra "sem
+        imagem" em vez de travar. Timeout curto: e foto de painel, nao vale
+        segurar a pagina esperando.
+        """
+        conf_web = self._config.secao("display")["web"] if self._config else {}
+        url = conf_web.get("camera_snapshot_url") or CAMERA_SNAPSHOT_URL_PADRAO
+        try:
+            tempo = aiohttp.ClientTimeout(total=2.0)
+            async with aiohttp.ClientSession(timeout=tempo) as sessao:
+                async with sessao.get(url) as resposta:
+                    if resposta.status != 200:
+                        return web.Response(status=503, text="sem imagem da camera")
+                    corpo = await resposta.read()
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return web.Response(status=503, text="camera (Notebook) inacessivel")
+        return web.Response(
+            body=corpo, content_type="image/jpeg", headers={"Cache-Control": "no-store"}
+        )
+
     async def _handler_estado(self, request: web.Request) -> web.Response:
         # O modo entra no MESMO payload que a página já busca, em vez de um
         # endpoint só para ele: assim o botão nunca aparece desenhado num
@@ -921,7 +952,12 @@ class WebUIServer:
         # endereco que ele ja usou para abrir esta pagina. Assim o mesmo
         # dashboard serve na LAN e pelo Tailscale sem reconfiguracao.
         conf_web = self._config.secao("display")["web"] if self._config else {}
-        estado["camera"] = {"porta": conf_web.get("camera_porta")}
+        # `snapshot` (2026-11-01): a imagem vem do Notebook, repassada por
+        # esta mesma porta - ver `_handler_camera_snapshot`.
+        estado["camera"] = {
+            "porta": conf_web.get("camera_porta"),
+            "snapshot": "/camera/snapshot.jpg",
+        }
         # O RETRATO DO MUNDO - o mesmo objeto que alimenta o prompt da IA.
         # None em qualquer campo significa "NAO SEI", nunca "esta livre": o
         # retrato prefere calar a inventar (ver RetratoDoMundo).
