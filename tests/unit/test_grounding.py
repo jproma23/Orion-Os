@@ -45,7 +45,7 @@ def test_corpo_com_dados_mostra_valores() -> None:
     )
     # 34 cm com limiar de 25 e caminho livre, e o texto tem que dizer isso -
     # ate 2026-07-29 saia como "obstáculo à frente: 34.0 cm" e a IA parava.
-    assert "CAMINHO LIVRE por 34 cm" in texto
+    assert "espaço CURTO, 34 cm" in texto  # 25 < 34 < 60: da para andar pouco
     assert "atrás de mim: OBSTÁCULO a 21 cm" in texto  # 21 < 25: perto demais
     assert SEM_DADO not in texto
 

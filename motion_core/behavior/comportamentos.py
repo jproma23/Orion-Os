@@ -618,6 +618,8 @@ class IaEstrategica(Comportamento):
             return None, ""
 
         self._plano_atual = [acao.nome for acao in plano]
+        if self._plano_atual[0] in ("virar_esquerda", "virar_direita"):
+            self._plano_atual[0] = self._lado_mais_aberto(self._plano_atual[0])
         self._objetivo_atual = objetivo.nome
         self._registrar_plano(
             f"maestro: objetivo '{objetivo.nome}' -> plano "
@@ -626,6 +628,31 @@ class IaEstrategica(Comportamento):
         self._passo_anterior = self._plano_atual[0]
         rastro = f"objetivo '{objetivo.nome}' via {' -> '.join(self._plano_atual)}"
         return self._plano_atual[0], f"{motivo} [{rastro}]" if motivo else rastro
+
+    def _lado_mais_aberto(self, sugerido: str) -> str:
+        """Vira para o lado que o LiDAR mede mais livre (2026-11-01).
+
+        O GOAP so sabe que precisa virar - virar_esquerda e virar_direita tem
+        o mesmo efeito no modelo, e ele pegava sempre a primeira. Num canto,
+        com a esquerda a 33 cm e a direita a 103, o robo virava para a parede,
+        continuava sem frente e virava de novo: o dono viu ele "ficar girando".
+        Lado sem medida conta como 0 - preferir o que se mediu aberto.
+        """
+        try:
+            r = self._retrato()
+        except Exception:
+            return sugerido
+        esquerda = getattr(r, "obstaculo_esquerda_cm", None) or 0.0
+        direita = getattr(r, "obstaculo_direita_cm", None) or 0.0
+        if esquerda == direita:
+            return sugerido
+        lado = "virar_esquerda" if esquerda > direita else "virar_direita"
+        if lado != sugerido:
+            logger.info(
+                "maestro: vira para o lado aberto (%s): esquerda %.0f cm, direita %.0f cm",
+                lado, esquerda, direita,
+            )
+        return lado
 
     def _registrar_plano(self, texto: str) -> None:
         """Registra a decisao de plano, sem repetir a mesma frase em laco.

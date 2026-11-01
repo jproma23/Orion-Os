@@ -36,6 +36,12 @@ def _linha(rotulo: str, valor: Any, sufixo: str = "") -> str:
 #: `motion.min_front_distance_cm` do orion.yaml; quem chama pode sobrescrever.
 LIMIAR_OBSTACULO_CM = 25.0
 
+#: Espaco minimo a frente para ANDAR de verdade - espelha `FRENTE_LIVRE_CM` do
+#: planejador (motion_core/behavior/goap.py). Entre o limiar de obstaculo e
+#: isto, a frente e CURTA: a IA lia "caminho livre por 33 cm" e mandava
+#: avancar, o GOAP via bloqueio e mandava virar - e o robo girava (2026-11-01).
+ESPACO_PARA_ANDAR_CM = 60.0
+
 
 def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
     """Descreve a frente pelo que ela É, não por um rótulo de ameaça.
@@ -66,6 +72,11 @@ def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
         return _linha("à minha frente", distancia_cm)
     if valor < limiar_cm:
         return f"- à minha frente: OBSTÁCULO a {valor:.0f} cm - perto demais para avançar"
+    if valor < ESPACO_PARA_ANDAR_CM:
+        return (
+            f"- à minha frente: espaço CURTO, {valor:.0f} cm - para andar de verdade "
+            f"preciso de {ESPACO_PARA_ANDAR_CM:.0f} cm; vire para o lado mais aberto"
+        )
     return (
         f"- à minha frente: CAMINHO LIVRE por {valor:.0f} cm "
         f"(só é obstáculo abaixo de {limiar_cm:.0f} cm)"
