@@ -550,7 +550,11 @@ voice:
   # aceita gasta uma - inclusive conversa entre outras pessoas, TV e radio.
   # Os portoes continuam na frente (VAD, transcricao vazia, alucinacao e eco
   # da propria voz). Se a cota voltar a acabar cedo, e aqui que se volta.
-  exigir_palavra_ativacao: false
+  # 2026-11-08, dono: "so com jarvis". O chat de 01-08/11 tinha dezenas de
+  # respostas a conversa de fundo (TV, familia) transcrita como se fosse com
+  # ele - "bingo de alias", "Coro do Fale". Volta a exigir o nome; depois do
+  # "Jarvis" a conversa segue aberta ate 2 silencios.
+  exigir_palavra_ativacao: true
   # MEDIDO EM 2026-08-05, nesta maquina, com audio de gabarito gerado pelo
   # proprio Piper (4 frases, resposta conhecida, servico rodando junto):
   #
