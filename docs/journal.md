@@ -9230,3 +9230,276 @@ Suíte do Pi: **1266 → 1253 passam**, zero falha. A diferença é exatamente o
 - A bancada continua: rodar `tools/testar_roda.py` com as rodas no ar, ler os IN e só então o encoder.
 - Juntar os códigos do Pi e do Notebook e religar o Mission Core no Pi (EDR-0036).
 - Levar para o Notebook os consertos de voz de setembro (`df692e8`, detector de eco, nome Javis completo). É o passo 2 de "voltar o projeto", e depende de os microfones dos ouvidos voltarem a mandar som.
+
+
+## Sessão de 2026-10-31 — o robô voltou a ouvir, a enxergar e a falar com quem chega; as rodas esperam um buck
+
+Manhã de bancada, com o dono na mesma rede e eu pelo Windows (Tailscale até o Pi, e do Pi até o Notebook). As duas máquinas tinham acabado de ser ligadas.
+
+### Check dos sistemas (07:01–07:05)
+
+| Sistema | Estado no começo |
+|---|---|
+| Pi 4 (10.20.20.106) | 43 °C, `throttled=0x0`, 3 GB livres; `orion-motion` e câmera de pé, `orion-mission` parado de propósito (a memória roda no Notebook desde 12/10) |
+| LiDAR | `ttyUSB0` do Pi, quadros `AA 55` chegando |
+| Corpo (ESP32, CP2102) | **fora do Pi**: o Motion Core tentava a cada 30 s. O dono ligou às 07:04 (`ttyUSB1`); voltou em IDLE com a bússola lendo (32,8 µT) |
+| Notebook (10.20.20.195) | `orion-avatar` de pé, Whisper `small`, câmera apontando para o stream do Pi |
+| Ouvidos | com o firmware de **varredura** de 25/10 (sem WiFi): o Voice Core esperando `ouvidos.local:9100` |
+
+### Ouvidos: OTA primeiro, depois o diagnóstico, e era o WS solto
+
+O dono tem **um cabo USB só**, e ele fica no corpo. O firmware gravado nos ouvidos (varredura) não tinha WiFi nem OTA, então foi preciso o cabo **uma última vez**. O diagnóstico novo (`firmware/ouvidos_esp32/diagnostico/`) já veio com WiFi + ArduinoOTA e com o resultado em texto na TCP 9101. O OTA foi provado antes de soltar o cabo: o mesmo firmware regravado pelo ar, `Result: OK`.
+
+O diagnóstico alterna o resistor interno do pino SD (GPIO 33):
+
+```
+[PULL-UP     ] A naozero=256 tudo1=256 ... cru ffffffff ffffffff
+[PULL-DOWN   ] A naozero=0   tudo1=0   ... cru 00000000 00000000
+```
+
+A leitura **seguia o resistor**: ninguém dirigia o fio. Isso aponta para causa física comum aos dois mics (sem 3,3 V/GND, sem clock, ou SD solto), e não para código, porque os pinos eram os de julho. O dono achou: **o WS tinha soltado do GPIO 25.** Soldado, os dois canais variaram nos três modos (A até ±29.000, B até ±33.000 em 24 bits).
+
+Firmware normal regravado **pelo ar**, agora com OTA embutido. Prova ponta a ponta com um bipe de 880/1320 Hz no alto-falante USB do Notebook, gravando dos ouvidos ao mesmo tempo:
+
+| | silêncio | durante o bipe |
+|---|---|---|
+| mic A | ~180 rms | 3.600–4.900 |
+| mic B | ~160 rms | 4.600–8.500 |
+
+**Ganho:** "Jarvis" chegou a rms 0,0064 e o Whisper descartou a palavra (confiança −1,27 contra o portão de −1,00). `DESLOCAMENTO_GANHO` 13 → 12 (2x), pelo ar. Depois disso: `ouvi (rms=0.1500): 'Olá, Jarvis!'` → `falando: Olá! Tudo bem por aqui.`
+
+Os três firmwares dos ouvidos viviam soltos no Notebook (`~/build_ouvidos`, `~/build_diagmic`, `~/build_scan`). Entraram no repo em `firmware/ouvidos_esp32/`, com README (pinos, rede, OTA, ganho, como diagnosticar).
+
+### Velocidade: o Whisper `small` era mais lento que a fala
+
+Medido no Notebook com YOLO e rosto rodando, frase de 5 s (sintetizada pelo Piper):
+
+| modelo | tempo | texto |
+|---|---|---|
+| small, beam 5 | 6,1 s | "Pervis, que horas são agora e como está o tempo lá fora?" |
+| small, beam 1 | 5,7 s | igual |
+| **base** | **2,0 s** | "Termiz, que horas são agora, e como está o tempo lá fora." |
+| base, sem timestamps + beam 1 | 1,86 s | igual |
+| base, 4 threads | 2,18 s | igual (não ajuda) |
+| tiny | 1,22 s | "É a vez que a hora são agora…" (estraga) |
+
+Trocado para `base`; o nome errado não importa porque não há palavra de ativação desde 25/10. Dono: *"ficou bom"*. O VAD `rms_minimo` foi de 0,003 para 0,03: com o ganho dobrado, o ruído de fundo (~0,013) fazia o Whisper rodar a cada 5 s em silêncio.
+
+**O que sobra de lentidão é desenho, não modelo:** a janela de escuta é FIXA de 5 s (`duracao_comando_s`), mesmo que a pessoa fale 1 s, e a IA leva ~4 s. Parar de gravar no fim da fala vale até 3 s por resposta; não foi feito.
+
+### Visão: estava cega sem nenhum erro
+
+O stream do Pi (`:8091/snapshot`) devolvia a imagem **"NO SIGNAL"**: a DV20 do pan/tilt está na USB do **Notebook** (decisão de 30/09), mas a config ainda lia o vídeo do Pi. O OpenCV abria o stream e processava a tela preta sem reclamar. `camera_indice_principal` passou para `/dev/v4l/by-id/usb-Jieli_Technology_USB_Composite_Device-video-index0` (25 fps lidos direto).
+
+Duas vezes o teste deu "não estou vendo nada", e as duas vezes a visão estava certa: **o pan/tilt está desligado por enquanto** (dono) e a câmera solta cai para trás, apontando para o teto. A outra câmera do Notebook (Sunplus "PC Camera") também estava virada para o teto. Com a câmera endireitada, "o que você está vendo?" → **"João Paulo"**.
+
+O diário do banco provou o resto: `pessoa_vista João Paulo` às 07:41, 07:43 e 07:56, e **`pessoa_vista Marah` às 07:44:35**, com a Marah de fato na frente. As distâncias de um rosto medido contra os três cadastros: Marah 0,392, Kamal 0,594, João Paulo 0,709. **Alguém que não é o Kamal ficou a 0,594 dele**, e o limiar é 0,6: o limiar padrão do `face_recognition` está frouxo para esta família. Não foi mexido (falta medir o dono e a Marah separados).
+
+Detalhe de desenho que confunde: a resposta de "o que você vê" **pula a classe `person` do YOLO** e só cita gente cujo rosto foi achado. De costas ou longe, a resposta é "não estou vendo nada" mesmo com o YOLO vendo uma pessoa.
+
+### Ele via a Marah e não falava com ela
+
+Dono: *"ele não falou com marah"*. A causa estava no `saudacao.py`: a janela de 15 min depois de uma conversa (a regra de 09/08, "quem conversa não chegou") calava **qualquer** chegada, não só a de quem conversava. Agora:
+
+- visto durante a conversa = participante, não recebe "oi";
+- conversa sem ninguém visto: o primeiro rosto é de quem fala (preserva o caso de 09/08);
+- qualquer outro rosto depois disso **chegou**, e é cumprimentado.
+
+Dono: *"a saudação está repetitiva"*. Duas causas: os cumprimentados e as frases já ditas viviam **só na RAM**, e cada restart do avatar zerava os dois (3 cumprimentos ao dono em 16 min, dois com a mesma frase: "Bom dia, João Paulo. Que bom ver você por aqui logo cedo."). **Os restarts foram meus**, nos testes. Agora a memória vai para `data/saudacao_estado.json` (relógio de parede, troca atômica, arquivo estragado não impede o boot) e guarda as últimas 8 frases em vez de 3.
+
+5 testes novos; os do caso da Marah **falham no código antigo** (2 failed) e passam no novo. Suíte do Notebook: **1253 passed**. Commit `98ce327` (no Notebook, branch `pi-master`, trazido ao Pi por `git fetch notebook` + fast-forward).
+
+### Reconhecimento de voz: órfão (e o dono disse que não é prioridade)
+
+O `identificador_locutor.py` lê `pessoas.embedding_voz`, e **nenhum código grava essa coluna**: os três cadastros têm rosto e nenhum tem voz. O `localizacao.py` (direção da voz com os dois mics) também não é chamado por ninguém. Dono: *"reconhecimento de voz não é tão importante, visão computacional sim"*. Ficou registrado e parado.
+
+### YOLO no Pi? Medido antes de mover
+
+O dono propôs levar o YOLO para o Pi com uma fila, se o Notebook estivesse sobrecarregado. Medido:
+
+| | Pi 4 | Notebook |
+|---|---|---|
+| YOLOv8n, 320 px | 337 ms (3 fps), os 4 núcleos | ~125 ms |
+| YOLOv8n, 640 px | 1153 ms | — |
+| CPU livre | quase toda | 66% |
+
+O Notebook não está sobrecarregado: a visão pede só 2 fps, e o maior consumidor dele é o **Firefox do avatar (~50% de um núcleo)**, mais que o processo do robô (~45%). A proposta ficou como **reserva**: YOLO leve no Pi (1 fps) só quando o Notebook some ou atrasa. Não implementado; o dono decidiu manter a visão no Notebook.
+
+### Rodas: o L298N alimentado com 5 V não liga a própria lógica
+
+Em 25/10 os IN saíam certos do ESP32 e nenhuma roda girou. Hoje o dono contou a alimentação: **bateria de 21 V → buck de 5 V → L298N**, motor JGB37 de **6 V**.
+
+O L298N (bipolar) perde 2–3 V até o motor, e o **regulador de 5 V interno** dele (jumper 5V-EN) precisa de ~7 V na entrada. Com 5 V no borne, a lógica ficava com ~3 V e talvez nem entendesse os IN, e o motor receberia ~2,5–3 V. **Hipótese forte, ainda não provada.**
+
+Plano combinado: buck ajustado para **8 V** (lógica ok, ~6 V no motor a 100%, sem limite de PWM no firmware). Não ligar os 21 V direto: o motor de 6 V levaria pulsos de ~19 V. Para o robô andar com peso, a troca recomendada é um **TB6612FNG ou DRV8833** (perdem ~0,3 V). O dono foi buscar um buck ajustável.
+
+O firmware de bancada de 25/10 (`pins.h` com IN em 32/33/25/26 e encoders em 34/35/14/27, canais LEDC 14/15, `TEST_WHEEL` lendo o nível real dos IN, `tools/testar_roda.py`) foi **commitado hoje**. O binário recompilado desse código tem sha256 `5cd1bffd…a223291`.
+
+### Erros meus
+
+- **Os restarts do avatar nos testes fizeram ele cumprimentar o dono três vezes**, e quase passei isso como defeito só do código.
+- O primeiro OTA falhou por eu usar `--upload-protocol` na linha de comando do `pio` (não existe); virou um `env:ota` no `platformio.ini`.
+- Dois patches grandes morreram no shell local por aspas no heredoc; passaram como arquivo.
+- Disse "a câmera do pan/tilt" quando ainda não sabia que ela tinha mudado para o Notebook; só o "NO SIGNAL" mostrou.
+
+### Pendente
+
+1. **Rodas**: buck em 8 V, rodas no ar, `tools/testar_roda.py` a 100% (o dono confirma antes). Medir OUT1–OUT2 se não girar.
+2. **Limiar do rosto** 0,6 → ~0,5, depois de medir o dono e a Marah separados.
+3. Janela de escuta que termina no fim da fala (até −3 s por resposta).
+4. "Estou vendo uma pessoa" quando o YOLO vê gente sem rosto.
+5. O `orion-camera-stream` do Pi ficou sem câmera (serve "NO SIGNAL").
+6. YOLO de reserva no Pi, com fila (proposta do dono, não iniciada).
+7. Ruído: o Notebook ainda roda o Mission Core; o desenho de 30/09 era no Pi (EDR-0036).
+
+### Tarde de 31/10 — as rodas giram, e os encoders contam
+
+**A roda girou pela primeira vez.** Com 5 V no L298N: silêncio total, com o LED aceso. Com **10 V**: girou. A causa de 25/10 estava confirmada: a lógica do L298N não liga as saídas com 5 V na entrada. A 10 V o motor de 6 V recebe ~7–8 V a 100%, então os testes rodam a **75%** até existir um teto de PWM no firmware.
+
+**Os encoders estavam cruzados.** Com a roda girando, eles davam 0 nos dois motores. Entrou no `TEST_WHEEL` uma varredura opcional (`"varrer": true`): ela **só lê** 18 pinos e conta quantas vezes cada um muda. Parado, só os servos (19/23) piscavam. Girando a roda direita (IN 25/26), **só o 34 e o 35 mudaram (1765 vezes em 1 s)**. O mapa antigo lia a roda direita no 14 e a esquerda no 34, ou seja, cada roda olhava o encoder da outra. O `pins.h` foi trocado para direita = 34/35 e esquerda = 14/27. O dono confirmou a fiação dos dois motores.
+
+Medido a 75%, 1 s:
+
+| roda/sentido | pulsos | subida de A com B |
+|---|---|---|
+| direita + | 1717 | alto |
+| direita − | 1643 | baixo |
+| esquerda (o sentido que funciona) | ~1490 | alto |
+
+A quadratura funciona: a ordem de A e B se inverte com o sentido.
+
+**A roda esquerda só gira para um lado.** Trocando os fios 32↔33 no L298N, **o defeito seguiu o pino IN1 da placa**, e não o fio. Um jumper novo no IN1 também não resolveu. Sobram a solda do IN1 ou o canal 1 do chip queimado. Sem o outro sentido não há ré nem giro no lugar, então o conserto tem que ser no hardware (solda, ou um TB6612FNG). A roda direita gira bem nos dois sentidos.
+
+O "direito" do firmware (25/26) é a roda que fica à direita de quem olha o robô de frente pela câmera. Qual lado é a frente do robô ainda falta confirmar, quando ele andar com as duas rodas.
+
+Firmware gravado no corpo: sha256 `85796f7a10a01d98…`.
+
+**Resolvido no mesmo dia: era mau contato.** O dono refez o contato do IN1 e a roda esquerda passou a girar nos dois sentidos (1418 e 1415 pulsos em 1 s, com a ordem A/B invertendo). O código não mudou entre o teste que falhava e o que passou. As duas rodas e os dois encoders funcionam nos dois sentidos. Esse sintoma (um sentido só, com o sinal certo medido na perna do ESP) aponta para o conector ou a solda do pino IN da placa.
+
+**As duas rodas juntas: frente e ré funcionam.** O `TEST_WHEEL` ganhou o modo `"lado": "ambos"`, com a mesma regra de espelhamento do andar normal (frente = IN1 na esquerda e IN4 na direita, porque `DIR_INVERTIDO_DIREITO = true`). No primeiro teste o robô **giraria no lugar**: os fios da roda esquerda ainda estavam trocados (32↔33) desde o diagnóstico do IN1. Com os fios de volta ao original, frente → ré → frente → ré andou junto (esq ~1360, dir ~1450–1515 pulsos em 1 s, a 75%). **O `pins.h` estava certo, e não foi mexido.** O "motores espelhados: gira no próprio eixo" de agosto era fiação.
+
+Firmware gravado: sha256 `1dbaeff0f2aa9dc0…`.
+
+Falta: medir os pulsos de uma volta da roda (a redução real), confirmar qual lado é a frente em relação à câmera, e um teto de PWM no firmware (com 10 V, o motor de 6 V não pode receber 100%).
+
+**Frente e lados confirmados pelo dono, com as rodas no ar:** o comando FRENTE leva o robô para o **lado da câmera**, e a roda que o firmware chama de "direita" (IN 25/26, encoder 34/35) é a **direita do robô** (olhando para a frente dele). Nenhuma mudança no código: os nomes e o espelhamento estavam certos.
+
+**Teste repetido com 50% (31/10, ~12:25), confirmado pelo dono ("girou certo").** Duas rodadas iguais, 0,8 s por movimento, o dono olhando as rodas no ar. A ordem foi esquerda (frente, ré), direita (frente, ré) e as duas juntas (frente, ré):
+
+| movimento | 1ª rodada | 2ª rodada |
+|---|---|---|
+| esquerda frente / ré | 551 / 555 | 541 / 555 |
+| direita frente / ré | 659 / 616 | 662 / 613 |
+| ambas frente (esq / dir) | 520 / 586 | 519 / 581 |
+| ambas ré (esq / dir) | 537 / 633 | 530 / 629 |
+
+As duas rodadas batem (diferença < 2%), e a ordem A/B inverte com o sentido nas duas rodas. **A direita dá 10–15% mais pulsos que a esquerda com o mesmo PWM**: sem PID, o robô no chão vai puxar para a esquerda. Isso é trabalho do controle de velocidade (malha fechada com os encoders), não de fiação.
+
+## 31/10 (tarde) — o corpo ensinado ao cérebro
+
+Pedidos do dono, na mesma conversa: *"o robo precisa entender seu corpo e seus comandos"*, *"controle pid orientado pela bussola"*, *"usando o encoder junto"*, *"ensine o robo a calibrar sua bussola atraves de movimentos das rodas"*, *"usando os dados do sensor lidar"*, *"onde o movimento pode ser conferido"*.
+
+**Firmware (gravado):** a reta agora é mantida por uma malha POR CIMA do PID de velocidade de cada roda, com o desvio vindo de uma fusão complementar — o encoder acompanha a diferença entre as rodas a cada ciclo e a bússola puxa devagar (τ = 1 s) para o rumo verdadeiro; sem bússola calibrada fica só o encoder. Telemetria nova: `reta_fonte` e `reta_desvio_graus`. `CALIBRATE_COMPASS` com `"girar": true` gira no próprio eixo a 30% e para sozinho quando a coleta de 25 s acaba (o homem-morto não corta esse giro). Rodas no ar, `MOVE_DISTANCE` 50 cm a 40%: **1575 / 1575 pulsos**, desvio ~1° — antes, no mesmo PWM, a direita corria 10–15% a mais. A parte da bússola ainda NÃO foi provada (ela não está calibrada).
+
+**Gravar o corpo:** use `/dev/serial/by-id/usb-Silicon_Labs_CP2102...`. Depois de religar o Pi, ttyUSB0 e ttyUSB1 trocam; gravar na porta errada dá "Invalid head of packet (0xF8)" e parece pedir o botão BOOT — não pede.
+
+**Cérebro:** os movimentos falados têm MEDIDA (`#acao:andar_para_frente 30`, ré, girar X graus, `calibrar_bussola`) — nenhum anda mais "até alguém mandar parar". `mission/corpo_agora.py` põe no prompt o espaço livre medido pelo LiDAR (frente, direita, trás, esquerda) e a bússola, e CONFERE cada movimento medindo antes e depois. O autoconhecimento (`sobre_mim.yaml`) estava ligado só no caminho do Notebook; agora o Mission Core do Pi o reconstrói a cada subida, e o arquivo ganhou LiDAR, bússola e a lista de movimentos.
+
+**Defeito antigo achado no caminho:** desde que o Mission Core foi para o Pi, o `boot.py` registrava o link com o Motion Core sem `alcancaveis_via=["hardware_core"]` — **todo comando falado de hardware morria em "Sem rota conhecida para o destino hardware_core"** e o robô dizia "não consegui". O caminho do Notebook sempre declarou a rota.
+
+**Provado ponta a ponta, pelo chat:** "anda trinta centímetros para frente" → `MOVE_DISTANCE 30 cm, 40%` → rodas giraram e pararam sozinhas (confirmado pelo dono) → LiDAR: 139 cm antes, 139 depois → perguntado "você conseguiu andar?", ele respondeu "Não saí do lugar". Certo: as rodas estavam no ar. Suíte do Pi verde (1278 + os novos).
+
+Falta: calibrar a bússola no chão e provar a reta com ela; medir a redução (pulsos por volta) e a bitola, que entram na conta de cm e graus; ligar o Nav2 (container `orion-nav2`, parado há 5 semanas) às ações faladas.
+
+## 31/10 (fim da tarde) — as medidas reais do corpo e o controle das rodas a 50 Hz
+
+Preparando o Nav2, a odometria se mostrou errada em três números e um sinal. O dono mediu com fita e contou voltas de roda:
+
+| medida | antes (suposto) | agora |
+|---|---|---|
+| roda motriz | 200 mm | **60 mm** |
+| bitola (eixo a eixo) | 0,30 m (config) / 0,45 m (firmware) | **0,36 m** |
+| redução do JGB37-520 | 1:90 | **1:168** (medida) |
+| pulsos por metro | 2546 (config) / 3151 (firmware) | **19608** |
+| robô | 50 × 30 × 65 cm | **39 × 30 × 45 cm**, roda de apoio a 25 cm |
+
+**A redução foi medida contando voltas, com as rodas no ar:** 9900 pulsos deram ~2,8 voltas e 35360 deram 9,5. O 1:168 prevê 2,68 e 9,57; o 1:150 prevê 3,0 e 10,7 (descartado). Depois de gravado o 1:168, mandar "3 voltas" deixou a marca da roda no mesmo ponto. A etiqueta do motor diz **DC 6V 35RPM**: \`VELOCIDADE_MAXIMA_RODA_RAD_S\` virou a nominal (3,66 rad/s), e quem segura o motor de 6 V na bateria de 10 V passa a ser o PID, não uma regra de "não passar de 75%". Firmware e \`orion.yaml\` agora são presos por \`tests/unit/test_medidas_corpo.py\`.
+
+**O desvio de 7° a 60% não era a reta: era o PID rodando sobre ruído.** O controle rodava a cada volta do \`loop()\`, e entre duas voltas a roda conta 0 ou 1 pulso — a velocidade medida pulava entre zero e valores enormes. Com a malha a **50 Hz fixos**, o desvio máximo caiu para **0,07° a 60% e 0,08° a 40%**, com as rodas terminando a 1 pulso uma da outra em 11 mil. Entraram junto, como proteção para bateria fraca: anti-windup no \`velocity_pid.cpp\` e "nivelar pela roda mais fraca" (se a roda que precisa acelerar está no teto, o alvo das duas desce até ela).
+
+**Roda travada no lugar do homem-morto para movimento com fim.** Com a roda de 60 mm o robô anda ~5 cm/s, e "anda 50 cm" passou a durar mais que os 5 s do homem-morto. Movimento com fim (distância ou ângulo) não é mais cortado por ele; em troca, roda mandada girar que não conta pulso por 1,5 s desliga os motores (\`roda_travada\` na telemetria).
+
+**Odometria do Motion Core:** a pose agora é \`origem: encoder, medida: true\` (os "passos" são pulsos do encoder desde a volta do motor DC). E a orientação tinha dois defeitos que fariam o mapa do Nav2 girar ao contrário: o rumo da bússola entrava cru (ele cresce no sentido horário; o yaw do ROS, no anti-horário) e entrava **mesmo sem calibração**. Agora é a fusão complementar encoder + bússola (τ 2 s), só com \`rumo_valido\`, convertida para ENU.
+
+**Não provado ainda:** a reta e a odometria com a bússola (ela não está calibrada — precisa do robô no chão) e a distância percorrida no chão (o ajuste fino de ~2% vem do LiDAR, em \`odometry_correction_factor\`).
+
+## 31/10 (noite) — CMD_VEL: o corpo passa a falar a língua do Nav2
+
+O Nav2 comanda **velocidade contínua** (v em m/s, w em rad/s), e o firmware só falava "frente ATÉ STOP / gira ATÉ STOP". A ponte antiga traduzia isso em liga-desliga — frente OU giro, nunca curva, ré em passos de 5 cm — e o robô andaria aos trancos.
+
+- **Firmware:** comando \`CMD_VEL\` → cinemática diferencial (cada roda faz v ∓ w·bitola/2), as duas rodas encolhem juntas se a curva pedir mais do que uma alcança, **watchdog próprio de 0,5 s** (o Nav2 manda a 10 Hz), roda travada só conta se a roda foi mandada girar acima de 0,3 rad/s.
+- **PID de velocidade:** os ganhos de setembro eram palpite — pedindo 5 cm/s a roda fazia 3,6 depois de 1 s. Entrou **feedforward proporcional** (0,25 de duty por rad/s) e a integral ficou mais rápida (ki 0,15 → 0,8). Medido com as rodas no ar:
+
+| fase | pedido esq / dir (m/s) | medido |
+|---|---|---|
+| frente | 0,050 / 0,050 | 0,048 / 0,049 |
+| curva | 0,014 / 0,086 | 0,014 / 0,087 |
+| giro | −0,072 / +0,072 | −0,070 / +0,070 |
+| ré | −0,040 / −0,040 | −0,041 / −0,040 |
+
+- **Pi:** \`POST /velocidade\` na webui → \`navigation.comando\` VELOCIDADE → \`NavigationCore.definir_velocidade\` → CMD_VEL, **sem** o \`_aguardar_ocioso\` do joystick (que pararia o robô entre duas mensagens). A ponte \`bridge_cmd_vel.py\` foi reescrita para repassar o Twist a 10 Hz, e o \`docker-compose\` passou a MONTAR \`nav2/src\` em vez de só copiar — mudar uma ponte não exige mais rebuild da imagem de 2,3 GB.
+
+**No chão (dono filmando):** gira uma volta, anda 40 cm, meia volta, volta 40 cm, tudo por \`/velocidade\` com o LiDAR vigiando a frente — "ficou top". A odometria pelos encoders fechou o percurso a 1 cm / 3,5 cm do ponto de partida, virado 175° (ideal 180°).
+
+**MAS ele quase tombou encostando numa parede, e a trava do LiDAR (frente < 45 cm) nunca disparou.** Investigação aberta:
+- o LiDAR está **em cima, a 45 cm do chão** (dono): é cego para tudo mais baixo — rodapé, degrau, cabo, pé de cadeira, a bateria no chão. Isso vale para sempre até existir um sensor baixo (o ToF planejado);
+- em seguida, com o dono andando em volta do robô a ~50 cm, **o LiDAR não mudou nada**: o mais perto ficou fixo em 157 cm, mesmo setor, 20 leituras — com 345 pontos por volta chegando normalmente. A suspeita é o LiDAR não estar enxergando o entorno do robô (montagem, obstrução ou outro lugar). **Até isso ser resolvido, nada anda sozinho.**
+
+## 31/10 (noite, depois) — por que ele batia: o LiDAR media 4x mais longe
+
+Resolvida a investigação aberta acima. Em ordem de descoberta:
+
+**1. A frente do LiDAR estava 255° fora do que o código supunha.** Com os raios agora publicados grau a grau (\`raios_cm\` no \`lidar.scan\`), o robô andou 19 cm e voltou: a direção que encurtou foi 346° na ida e 344° na volta. O código supunha 90 e nunca tinha medido — a trava de colisão vigiava as COSTAS. Novo campo \`lidar.angulo_frente_graus: 345\`; o gerenciador gira tudo antes de publicar, então para todo consumidor 90 continua sendo a frente.
+
+**2. A bússola não calibrava: o módulo não está deitado.** Girando o robô em 8 paradas de 45°, o rumo só pulava entre ~75 e ~270 — um eixo do chip apontava para cima e media o campo vertical. A calibração agora **escolhe os dois eixos que mais variam** no giro e, girando num sentido conhecido, **descobre o sinal** da montagem (o dono avisou que o módulo está de cabeça para baixo). Calibrou pelo cérebro ("Jarvis, calibra a bússola"): campo estável em 21–22 µT girando para todos os lados. A calibração gira a 70% (a 30%, com a roda de 60 mm, nem dava uma volta em 25 s).
+
+**3. O robô girava 1,35x o pedido.** Com a bússola boa: pedido 90°, medido +121/−125; oito passos de 45° somaram 488°. As rodas fazem a velocidade pedida (bancada), então quem erra é a bitola: a **efetiva é 0,27 m** (a fita deu 0,36). Depois: 90° pedidos → 93–97°. Foi isso que fez a "meia volta" do vídeo ser quase uma volta inteira.
+
+**4. O LiDAR lia a distância 4x maior — a causa das batidas.** Ele "nunca viu nada a menos de 1 m" a sessão inteira. Com o robô de frente para uma parede a ~40 cm, ela aparecia a 146; dando ré de 20,4 e 20,8 cm (encoder), a leitura subiu 89,6 e 92,0 — fator 4,4 = 4 / cos(~25°) do raio usado. **O campo de distância do STL-50B2 vem em quartos de milímetro** (a unidade da família Delta-2), e era lido como milímetro: a trava de "50 cm" só disparava com algo a ~12 cm. Corrigido em \`stl50b2.py\` (\`ESCALA_DISTANCIA = 4\`), com teste de regressão. Conferido: parede a ~81 cm → LiDAR 82. Das quatro "faixas cegas", três sumiram (eram efeito da escala).
+
+**Sobra uma faixa cega REAL: 90–104°, bem na frente** — "sem eco" mesmo com a escala certa, então há algo físico a menos de 5 cm do LiDAR tampando 15° da frente. Um objeto fino a 50 cm cabe ali. A conferir no hardware.
+
+Também neste dia: o dono dirigiu o robô pela casa por comandos curtos (girar X°, andar X m), e uma volta "de memória" pela odometria bateu duas vezes — erro que acumula; quem resolve é localizar pelo mapa (SLAM), agora possível com o LiDAR medindo certo.
+
+## 01/11 (tarde e noite) — bateu duas vezes; o freio volta, o EXPLORE desvia, e a frente do LiDAR estava 34° errada
+
+**O que aconteceu.** Em autônomo, a IA escolheu `explorar`, e o robô bateu na cômoda às 16:20. Depois o MANUAL voltou sozinho para o autônomo (a regra dos 3 min), e às 16:26 ele bateu na parede. O LiDAR **mediu** a cômoda chegando (77 → 51 → 41 → 34 → 25 cm), mas três coisas falharam juntas:
+- a trava estava em "só avisa" (`1dd1e89`);
+- o EXPLORE andava 30 cm sem conferir se cabiam: com 25,7 cm livres, mandou 30;
+- o EXPLORE ainda chamava o radar que saiu do robô, e esperava 3 s em cada passo. Era o "anda e para".
+
+**O que mudou** (EDR-0037):
+- trava bloqueando por padrão: 50 cm na frente e atrás, 15 cm no manual nos dois sentidos (decisão do dono);
+- STOP no meio do avanço, watchdog de 0,6 s e frente cega = obstáculo;
+- desvio local no EXPLORE (`desvio_local.py`);
+- velocidade a 30%;
+- a IA só escolhe intenções, sem manobras.
+
+A suíte do Pi deu **1341 passed**. No chão, a primeira decisão da IA com o freio (desviar 150 mm) girou o robô para uma parede a 47 cm, e **a trava recusou o avanço**.
+
+**A frente do LiDAR: `angulo_frente_graus` mudou de 345 para 19.**
+- Foi medida com a parede de frente: reta em 36 pontos, com desvio máximo de 0,5 cm.
+- O dono confirmou com a parede encostada à direita, que aparece em 180°.
+- O 345 de 31/10 pegou a borda da faixa onde o sensor perde parede perto e de frente (~3/4 das varreduras sem eco em 30 s de leitura bruta).
+- Não há peça do robô na visão do LiDAR, então `min_distancia_mm` desceu de 100 para 50.
+- Teste por movimento, com trechos retos no manual: os rumos ficaram entre 74° e 93°, e o melhor trecho deu 79°. Ou seja, o 19 está certo com erro de no máximo ~10°.
+
+**O mapa da webui foi refeito** a pedido do dono: um ponto por grau, a distância em cm escrita a cada 10°, o mouse mostra grau + cm, o robô aparece em escala (39 × 30 cm, LiDAR 8 cm atrás da ponta) e a caixa da trava aparece desenhada. Dono: "agora ficou bom".
+
+**Vision Engine do Pi desligado** (`vision.pi_engine_ativo: false`). Ele lia o stream `:8091`, que não existe mais, e publicava `vision.camera_error` a cada 3 s. As classes escritas com sublinhado (`cell_phone`) agora casam com o nome do YOLO (`cell phone`).
+
+**Bússola congelada desde ~16:10.** `rumo 223.8003` e `campo 9.997 µT` vieram idênticos em todos os pacotes, com o robô girando. Quando a leitura I2C falha, o firmware mantém o último valor e continua dizendo `rumo_valido: true` (`bussola_manager.h:173`). A orientação da posição continua certa pelos encoders. Pendente: cortar a energia do ESP32 e corrigir o firmware para avisar a falha.
+
+**Também neste dia:**
+- A voz não falou no boot. O alto-falante USB apareceu depois da saudação (33 s), e o erro derrubou a conversa. Reiniciado.
+- A câmera do Notebook estava apontada para o teto.

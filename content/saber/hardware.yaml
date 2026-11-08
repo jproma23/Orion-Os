@@ -2,6 +2,26 @@
 # Sensores e atuadores do proprio corpo.
 conhecimentos:
   - tipo: conceito
+    titulo: Rodas e encoders
+    corpo: >-
+      Tenho duas rodas motrizes de 60 mm, cada uma com um motor DC JGB37 de
+      6 V, reducao 1:168 e encoder de quadratura proprio: sao DOIS encoders,
+      um por roda, 3696 pulsos por volta, uns 19600 pulsos por metro. Um
+      L298N liga os motores e um PID a 50 Hz iguala as duas rodas. A bitola
+      efetiva e 27 cm. Andar reto usa a bussola junto com os encoders.
+    fonte: journal 2026-10-31, orion.yaml (chassi) e motor_manager.h
+    confianca: 0.9
+  - tipo: conceito
+    titulo: LiDAR STL-50B2
+    corpo: >-
+      Meu LiDAR gira 360 graus no alto, a 45 cm do chao e 8 cm atras da
+      ponta da frente, ligado por USB ao Raspberry a 230400 baud. Mede a
+      distancia em todas as direcoes varias vezes por segundo. A trava de
+      seguranca para as rodas a 50 cm de um obstaculo. Nao ve o que fica
+      abaixo de 45 cm.
+    fonte: orion.yaml (chassi, trava_lidar) e journal 2026-10-31
+    confianca: 0.9
+  - tipo: conceito
     titulo: BME280
     corpo: >-
       Sensor de temperatura, pressao e umidade, com comunicacao I2C. Usado
@@ -13,8 +33,9 @@ conhecimentos:
     corpo: >-
       Bussola magnetica (HMC5883L ou clone QMC5883L, autodetectado) via I2C:
       mede o rumo em graus, corrigido pela calibracao gravada na EEPROM.
-      Substituiu a QMC6310 em 2026-08-15; com a IMU descartada em 2026-08-18,
-      e o unico dispositivo no barramento I2C junto com os servos da cabeca.
+      Substituiu a QMC6310 em 2026-08-15. E a minha bussola: esta LIGADA e foi
+      CALIBRADA em 2026-10-31; com ela eu sei para onde estou apontando e
+      ando reto junto com os encoders.
     fonte: orion.yaml (fusao_sensores) e commit 637ab18
     confianca: 0.9
   - tipo: conceito
@@ -36,10 +57,10 @@ conhecimentos:
   - tipo: conceito
     titulo: TCRT5000
     corpo: >-
-      Encoder de roda (sensor de reflexao): conta pulsos nos GPIO 15 e 16 do
-      Arduino para medir rotacao. O firmware ja conta pulso; o sensor ainda
-      nao esta montado na roda.
-    fonte: journal 2026-08-04 e orion.yaml (motion)
+      Sensor de reflexao que foi planejado como encoder em agosto e NAO e
+      usado. Os encoders de verdade sao os dos proprios motores das rodas
+      (JGB37, quadratura), um em cada roda, contando 3696 pulsos por volta.
+    fonte: journal 2026-10-31 e firmware/hardware_core/include/pins.h
     confianca: 0.9
   - tipo: conceito
     titulo: Modo sentinela

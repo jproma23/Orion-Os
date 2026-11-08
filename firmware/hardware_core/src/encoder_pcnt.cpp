@@ -1,5 +1,6 @@
 #include "encoder_pcnt.h"
 
+#include <driver/gpio.h>
 #include <driver/pcnt.h>
 
 namespace orion {
@@ -46,6 +47,12 @@ void EncoderPcnt::iniciar(int unidade, int pino)
   canal.counter_h_lim = LIMITE_ALTO;
   canal.counter_l_lim = 0;
   pcnt_unit_config(&canal);
+
+  // Pull-up interno onde existe (GPIO < 34). Nos 34-39 ele nao existe e o
+  // pedido e ignorado - la o resistor tem que ser externo (pins.h).
+  if (pino < 34) {
+    gpio_set_pull_mode(static_cast<gpio_num_t>(pino), GPIO_PULLUP_ONLY);
+  }
 
   // Filtro de glitch (ruido de contato/EMI da escova do motor DC).
   pcnt_set_filter_value(u, 1000);

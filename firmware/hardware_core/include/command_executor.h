@@ -129,6 +129,16 @@ class CommandExecutor {
       return true;
     }
 
+    // CMD_VEL (2026-10-31): velocidade continua do Nav2 - v em m/s, w em
+    // rad/s (convencao ROS). Chega a 10-20 Hz; o MotorManager para sozinho se
+    // ele calar por CMD_VEL_TIMEOUT_MS. Nao usa `velocidade_percent`.
+    if (strcmp(comando, "CMD_VEL") == 0) {
+      _motores.definirVelocidade(payload["v_m_s"] | 0.0f, payload["w_rad_s"] | 0.0f);
+      _estados.transicionarPara(_motores.emMovimento() ? Estado::EXECUTING_MISSION
+                                                       : Estado::IDLE);
+      return true;
+    }
+
     if (strcmp(comando, "STOP") == 0) {
       _motores.parar();
       _estados.transicionarPara(Estado::IDLE);

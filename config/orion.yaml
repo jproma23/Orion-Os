@@ -204,11 +204,20 @@ communication:
 # varre um círculo de ~58,3 cm ao rodar sobre o próprio centro. Decidir
 # "posso girar aqui" olhando só os 50 cm raspa o canto.
 chassi:
-  largura_m: 0.50          # ponto mais largo
+  # MEDIDAS DO DONO, 2026-10-31 (fita metrica, nao suposicao):
+  largura_m: 0.39          # ponto mais largo
   profundidade_m: 0.30
-  altura_m: 0.65           # define por baixo do que ele passa
-  roda_diametro_m: 0.200   # anda 0,6283 m por volta (pi * d)
-  microstep_tb6600: "1/8"  # S1=OFF S2=ON S3=OFF -> 1600 passos/volta
+  altura_m: 0.45           # define por baixo do que ele passa
+  roda_diametro_m: 0.060   # roda motriz de 60 mm: anda 0,1885 m por volta
+  roda_apoio_distancia_m: 0.25  # do eixo das rodas motrizes a roda de apoio
+  # MEDIDAS DO LIDAR (2026-10-31): em cima, a 45 cm do chao (cego para tudo
+  # mais baixo), ~8 cm atras da ponta da frente - com a trava parada, o LiDAR
+  # mediu 48 cm e a fita deu ~40 da ponta ate a parede. Ainda NAO usado em
+  # codigo: quem quiser "X cm do para-choque" soma isto.
+  lidar_altura_m: 0.45
+  lidar_recuo_m: 0.08
+  # TEM que bater com RODA_DIAMETRO_M em firmware/.../motor_manager.h
+  # (tests/unit/test_medidas_corpo.py prende os dois).
   # PENDENTE - medir e preencher:
   #   bitola_m: distância centro a centro das duas rodas. Entra na odometria
   #     diferencial (fusao_sensores.py) e no cálculo de graus por passo.
@@ -225,27 +234,39 @@ chassi:
   #     em toda decisão de parada, e sempre no sentido perigoso.
 
 motion:
-  max_speed_percent: 60
+  # 30 e nao 60 (EDR-0037, 01/11): bateu duas vezes no mesmo dia. Sobe so
+  # depois do teste de frenagem medido com trena.
+  max_speed_percent: 30
+  # TRAVA DO LIDAR (EDR-0037): porteiro de todo comando de roda + STOP no meio
+  # do movimento + watchdog. Numeros do dono, 01/11.
+  trava_lidar:
+    bloquear: true
+    distancia_cm: 50        # frente e tras, modo autonomo
+    piso_manual_cm: 15      # modo manual: obedece, mas nao encosta (frente e tras)
+    meia_largura_cm: 25     # corredor: 39 cm de corpo / 2 + folga
+    idade_max_s: 0.6        # LiDAR publica a cada 0,2 s: 3 varreduras perdidas = STOP
   acceleration_percent: 40
-  # CORRIGIDO 2026-07-29 (era 4000). Derivado, nao digitado:
-  #   1600 passos/volta (TB6600 em 1/8) / (PI * 0,200 m de roda) = 2546
-  # O 4000 vinha de calcular a circunferencia como 2*diametro em vez de
-  # PI*diametro - o robo andava PI/2 = 1,571x mais do que o comandado.
-  # TEM que bater com PASSOS_POR_METRO em firmware/.../motor_manager.h.
-  steps_per_meter: 2546          # base; ajustado pela autocalibracao
+  # PULSOS DE ENCODER POR METRO desde 2026-10-31 (o nome ficou de quando eram
+  # passos de motor de passo). Derivado, nao digitado:
+  #   11 pulsos/volta do motor x 2 bordas x 168 de reducao = 3696 por volta
+  #   3696 / (PI * 0,060 m de roda) = 19608
+  # A reducao 1:168 foi MEDIDA contando voltas da roda (2026-10-31: 35360
+  # pulsos = 9,5 voltas). TEM que bater com PULSOS_POR_METRO em
+  # firmware/.../motor_manager.h (tests/unit/test_medidas_corpo.py prende).
+  # O ajuste fino (~2%) vem do teste no chao, em odometry_correction_factor.
+  steps_per_meter: 19608
 
-  # ENCODER FISICO CANCELADO (decisao do dono 2026-08-17). A odometria e
-  # feita por passos comandados + bussola (fusao_sensores.py); nao ha mais
-  # sensor de roda. GPIO 15/16 que seriam do encoder estao livres em pins.h.
+  # O encoder VOLTOU (motor DC com encoder, 2026-09-13) e conta os pulsos que
+  # vao em passos_esquerda/passos_direita - a pose e MEDIDA da roda.
   odometry_correction_factor: 1.0  # calculado na autocalibracao (Cap 12 s.9)
   autocalibrate_on_first_boot: true
   min_front_distance_cm: 25      # parada reativa (Camada 1)
   min_rear_distance_cm: 20
   mission_timeout_s: 30
-  wheel_base_m: 0.30             # distância entre as rodas (bitola), usada na
-  # odometria diferencial da fusão de sensores (Cap 12 s.8, fusao_sensores.py).
-  # PLACEHOLDER: nenhuma roda/encoder físico está montado ainda nesta fase -
-  # medir com o chassi real e ajustar aqui quando os motores forem montados.
+  wheel_base_m: 0.27             # bitola EFETIVA, medida girando com a bussola
+  # calibrada (2026-10-31): a fita deu 0,36, mas o robo girava 1,35x o pedido.
+  # Entra na odometria diferencial (fusao_sensores.py) e TEM que bater com
+  # BITOLA_M do firmware (test_medidas_corpo.py).
 
 navigation:
   follow_distance_m: 1.2
@@ -316,7 +337,31 @@ lidar:
   port: "/dev/lidar"
   baud_rate: 230400           # MEDIDO: em 115200 nao sai um byte sequer
   setores: 12                 # numero de leques de 360/setores graus
-  min_distancia_mm: 50        # abaixo disso e poeira/no proprio robo
+  # EM QUE ANGULO DO LIDAR FICA A FRENTE DO ROBO (lado da camera). MEDIDO em
+  # 2026-10-31 andando 19 cm para a frente e voltando, com os raios grau a
+  # grau: a direcao que encurtou foi 346 graus na ida e 344 na volta. O codigo
+  # supunha 90 sem nunca ter medido - a trava de colisao vigiava as COSTAS e
+  # o robo quase tombou encostando numa parede. O gerenciador gira tudo para
+  # que, publicado, 90 seja a frente (convencao do projeto: 0 esquerda, 90
+  # frente, 180 direita - sentido conferido girando o robo).
+  # 19 desde 2026-11-01 (noite), MEDIDO e CONFIRMADO PELO DONO ("esta
+  # certinho"). Parede a 30 cm de frente: reta ajustada nos pontos dava a
+  # perpendicular em 124 graus publicados = 19 bruto. Conferido com a parede
+  # encostada a direita: ponto mais perto exatamente em 180 graus. O 345 de
+  # 31/10 era a BORDA da faixa onde o sensor perde a parede perto e de frente
+  # - o raio da frente nao tinha eco e o teste pegou o primeiro visivel.
+  # (255 ficou valendo minutos, por engano de leitura do mapa.)
+  angulo_frente_graus: 19
+  # 100 e nao 50 (2026-10-31): com a escala certa apareceram leituras a 5-6 cm
+  # do centro do LiDAR (39-42 graus, frente-esquerda) - dentro do proprio
+  # robo (cabo/fio perto do sensor). No mapa do Nav2 isso vira "obstaculo
+  # dentro do corpo" e ele recusa andar. Dentro de 10 cm do LiDAR so existe o
+  # robo.
+  # 50 desde 2026-11-01 (noite). Era 100 de manha, por leituras de 5-6 cm
+  # "dentro do robo" - mas 30 s de captura bruta com filtro em 0 nao acharam
+  # NENHUM ponto a menos de 12 cm em 360 graus: nao ha peca do robo na visao
+  # do LiDAR. 100 descartaria parede encostada no para-choque.
+  min_distancia_mm: 50
   max_distancia_mm: 12000     # limite do sensor (12 m)
   # Intensidade do retorno. O COIN-D6 usa 0..63; o STL-50B2 usa 0..255. Com 0
   # aceita tudo nos dois - nao subir sem medir, a escala e diferente.
@@ -468,6 +513,9 @@ vision:
   # --- Vision Engine do Pi (motion_core/vision) -------------------------
   # Caminho do modelo YOLO no Raspberry e URL do stream da propria camera.
   yolo_model_path: "data/modelos/yolov8n.pt"
+  # Engine de visao do PI desligado (2026-11-01): a camera esta no Notebook
+  # e o stream :8091 nao existe mais. true so com camera no Pi.
+  pi_engine_ativo: false
   camera_url_pi: "http://127.0.0.1:8091/stream"
   # FPS pedido ao laco do Pi (0 = sem limite, roda o mais rapido possivel).
   fps_pi: 0
@@ -838,7 +886,7 @@ security:
   child_safe_profile_on_detection: true
 
 behavior:                        # Behavior Core / maestro (EDR-0020)
-  ronda_automatica_intervalo_s: 90  # camera pan-tilt observa o ambiente em modo autonomo
+  ronda_automatica_intervalo_s: 0  # 2026-11-01: desligada - ronda so quando a IA escolher (dono: muito chefe)
   # Conselheiro de IA: o maestro pergunta ao Notebook o que fazer quando
   # esta ocioso. DESLIGADO por padrao desde 2026-07-19, e o motivo importa.
   #
@@ -943,7 +991,23 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     # Repouso, a Vigilancia de obstaculo, o Atender, a Ronda e o
     # AcompanharPessoa nao passam por modelo nenhum. O que para e so a
     # escolha discricionaria "o que eu faco agora, por conta propria".
-    habilitado: false
+    # RELIGADA 2026-11-01 a pedido do dono, com o retrato novo (LiDAR nos 4
+    # lados, bussola, encoder, objetos da camera) e a trava do LiDAR nas
+    # rodas. 300 s e nao 30: a cota gratis do Gemini (500/dia) e dividida com
+    # a conversa - a 30 s ela acabou em 3h30. So dirige em modo AUTONOMO.
+    # RELIGADA 2026-11-01 ~17:20 a pedido do dono, com o freio do EDR-0037
+    # (trava 50 cm, frente cega = obstaculo), o desvio local no EXPLORE, a
+    # frente do LiDAR corrigida (19) e 30% de velocidade. Desligada 16:27
+    # depois de bater na comoda e na parede com a trava em so-avisa.
+    habilitado: true
+    intervalo_s: 300
+    # So INTENCOES (2026-11-01, dono). Fora: andar_mm, girar_*_graus,
+    # desviar_*_mm, avancar, virar_*, manobrar (manobra e do EXPLORE, que
+    # desvia pelo LiDAR) e calibrar_bussola (gira o robo voltas a 70%).
+    # 08/11: sem `observar_ambiente` - era o radar de ultrassom, que saiu do
+    # robo; 251 falhas e 0 sucessos no banco, e a IA o escolhia em laco parado.
+    # O LiDAR ja da a frente o tempo todo (navigation_core._leituras_do_lidar).
+    acoes_permitidas: [explorar, seguir_pessoa, olhar_em_volta, parar, fotografar, acender_luz, apagar_luz, ligar_ventilador, desligar_ventilador]
     prioridade: 40
     # A CADENCIA TEM DE CABER NO ORCAMENTO DO PROVEDOR, e este numero mudou
     # de significado quando o provedor mudou.

@@ -55,7 +55,7 @@ internet estar de pe. Todo o resto deste catalogo passa pelo modelo remoto;
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 #: Como o modelo pede uma acao: primeira linha da resposta, e so ela.
 MARCADOR = "#acao:"
@@ -138,6 +138,20 @@ class AcaoFalada:
     #: dizer - a resposta do proprio modelo tem preferencia, porque ela sabe
     #: do contexto e esta nao sabe.
     resposta: str = "Feito."
+    #: O resto do COMMAND que vai ao firmware junto do `comando` (2026-10-31).
+    #: Ate aqui ia so o nome, e "anda para frente" virava MOVE_FORWARD sem
+    #: fim: o robo andava ate alguem mandar parar - ou ate o homem-morto do
+    #: firmware cortar 5 s depois. Todo movimento falado agora tem MEDIDA.
+    parametros: dict = field(default_factory=dict)
+    #: Qual parametro o NUMERO falado substitui ("anda 30 centimetros" ->
+    #: distancia_cm=30). Vazio = a acao nao aceita numero.
+    parametro_numerico: str = ""
+    #: Teto do numero falado. Pedido acima disto vira o teto, e nao recusa:
+    #: "anda 10 metros" anda o maximo e o robo diz o que fez.
+    maximo: float = 0.0
+    #: -1 quando o numero falado e sempre positivo mas o firmware quer o
+    #: sinal (re = distancia negativa).
+    sinal: float = 1.0
 
 
 _CATALOGO: tuple[AcaoFalada, ...] = (
@@ -232,23 +246,82 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         comando="SCAN_FRONT",
         resposta="Varrendo a frente.",
     ),
+    # ---- O CORPO ANDANDO (2026-10-31) -------------------------------------
+    # Pedido do dono: "quando solicita q ele faca um movimento ele deve saber
+    # executar". Todo movimento tem MEDIDA e termina sozinho - nenhum anda
+    # "ate alguem mandar parar". Quem segura a reta e o firmware (bussola +
+    # encoder); quem confere se andou de verdade e o LiDAR, depois.
+    #
+    # Numero opcional depois do nome: `#acao:andar_para_frente 30` = 30 cm.
+    # Sem numero vale o padrao dos `parametros`. Velocidade 40%: a bateria
+    # de 10 V num motor de 6 V nao pode ir a 100% (medido na bancada).
     AcaoFalada(
         nome="andar_para_frente",
-        descricao="andar para a frente, seguir em frente",
-        comando="MOVE_FORWARD",
+        descricao=(
+            "andar para a frente (o lado da camera). Escreva depois do nome "
+            "quantos CENTIMETROS, se a pessoa disse (ex.: 30); sem numero "
+            "voce anda 50 cm. Maximo 200 cm por vez"
+        ),
+        comando="MOVE_DISTANCE",
+        parametros={"distancia_cm": 50.0, "velocidade_percent": 40.0},
+        parametro_numerico="distancia_cm",
+        maximo=200.0,
         resposta="Indo para frente.",
     ),
     AcaoFalada(
+        nome="andar_para_tras",
+        descricao=(
+            "andar de re, para tras. Escreva os CENTIMETROS depois do nome, se "
+            "a pessoa disse; sem numero voce recua 30 cm. Maximo 100 cm: "
+            "atras de voce nao ha olho nenhum alem do LiDAR"
+        ),
+        comando="MOVE_DISTANCE",
+        parametros={"distancia_cm": -30.0, "velocidade_percent": 35.0},
+        parametro_numerico="distancia_cm",
+        maximo=100.0,
+        sinal=-1.0,
+        resposta="Indo para tras.",
+    ),
+    AcaoFalada(
         nome="virar_esquerda",
-        descricao="girar o corpo inteiro no lugar para a esquerda (o robo vira, nao so a cabeca)",
+        descricao=(
+            "girar o corpo inteiro no lugar para a esquerda (o robo vira, nao "
+            "so a cabeca). Escreva os GRAUS depois do nome, se a pessoa disse; "
+            "sem numero voce gira 90. Meia volta = 180"
+        ),
         comando="TURN_LEFT",
+        parametros={"graus": 90.0, "velocidade_percent": 35.0},
+        parametro_numerico="graus",
+        maximo=360.0,
         resposta="Virando a esquerda.",
     ),
     AcaoFalada(
         nome="virar_direita",
-        descricao="girar o corpo inteiro no lugar para a direita (o robo vira, nao so a cabeca)",
+        descricao=(
+            "girar o corpo inteiro no lugar para a direita (o robo vira, nao "
+            "so a cabeca). Escreva os GRAUS depois do nome, se a pessoa disse; "
+            "sem numero voce gira 90. Meia volta = 180"
+        ),
         comando="TURN_RIGHT",
+        parametros={"graus": 90.0, "velocidade_percent": 35.0},
+        parametro_numerico="graus",
+        maximo=360.0,
         resposta="Virando a direita.",
+    ),
+    AcaoFalada(
+        nome="calibrar_bussola",
+        descricao=(
+            "calibrar a sua bussola: voce gira devagar no proprio eixo por 25 "
+            "segundos e para sozinho. Use quando pedirem, ou quando a bussola "
+            "estiver sem calibracao e voce precisar andar reto. Precisa de "
+            "espaco livre em volta"
+        ),
+        comando="CALIBRATE_COMPASS",
+        # 70% e nao 30%: com a roda de 60 mm (2026-10-31) 30% dava MENOS de
+        # uma volta nos 25 s da coleta, e a bussola precisa ver todos os
+        # lados. A 70% sao ~1,7 volta.
+        parametros={"girar": True, "velocidade_percent": 70.0},
+        resposta="Vou girar devagar por uns 25 segundos para calibrar a bussola.",
     ),
     # ---- O que o catalogo do robo tinha e a voz nao alcancava ------------
     AcaoFalada(
@@ -338,6 +411,12 @@ def _conferir_catalogo() -> None:
                 raise RuntimeError(f"acao {acao.nome!r}: pan {acao.pan} fora dos limites")
             if not TILT_MIN <= acao.tilt <= TILT_MAX:
                 raise RuntimeError(f"acao {acao.nome!r}: tilt {acao.tilt} fora dos limites")
+        if acao.parametro_numerico and (
+            acao.parametro_numerico not in acao.parametros or acao.maximo <= 0
+        ):
+            # Sem padrao, "anda para frente" sem numero mandaria o firmware
+            # andar 0 cm - ou pior, o valor que o firmware tiver de padrao.
+            raise RuntimeError(f"acao {acao.nome!r}: numero sem padrao ou sem teto")
         if acao.entrega != "hardware" and acao.comando:
             # Dois caminhos ate o hardware no mesmo instante, e nenhum jeito de
             # dizer qual chegou primeiro.
@@ -367,6 +446,8 @@ def bloco_para_prompt() -> str:
         "Exemplos:\n"
         f"{MARCADOR}olhar_esquerda\n"
         "Olhando pra esquerda.\n\n"
+        f"{MARCADOR}andar_para_frente 30\n"
+        "Andando trinta centimetros.\n\n"
         "Mas SO anuncie o movimento quando ele foi pedido ou tem a ver com o\n"
         "assunto. Se voce resolveu olhar em volta sozinho no meio de outra\n"
         "conversa, mande a linha da acao e responda o que perguntaram - sem\n"
@@ -390,6 +471,31 @@ def bloco_para_prompt() -> str:
         "procurar uma pessoa, pegar um objeto - diga que ainda nao consegue e\n"
         "ofereca o que da. Nao descreva fazendo."
     )
+
+
+_RE_NUMERO = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def parametros_do_comando(acao: AcaoFalada, argumento: str = "") -> dict:
+    """O que vai ao firmware junto do `comando`, ja com o numero falado.
+
+    O numero vem do ARGUMENTO que o modelo escreveu depois do nome
+    (`#acao:andar_para_frente 30`). Sem numero, vale o padrao. Acima do teto,
+    vale o teto - o robo faz o maximo seguro em vez de recusar. Zero ou nada
+    legivel tambem cai no padrao: "anda zero centimetros" nao e pedido de
+    movimento, e o modelo so escreve a acao quando houve pedido.
+    """
+    parametros = dict(acao.parametros)
+    if not acao.parametro_numerico:
+        return parametros
+    casado = _RE_NUMERO.search(argumento or "")
+    if casado is None:
+        return parametros
+    valor = float(casado.group().replace(",", "."))
+    if valor <= 0:
+        return parametros
+    parametros[acao.parametro_numerico] = acao.sinal * min(valor, acao.maximo)
+    return parametros
 
 
 def extrair(texto: str) -> tuple[AcaoFalada | None, str, str]:

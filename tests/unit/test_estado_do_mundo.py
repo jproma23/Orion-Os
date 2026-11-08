@@ -301,3 +301,26 @@ async def test_deteccao_nao_apaga_a_identidade_ja_conhecida():
     )
 
     assert mundo.retrato().pessoa_nome == "Marah"
+
+
+def test_corredor_ve_caixa_na_frente_e_ignora_parede_ao_lado():
+    from motion_core.behavior.estado_do_mundo import livre_no_corredor
+
+    raios = [None] * 360
+    raios[90] = 50.0   # caixa a 50 cm bem na frente
+    raios[0] = 30.0    # parede a 30 cm a esquerda: fora do corredor da frente
+    assert livre_no_corredor(raios, 90.0, 20.0) == 50.0
+    assert livre_no_corredor(raios, 0.0, 20.0) == 30.0  # mas bate se for para a esquerda
+    assert livre_no_corredor(raios, 180.0, 20.0) is None
+
+
+def test_desvio_diz_quantos_mm_para_cada_lado():
+    from motion_core.behavior.estado_do_mundo import desvio_frontal
+
+    raios = [None] * 360
+    raios[90] = 50.0          # caixa a 500 mm bem na frente
+    assert desvio_frontal(raios) == {"obstaculo_mm": 500, "esquerda_mm": 200.0, "direita_mm": 200.0}
+
+    livre = [None] * 360
+    livre[0] = 30.0           # parede a esquerda nao esta no caminho
+    assert desvio_frontal(livre) is None

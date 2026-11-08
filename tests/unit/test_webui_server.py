@@ -454,6 +454,7 @@ async def test_comando_que_move_exige_sessao_de_fora(cenario, monkeypatch):
     # o TestClient conecta pelo loopback, que é liberado por projeto; fingir que
     # a requisição veio da rede é o que põe o caminho protegido à prova
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
 
     resposta = await http.post("/comando", json={"comando": "MOVE_FORWARD"})
 
@@ -472,6 +473,7 @@ async def test_parar_nunca_exige_senha(cenario, monkeypatch):
     """
     http, bus = cenario
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
     recebidos = []
     bus.subscribe("navigation.comando", lambda e: recebidos.append(e.dados))
 
@@ -487,6 +489,7 @@ async def test_luz_e_ventilador_tambem_passam_sem_senha(cenario, monkeypatch):
     # não movem nada - entram pela mesma porta do STOP
     http, _ = cenario
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
 
     for comando in ("LIGHT_ON", "FAN_OFF"):
         resposta = await http.post("/comando", json={"comando": comando})
@@ -497,6 +500,7 @@ async def test_luz_e_ventilador_tambem_passam_sem_senha(cenario, monkeypatch):
 async def test_trocar_o_volante_exige_sessao_de_fora(cenario, monkeypatch):
     http, _ = cenario
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
 
     resposta = await http.post("/controle", json={"modo": "manual"})
 
@@ -513,6 +517,7 @@ async def test_depois_de_entrar_com_a_senha_o_robo_obedece(cenario, monkeypatch)
     """
     http, bus = cenario
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
     monkeypatch.setenv(VARIAVEL_SENHA_CONFIG, "abre-te-sesamo")
     recebidos = []
     bus.subscribe("navigation.comando", lambda e: recebidos.append(e.dados))
@@ -533,6 +538,7 @@ async def test_depois_de_entrar_com_a_senha_o_robo_obedece(cenario, monkeypatch)
 async def test_senha_errada_nao_abre_a_porta(cenario, monkeypatch):
     http, _ = cenario
     monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+    monkeypatch.setattr(WebUIServer, "_senha_exigida", lambda self: True)
     monkeypatch.setenv(VARIAVEL_SENHA_CONFIG, "abre-te-sesamo")
 
     entrada = await http.post("/api/configuracao/entrar", json={"senha": "chute"})
@@ -563,3 +569,14 @@ async def test_teto_de_sessoes_descarta_a_mais_antiga_e_nao_a_nova(monkeypatch):
     assert "antigo-0" not in servidor._sessoes  # saiu o mais antigo
     # e o novo continua valendo: era ele que o set.pop() podia levar
     assert any(nome.startswith("antigo-") is False for nome in servidor._sessoes)
+
+
+@pytest.mark.asyncio
+async def test_sem_senha_por_padrao_dirige_de_fora(cenario, monkeypatch):
+    """Decisao do dono (2026-11-01): sem senha. De fora da rede, mover passa."""
+    http, _ = cenario
+    monkeypatch.setattr(WebUIServer, "_acesso_local_permitido", staticmethod(lambda r: False))
+
+    resposta = await http.post("/comando", json={"comando": "MOVE_FORWARD"})
+
+    assert resposta.status != 401

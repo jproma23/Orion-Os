@@ -81,6 +81,29 @@ _MODELO: dict[str, tuple[dict[str, bool], dict[str, bool]]] = {
         {"corpo_vivo": True, "frente_livre": True, "bateria_ok": True},
         {},
     ),
+    # Acoes com numero (2026-11-01): mesmas pre/efeitos das antigas que
+    # elas refinam. O GOAP esta desligado por padrao, mas o modelo tem que
+    # cobrir o catalogo inteiro (conferido no import).
+    "andar_mm": (
+        {"corpo_vivo": True, "frente_livre": True, "bateria_ok": True},
+        {},
+    ),
+    "girar_esquerda_graus": (
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
+        {"frente_livre": True, "frente_conhecida": False},
+    ),
+    "girar_direita_graus": (
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
+        {"frente_livre": True, "frente_conhecida": False},
+    ),
+    "desviar_esquerda_mm": (
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
+        {"frente_livre": True, "frente_conhecida": False},
+    ),
+    "desviar_direita_mm": (
+        {"corpo_vivo": True, "frente_conhecida": True, "bateria_ok": True},
+        {"frente_livre": True, "frente_conhecida": False},
+    ),
     "seguir_pessoa": (
         {"corpo_vivo": True, "pessoa_visivel": True, "bateria_ok": True},
         {},

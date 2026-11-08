@@ -29,6 +29,8 @@ from typing import Any
 from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 
+from motion_core.navigation.desvio_local import AVANCAR, GIRAR, escolher_passo
+
 logger = logging.getLogger("motion_core.navigation.navigation_core")
 
 DESTINO_HARDWARE = "hardware_core"
@@ -58,6 +60,10 @@ PAUSA_APOS_SCAN_S = 0.3
 #: faixa de angulos considerada "a frente" nas leituras do radar (Cap 12 s.7
 #: varre 0-180; graus 90 = centro/frente do robo)
 ANGULOS_FRONTAIS = (60, 90, 120)
+#: A varredura vem do LiDAR (ver `_leituras_do_lidar`): cada angulo do radar
+#: antigo e o menor raio nesta janela, e so vale com varredura desta idade.
+JANELA_LEITURA_LIDAR_GRAUS = 15
+IDADE_MAX_LIDAR_PARA_VARREDURA_S = 1.0
 
 #: Quanto o robo anda entre duas varreduras, ao explorar.
 #:
@@ -83,7 +89,27 @@ DISTANCIA_SEGMENTO_EXPLORE_CM = 30.0
 #: deslocamento real nao e medido (nao ha encoder de roda - ver
 #: `fusao_sensores.py`): sem odometria confiavel, quem sabe onde o robo esta e o
 #: radar a cada 30 cm, e nao a conta de passos.
-SEGMENTOS_POR_EXPLORE = 4
+SEGMENTOS_POR_EXPLORE = 40
+#: (2026-11-01 noite) Eram 6 e o trecho acabava em ~30 s; depois o robo ficava
+#: parado ate a proxima consulta da IA (5 min). A IA escolhe EXPLORAR uma vez -
+#: intencao - e o corpo segue andando e desviando ate ficar sem saida, chegar
+#: um comando ou completar os 40 passos.
+#: (2026-11-01) Eram 4 avancos; agora cada passo pode ser um AVANCO ou um GIRO
+#: de desvio (ver desvio_local.py), entao 6 passos cobrem ~4 avancos com dois
+#: desvios no meio.
+
+#: Depois de um giro de desvio, quanto esperar para a varredura do LiDAR ja
+#: refletir a nova direcao. A janela do gerenciador guarda ~3 voltas (~350 ms)
+#: e o minimo-vence faz o obstaculo de antes do giro "assombrar" o angulo
+#: errado ate sair dela.
+ESPERA_VARREDURA_APOS_GIRO_S = 0.6
+#: Varredura mais velha que isto nao serve para decidir um passo.
+IDADE_MAXIMA_VARREDURA_S = 1.5
+#: Quanto esperar o corpo COMECAR um movimento recem-mandado. Logo apos o
+#: envio o estado ainda e IDLE, e `_aguardar_ocioso` passava direto - medido
+#: em 01/11 17:31: dois giros de 120 graus e dois avancos sairam no mesmo
+#: segundo, cada um atropelando o anterior.
+ESPERA_INICIO_MOVIMENTO_S = 1.5
 
 #: comandos manuais que o modo MANUAL repassa direto ao Hardware Core
 #: (Cap 10 s.5) - qualquer outro nome e rejeitado com navigation.error.
@@ -156,6 +182,15 @@ class NavigationCore:
         self._event_bus = event_bus
         self._comm = comm
         self._velocidade_padrao = config_motion["max_speed_percent"]
+        # O DESVIO DO EXPLORE USA OS MESMOS NUMEROS DA TRAVA (2026-11-01): o
+        # limite (50 cm, dono) e a meia-largura do corredor. Se fossem
+        # diferentes, o desvio escolheria um passo que a trava recusa.
+        conf_trava = config_motion.get("trava_lidar", {}) or {}
+        self._limite_desvio_cm = float(conf_trava.get("distancia_cm", 50.0))
+        self._meia_largura_desvio_cm = float(conf_trava.get("meia_largura_cm", 25.0))
+        #: Os 360 raios da ultima varredura (cm ou None), para o desvio local.
+        self._raios_lidar: list | None = None
+        self._raios_recebido_em: float | None = None
         self._distancia_seguranca_frontal_cm = config_motion["min_front_distance_cm"]
         self._timeout_comando_s = config_motion["mission_timeout_s"]
         self._scan_antes_de_segmento = config_navigation["patrol_scan_before_segment"]
@@ -320,6 +355,10 @@ class NavigationCore:
         devolve None e `frente_desconhecida()` passa a valer - exatamente o
         mesmo contrato que o `frontal_sem_eco` do ultrassom tinha.
         """
+        raios = evento.dados.get("raios_cm")
+        if raios and len(raios) == 360:
+            self._raios_lidar = list(raios)
+            self._raios_recebido_em = time.monotonic()
         setores = evento.dados.get("setores")
         if setores is not None:
             self._setores_lidar = setores
@@ -413,6 +452,42 @@ class NavigationCore:
         if self._scan_pendente is not None and not self._scan_pendente.done():
             self._scan_pendente.set_result(evento.dados.get("leituras", []))
 
+    def _leituras_do_lidar(self) -> list[dict[str, Any]] | None:
+        """A varredura da frente tirada do LiDAR, no formato do radar antigo.
+
+        O RADAR NAO EXISTE MAIS (2026-11-08). `SCAN_FRONT` pedia ao firmware a
+        varredura de servo+ultrassom, que saiu do robo em agosto: cada pedido
+        esperava 3 s por um `motion.scan_complete` que nunca vinha. No banco de
+        experiencias, SCAN_FRONT tinha 251 falhas e 0 sucessos; a IA escolhia
+        "observar_ambiente", nada acontecia, a situacao ficava igual e ela
+        escolhia de novo. O LiDAR ja mede os 360 graus o tempo todo - quem
+        varre agora e ele, na hora.
+
+        Cada angulo do radar (60/90/120, 90 = frente) vira o menor raio numa
+        janela de +-JANELA_LEITURA_LIDAR_GRAUS. Janela sem nenhum eco sai
+        `valida: False` - "nao sei", nunca "livre". None quando nao ha
+        varredura recente: ai vale o caminho antigo.
+        """
+        if self._raios_lidar is None or self._raios_recebido_em is None:
+            return None
+        if time.monotonic() - self._raios_recebido_em > IDADE_MAX_LIDAR_PARA_VARREDURA_S:
+            return None
+        leituras: list[dict[str, Any]] = []
+        for angulo in ANGULOS_FRONTAIS:
+            medidas = [
+                self._raios_lidar[(angulo + delta) % 360]
+                for delta in range(-JANELA_LEITURA_LIDAR_GRAUS, JANELA_LEITURA_LIDAR_GRAUS + 1)
+            ]
+            medidas = [m for m in medidas if m is not None]
+            leituras.append(
+                {
+                    "angulo": angulo,
+                    "distancia_cm": min(medidas) if medidas else None,
+                    "valida": bool(medidas),
+                }
+            )
+        return leituras
+
     async def _escanear_a_frente(self) -> list[dict[str, Any]]:
         """Manda SCAN_FRONT e espera o motion.scan_complete de verdade (nao
         so o ACK, que so confirma que a varredura comecou - ver TIMEOUT_SCAN_S).
@@ -437,6 +512,10 @@ class NavigationCore:
         # quem varre quer o dado bom, sempre. Onde a espera ja acontecia antes,
         # esta chamada nao custa nada.
         await self._aguardar_ocioso()
+        leituras_lidar = self._leituras_do_lidar()
+        if leituras_lidar is not None:
+            await self._event_bus.publish("motion.scan_complete", {"leituras": leituras_lidar})
+            return leituras_lidar
         loop = asyncio.get_running_loop()
         self._scan_pendente = loop.create_future()
         await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
@@ -459,6 +538,21 @@ class NavigationCore:
         estado = evento.dados.get("estado")
         if estado:
             self._estado_hardware = estado
+
+    async def _aguardar_movimento_terminar(self) -> None:
+        """Espera o movimento recem-mandado COMECAR e depois TERMINAR.
+
+        `_aguardar_ocioso` sozinho nao basta logo apos um envio: o corpo ainda
+        nao saiu de IDLE e a espera volta na hora. Aqui primeiro se espera o
+        estado sair de IDLE (ate ESPERA_INICIO_MOVIMENTO_S - um giro ou avanco
+        muito curto pode acabar antes de ser visto, e tudo bem), depois que
+        ele volte.
+        """
+        esperado = 0.0
+        while self._estado_hardware != "EXECUTING_MISSION" and esperado < ESPERA_INICIO_MOVIMENTO_S:
+            await asyncio.sleep(INTERVALO_CHECAGEM_OCIOSO_S)
+            esperado += INTERVALO_CHECAGEM_OCIOSO_S
+        await self._aguardar_ocioso()
 
     async def _aguardar_ocioso(self) -> None:
         """Espera o Hardware Core sair de EXECUTING_MISSION antes de mandar
@@ -522,6 +616,15 @@ class NavigationCore:
         que este bloco existe para fechar. Varredura sem uma unica leitura
         valida nao confirma coisa alguma.
         """
+        # CENTRO CEGO NAO CONFIRMA NADA (2026-11-08). Com o centro (90) sem
+        # eco e os lados medindo longe, isto devolvia True - "frente livre" -
+        # e uma parede a 30 cm de frente some do LiDAR em 3 de 4 varreduras
+        # (medido em 01/11). Os lados medidos nao dizem nada sobre o centro.
+        if any(
+            leitura.get("angulo") == 90 and not leitura.get("valida")
+            for leitura in leituras
+        ):
+            return False
         distancias = [
             leitura["distancia_cm"]
             for leitura in leituras
@@ -687,7 +790,11 @@ class NavigationCore:
             # evaporaram sem deixar rastro. Esse continua em WARNING; a rotina
             # do joystick desce para DEBUG, onde da para ler quando se procura.
             acao_anterior = anterior.get("acao")
-            registrar = logger.debug if acao_anterior == "MANUAL" else logger.warning
+            # MANUAL (joystick) e VELOCIDADE (Nav2, 10 Hz) sao fluxos: o novo
+            # sempre substitui o velho, e avisar cada um so encheria o log.
+            registrar = (
+                logger.debug if acao_anterior in ("MANUAL", "VELOCIDADE") else logger.warning
+            )
             registrar(
                 "navegacao: comando %r DESCARTADO sem executar - %r chegou antes "
                 "(o ultimo vence, nao ha fila)",
@@ -716,12 +823,16 @@ class NavigationCore:
                     dados.get("velocidade_percent"),
                     dados.get("distancia_cm"),
                 )
+            elif acao == "VELOCIDADE":
+                await self.definir_velocidade(dados["v_m_s"], dados["w_rad_s"])
             elif acao == "GIRAR":
                 await self.girar(
                     graus=dados["graus"],
                     sentido=dados["sentido"],
                     velocidade_percent=dados.get("velocidade_percent"),
                 )
+            elif acao == "DESVIAR":
+                await self.desviar(lado=dados["lado"], mm=float(dados["mm"]))
             elif acao == "GOTO":
                 await self.executar_goto(
                     graus=dados.get("graus", 0.0),
@@ -838,6 +949,20 @@ class NavigationCore:
 
     # ---------- GIRAR (primitiva de manobra) ----------
 
+    async def definir_velocidade(self, v_m_s: float, w_rad_s: float) -> None:
+        """Velocidade continua do Nav2 -> CMD_VEL no firmware (2026-10-31).
+
+        NAO espera o robo ficar ocioso, ao contrario do `executar_manual`: a
+        10 Hz cada mensagem e a continuacao da anterior, e esperar faria o
+        robo parar entre elas. Quem para e o proprio firmware, se as
+        mensagens pararem de chegar por 0,5 s.
+        """
+        await self._mudar_modo(ModoNavegacao.MANUAL)
+        await self._comm.send(
+            DESTINO_HARDWARE,
+            {"comando": "CMD_VEL", "v_m_s": float(v_m_s), "w_rad_s": float(w_rad_s)},
+        )
+
     async def girar(
         self, graus: float, sentido: str, velocidade_percent: float | None = None
     ) -> None:
@@ -879,6 +1004,26 @@ class NavigationCore:
         )
 
     # ---------- GOTO / segmentos (base tambem usada pelo PATROL) ----------
+
+    async def desviar(self, lado: str, mm: float) -> bool:
+        """Desloca o robo `mm` milimetros para o lado e volta ao rumo (2026-11-01).
+
+        Robo diferencial nao anda de lado: gira 90 graus para o lado, anda o
+        deslocamento e gira 90 de volta. A IA escolhe o lado e o quanto (o
+        retrato da o desvio minimo em mm); aqui so se cumpre. O trecho reto e
+        um GOTO, entao obstaculo no meio encerra o trecho e devolve a decisao.
+        """
+        lado = str(lado).upper()
+        if lado not in SENTIDOS_DE_GIRO:
+            raise ErroNavegacao(f"lado de desvio desconhecido: {lado!r}")
+        volta = "DIREITA" if lado == "ESQUERDA" else "ESQUERDA"
+        await self.girar(90.0, lado)
+        completou = await self.executar_goto(graus=0.0, distancia_cm=abs(mm) / 10.0)
+        await self.girar(90.0, volta)
+        await self._event_bus.publish(
+            "navigation.desvio", {"lado": lado, "mm": abs(mm), "completou": completou}
+        )
+        return completou
 
     async def executar_goto(
         self, graus: float, distancia_cm: float, velocidade_percent: float | None = None
@@ -1130,37 +1275,25 @@ class NavigationCore:
     # ---------- EXPLORE (versao minima - ver docstring do modulo) ----------
 
     async def executar_explore(self) -> None:
-        """Versao minima do Cap 12 s.3: escaneia a frente e anda um segmento
-        curto se estiver livre. Nao ainda um algoritmo real de exploracao de
-        area (mapeamento incremental) - isso fica para o SLAM previsto no
-        Cap 12 s.12 (ORION OS 2.0+) ou uma iteracao futura desta fase."""
-        # INSTRUMENTADO EM 2026-07-30. Medido em producao no mesmo dia: a IA
-        # escolheu `explorar` 15 vezes e o robo nao saiu do lugar (a telemetria
-        # dizia `em_movimento: False` o tempo todo, confirmado de fora pelo
-        # instinto da bussola, que so mede parado). Nao foi possivel dizer ONDE
-        # o comando morria, porque o caminho inteiro daqui ate o MOVE_DISTANCE
-        # nao emitia UMA linha - so falha era registrada, e nao houve falha.
-        #
-        # "Sem erro no log" nao e a mesma coisa que "executou": o caminho feliz
-        # era mudo. Estas quatro linhas trocam a especulacao por leitura.
-        logger.info("explore: comecando - vou escanear a frente")
+        """Explora um trecho DESVIANDO sozinho (2026-11-01).
+
+        Cada passo olha o LiDAR que ja esta na memoria e decide (ver
+        `desvio_local.escolher_passo`): avanca o que cabe, gira para a
+        direcao mais aberta, ou - so quando nenhuma direcao tem espaco -
+        encerra e avisa a IA. A IA escolhe EXPLORAR; o desvio e daqui.
+
+        Ate esta data o trecho andava reto 30 cm por passo sem conferir se
+        cabiam 30 cm, e chamava o radar de servo que saiu do robo
+        (`SCAN_FRONT`): cada passo esperava 3 s por uma resposta que nunca
+        vinha. Com 25,7 cm livres ele mandou 30 e bateu na comoda (log de
+        01/11 16:20); a IA mandou explorar de novo e ele bateu na parede.
+        """
+        logger.info("explore: comecando - desvio local pelo LiDAR")
         await self._mudar_modo(ModoNavegacao.EXPLORE)
 
         for passo in range(1, SEGMENTOS_POR_EXPLORE + 1):
-            # O TRECHO E INTERROMPIVEL A CADA PASSO (2026-07-30, achado em
-            # revisao do proprio trecho que acabou de ser escrito).
-            #
-            # `_executar_pendentes` faz `await` neste metodo inteiro, e o handler
-            # do bus NAO cria tarefa nova enquanto a atual nao termina - ele so
-            # guarda o comando em `_comando_pendente`. Com UM segmento isso era
-            # quase inofensivo (~3 s de janela); com quatro, um STOP do operador
-            # esperaria ate 1,2 m de trecho para ter efeito. Multiplicar o
-            # trecho por 4 multiplicou por 4 o tempo de resposta do botao PARAR.
-            #
-            # Olhar a vaga entre os passos resolve sem fila e sem cancelar
-            # tarefa: quem chegou (STOP, joystick, HOLD) e executado pelo laco
-            # de `_executar_pendentes` assim que este metodo retorna, e o robo
-            # anda no maximo um segmento a mais - nunca o trecho inteiro.
+            # O TRECHO E INTERROMPIVEL A CADA PASSO (2026-07-30): STOP,
+            # joystick ou HOLD que chegaram na vaga encerram o trecho aqui.
             if self._comando_pendente is not None:
                 logger.info(
                     "explore: comando %r chegou - encerrando o trecho no passo %d",
@@ -1169,36 +1302,84 @@ class NavigationCore:
                 )
                 return
 
-            leituras = await self._escanear_a_frente()
-            logger.info(
-                "explore: passo %d/%d - varredura devolveu %d leitura(s); "
-                "frente_desconhecida=%s distancia_frontal=%s",
-                passo,
-                SEGMENTOS_POR_EXPLORE,
-                len(leituras),
-                self.frente_desconhecida(),
-                self._distancia_frontal_atual_cm,
+            idade = (
+                None
+                if self._raios_recebido_em is None
+                else time.monotonic() - self._raios_recebido_em
             )
-            if self._obstaculo_na_varredura(leituras) or self._obstaculo_a_frente():
-                logger.info("explore: obstaculo a frente - encerrando o trecho no passo %d", passo)
-                await self._publicar_obstaculo(contexto="explore")
-                return
-            concluido = await self._executar_segmento(
-                graus=0.0, distancia_cm=DISTANCIA_SEGMENTO_EXPLORE_CM, velocidade_percent=None
-            )
-            logger.info(
-                "explore: passo %d/%d - segmento de %.0f cm %s",
-                passo,
-                SEGMENTOS_POR_EXPLORE,
-                DISTANCIA_SEGMENTO_EXPLORE_CM,
-                "concluido" if concluido else "ABORTADO",
-            )
-            if not concluido:
-                # Segmento abortado ja significa que algo mandou parar - seguir
-                # para o passo seguinte seria insistir contra quem interrompeu.
+            if idade is None or idade > IDADE_MAXIMA_VARREDURA_S:
+                logger.warning(
+                    "explore: sem varredura recente do LiDAR (idade %s) - nao ando as cegas",
+                    "nenhuma" if idade is None else f"{idade:.1f}s",
+                )
+                await self._publicar_obstaculo(contexto="explore", motivo="frente_desconhecida")
                 return
 
-        logger.info(
-            "explore: trecho de ate %.0f cm concluido - devolvendo a decisao a IA",
-            SEGMENTOS_POR_EXPLORE * DISTANCIA_SEGMENTO_EXPLORE_CM,
+            decisao = escolher_passo(
+                self._raios_lidar,
+                limite_cm=self._limite_desvio_cm,
+                passo_max_cm=DISTANCIA_SEGMENTO_EXPLORE_CM,
+                meia_largura_cm=self._meia_largura_desvio_cm,
+            )
+            logger.info(
+                "explore: passo %d/%d - %s %s (%s)",
+                passo,
+                SEGMENTOS_POR_EXPLORE,
+                decisao.acao,
+                "" if decisao.valor is None else f"{decisao.valor:.0f}",
+                decisao.motivo,
+            )
+
+            if decisao.acao == AVANCAR:
+                if not await self._avancar_explore(decisao.valor):
+                    return
+            elif decisao.acao == GIRAR:
+                sentido = "DIREITA" if decisao.valor > 0 else "ESQUERDA"
+                await self.girar(abs(decisao.valor), sentido)
+                await self._aguardar_movimento_terminar()
+                await asyncio.sleep(ESPERA_VARREDURA_APOS_GIRO_S)
+            else:
+                await self._publicar_obstaculo(
+                    contexto="explore",
+                    motivo="obstaculo_frontal",
+                    distancia_cm=decisao.livre_cm,
+                )
+                return
+
+        logger.info("explore: trecho concluido - devolvendo a decisao a IA")
+
+    async def _avancar_explore(self, distancia_cm: float) -> bool:
+        """Um avanco do EXPLORE, ja medido pelo desvio local.
+
+        Nao passa por `_executar_segmento` de proposito: aquele caminho chama
+        o `SCAN_FRONT` (radar que nao existe mais, 3 s de espera por passo) e
+        refaz a checagem de frente com outro limiar. A distancia aqui ja saiu
+        do LiDAR, e a trava do LiDAR no enlace confere de novo e para no meio
+        se algo aparecer.
+        """
+        await self._aguardar_ocioso()
+        await self._event_bus.publish(
+            "navigation.segment_started", {"graus": 0.0, "distancia_cm": distancia_cm}
         )
+        logger.info(
+            "explore: mandando MOVE_DISTANCE %.0f cm a %s%%", distancia_cm, self._velocidade_padrao
+        )
+        try:
+            await self._comm.send(
+                DESTINO_HARDWARE,
+                {
+                    "comando": "MOVE_DISTANCE",
+                    "distancia_cm": distancia_cm,
+                    "velocidade_percent": self._velocidade_padrao,
+                },
+            )
+        except ErroComunicacao as erro:
+            # Inclui a recusa da trava do LiDAR: obstaculo surgiu entre a
+            # decisao e o envio. Nao insiste - devolve a decisao.
+            logger.warning("explore: avanco recusado/nao entregue: %s", erro)
+            return False
+        await self._aguardar_movimento_terminar()
+        await self._event_bus.publish(
+            "navigation.segment_completed", {"graus": 0.0, "distancia_cm": distancia_cm}
+        )
+        return True

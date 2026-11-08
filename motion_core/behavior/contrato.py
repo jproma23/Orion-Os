@@ -59,6 +59,12 @@ class Acao:
     topico: str
     dados: dict = field(default_factory=dict)
     move_rodas: bool = False
+    #: ACAO COM NUMERO (2026-11-01). Nome da chave de `dados` que recebe o
+    #: `valor` que a IA devolve (mm ou graus), multiplicado por `escala`, e o
+    #: teto aceito. None = acao sem numero (as antigas).
+    parametro: str | None = None
+    escala: float = 1.0
+    maximo: float = 0.0
     #: Nome do COMPORTAMENTO do maestro que executa esta acao, quando ela nao
     #: se resolve num unico evento.
     #:
@@ -136,10 +142,63 @@ _CATALOGO: tuple[Acao, ...] = (
     ),
     Acao(
         nome="explorar",
-        descricao="andar um trecho curto a frente, se estiver livre",
+        # 2026-11-01: o EXPLORE agora desvia sozinho pelo LiDAR (desvio_local).
+        descricao="explorar a casa: o corpo anda e desvia sozinho dos obstaculos",
         topico="navigation.comando",
         dados={"acao": "EXPLORE"},
         move_rodas=True,
+    ),
+    # --- ACOES COM NUMERO (2026-11-01) --------------------------------------
+    # O dono: "ela precisa saber quando desviar e o quanto desvia em mm". O
+    # retrato ja da as 8 direcoes e o desvio em mm; estas sao as acoes que
+    # deixam a IA MANDAR esse numero. Verbos de NAVEGACAO (GOTO, GIRAR,
+    # DESVIAR), e nao MANUAL: MANUAL acorda o ControleManual achando que um
+    # humano pegou o joystick (ver NavigationCore.girar).
+    Acao(
+        nome="andar_mm",
+        descricao="andar para a frente VALOR milimetros",
+        topico="navigation.comando",
+        dados={"acao": "GOTO", "graus": 0.0},
+        move_rodas=True,
+        parametro="distancia_cm",
+        escala=0.1,
+        maximo=1500.0,
+    ),
+    Acao(
+        nome="girar_esquerda_graus",
+        descricao="girar no lugar VALOR graus para a esquerda (a bussola confere)",
+        topico="navigation.comando",
+        dados={"acao": "GIRAR", "sentido": "ESQUERDA"},
+        move_rodas=True,
+        parametro="graus",
+        maximo=180.0,
+    ),
+    Acao(
+        nome="girar_direita_graus",
+        descricao="girar no lugar VALOR graus para a direita (a bussola confere)",
+        topico="navigation.comando",
+        dados={"acao": "GIRAR", "sentido": "DIREITA"},
+        move_rodas=True,
+        parametro="graus",
+        maximo=180.0,
+    ),
+    Acao(
+        nome="desviar_esquerda_mm",
+        descricao="deslocar-se VALOR mm para a esquerda e voltar ao rumo",
+        topico="navigation.comando",
+        dados={"acao": "DESVIAR", "lado": "ESQUERDA"},
+        move_rodas=True,
+        parametro="mm",
+        maximo=800.0,
+    ),
+    Acao(
+        nome="desviar_direita_mm",
+        descricao="deslocar-se VALOR mm para a direita e voltar ao rumo",
+        topico="navigation.comando",
+        dados={"acao": "DESVIAR", "lado": "DIREITA"},
+        move_rodas=True,
+        parametro="mm",
+        maximo=800.0,
     ),
     Acao(
         nome="avancar",

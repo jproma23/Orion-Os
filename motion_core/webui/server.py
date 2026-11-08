@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 from aiohttp import web
 
 from motion_core.behavior.behavior_core import MODO_MANUAL, MODOS_DE_CONTROLE
@@ -37,6 +38,13 @@ DIRETORIO_ESTATICO = Path(__file__).parent / "static"
 #: "acesso restrito") - a pedido do usuario, restrito ao proprio
 #: Raspberry, nem o resto da rede local ve essa pagina.
 ENDERECOS_LOCAIS = frozenset({"127.0.0.1", "::1"})
+
+#: De onde vem a imagem da camera (2026-11-01). A DV20 agora mora no USB do
+#: NOTEBOOK e o Vision Core de la e o dono dela; o stream do Pi (:8091) foi
+#: desligado. O Pi so REPASSA o snapshot, para a pagina continuar na mesma
+#: origem - inclusive pelo Tailscale, que nao alcanca o Notebook.
+#: Sobrescreva com `display.web.camera_snapshot_url` no orion.yaml.
+CAMERA_SNAPSHOT_URL_PADRAO = "http://10.20.20.195:8081/camera/snapshot.jpg"
 
 #: Variavel de ambiente com a senha da pagina CONFIGURACAO. Vive em
 #: config/secrets.env (gitignored), NUNCA no codigo: este repositorio e
@@ -129,6 +137,11 @@ TOPICOS_REPASSADOS = (
 COMANDOS_SEM_VOLANTE = frozenset(
     {"STOP", "LIGHT_ON", "LIGHT_OFF", "FAN_ON", "FAN_OFF"}
 )
+
+#: Tetos do `/velocidade` (2026-10-31). Roda de 60 mm a 35 rpm nominais =
+#: 0,11 m/s; girando no lugar, 2 x 0,11 / 0,36 m de bitola = 0,61 rad/s.
+VELOCIDADE_LINEAR_MAX_M_S = 0.11
+VELOCIDADE_ANGULAR_MAX_RAD_S = 0.6
 
 COMANDOS_PERMITIDOS = frozenset(
     {
@@ -336,7 +349,9 @@ class WebUIServer:
         self._app = web.Application(middlewares=[_revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
+        self._app.router.add_get("/camera/snapshot.jpg", self._handler_camera_snapshot)
         self._app.router.add_post("/comando", self._handler_comando)
+        self._app.router.add_post("/velocidade", self._handler_velocidade)
         self._app.router.add_post("/controle", self._handler_controle)
         self._app.router.add_post("/goal_nav2", self._handler_goal_nav2)
         self._app.router.add_post("/cabeca", self._handler_cabeca)
@@ -484,6 +499,44 @@ class WebUIServer:
         await self._event_bus.publish("navigation.comando", {"acao": "MANUAL", **payload})
         return web.json_response({"ok": True, "comando": comando})
 
+    async def _handler_velocidade(self, request: web.Request) -> web.Response:
+        """Velocidade CONTINUA (v em m/s, w em rad/s) - o caminho do Nav2.
+
+        Existe a parte do `/comando` de proposito (2026-10-31). O Nav2 manda
+        velocidade a 10 Hz, e o `/comando` foi feito para o joystick: cada
+        movimento la espera o anterior acabar (`_aguardar_ocioso`) e o
+        vocabulario e discreto (frente ATE STOP, gira ATE STOP). A ponte
+        antiga traduzia v e w nisso e o robo andava aos trancos, sem curva.
+
+        Mesmas regras de quem pode dirigir que o `/comando`. Os tetos sao os
+        do corpo (roda de 60 mm a 35 rpm: ~0,11 m/s); o firmware ainda encolhe
+        as duas rodas juntas se a curva pedir mais que uma roda alcanca.
+        """
+        try:
+            corpo = await request.json()
+            v = float(corpo.get("v_m_s", 0.0))
+            w = float(corpo.get("w_rad_s", 0.0))
+        except Exception:
+            return web.json_response(
+                {"erro": "corpo precisa ser JSON com v_m_s e w_rad_s"}, status=400
+            )
+        if not self._acesso_permitido(request):
+            return web.json_response(
+                {"erro": "entre com a senha para dirigir o robô", "precisa_senha": True},
+                status=401,
+            )
+        if not self.operador_tem_o_volante():
+            return web.json_response(
+                {"erro": "o volante esta com a IA - toque em MANUAL para assumir"},
+                status=409,
+            )
+        v = max(-VELOCIDADE_LINEAR_MAX_M_S, min(v, VELOCIDADE_LINEAR_MAX_M_S))
+        w = max(-VELOCIDADE_ANGULAR_MAX_RAD_S, min(w, VELOCIDADE_ANGULAR_MAX_RAD_S))
+        await self._event_bus.publish(
+            "navigation.comando", {"acao": "VELOCIDADE", "v_m_s": v, "w_rad_s": w}
+        )
+        return web.json_response({"ok": True, "v_m_s": v, "w_rad_s": w})
+
     async def _handler_index(self, request: web.Request) -> web.FileResponse:
         return web.FileResponse(DIRETORIO_ESTATICO / "index.html")
 
@@ -597,6 +650,19 @@ class WebUIServer:
     def _acesso_local_permitido(request: web.Request) -> bool:
         return request.remote in ENDERECOS_LOCAIS
 
+    def _senha_exigida(self) -> bool:
+        """SEM SENHA POR PADRAO (2026-11-01, decisao do dono: "sem senha").
+
+        A senha nunca chegou a ser criada (ORION_SENHA_CONFIG ausente), entao
+        de fora da rede o joystick so devolvia 401 - nada que o dono
+        digitasse entrava. Liberado por padrao; o login continua inteiro no
+        codigo e volta com `display.web.exigir_senha: true` no orion.yaml.
+        Risco aceito: quem estiver no Wi-Fi de casa ou no Tailscale dirige.
+        O STOP nunca exigiu senha e continua assim.
+        """
+        conf_web = self._config.secao("display")["web"] if self._config else {}
+        return bool(conf_web.get("exigir_senha", False))
+
     def _acesso_permitido(self, request: web.Request) -> bool:
         """Do proprio Raspberry, ou com sessao aberta por senha.
 
@@ -604,6 +670,8 @@ class WebUIServer:
         no teclado do robo passou por uma barreira fisica, e exigir senha ali
         so atrapalharia a manutencao.
         """
+        if not self._senha_exigida():
+            return True
         if self._acesso_local_permitido(request):
             return True
         token = request.cookies.get(COOKIE_SESSAO)
@@ -864,6 +932,28 @@ class WebUIServer:
             {"ok": True, "goal": {"x_m": x, "y_m": y, "yaw_rad": yaw}}
         )
 
+    async def _handler_camera_snapshot(self, request: web.Request) -> web.Response:
+        """Repassa o ultimo quadro do Vision Core do Notebook (2026-11-01).
+
+        503 quando o Notebook ou a visao estao fora - a pagina mostra "sem
+        imagem" em vez de travar. Timeout curto: e foto de painel, nao vale
+        segurar a pagina esperando.
+        """
+        conf_web = self._config.secao("display")["web"] if self._config else {}
+        url = conf_web.get("camera_snapshot_url") or CAMERA_SNAPSHOT_URL_PADRAO
+        try:
+            tempo = aiohttp.ClientTimeout(total=2.0)
+            async with aiohttp.ClientSession(timeout=tempo) as sessao:
+                async with sessao.get(url) as resposta:
+                    if resposta.status != 200:
+                        return web.Response(status=503, text="sem imagem da camera")
+                    corpo = await resposta.read()
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return web.Response(status=503, text="camera (Notebook) inacessivel")
+        return web.Response(
+            body=corpo, content_type="image/jpeg", headers={"Cache-Control": "no-store"}
+        )
+
     async def _handler_estado(self, request: web.Request) -> web.Response:
         # O modo entra no MESMO payload que a página já busca, em vez de um
         # endpoint só para ele: assim o botão nunca aparece desenhado num
@@ -877,7 +967,12 @@ class WebUIServer:
         # endereco que ele ja usou para abrir esta pagina. Assim o mesmo
         # dashboard serve na LAN e pelo Tailscale sem reconfiguracao.
         conf_web = self._config.secao("display")["web"] if self._config else {}
-        estado["camera"] = {"porta": conf_web.get("camera_porta")}
+        # `snapshot` (2026-11-01): a imagem vem do Notebook, repassada por
+        # esta mesma porta - ver `_handler_camera_snapshot`.
+        estado["camera"] = {
+            "porta": conf_web.get("camera_porta"),
+            "snapshot": "/camera/snapshot.jpg",
+        }
         # O RETRATO DO MUNDO - o mesmo objeto que alimenta o prompt da IA.
         # None em qualquer campo significa "NAO SEI", nunca "esta livre": o
         # retrato prefere calar a inventar (ver RetratoDoMundo).
@@ -886,6 +981,12 @@ class WebUIServer:
             estado["mundo"] = {
                 "obstaculo_frente_cm": r.obstaculo_frente_cm,
                 "obstaculo_tras_cm": r.obstaculo_tras_cm,
+                "obstaculo_esquerda_cm": r.obstaculo_esquerda_cm,
+                "obstaculo_direita_cm": r.obstaculo_direita_cm,
+                "rumo_graus": r.rumo_graus,
+                "posicao_x_m": r.posicao_x_m,
+                "posicao_y_m": r.posicao_y_m,
+                "objetos_vistos": r.objetos_vistos,
                 "pessoa_presente": r.pessoa_presente,
                 "pessoa_nome": r.pessoa_nome,
                 "telemetria_viva": r.telemetria_viva,

@@ -13,6 +13,8 @@
 #include <WiFi.h>
 #include <Wire.h>
 #include <esp_bt.h>
+#include <driver/gpio.h>
+#include <soc/gpio_periph.h>
 #include <esp_task_wdt.h>
 #include <string.h>
 
@@ -63,6 +65,9 @@ constexpr unsigned long INTERVALO_TELEMETRIA_MOVENDO_MS = 200;
 unsigned long ultimoHeartbeat = 0;
 unsigned long ultimaTelemetria = 0;
 unsigned long ultimoComandoRecebido = 0;
+// O robo esta girando no lugar PARA calibrar a bussola (CALIBRATE_COMPASS
+// com "girar": true). O loop() para as rodas quando a coleta acaba.
+bool girandoParaCalibrar = false;
 
 // Instrumentacao do tempo de volta do loop (2026-07-25). Motivo real: o
 // ultrassom e lido por sondagem, e o eco de um obstaculo a 30 cm dura so
@@ -165,15 +170,167 @@ void responderReturnStatus(const char* origem, const char* idMsg) {
 // pediu acompanha o fim pelos campos `bussola_calibrando`/`bussola_calibrada`
 // da telemetria, que sai a cada 500 ms.
 //
-// Durante a coleta o robo precisa GIRAR para todos os lados - quem comanda
-// isso e o Raspberry (regra 3: o Arduino nunca decide movimento sozinho).
-void responderCalibrarBussola(const char* origem, const char* idMsg) {
+// Durante a coleta o robo precisa GIRAR para todos os lados. Com "girar":
+// true (2026-10-31, pedido do dono: "ensine o robo a calibrar sua bussola
+// atraves de movimentos das rodas") quem gira e ele mesmo: devagar, no
+// proprio eixo, e PARA SOZINHO quando a coleta acaba. A decisao de girar
+// continua sendo do Raspberry (regra 3) - e ele quem manda o "girar"; o
+// firmware so nao precisa de ninguem para lembrar de parar.
+void responderCalibrarBussola(JsonObjectConst p, const char* origem, const char* idMsg) {
   JsonDocument payload;
-  bool ok = bussola.iniciarCalibracao();
+  bool girar = p["girar"] | false;
+  bool ok = bussola.iniciarCalibracao(girar);
+  if (ok && girar) {
+    // Devagar: a bussola le a 10 Hz, e em 25 s a 30% o robo da varias
+    // voltas - amostras de todos os lados, sem borrar.
+    motores.girarContinuo(true, p["velocidade_percent"] | 30.0f);
+    girandoParaCalibrar = true;
+  }
   payload["ok"] = ok;
+  payload["girando"] = girandoParaCalibrar;
   payload["duracao_ms"] = orion::DURACAO_CALIBRACAO_BUSSOLA_MS;
   if (!ok) {
     payload["erro"] = bussola.conectado() ? "calibracao_ja_em_andamento" : "bussola_desconectada";
+  }
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
+// TEST_WHEEL (bancada, 2026-10-25): gira UMA roda em malha aberta e le os
+// dois fios do encoder por amostragem, para provar a fiacao: qual roda o par
+// de IN move, se o canal A conta, se o B conta, e em que ordem os dois
+// chegam (a ordem e o sentido). Bloqueia no maximo 1,2 s - abaixo dos 2 s do
+// watchdog, que ainda assim e alimentado no laco. So para rodas no ar.
+// TEST_WHEEL com "lado": "ambos" (2026-10-31): as duas rodas juntas, com a
+// regra de espelhamento do movimento normal. "sentido" 1 = frente do robo,
+// -1 = re. Responde os pulsos de cada roda - quem olha diz se o robo seria
+// empurrado para a frente e se as duas giram juntas.
+void responderTesteAmbas(JsonObjectConst p, const char* origem, const char* idMsg) {
+  bool frente = (p["sentido"] | 1) >= 0;
+  float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
+  uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
+  int64_t esqIni = motores.pulsosBrutos(true), dirIni = motores.pulsosBrutos(false);
+  motores.testeAmbasMalhaAberta(frente, fracao);
+  unsigned long inicio = millis();
+  while (millis() - inicio < duracaoMs) {
+    esp_task_wdt_reset();
+    delay(5);
+  }
+  motores.parar();
+
+  JsonDocument payload;
+  payload["lado"] = "ambos";
+  payload["sentido"] = frente ? 1 : -1;
+  payload["potencia_percent"] = fracao * 100.0f;
+  payload["duracao_ms"] = duracaoMs;
+  payload["pulsos_esq"] = motores.pulsosBrutos(true) - esqIni;
+  payload["pulsos_dir"] = motores.pulsosBrutos(false) - dirIni;
+  payload["dir_invertido_esq"] = pinos::DIR_INVERTIDO_ESQUERDO;
+  payload["dir_invertido_dir"] = pinos::DIR_INVERTIDO_DIREITO;
+  orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
+void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg) {
+  if (strcmp(p["lado"] | "esq", "ambos") == 0) {
+    responderTesteAmbas(p, origem, idMsg);
+    return;
+  }
+  bool esquerda = strcmp(p["lado"] | "esq", "dir") != 0;
+  bool sentidoIn1 = (p["sentido"] | 1) >= 0;
+  float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
+  uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
+
+  // VARREDURA (2026-10-31): a roda girou e o encoder contou 0, com os fios
+  // parados no nivel do pull-up - cara de fio em OUTRO pino. Com
+  // "varrer": true, o laco abaixo tambem le TODOS os pinos onde um fio de
+  // encoder poderia estar e conta quantas vezes cada um mudou de nivel.
+  // So LE: PIN_INPUT_ENABLE liga o buffer de entrada sem tirar a funcao do
+  // pino (saida de servo, I2C, rele continuam iguais). Os IN do motor ficam
+  // de fora porque o proprio PWM os faz piscar. Rodar uma vez com
+  // potencia 0 (base) e outra girando: o pino que so muda girando e o fio.
+  static const uint8_t PINOS_VARRER[] = {0, 2, 4, 5, 12, 13, 14, 15, 16, 17,
+                                         18, 19, 21, 22, 23, 27, 34, 35};
+  constexpr size_t N_VARRER = sizeof(PINOS_VARRER);
+  const bool varrer = p["varrer"] | false;
+  uint8_t nivelVarrer[N_VARRER] = {0};
+  uint8_t nivelIniVarrer[N_VARRER] = {0};
+  uint32_t mudancasVarrer[N_VARRER] = {0};
+  if (varrer) {
+    for (size_t i = 0; i < N_VARRER; i++) {
+      PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[PINOS_VARRER[i]]);
+      nivelVarrer[i] = nivelIniVarrer[i] =
+          gpio_get_level(static_cast<gpio_num_t>(PINOS_VARRER[i]));
+    }
+  }
+
+  uint8_t pinoA = esquerda ? pinos::ENCODER_ESQ : pinos::ENCODER_DIR;
+  uint8_t pinoB = esquerda ? pinos::ENCODER_ESQ_B : pinos::ENCODER_DIR_B;
+  pinMode(pinoB, pinoB < 34 ? INPUT_PULLUP : INPUT);  // A ja e do PCNT
+
+  int aAnt = digitalRead(pinoA), bAnt = digitalRead(pinoB);
+  int aIni = aAnt, bIni = bAnt;
+  uint32_t bordasA = 0, bordasB = 0, subidaAcomBbaixo = 0, subidaAcomBalto = 0;
+  int64_t pcntIni = motores.pulsosBrutos(esquerda);
+
+  motores.testeMalhaAberta(esquerda, sentidoIn1, fracao);
+  // Le de volta o NIVEL REAL dos dois IN (o pad, nao o registrador): prova
+  // se o ESP32 esta mesmo entregando o sinal, sem precisar de multimetro.
+  uint8_t inAtivo = esquerda ? (sentidoIn1 ? pinos::MOTOR_ESQ_IN1 : pinos::MOTOR_ESQ_IN2)
+                             : (sentidoIn1 ? pinos::MOTOR_DIR_IN3 : pinos::MOTOR_DIR_IN4);
+  uint8_t inOutro = esquerda ? (sentidoIn1 ? pinos::MOTOR_ESQ_IN2 : pinos::MOTOR_ESQ_IN1)
+                             : (sentidoIn1 ? pinos::MOTOR_DIR_IN4 : pinos::MOTOR_DIR_IN3);
+  PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[inAtivo]);
+  PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[inOutro]);
+  uint32_t amostras = 0, ativoAlto = 0, outroAlto = 0;
+  unsigned long inicio = millis();
+  while (millis() - inicio < duracaoMs) {
+    amostras++;
+    ativoAlto += gpio_get_level(static_cast<gpio_num_t>(inAtivo));
+    outroAlto += gpio_get_level(static_cast<gpio_num_t>(inOutro));
+    int a = digitalRead(pinoA), b = digitalRead(pinoB);
+    if (a != aAnt) {
+      bordasA++;
+      if (a == HIGH) (b == LOW ? subidaAcomBbaixo : subidaAcomBalto)++;
+    }
+    if (b != bAnt) bordasB++;
+    aAnt = a; bAnt = b;
+    if (varrer) {
+      for (size_t i = 0; i < N_VARRER; i++) {
+        uint8_t n = gpio_get_level(static_cast<gpio_num_t>(PINOS_VARRER[i]));
+        if (n != nivelVarrer[i]) { mudancasVarrer[i]++; nivelVarrer[i] = n; }
+      }
+    }
+    esp_task_wdt_reset();
+  }
+  motores.parar();
+
+  JsonDocument payload;
+  payload["lado"] = esquerda ? "esq" : "dir";
+  payload["sentido"] = sentidoIn1 ? 1 : -1;
+  payload["potencia_percent"] = fracao * 100.0f;
+  payload["duracao_ms"] = duracaoMs;
+  payload["pino_a"] = pinoA;
+  payload["pino_b"] = pinoB;
+  payload["a_inicio"] = aIni;
+  payload["b_inicio"] = bIni;
+  payload["bordas_a"] = bordasA;
+  payload["bordas_b"] = bordasB;
+  payload["subida_a_com_b_baixo"] = subidaAcomBbaixo;
+  payload["subida_a_com_b_alto"] = subidaAcomBalto;
+  payload["pcnt_a"] = motores.pulsosBrutos(esquerda) - pcntIni;
+  payload["in_ativo"] = inAtivo;
+  payload["in_ativo_alto_pct"] = amostras ? 100.0f * ativoAlto / amostras : -1.0f;
+  payload["in_outro"] = inOutro;
+  payload["in_outro_alto_pct"] = amostras ? 100.0f * outroAlto / amostras : -1.0f;
+  if (varrer) {
+    // "pino": [nivel_inicial, mudancas] - todos, para ver tambem quem ficou parado
+    JsonObject v = payload["varredura"].to<JsonObject>();
+    char chave[4];
+    for (size_t i = 0; i < N_VARRER; i++) {
+      snprintf(chave, sizeof(chave), "%u", PINOS_VARRER[i]);
+      JsonArray par = v[chave].to<JsonArray>();
+      par.add(nivelIniVarrer[i]);
+      par.add(mudancasVarrer[i]);
+    }
   }
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
@@ -189,8 +346,12 @@ void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
     responderReturnStatus(origem, idMsg);
     return;
   }
+  if (strcmp(comando, "TEST_WHEEL") == 0) {
+    responderTesteRoda(msg["payload"], origem, idMsg);
+    return;
+  }
   if (strcmp(comando, "CALIBRATE_COMPASS") == 0) {
-    responderCalibrarBussola(origem, idMsg);
+    responderCalibrarBussola(msg["payload"], origem, idMsg);
     return;
   }
 
@@ -432,6 +593,8 @@ void loop() {
     }
   }
 
+  // A bussola de agora vai para a malha que mantem a reta (motor_manager.h).
+  motores.informarRumo(bussola.rumoValido(), bussola.rumoGraus());
   motores.atualizar();
   dht.atualizarSeParado(!motores.emMovimento());
   // bateria.atualizar();  // ver nota em setup() - pino virou encoder
@@ -450,6 +613,28 @@ void loop() {
       tempoBussolaAcumuladoUs += custo;
       leiturasBussola++;
     }
+  }
+
+  // Giro da calibracao: acaba sozinho quando a coleta acaba (25 s). Se
+  // alguem mandou STOP no meio, as rodas ja pararam e so falta esquecer.
+  if (girandoParaCalibrar) {
+    if (!bussola.calibrando() || !motores.emMovimento()) {
+      motores.parar();
+      girandoParaCalibrar = false;
+    } else {
+      // O homem-morto (5 s sem comando) pararia o giro no meio da coleta.
+      // Aqui ha um fim garantido - a propria calibracao - entao o giro conta
+      // como comando vivo ate ela acabar.
+      ultimoComandoRecebido = millis();
+    }
+  }
+
+  // Movimento com fim (distancia/angulo) nao e cortado pelo homem-morto: ele
+  // para sozinho no alvo, e a roda travada (motor_manager.h) cobre o caso de
+  // a roda nao andar. Com a roda de 60 mm, 50 cm levam ~10 s - mais que os
+  // 5 s do homem-morto, que cortaria todo pedido no meio (2026-10-31).
+  if (motores.movimentoComFim()) {
+    ultimoComandoRecebido = millis();
   }
 
   bool acionouParadaAgora = safety.avaliar(motores, ultimoComandoRecebido);

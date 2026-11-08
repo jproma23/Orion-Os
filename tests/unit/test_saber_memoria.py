@@ -257,3 +257,21 @@ async def test_saber_atualizar_troca_o_texto_e_a_busca(contexto):
     assert achados and "Jarvis" in achados[0]["corpo"]
     # o indice tambem foi regravado: o nome velho nao acha mais nada
     assert await api.saber_buscar("fofao", limite=3) == []
+
+
+@pytest.mark.asyncio
+async def test_saber_palavra_unica_so_no_corpo_nao_responde(contexto):
+    """Achado real (2026-11-01): "precisa da re" virou so "precisa", que
+    estava no CORPO dos principios do dono - e ele leu o registro em voz alta."""
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {
+            "titulo": "Principios intelectuais do dono",
+            "corpo": "Realidade: vale o que funciona. Simplicidade: so o que precisa.",
+        },
+    )
+
+    assert await api.saber_buscar("precisa da re", limite=3) == []
+    # A palavra que E o assunto continua achando.
+    assert len(await api.saber_buscar("principios", limite=3)) == 1

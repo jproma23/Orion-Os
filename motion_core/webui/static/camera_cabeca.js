@@ -59,12 +59,25 @@ function cameraDefinirModo(modo) {
 function montarCamera(camera) {
   const painel = cameraElemento('painel-camera');
   if (!painel) return;             // esta página não tem câmera
-  if (!camera || !camera.porta) {
+  if (!camera || !(camera.snapshot || camera.porta)) {
     painel.hidden = true;
     return;
   }
   painel.hidden = false;
   if (cameraBase) return;          // já montado, não remonta a cada evento
+  if (camera.snapshot) {
+    // A CAMERA MORA NO NOTEBOOK (2026-11-01): o Pi repassa o snapshot na
+    // mesma origem desta pagina. Sem stream MJPEG: uma foto por segundo.
+    cameraBase = 'snapshot';
+    const img = cameraElemento('camera-img');
+    const status = cameraElemento('camera-status');
+    const atualizar = () => { img.src = `${camera.snapshot}?t=${Date.now()}`; };
+    img.onload = () => { if (status) status.textContent = 'ao vivo — 1 foto/s'; };
+    img.onerror = () => { if (status) status.textContent = 'sem imagem (visão do Notebook fora?)'; };
+    atualizar();
+    setInterval(atualizar, 1000);
+    return;
+  }
   cameraBase = `${location.protocol}//${location.hostname}:${camera.porta}`;
   // SEMPRE AO VIVO (2026-08-04). Os botões Foto | Ao vivo saíram da página a
   // pedido do dono; `cameraDefinirModo` fica, porque é ela que monta a URL do

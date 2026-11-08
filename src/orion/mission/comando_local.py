@@ -81,6 +81,15 @@ GATILHOS: dict[str, tuple[str, ...]] = {
         "va para frente", "anda para a frente",
         "ande para frente", "ande pra frente",
     ),
+    "andar_para_tras": (
+        "anda para tras", "anda pra tras", "andar para tras", "da re",
+        "de re", "vai para tras", "vai pra tras", "volta para tras",
+        "ande para tras", "ande pra tras", "recua", "recue",
+    ),
+    "calibrar_bussola": (
+        "calibra a bussola", "calibrar a bussola", "calibre a bussola",
+        "calibra sua bussola", "calibre sua bussola",
+    ),
     "virar_esquerda": (
         "vira a esquerda", "vira para a esquerda", "vira pra esquerda",
         "virar a esquerda", "gira a esquerda", "gira para a esquerda",
