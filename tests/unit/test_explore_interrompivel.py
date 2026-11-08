@@ -31,6 +31,12 @@ class NavFalsa:
         self.giros: list[tuple[float, str]] = []
         self.obstaculos: list[str] = []
         self.parar_no_avanco = None
+        #: (o que aconteceu, valor) na ordem: "olhar" pan, "girar" graus.
+        self.ordem: list[tuple[str, float]] = []
+        self._event_bus = _BusFalso()
+
+    async def _olhar_para(self, graus):
+        self.ordem.append(("olhar", graus))
 
     async def _mudar_modo(self, modo):
         self._modo = modo
@@ -46,6 +52,7 @@ class NavFalsa:
 
     async def girar(self, graus, sentido):
         self.giros.append((graus, sentido))
+        self.ordem.append(("girar", graus if sentido == "DIREITA" else -graus))
         # depois do giro, a frente fica aberta
         self._raios_lidar = _raios(300.0)
         self._raios_recebido_em = time.monotonic()
@@ -57,6 +64,15 @@ class NavFalsa:
         pass
 
     executar_explore = nav.NavigationCore.executar_explore
+    _girar_explore = nav.NavigationCore._girar_explore
+
+
+class _BusFalso:
+    def __init__(self) -> None:
+        self.publicados: list[tuple[str, dict]] = []
+
+    async def publish(self, topico, dados, **kwargs):
+        self.publicados.append((topico, dados))
 
 
 @pytest.fixture(autouse=True)
@@ -147,3 +163,22 @@ async def test_explore_segue_andando_e_desviando_alem_de_6_passos():
     robo.parar_no_avanco = 10
     await robo.executar_explore()
     assert len(robo.avancos) == 10, "o trecho antigo parava no 6o passo"
+
+
+@pytest.mark.asyncio
+async def test_a_cabeca_olha_para_o_lado_do_giro_antes_de_girar_e_volta():
+    """08/11 (dono: auto alinhamento): a camera olha para onde ele vai."""
+    nav_falsa = NavFalsa(_raios(25.0))  # parede a 25 cm: tem que girar
+    nav_falsa._comando_pendente = None
+    await nav_falsa.executar_explore()
+    giro = next(i for i, (o, _) in enumerate(nav_falsa.ordem) if o == "girar")
+    lado = nav_falsa.ordem[giro][1]
+    assert nav_falsa.ordem[giro - 1] == ("olhar", lado)
+    assert nav_falsa.ordem[giro + 1] == ("olhar", 0.0)
+
+
+@pytest.mark.asyncio
+async def test_fim_do_trecho_pede_a_ia_na_hora():
+    nav_falsa = NavFalsa(_raios(300.0))
+    await nav_falsa.executar_explore()
+    assert ("behavior.reconsiderar", {"origem": "explore", "motivo": "trecho concluido"}) in nav_falsa._event_bus.publicados
