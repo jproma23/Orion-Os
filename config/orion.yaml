@@ -656,7 +656,10 @@ voice:
     compression_ratio_threshold: 2.4
     # Diz ao modelo que esta palavra e esperada. Nao inventa nada: desempata
     # a favor dela quando o som esta no limite.
-    hotwords: "Jarvis"
+    # 08/11: tambem os comandos curtos. "me siga" saiu "e ciga", "Missiga" e
+    # "Ouja" em tres testes seguidos - e comando curto e o que menos tem
+    # contexto para o modelo acertar. So desempata; os portoes continuam.
+    hotwords: "Jarvis, me siga, para, vira a esquerda, vira a direita, anda para frente, anda para tras, olha"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
