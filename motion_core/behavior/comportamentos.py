@@ -471,6 +471,10 @@ class IaEstrategica(Comportamento):
         #: jeito que exige decisão agora (hoje: obstáculo à frente).
         self._reconsiderar = asyncio.Event()
         event_bus.subscribe(TOPICO_RECONSIDERAR, self._ao_pedirem_reconsideracao)
+        #: Modo da navegacao (navigation.mode_changed). Em FOLLOW quem pediu foi
+        #: uma pessoa ("Jarvis, me siga") - ver `_consultar`.
+        self._modo_navegacao: str | None = None
+        event_bus.subscribe("navigation.mode_changed", self._ao_mudar_modo_navegacao)
 
     async def _ao_pedirem_reconsideracao(self, evento: Evento) -> None:
         """Alguém viu algo que não dá para esperar 30s - decida agora.
@@ -516,7 +520,18 @@ class IaEstrategica(Comportamento):
             except TimeoutError:
                 pass
 
+    async def _ao_mudar_modo_navegacao(self, evento: Evento) -> None:
+        self._modo_navegacao = str(evento.dados.get("modo") or "") or None
+
     async def _consultar(self) -> None:
+        # ORDEM DE GENTE VENCE A INICIATIVA (teste de 08/11 16:41): seis
+        # segundos depois do "Jarvis, me siga", esta IA decidiu "explorar - sem
+        # ninguem a vista" e trocou o FOLLOW pelo explore. Seguindo alguem, ela
+        # nao decide movimento; volta a decidir quando o follow acabar (perdeu a
+        # pessoa ou alguem disse para).
+        if (self._modo_navegacao or "").upper() == "FOLLOW":
+            logger.debug("IA: seguindo uma pessoa - nao decido movimento agora")
+            return
         nome_ativo = self._maestro.ativo_nome if self._maestro else None
         # Seguranca nao se negocia: com a vigilancia de obstaculo no comando,
         # nem se pergunta a IA (Cap 18, regra 3 do contrato).

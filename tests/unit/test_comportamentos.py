@@ -1293,3 +1293,26 @@ async def test_numero_acima_do_teto_e_cortado_e_sem_numero_nao_anda():
         "girar_direita_graus", 720
     )
     assert await _executar_ia_com("andar_mm", 0) == []
+
+
+
+@pytest.mark.asyncio
+async def test_ia_estrategica_nao_atropela_o_me_siga():
+    """08/11 16:41: 6 s depois do "me siga" a IA decidiu explorar e trocou o
+    FOLLOW pelo explore. Em FOLLOW ela nao consulta."""
+    from motion_core.behavior.comportamentos import IaEstrategica
+    from orion.kernel.event_bus import Evento as _Evento
+
+    class _CommQueFalha:
+        chamadas = 0
+
+        async def request(self, *a, **k):
+            _CommQueFalha.chamadas += 1
+            raise AssertionError("nao era para consultar a IA em FOLLOW")
+
+    ia = IaEstrategica.__new__(IaEstrategica)
+    ia._modo_navegacao = None
+    await IaEstrategica._ao_mudar_modo_navegacao(ia, _Evento(topico="navigation.mode_changed", dados={"modo": "FOLLOW"}))
+    ia._comm = _CommQueFalha()
+    await IaEstrategica._consultar(ia)
+    assert _CommQueFalha.chamadas == 0
