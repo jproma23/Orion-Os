@@ -87,8 +87,9 @@ conhecimentos:
   - tipo: conceito
     titulo: firmware/hardware_core/include/motor_manager.h
     corpo: >-
-      Motor Manager (Cap 10 secao 10) - controle dos 2x NEMA17 via 2x TB6600
-      .. Classes: MotorManager, TipoMovimento. Funcoes: iniciar, habilitar,
+      Motor Manager - controle dos 2 motores DC JGB37-520 (encoder +
+      reducao) via L298N, com PID de velocidade; substituiu os steppers TB6600
+      em 2026-09-13. Classes: MotorManager, TipoMovimento. Funcoes: iniciar, habilitar,
       desabilitar, loop, andarFrente, andarDistancia, girarContinuo, girarGr
       aus.
     fonte: codigo-fonte do ORION (firmware)
@@ -124,9 +125,8 @@ conhecimentos:
   - tipo: conceito
     titulo: firmware/hardware_core/include/sensor_ultrassonico.h
     corpo: >-
-      Driver HC-SR04 nao bloqueante (Cap 10 secao 10).. Classes: Estagio, Se
-      nsorUltrassonico. Funcoes: iniciar, atualizar, REAL, frente, distancia
-      Cm, leituraValida, trigger, alcance.
+      ARQUIVO REMOVIDO: era o driver dos ultrassons HC-SR04, que sairam do
+      robo; quem mede distancia agora e o LiDAR STL-50B2.
     fonte: codigo-fonte do ORION (firmware)
     confianca: 0.9
   - tipo: conceito

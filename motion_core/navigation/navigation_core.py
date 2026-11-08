@@ -60,6 +60,10 @@ PAUSA_APOS_SCAN_S = 0.3
 #: faixa de angulos considerada "a frente" nas leituras do radar (Cap 12 s.7
 #: varre 0-180; graus 90 = centro/frente do robo)
 ANGULOS_FRONTAIS = (60, 90, 120)
+#: A varredura vem do LiDAR (ver `_leituras_do_lidar`): cada angulo do radar
+#: antigo e o menor raio nesta janela, e so vale com varredura desta idade.
+JANELA_LEITURA_LIDAR_GRAUS = 15
+IDADE_MAX_LIDAR_PARA_VARREDURA_S = 1.0
 
 #: Quanto o robo anda entre duas varreduras, ao explorar.
 #:
@@ -448,6 +452,42 @@ class NavigationCore:
         if self._scan_pendente is not None and not self._scan_pendente.done():
             self._scan_pendente.set_result(evento.dados.get("leituras", []))
 
+    def _leituras_do_lidar(self) -> list[dict[str, Any]] | None:
+        """A varredura da frente tirada do LiDAR, no formato do radar antigo.
+
+        O RADAR NAO EXISTE MAIS (2026-11-08). `SCAN_FRONT` pedia ao firmware a
+        varredura de servo+ultrassom, que saiu do robo em agosto: cada pedido
+        esperava 3 s por um `motion.scan_complete` que nunca vinha. No banco de
+        experiencias, SCAN_FRONT tinha 251 falhas e 0 sucessos; a IA escolhia
+        "observar_ambiente", nada acontecia, a situacao ficava igual e ela
+        escolhia de novo. O LiDAR ja mede os 360 graus o tempo todo - quem
+        varre agora e ele, na hora.
+
+        Cada angulo do radar (60/90/120, 90 = frente) vira o menor raio numa
+        janela de +-JANELA_LEITURA_LIDAR_GRAUS. Janela sem nenhum eco sai
+        `valida: False` - "nao sei", nunca "livre". None quando nao ha
+        varredura recente: ai vale o caminho antigo.
+        """
+        if self._raios_lidar is None or self._raios_recebido_em is None:
+            return None
+        if time.monotonic() - self._raios_recebido_em > IDADE_MAX_LIDAR_PARA_VARREDURA_S:
+            return None
+        leituras: list[dict[str, Any]] = []
+        for angulo in ANGULOS_FRONTAIS:
+            medidas = [
+                self._raios_lidar[(angulo + delta) % 360]
+                for delta in range(-JANELA_LEITURA_LIDAR_GRAUS, JANELA_LEITURA_LIDAR_GRAUS + 1)
+            ]
+            medidas = [m for m in medidas if m is not None]
+            leituras.append(
+                {
+                    "angulo": angulo,
+                    "distancia_cm": min(medidas) if medidas else None,
+                    "valida": bool(medidas),
+                }
+            )
+        return leituras
+
     async def _escanear_a_frente(self) -> list[dict[str, Any]]:
         """Manda SCAN_FRONT e espera o motion.scan_complete de verdade (nao
         so o ACK, que so confirma que a varredura comecou - ver TIMEOUT_SCAN_S).
@@ -472,6 +512,10 @@ class NavigationCore:
         # quem varre quer o dado bom, sempre. Onde a espera ja acontecia antes,
         # esta chamada nao custa nada.
         await self._aguardar_ocioso()
+        leituras_lidar = self._leituras_do_lidar()
+        if leituras_lidar is not None:
+            await self._event_bus.publish("motion.scan_complete", {"leituras": leituras_lidar})
+            return leituras_lidar
         loop = asyncio.get_running_loop()
         self._scan_pendente = loop.create_future()
         await self._comm.send(DESTINO_HARDWARE, {"comando": "SCAN_FRONT"})
@@ -572,6 +616,15 @@ class NavigationCore:
         que este bloco existe para fechar. Varredura sem uma unica leitura
         valida nao confirma coisa alguma.
         """
+        # CENTRO CEGO NAO CONFIRMA NADA (2026-11-08). Com o centro (90) sem
+        # eco e os lados medindo longe, isto devolvia True - "frente livre" -
+        # e uma parede a 30 cm de frente some do LiDAR em 3 de 4 varreduras
+        # (medido em 01/11). Os lados medidos nao dizem nada sobre o centro.
+        if any(
+            leitura.get("angulo") == 90 and not leitura.get("valida")
+            for leitura in leituras
+        ):
+            return False
         distancias = [
             leitura["distancia_cm"]
             for leitura in leituras

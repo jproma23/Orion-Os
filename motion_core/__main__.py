@@ -435,6 +435,7 @@ async def principal() -> None:
     # chega ao ESP32 se o corredor a frente (ou atras) estiver livre. Ver
     # motion_core/navigation/trava_lidar.py.
     conf_trava = config_motion.get("trava_lidar", {})
+    chassi = config.secao("chassi") or {}
     # EDR-0037 (01/11 tarde): BLOQUEIA por padrao - um yaml sem a chave fica
     # no lado seguro. 50 cm frente/tras no autonomo, piso de 15 cm no manual.
     trava_lidar = TravaLidar(
@@ -444,6 +445,12 @@ async def principal() -> None:
         idade_max_s=float(conf_trava.get("idade_max_s", 0.6)),
         bloquear=bool(conf_trava.get("bloquear", True)),
         piso_manual_cm=float(conf_trava.get("piso_manual_cm", 15.0)),
+        # 08/11: ponto com avanco menor que isto e o proprio corpo, nao
+        # obstaculo (75 paradas por "obstaculo a 1 cm" numa semana).
+        corpo_frente_cm=100.0 * float(chassi.get("lidar_recuo_m", 0.0)),
+        corpo_tras_cm=100.0
+        * max(0.0, float(chassi.get("profundidade_m", 0.0)) - float(chassi.get("lidar_recuo_m", 0.0))),
+        cegas_para_parar=int(conf_trava.get("cegas_para_parar", 2)),
     )
 
     async def _parar_rodas() -> None:

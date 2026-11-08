@@ -987,7 +987,10 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     # So INTENCOES (2026-11-01, dono). Fora: andar_mm, girar_*_graus,
     # desviar_*_mm, avancar, virar_*, manobrar (manobra e do EXPLORE, que
     # desvia pelo LiDAR) e calibrar_bussola (gira o robo voltas a 70%).
-    acoes_permitidas: [explorar, seguir_pessoa, olhar_em_volta, observar_ambiente, parar, fotografar, acender_luz, apagar_luz, ligar_ventilador, desligar_ventilador]
+    # 08/11: sem `observar_ambiente` - era o radar de ultrassom, que saiu do
+    # robo; 251 falhas e 0 sucessos no banco, e a IA o escolhia em laco parado.
+    # O LiDAR ja da a frente o tempo todo (navigation_core._leituras_do_lidar).
+    acoes_permitidas: [explorar, seguir_pessoa, olhar_em_volta, parar, fotografar, acender_luz, apagar_luz, ligar_ventilador, desligar_ventilador]
     prioridade: 40
     # A CADENCIA TEM DE CABER NO ORCAMENTO DO PROVEDOR, e este numero mudou
     # de significado quando o provedor mudou.

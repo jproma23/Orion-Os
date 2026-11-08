@@ -38,6 +38,17 @@ comando, para nao confundir "ainda nao comecou" com "ja acabou"). Antes so
 STOP/CMD_VEL o encerravam: depois de um MOVE_DISTANCE para a frente, um giro
 perto da parede seria parado pela trava.
 
+O PROPRIO CORPO NAO E OBSTACULO (2026-11-08). O LiDAR fica 8 cm atras da
+ponta da frente (`chassi.lidar_recuo_m`) e 22 cm a frente da traseira. Um
+ponto com avanco menor que isso, dentro do corredor, esta DENTRO da carcaca
+ou ao lado dela - nunca a frente. Medido em 08/11: 75 paradas em uma semana
+por "obstaculo a 1 cm para frente", o robo so girava no lugar. `corpo_*_cm`
+descarta esses pontos.
+
+FRENTE CEGA NO MEIO DO AVANCO pede `cegas_para_parar` varreduras seguidas
+(2 = ~0,4 s, ~3 cm a 30%). Uma varredura cega solta no arranque parava o
+robo (13 paradas em 08/11). Para SAIR andando continua valendo uma so.
+
 LIMITE FISICO QUE ELA NAO RESOLVE: o LiDAR varre um plano a
 `lidar_altura_m` do chao. O que for mais baixo (pe de cama, caixa,
 brinquedo) ele nao ve, e esta trava tambem nao.
@@ -101,8 +112,16 @@ class TravaLidar:
         relogio=time.monotonic,
         bloquear: bool = True,
         piso_manual_cm: float = 15.0,
+        corpo_frente_cm: float = 0.0,
+        corpo_tras_cm: float = 0.0,
+        cegas_para_parar: int = 1,
     ) -> None:
         self._bloquear = bloquear
+        #: Do LiDAR ate a ponta do corpo em cada sentido: ponto com avanco
+        #: menor que isto e o proprio robo (ou esta ao lado dele).
+        self._corpo_cm = {FRENTE: corpo_frente_cm, TRAS: corpo_tras_cm}
+        self._cegas_para_parar = max(1, int(cegas_para_parar))
+        self._cegas_seguidas = 0
         self._distancia_cm = distancia_cm
         self._piso_manual_cm = piso_manual_cm
         #: Modo de controle do maestro ("autonomo" / "manual"). No manual vale
@@ -153,6 +172,7 @@ class TravaLidar:
     def _marcar_em_curso(self, sentido: str) -> None:
         self._sentido_em_curso = sentido
         self._comando_em_curso_em = self._relogio()
+        self._cegas_seguidas = 0
 
     @property
     def limite_cm(self) -> float:
@@ -208,6 +228,7 @@ class TravaLidar:
         """Menor avanco (cm, ao longo do movimento) ate um ponto dentro do
         corredor do robo. None se o corredor esta livre ate onde ele mede."""
         eixo = ANGULO_DO_SENTIDO[sentido]
+        corpo = self._corpo_cm[sentido]
         menor: float | None = None
         for angulo, distancia in enumerate(self._raios_cm or ()):
             if distancia is None:
@@ -215,7 +236,7 @@ class TravaLidar:
             desvio = math.radians(angulo - eixo)
             avanco = distancia * math.cos(desvio)
             lateral = abs(distancia * math.sin(desvio))
-            if avanco > 0 and lateral < self._meia_largura_cm:
+            if avanco > corpo and lateral < self._meia_largura_cm:
                 if menor is None or avanco < menor:
                     menor = avanco
         return menor
@@ -232,6 +253,12 @@ class TravaLidar:
         if sentido is None:
             return
         motivo = self._bloqueio(sentido)
+        if motivo is not None and motivo.startswith("frente cega"):
+            self._cegas_seguidas += 1
+            if self._cegas_seguidas < self._cegas_para_parar:
+                return
+        else:
+            self._cegas_seguidas = 0
         if motivo is not None and self._parar is not None and self._bloquear:
             logger.warning("trava do LiDAR PAROU o movimento em curso: %s", motivo)
             self._sentido_em_curso = None

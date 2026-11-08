@@ -885,3 +885,47 @@ async def test_varredura_sem_eco_mantem_o_sensor_vivo(cenario):
 
     assert cenario.nav.frente_desconhecida()
     assert cenario.nav._frontal_sensor_ok is True
+
+
+# --- 08/11: a varredura da frente vem do LiDAR, nao do radar que saiu ---
+
+
+async def _lidar_raios(cenario, raios) -> None:
+    await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
+    await cenario.bus.aguardar_fila_vazia()
+
+
+@pytest.mark.asyncio
+async def test_varredura_usa_o_lidar_e_nao_manda_scan_front(cenario):
+    """SCAN_FRONT tinha 251 falhas e 0 sucessos: o radar nao existe mais."""
+    raios = [200.0] * 360
+    raios[92] = 40.0
+    await _lidar_raios(cenario, raios)
+    leituras = await cenario.nav._escanear_a_frente()
+    assert "SCAN_FRONT" not in cenario.comandos_enviados()
+    frente = next(l for l in leituras if l["angulo"] == 90)
+    assert frente == {"angulo": 90, "distancia_cm": 40.0, "valida": True}
+
+
+@pytest.mark.asyncio
+async def test_varredura_do_lidar_sem_eco_e_nao_sei(cenario):
+    raios = [200.0] * 360
+    for angulo in range(75, 106):
+        raios[angulo] = None
+    await _lidar_raios(cenario, raios)
+    leituras = await cenario.nav._escanear_a_frente()
+    frente = next(l for l in leituras if l["angulo"] == 90)
+    assert frente["valida"] is False
+    assert not cenario.nav._varredura_confirma_frente_livre(leituras)
+
+
+@pytest.mark.asyncio
+async def test_lidar_velho_volta_ao_caminho_antigo(cenario, monkeypatch):
+    from motion_core.navigation import navigation_core as nc
+
+    await _lidar_raios(cenario, [200.0] * 360)
+    cenario.nav._raios_recebido_em -= nc.IDADE_MAX_LIDAR_PARA_VARREDURA_S + 1
+    monkeypatch.setattr(nc, "TIMEOUT_SCAN_S", 0.2)
+    monkeypatch.setattr(nc, "PAUSA_APOS_SCAN_S", 0.0)
+    await cenario.nav._escanear_a_frente()
+    assert "SCAN_FRONT" in cenario.comandos_enviados()

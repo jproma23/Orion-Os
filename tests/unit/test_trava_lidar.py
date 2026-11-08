@@ -324,3 +324,84 @@ async def test_frente_fica_cega_no_meio_do_avanco_para():
         cega[angulo] = None
     await _scan(trava, cega)
     assert paradas.vezes == 1
+
+
+# --- 08/11: o proprio corpo nao e obstaculo; frente cega solta nao para ---
+
+
+@pytest.mark.asyncio
+async def test_ponto_dentro_da_carcaca_nao_trava():
+    """Medido em 08/11: 75 paradas por 'obstaculo a 1 cm para frente' - um
+    ponto a 20 cm quase de lado (88 graus do eixo) tem 0,7 cm de avanco. Com o
+    LiDAR 8 cm atras da ponta, ele esta dentro/ao lado da carcaca."""
+    raios = _raios(g2=20.0)  # 88 graus do eixo da frente (90)
+    trava = TravaLidar(EventBus(), relogio=Relogio(), corpo_frente_cm=8.0)
+    await _scan(trava, raios)
+    assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
+
+
+@pytest.mark.asyncio
+async def test_obstaculo_logo_alem_da_ponta_ainda_trava():
+    trava = TravaLidar(EventBus(), relogio=Relogio(), corpo_frente_cm=8.0)
+    await _scan(trava, _raios(g90=10.0))
+    assert "obstaculo a 10 cm" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
+
+
+@pytest.mark.asyncio
+async def test_sem_corpo_configurado_mantem_o_comportamento_antigo():
+    trava = TravaLidar(EventBus(), relogio=Relogio())
+    await _scan(trava, _raios(g2=20.0))
+    assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is not None
+
+
+def _cega():
+    cega = [200.0] * 360
+    for angulo in range(65, 116):
+        cega[angulo] = None
+    return cega
+
+
+@pytest.mark.asyncio
+async def test_uma_varredura_cega_solta_no_avanco_nao_para():
+    relogio = Relogio()
+    trava = TravaLidar(EventBus(), relogio=relogio, cegas_para_parar=2)
+    paradas = _Paradas()
+    trava.ligar_parada(paradas)
+    await _scan(trava, [200.0] * 360)
+    assert trava.motivo_recusa({"comando": "MOVE_CONTINUOUS"}) is None
+    await _scan(trava, _cega())
+    await _scan(trava, [200.0] * 360)
+    await _scan(trava, _cega())
+    assert paradas.vezes == 0
+
+
+@pytest.mark.asyncio
+async def test_duas_varreduras_cegas_seguidas_param():
+    relogio = Relogio()
+    trava = TravaLidar(EventBus(), relogio=relogio, cegas_para_parar=2)
+    paradas = _Paradas()
+    trava.ligar_parada(paradas)
+    await _scan(trava, [200.0] * 360)
+    assert trava.motivo_recusa({"comando": "MOVE_CONTINUOUS"}) is None
+    await _scan(trava, _cega())
+    await _scan(trava, _cega())
+    assert paradas.vezes == 1
+
+
+@pytest.mark.asyncio
+async def test_obstaculo_perto_para_na_hora_mesmo_contando_cegas():
+    relogio = Relogio()
+    trava = TravaLidar(EventBus(), relogio=relogio, cegas_para_parar=2)
+    paradas = _Paradas()
+    trava.ligar_parada(paradas)
+    await _scan(trava, [200.0] * 360)
+    assert trava.motivo_recusa({"comando": "MOVE_CONTINUOUS"}) is None
+    await _scan(trava, _raios(g90=20.0))
+    assert paradas.vezes == 1
+
+
+@pytest.mark.asyncio
+async def test_sair_andando_com_frente_cega_continua_recusado():
+    trava = TravaLidar(EventBus(), relogio=Relogio(), cegas_para_parar=2)
+    await _scan(trava, _cega())
+    assert "frente cega" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
