@@ -390,6 +390,7 @@ class MissionPlanner:
         mover_cabeca: CallbackCabeca | None = None,
         deixar_recado: CallbackRecado | None = None,
         guardar_conhecimento: CallbackConhecimento | None = None,
+        comandar_navegacao=None,
         consultar_internet=None,
         consultar_visao: CallbackVisao | None = None,
         professor=None,
@@ -439,6 +440,9 @@ class MissionPlanner:
         #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
         #: codigo do robo o chamava. Este e o fio que faltava.
         self._guardar_conhecimento = guardar_conhecimento
+        #: Pede a navegacao do Pi (FOLLOW do "me siga", 08/11) - recebe o
+        #: dict de `navigation.comando`.
+        self._comandar_navegacao = comandar_navegacao
         #: Quem diz o que a camera ve AGORA (2026-08-09). None = o robo nao
         #: responde "o que e isso?" por aqui e a pergunta vai para a IA -
         #: que nao ve o frame e inventa. Mesmo contrato dos outros callbacks:
@@ -1012,6 +1016,10 @@ class MissionPlanner:
                 await self._despachar_cabeca(acao)
             elif acao.entrega == "recado":
                 await self._despachar_recado(argumento)
+            elif acao.entrega == "navegacao":
+                if self._comandar_navegacao is None:
+                    raise _SemCaminho("sem callback de navegacao")
+                await self._comandar_navegacao({"acao": "FOLLOW"})
             elif acao.entrega == "internet":
                 # SAI AQUI, e a saida antecipada e o ponto: nas outras acoes
                 # a fala do modelo vence (`falado or acao.resposta`), porque

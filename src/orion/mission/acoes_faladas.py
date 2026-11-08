@@ -84,7 +84,9 @@ SEPARADOR_ARGUMENTO = "|"
 #: Quem pode executar uma acao. Conjunto fechado, conferido no import: uma
 #: entrega escrita errada ("cabeça", com cedilha) cairia em nenhum despachante
 #: e a acao nao faria nada, sem erro nenhum - a falha silenciosa de sempre.
-ENTREGAS = frozenset({"hardware", "cabeca", "recado", "conhecimento", "internet"})
+ENTREGAS = frozenset(
+    {"hardware", "cabeca", "recado", "conhecimento", "internet", "navegacao"}
+)
 
 #: Limites dos servos da cabeca. Os MESMOS numeros do webui/server.py e do
 #: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por
@@ -155,6 +157,16 @@ class AcaoFalada:
 
 
 _CATALOGO: tuple[AcaoFalada, ...] = (
+    AcaoFalada(
+        nome="me_siga",
+        descricao=(
+            "andar atras da pessoa, seguindo ela pela casa e mantendo uns 80 cm; "
+            "use quando pedirem para seguir ou acompanhar. Para parar, a pessoa "
+            "diz 'para'"
+        ),
+        entrega="navegacao",
+        resposta="Estou te seguindo. Quando quiser que eu pare, diga: Jarvis, para.",
+    ),
     # ---- O MUNDO LA FORA (2026-08-07) -----------------------------------
     # Pedido do dono: "o robo vai usar a internet para aprender sobre o
     # mundo" - e a delimitacao dele na mesma conversa: "e nao eventos de

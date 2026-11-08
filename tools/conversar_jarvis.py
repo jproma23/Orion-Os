@@ -391,7 +391,9 @@ async def principal() -> None:
     # vision.person_lost NAO e estrangulado: ele ja e publicado uma unica vez,
     # na transicao, e atrasar "perdi a pessoa" e pior que atrasar "ainda esta
     # aqui".
-    INTERVALO_PRESENCA_S = 1.0
+    # 0,4 s e nao 1 s (08/11): o "me siga" anda pela pessoa, e a camera roda
+    # a 2 quadros/s - a 1/s ele seguia com metade da informacao.
+    INTERVALO_PRESENCA_S = 0.4
     ultimo_repasse_presenca = {"ts": 0.0}
 
     async def _repassar_presenca(evento) -> None:
@@ -460,11 +462,27 @@ async def principal() -> None:
 
     bus.subscribe("vision.person_recognized", _repassar_identidade)
 
-    async def enviar_comando_hardware(comando: str) -> None:
-        """Manda um COMMAND ao Mega pela cadeia TCP->serial e aguarda o ACK."""
+    async def enviar_comando_hardware(comando: str, parametros: dict | None = None) -> None:
+        """Manda um COMMAND ao corpo pela cadeia TCP->serial e aguarda o ACK.
+
+        `parametros` (graus, distancia_cm, velocidade) desde as acoes com numero
+        (a8ec775, 01/11): o planner passou a mandar dois argumentos e este
+        callback continuou aceitando um - "vira 90" e "anda 20 cm" falhavam com
+        TypeError e o robo dizia "nao consegui" (08/11). Os testes usavam um
+        corpo falso que aceitava qualquer coisa.
+        """
         assert comm is not None
-        await comm.send("hardware_core", {"comando": comando})
+        await comm.send("hardware_core", {"comando": comando, **(parametros or {})})
         logger.info("Comando '%s' entregue ao Hardware Core (ACK recebido)", comando)
+
+    async def comandar_navegacao(dados: dict) -> None:
+        """Pede a NAVEGACAO do Pi (nao o corpo direto): "me siga" (08/11).
+
+        O mesmo caminho dos eventos da visao: publica no barramento do Pi.
+        """
+        assert comm is not None
+        await comm.publish("navigation.comando", dict(dados), local=False)
+        logger.info("navegacao pedida ao Pi: %s", dados)
 
     async def mover_cabeca(pan: float, tilt: float) -> None:
         """Move os servos da cabeca a pedido de quem esta CONVERSANDO.
@@ -607,6 +625,7 @@ async def principal() -> None:
         # "vamos inserir conhecimento pra ele" (2026-08-04): o fio que faltava
         # entre a conversa e o vault de longo prazo.
         guardar_conhecimento=guardar_conhecimento,
+        comandar_navegacao=comandar_navegacao,
         # JARVIS Plugins: code_executor, file_operations, system_control, etc.
         jarvis_plugins=get_registry(),
     )
