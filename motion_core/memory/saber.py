@@ -30,6 +30,7 @@ gravar, buscar e conferir cobertura.
 """
 from __future__ import annotations
 
+import math
 import re
 import sqlite3
 import unicodedata
@@ -140,7 +141,12 @@ def _cobertura_ok(consulta: str, titulo: str, corpo: str) -> bool:
         return _palavra_coberta(palavras[0], titulo_alvo)
     alvo = set(re.findall(r"[a-z0-9]+", _sem_acento(f"{titulo} {corpo}")))
     cobertas = sum(1 for p in palavras if _palavra_coberta(p, alvo))
-    return cobertas >= 2
+    # FRASE LONGA PRECISA DE METADE (2026-11-08). "Duas palavras apontam um
+    # assunto" vale para pergunta curta; numa frase de 9 palavras, 2 em comum
+    # e coincidencia. Visto em 01/11: "sensor lida acusa a parede a esquerda,
+    # corrigir mais rpm na roda esquerda" cobriu "sensor" e "roda" e o robo
+    # leu em voz alta a ficha do fusao_sensores.py.
+    return cobertas >= max(2, math.ceil(len(palavras) / 2))
 
 
 #: O que a palavra do registro pode ter A MAIS que a da fala e ainda contar
@@ -148,6 +154,23 @@ def _cobertura_ok(consulta: str, titulo: str, corpo: str) -> bool:
 #: "novo"/"nova"). Era "ate 2 letras quaisquer" e "chama" casava com
 #: "chamada" (2026-10-25) - sufixo de verdade, nao contagem de letras.
 SUFIXOS_FLEXAO = ("", "s", "es", "a", "as", "o", "os")
+
+
+#: Titulo de ficha de codigo: o caminho de um arquivo do repositorio.
+_TITULO_DE_ARQUIVO = re.compile(r"^[\w./-]+\.(py|h|cpp|ino|yaml|yml|js|sh)$")
+
+
+def _ficha_de_codigo(titulo: str) -> bool:
+    """A ficha descreve um ARQUIVO do codigo (content/saber/codigo/).
+
+    Elas existem para o robo se entender por dentro, nao para virar fala: o
+    "Eu ja sei?" responde lendo titulo + corpo, e uma conversa sobre a roda
+    saia como "motion_core/navigation/fusao_sensores.py. Classes: ..." em
+    voz alta (01/11). Fora da resposta falada, sempre - a cada vazamento a
+    lista de palavras vazias ganhava mais uma palavra, e o proximo achava
+    outra.
+    """
+    return bool(_TITULO_DE_ARQUIVO.match(titulo.strip()))
 
 
 def _palavra_coberta(palavra: str, alvo: set[str]) -> bool:
@@ -223,7 +246,8 @@ def buscar(
     adequados = [
         dict(linha)
         for linha in linhas
-        if _cobertura_ok(consulta, str(linha["titulo"] or ""), str(linha["corpo"] or ""))
+        if not _ficha_de_codigo(str(linha["titulo"] or ""))
+        and _cobertura_ok(consulta, str(linha["titulo"] or ""), str(linha["corpo"] or ""))
     ]
     return adequados  # a cobertura ja e a guarda; a nota so ordenou
 

@@ -74,6 +74,7 @@ from typing import Any
 import aiohttp
 
 from orion.communication.protocol import Mensagem, TipoMensagem
+from orion.kernel.tarefas import disparar
 
 logger = logging.getLogger("motion_core.navigation.ponte_corpo_ws")
 
@@ -190,7 +191,7 @@ class TransporteCorpoWS:
         impede o Motion Core de declarar o corpo presente para um firmware
         travado com o TCP de pe.
         """
-        asyncio.create_task(self._laco())
+        disparar(self._laco(), "ponte_corpo_ws")
         limite = asyncio.get_running_loop().time() + 10.0
         while asyncio.get_running_loop().time() < limite:
             if self._ultima_telemetria_s is not None:

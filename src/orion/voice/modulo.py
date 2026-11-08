@@ -20,6 +20,7 @@ from typing import Any
 from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus, Evento
+from orion.kernel.tarefas import disparar
 
 logger = logging.getLogger("orion.voice.modulo")
 
@@ -96,7 +97,7 @@ class ModuloVoz:
         # dentro de `Sintetizador.falar` (2026-08-05, mesma protecao contra
         # o SIGSEGV de duas falas simultaneas) ja garante que isto nao pisa
         # em outra fala em andamento.
-        asyncio.create_task(self._falar_resposta_chat(texto))
+        disparar(self._falar_resposta_chat(texto), "falar_resposta_chat")
 
     async def _falar_resposta_chat(self, texto: str) -> None:
         try:
