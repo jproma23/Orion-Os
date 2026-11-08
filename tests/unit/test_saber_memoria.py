@@ -275,3 +275,31 @@ async def test_saber_palavra_unica_so_no_corpo_nao_responde(contexto):
     assert await api.saber_buscar("precisa da re", limite=3) == []
     # A palavra que E o assunto continua achando.
     assert len(await api.saber_buscar("principios", limite=3)) == 1
+
+
+@pytest.mark.asyncio
+async def test_ficha_de_codigo_nao_vira_fala(contexto):
+    """Achado real (2026-11-01): uma conversa sobre a roda saiu em voz alta
+    como "motion_core/navigation/fusao_sensores.py. Fusao de Sensores..."."""
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {
+            "titulo": "motion_core/navigation/fusao_sensores.py",
+            "corpo": "Fusao de sensores: encoder da roda e bussola. Classes: FusaoSensores.",
+        },
+    )
+    assert await api.saber_buscar("fusao de sensores da roda e bussola", limite=3) == []
+
+
+@pytest.mark.asyncio
+async def test_frase_longa_com_duas_palavras_em_comum_nao_responde(contexto):
+    api, _ = contexto
+    await api.saber_guardar(
+        "conhecimentos",
+        {"titulo": "Rodas e encoders", "corpo": "Cada roda tem um sensor encoder de quadratura."},
+    )
+    fala = "sensor lida acusa a parede a esquerda tem que corrigir na roda ao andar mais rpm"
+    assert await api.saber_buscar(fala, limite=3) == []
+    # A pergunta curta sobre o assunto continua achando.
+    assert len(await api.saber_buscar("sensor da roda", limite=3)) == 1

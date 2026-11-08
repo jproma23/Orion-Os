@@ -39,6 +39,8 @@ import time
 import urllib.request
 from typing import Any
 
+from orion.kernel.tarefas import disparar
+
 logger = logging.getLogger("orion.mission.corpo_agora")
 
 URL_ESTADO_PADRAO = "http://127.0.0.1:8080/estado"
@@ -151,7 +153,7 @@ class CorpoAgora:
         """
         antes = await self._estado()
         await enviar()
-        asyncio.create_task(self._terminar(comando, dict(parametros), antes))
+        disparar(self._terminar(comando, dict(parametros), antes), f"conferir_{comando}")
 
     async def _terminar(self, comando: str, parametros: dict, antes: dict | None) -> None:
         try:

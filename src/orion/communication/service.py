@@ -21,6 +21,7 @@ from orion.communication.protocol import (
 )
 from orion.communication.transport import ErroTransporte, Transporte
 from orion.kernel.event_bus import EventBus, Prioridade
+from orion.kernel.tarefas import disparar
 
 logger = logging.getLogger("orion.communication.service")
 
@@ -126,7 +127,7 @@ class ComunicacaoService:
             except Exception:
                 logger.debug("falha ao fechar link antigo '%s'", nome_peer, exc_info=True)
 
-        asyncio.create_task(_fechar())
+        disparar(_fechar(), f"fechar_link_{nome_peer}")
         logger.info("Link anterior com '%s' descartado (socket e tarefa fechados)", nome_peer)
 
     def definir_porteiro(self, destino: str, porteiro) -> None:

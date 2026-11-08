@@ -24,6 +24,7 @@ from typing import Any
 import urllib.request
 
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
+from orion.kernel.tarefas import disparar
 
 logger = logging.getLogger("motion_core.navigation.nav2_goal")
 
@@ -60,7 +61,7 @@ class Nav2Goal:
         except (KeyError, TypeError, ValueError):
             logger.warning("navigation.goal sem x_m/y_m validos: %r", dados)
             return
-        asyncio.create_task(self._processar_goal(x, y, yaw))
+        disparar(self._processar_goal(x, y, yaw), "nav2_goal")
 
     async def _processar_goal(self, x: float, y: float, yaw: float) -> None:
         agora = asyncio.get_running_loop().time()
