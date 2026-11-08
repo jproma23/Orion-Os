@@ -413,23 +413,56 @@ async def test_patrol_consulta_falhando_nao_muda_comportamento():
         await c.encerrar()
 
 
-@pytest.mark.asyncio
-async def test_follow_gira_em_direcao_a_pessoa_descentralizada(cenario):
-    await cenario.nav.iniciar_follow()
-    await cenario.bus.publish("vision.person_recognized", {"centro_x": 0.9})
+def _cmd_vel(cenario) -> list[tuple[float, float]]:
+    from orion.communication.protocol import Mensagem
+
+    saida = []
+    for bruto in cenario.transporte.enviados:
+        payload = Mensagem.from_bytes(bruto).payload
+        if payload.get("comando") == "CMD_VEL":
+            saida.append((payload["v_m_s"], payload["w_rad_s"]))
+    return saida
+
+
+async def _follow_com_pessoa(cenario, caixa, distancia_cm, pan=0.0):
+    raios = [300.0] * 360
+    for angulo in range(360):
+        raios[angulo] = distancia_cm
+    await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
+    await cenario.bus.publish("motion.pan_tilt", {"pan": pan, "tilt": 0})
     await cenario.bus.aguardar_fila_vazia()
-    assert "TURN_RIGHT" in cenario.comandos_enviados()
+    await cenario.nav.iniciar_follow()
+    await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": caixa})
+    await cenario.bus.aguardar_fila_vazia()
+    await asyncio.sleep(0.5)
 
 
 @pytest.mark.asyncio
-async def test_follow_ignora_pessoa_nao_reconhecida(cenario):
-    """FOLLOW so anda atras de quem o Vision Core reconhece (2026-07-28) -
-    vision.person_detected (qualquer pessoa, reconhecida ou nao) nao deve
-    mover o robo; so vision.person_recognized move."""
-    await cenario.nav.iniciar_follow()
-    await cenario.bus.publish("vision.person_detected", {"caixa": (500, 100, 600, 300)})
-    await cenario.bus.aguardar_fila_vazia()
-    assert cenario.comandos_enviados() == []
+async def test_follow_gira_para_a_pessoa_a_direita(cenario):
+    """Pessoa na borda direita da imagem: gira para a direita (w < 0 no firmware)."""
+    await _follow_com_pessoa(cenario, (560, 100, 640, 400), distancia_cm=200.0)
+    assert any(w < 0 for _, w in _cmd_vel(cenario))
+
+
+@pytest.mark.asyncio
+async def test_follow_anda_quando_a_pessoa_esta_longe_e_a_frente(cenario):
+    await _follow_com_pessoa(cenario, (280, 100, 360, 400), distancia_cm=200.0)
+    assert any(v > 0 for v, _ in _cmd_vel(cenario))
+
+
+@pytest.mark.asyncio
+async def test_follow_para_perto_da_pessoa(cenario):
+    await _follow_com_pessoa(cenario, (280, 100, 360, 400), distancia_cm=60.0)
+    comandos = _cmd_vel(cenario)
+    assert comandos and all(v == 0 for v, _ in comandos)
+
+
+@pytest.mark.asyncio
+async def test_follow_soma_a_cabeca_virada(cenario):
+    """Pessoa no centro da imagem com a cabeca virada 40 graus para a esquerda:
+    ela esta a ESQUERDA do robo - gira para a esquerda (w > 0)."""
+    await _follow_com_pessoa(cenario, (280, 100, 360, 400), distancia_cm=200.0, pan=-40.0)
+    assert any(w > 0 for _, w in _cmd_vel(cenario))
 
 
 @pytest.mark.asyncio

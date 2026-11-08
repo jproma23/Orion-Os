@@ -5,6 +5,7 @@ virar None ("não sei"), nunca continuar sendo servido como se fosse atual.
 """
 from __future__ import annotations
 
+import asyncio
 import time
 
 import pytest
@@ -324,3 +325,91 @@ def test_desvio_diz_quantos_mm_para_cada_lado():
     livre = [None] * 360
     livre[0] = 30.0           # parede a esquerda nao esta no caminho
     assert desvio_frontal(livre) is None
+
+
+# --- 08/11: camera sincronizada ao LiDAR - a IA recebe direcao e distancia prontas ---
+
+
+async def _ver(mundo, classe, centro_x):
+    await mundo._ao_ver_objeto(
+        Evento(topico="vision.object_detected", dados={"classe": classe, "caixa": [centro_x - 20, 100, centro_x + 20, 200]})
+    )
+
+
+@pytest.mark.asyncio
+async def test_objeto_no_centro_com_cabeca_virada_usa_o_angulo_da_cabeca_e_o_lidar():
+    mundo = EstadoDoMundo(EventBus())
+    raios = [300.0] * 360
+    raios[60] = 85.0  # 30 graus a direita? nao: 90 - 30 = 60 e a ESQUERDA
+    raios[120] = 85.0  # 90 + 30 = 120 = 30 graus a DIREITA
+    await mundo._ao_receber_lidar(Evento(topico="lidar.scan", dados={"raios_cm": raios}))
+    await mundo._ao_mover_cabeca(Evento(topico="motion.pan_tilt", dados={"pan": 30, "tilt": 0}))
+    await _ver(mundo, "chair", 320)  # centro da imagem
+    (texto,) = mundo.retrato().objetos_vistos
+    assert texto.startswith("chair (30 graus a direita")
+    assert "a 85 cm pelo LiDAR" in texto
+
+
+@pytest.mark.asyncio
+async def test_objeto_na_borda_da_imagem_soma_o_campo_de_visao():
+    mundo = EstadoDoMundo(EventBus())
+    await _ver(mundo, "cat", 0)  # borda esquerda: -FOV/2
+    (texto,) = mundo.retrato().objetos_vistos
+    assert texto.startswith("cat (30 graus a esquerda")
+
+
+@pytest.mark.asyncio
+async def test_objeto_continua_no_contexto_por_um_minuto_com_a_idade(monkeypatch):
+    from motion_core.behavior import estado_do_mundo as em
+
+    mundo = EstadoDoMundo(EventBus())
+    await _ver(mundo, "tv", 320)
+    instante = mundo._objetos["tv"][1]
+    monkeypatch.setattr(em.time, "monotonic", lambda: instante + 40)
+    (texto,) = mundo.retrato().objetos_vistos
+    assert "ha 40 s" in texto
+    monkeypatch.setattr(em.time, "monotonic", lambda: instante + em.MEMORIA_OBJETOS_S + 1)
+    assert mundo.retrato().objetos_vistos == ()
+
+
+@pytest.mark.asyncio
+async def test_objeto_novo_perto_a_frente_pede_a_ia_agora_uma_vez():
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+    pedidos = []
+
+    async def anotar(evento):
+        pedidos.append(evento.dados)
+
+    bus.subscribe("behavior.reconsiderar", anotar)
+    tarefa = asyncio.create_task(bus.iniciar())
+    raios = [300.0] * 360
+    raios[90] = 70.0
+    await mundo._ao_receber_lidar(Evento(topico="lidar.scan", dados={"raios_cm": raios}))
+    await _ver(mundo, "chair", 320)
+    await _ver(mundo, "chair", 320)  # mesma cadeira no quadro seguinte: nao repete
+    await bus.aguardar_fila_vazia()
+    bus.parar()
+    await tarefa
+    assert pedidos == [{"origem": "camera+lidar", "motivo": "chair a frente a 70 cm"}]
+
+
+@pytest.mark.asyncio
+async def test_objeto_longe_ou_de_lado_nao_pede_pressa():
+    bus = EventBus()
+    mundo = EstadoDoMundo(bus)
+    pedidos = []
+
+    async def anotar(evento):
+        pedidos.append(evento.dados)
+
+    bus.subscribe("behavior.reconsiderar", anotar)
+    tarefa = asyncio.create_task(bus.iniciar())
+    await mundo._ao_receber_lidar(Evento(topico="lidar.scan", dados={"raios_cm": [300.0] * 360}))
+    await _ver(mundo, "tv", 320)  # a frente mas a 3 m
+    await mundo._ao_mover_cabeca(Evento(topico="motion.pan_tilt", dados={"pan": 70}))
+    await _ver(mundo, "cat", 320)  # 70 graus de lado
+    await bus.aguardar_fila_vazia()
+    bus.parar()
+    await tarefa
+    assert pedidos == []

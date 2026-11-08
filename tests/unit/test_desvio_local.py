@@ -6,6 +6,8 @@ O dono: o problema nao e decidir andar, e nao desviar.
 """
 import math
 
+import pytest
+
 from motion_core.navigation.desvio_local import (
     AVANCAR,
     BLOQUEADO,
@@ -95,3 +97,87 @@ def test_frente_meio_cega_com_pontos_longe_nos_cantos_nao_avanca():
     for angulo in range(72, 109):
         raios[angulo] = None
     assert escolher_passo(raios).acao != AVANCAR
+
+
+# --- 08/11: auto alinhamento - meio da passagem, paralelo a parede, meio do corredor ---
+
+from motion_core.navigation.desvio_local import ajuste_de_rumo  # noqa: E402
+
+
+def _paredes(esquerda_cm=None, direita_cm=None, robo_virado_direita_graus=0.0, fundo=None):
+    """Raios de um corredor reto, na convencao do projeto (0 esquerda, 90 frente).
+
+    Coordenadas do robo: x para a esquerda, y para a frente. Com o robo virado
+    para a DIREITA de theta, a direcao do corredor fica theta a esquerda dele:
+    cada parede e a reta x = c + tan(theta)*y. Fundo None = sem eco nas pontas.
+    """
+    m = math.tan(math.radians(robo_virado_direita_graus))
+    raios = [fundo] * 360
+    for angulo in range(360):
+        a = math.radians(angulo)
+        cos_a, sin_a = math.cos(a), math.sin(a)
+        melhor = None
+        for c in (esquerda_cm, None if direita_cm is None else -direita_cm):
+            if c is None:
+                continue
+            den = cos_a - m * sin_a
+            if abs(den) < 1e-9:
+                continue
+            r = c / den
+            if r > 0 and (melhor is None or r < melhor):
+                melhor = r
+        if melhor is not None and melhor < 800:
+            raios[angulo] = round(melhor, 1)
+    return raios
+
+
+def test_paralelo_a_parede_nao_corrige():
+    assert ajuste_de_rumo(_paredes(esquerda_cm=40)) is None
+
+
+def test_virado_para_a_direita_com_parede_a_esquerda_gira_para_a_esquerda():
+    giro, motivo = ajuste_de_rumo(_paredes(esquerda_cm=40, robo_virado_direita_graus=15))
+    assert giro == pytest.approx(-15, abs=1.5)
+    assert "esquerda" in motivo
+
+
+def test_virado_para_a_esquerda_com_parede_a_direita_gira_para_a_direita():
+    giro, _ = ajuste_de_rumo(_paredes(direita_cm=45, robo_virado_direita_graus=-12))
+    assert giro == pytest.approx(12, abs=1.5)
+
+
+def test_no_corredor_vai_para_o_meio():
+    """Paralelo, mas 20 cm mais perto da direita: gira para a esquerda."""
+    giro, motivo = ajuste_de_rumo(_paredes(esquerda_cm=60, direita_cm=20))
+    assert giro < 0
+    assert giro == pytest.approx(-math.degrees(math.atan(20 / 100)), abs=1.5)
+    assert "corredor" in motivo
+
+
+def test_desvio_pequeno_e_ruido():
+    assert ajuste_de_rumo(_paredes(esquerda_cm=40, robo_virado_direita_graus=3)) is None
+
+
+def test_sem_parede_perto_nao_corrige():
+    assert ajuste_de_rumo([300.0] * 360) is None
+    assert ajuste_de_rumo(_paredes(esquerda_cm=150)) is None
+
+
+def test_moveis_soltos_nao_sao_parede():
+    raios = [300.0] * 360
+    for angulo in (340, 350, 0, 10, 20):
+        raios[angulo] = 30.0 + (angulo % 7) * 6  # pontos espalhados, sem reta
+    assert ajuste_de_rumo(raios) is None
+
+
+def test_gira_para_o_meio_da_porta_e_nao_para_a_borda():
+    """Porta a direita: abre de 120 a 160 graus (30 a 70 graus a direita da
+    frente). Antes ele girava para a primeira direcao de 30 em 30 que cabia -
+    a borda; agora para o meio."""
+    raios = [60.0] * 360
+    for angulo in range(120, 161):
+        raios[angulo] = 400.0
+    passo = escolher_passo(raios, limite_cm=50.0, passo_max_cm=30.0, meia_largura_cm=5.0)
+    assert passo.acao == GIRAR
+    assert passo.valor == pytest.approx(50, abs=10)
+    assert "passagem" in passo.motivo
