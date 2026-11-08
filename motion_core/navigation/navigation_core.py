@@ -31,7 +31,7 @@ from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.kernel.event_bus import EventBus, Evento, Prioridade
 from orion.kernel.tarefas import disparar
 
-from motion_core.navigation.desvio_local import AVANCAR, GIRAR, escolher_passo, ajuste_de_rumo
+from motion_core.navigation.desvio_local import AVANCAR, GIRAR, escolher_passo, ajuste_de_rumo, livre_na_direcao
 
 logger = logging.getLogger("motion_core.navigation.navigation_core")
 
@@ -123,6 +123,11 @@ FOLLOW_GRUPO_CM = 15.0              # raios a ate isto do achado sao a mesma pes
 FOLLOW_IDADE_MAX_LIDAR_S = 0.6      # rastro do LiDAR mais velho que isto nao guia
 FOLLOW_SO_LIDAR_MAX_S = 6.0         # sem a camera confirmar ha isto, o LiDAR para de seguir
 FOLLOW_W_PROCURA_RAD_S = 0.35       # giro lento procurando quem sumiu
+FOLLOW_PROCURA_MAX_S = 20.0         # antes de achar a primeira vez: ~uma volta devagar
+FOLLOW_CONFIRMAR_DETECCOES = 2      # so anda depois de a camera ver a pessoa 2 vezes
+FOLLOW_FREIO_CM = 50.0              # freio proprio, em QUALQUER modo (no MANUAL a trava e 15)
+FOLLOW_FOLGA_FREIO_CM = 10.0
+FOLLOW_GIRO_LIVRE_CM = 30.0         # cantos do corpo passam a ~21-29 cm do LiDAR no giro
 LARGURA_QUADRO_PX = 640.0
 #: Campo de visao da DV20 - o MESMO valor da ponte camera->LiDAR do estado do
 #: mundo (motion_core/behavior/estado_do_mundo.py). NAO MEDIDO.
@@ -231,6 +236,8 @@ class NavigationCore:
         self._alvo_lidar: tuple[float, float, float] | None = None
         #: Quando a camera confirmou a pessoa pela ultima vez.
         self._camera_viu_em: float | None = None
+        #: Deteccoes da camera desde o "me siga" - so anda depois de confirmar.
+        self._deteccoes_follow = 0
         #: Ultimo pan da cabeca (graus, + = direita): a pessoa no centro da
         #: imagem com a cabeca virada esta para o lado, nao a frente.
         self._pan_follow_graus = 0.0
@@ -1258,6 +1265,7 @@ class NavigationCore:
         self._alvo_follow = None
         self._alvo_lidar = None
         self._camera_viu_em = None
+        self._deteccoes_follow = 0
         if self._tarefa_follow is not None:
             self._tarefa_follow.cancel()
         self._tarefa_follow = disparar(self._laco_follow(), "follow")
@@ -1293,6 +1301,7 @@ class NavigationCore:
         self._alvo_follow = (desvio, largura, agora)
         self._ultima_deteccao_follow_s = agora
         self._camera_viu_em = agora
+        self._deteccoes_follow += 1
         # A camera reancora o alvo do LiDAR: a distancia e a do LiDAR naquela
         # direcao, e dai em diante ele acompanha esse ponto.
         distancia = self._distancia_lidar_em(desvio)
@@ -1366,29 +1375,75 @@ class NavigationCore:
             return camera[0], self._distancia_lidar_em(camera[0])
         return None
 
+    def _pode_girar_follow(self) -> bool:
+        """Girar no lugar e seguro: nada a menos de FOLLOW_GIRO_LIVRE_CM do LiDAR.
+
+        Os cantos do corpo (39 x 30 cm, LiDAR 8 cm atras da frente) passam a
+        ~21-29 cm dele no giro - movel mais perto que isso e raspado.
+        """
+        raios = self._raios_lidar
+        if not raios:
+            return False
+        medidos = [r for r in raios if r is not None]
+        return bool(medidos) and min(medidos) > FOLLOW_GIRO_LIVRE_CM
+
     def _velocidade_follow(self) -> tuple[float, float]:
-        """(v m/s, w rad/s) para agora. w > 0 gira para a ESQUERDA (firmware)."""
+        """(v m/s, w rad/s) para agora. w > 0 gira para a ESQUERDA (firmware).
+
+        PRIMEIRO ACHAR, DEPOIS SEGUIR (dono, 08/11) - e sem bater:
+        - so AVANCA com a camera vendo a pessoa AGORA e confirmada (duas
+          deteccoes). O LiDAR sozinho so faz girar: ele nao sabe o que e
+          pessoa e ja grudou num movel;
+        - freio PROPRIO de FOLLOW_FREIO_CM no corredor a frente, que vale em
+          qualquer modo - no MANUAL a trava do enlace cai para 15 cm, e foi
+          assim que ele bateu nos moveis seguindo;
+        - nao gira com algo perto dos cantos do corpo.
+        """
+        agora = time.monotonic()
         alvo = self._direcao_follow()
         if alvo is None:
-            # PROCURA: nem camera nem LiDAR com a pessoa. Gira devagar para o
-            # lado onde ela foi vista por ultimo, ate o timeout de perda.
-            ultimo = self._alvo_lidar or self._alvo_follow
-            if ultimo is None or abs(ultimo[0]) < FOLLOW_ZONA_MORTA_GRAUS:
+            # PROCURA: gira devagar no lugar, para o lado onde viu por ultimo
+            # (ou para a esquerda, se ainda nao viu ninguem).
+            if not self._pode_girar_follow():
                 return 0.0, 0.0
-            return 0.0, (-FOLLOW_W_PROCURA_RAD_S if ultimo[0] > 0 else FOLLOW_W_PROCURA_RAD_S)
+            ultimo = self._alvo_lidar or self._alvo_follow
+            if ultimo is not None and ultimo[0] > FOLLOW_ZONA_MORTA_GRAUS:
+                return 0.0, -FOLLOW_W_PROCURA_RAD_S
+            return 0.0, FOLLOW_W_PROCURA_RAD_S
         desvio, distancia = alvo
         w = 0.0
-        if abs(desvio) > FOLLOW_ZONA_MORTA_GRAUS:
+        if abs(desvio) > FOLLOW_ZONA_MORTA_GRAUS and self._pode_girar_follow():
             w = max(-FOLLOW_W_MAX_RAD_S, min(FOLLOW_W_MAX_RAD_S, -FOLLOW_KP_W * math.radians(desvio)))
         v = 0.0
-        if distancia is not None and abs(desvio) <= FOLLOW_ANDA_ATE_GRAUS and distancia > FOLLOW_DISTANCIA_CM:
-            v = min(FOLLOW_V_MAX_M_S, (distancia - FOLLOW_DISTANCIA_CM) / 100.0 * FOLLOW_V_MAX_M_S)
+        camera_agora = (
+            self._camera_viu_em is not None and agora - self._camera_viu_em <= FOLLOW_IDADE_MAX_ALVO_S
+        )
+        confirmada = self._deteccoes_follow >= FOLLOW_CONFIRMAR_DETECCOES
+        if (
+            camera_agora
+            and confirmada
+            and distancia is not None
+            and abs(desvio) <= FOLLOW_ANDA_ATE_GRAUS
+            and distancia > FOLLOW_DISTANCIA_CM
+        ):
+            livre = livre_na_direcao(self._raios_lidar, 90.0, self._meia_largura_desvio_cm)
+            if livre is not None and livre > FOLLOW_FREIO_CM + FOLLOW_FOLGA_FREIO_CM:
+                v = min(
+                    FOLLOW_V_MAX_M_S,
+                    (distancia - FOLLOW_DISTANCIA_CM) / 100.0 * FOLLOW_V_MAX_M_S,
+                    (livre - FOLLOW_FREIO_CM) / 100.0 * FOLLOW_V_MAX_M_S,
+                )
         return round(v, 3), round(w, 3)
 
     async def _laco_follow(self) -> None:
         try:
             while self._modo == ModoNavegacao.FOLLOW:
-                if time.monotonic() - self._ultima_deteccao_follow_s > self._follow_lost_timeout_s:
+                # Ainda procurando a primeira vez: mais paciencia (uma volta
+                # devagar); depois de achada, o timeout normal de perda.
+                limite = (
+                    FOLLOW_PROCURA_MAX_S if self._camera_viu_em is None else self._follow_lost_timeout_s
+                )
+                if time.monotonic() - self._ultima_deteccao_follow_s > limite:
                     await self._perdi_o_alvo_follow()
                     return
                 v, w = self._velocidade_follow()
