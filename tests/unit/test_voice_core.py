@@ -589,3 +589,74 @@ def test_falou_desde_conta_a_fala_em_curso_e_o_rastro():
     assert not Sintetizador.falou_desde(calado, 11.5, 1.0)  # calou antes da janela
     falando = SimpleNamespace(falando=True, fim_ultima_fala=float("-inf"))
     assert Sintetizador.falou_desde(falando, 99.0, 1.0)
+
+
+# --- 08/11: "Jarvis, me siga" numa respirada so ---
+
+
+@pytest.mark.asyncio
+async def test_comando_logo_depois_da_ativacao_nao_se_perde_e_ele_nao_fala_por_cima():
+    """A janela pegou so "Jarvis"; o "me siga" chegou enquanto ele transcrevia.
+    Antes ele respondia "Oi? Pode falar!" por cima e descartava a fala."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    recebidos = []
+
+    async def processar(texto):
+        recebidos.append(texto)
+        return "Estou te seguindo."
+
+    continuacoes = []
+
+    async def continuar(duracao):
+        continuacoes.append(duracao)
+        return object()
+
+    sintetizador = SintetizadorFalso()
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["jarvis", "me siga"]),
+        sintetizador=sintetizador,
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+        continuar_audio=continuar,
+        frase_ativacao="Oi? Pode falar!",
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert continuacoes, "tinha que ouvir a continuacao antes de responder"
+    assert recebidos == ["me siga"]
+    assert "Oi? Pode falar!" not in sintetizador.falas
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_so_jarvis_e_silencio_depois_ainda_diz_pode_falar():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+
+    async def continuar(duracao):
+        return object()
+
+    sintetizador = SintetizadorFalso()
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["jarvis", "", ""]),
+        sintetizador=sintetizador,
+        processar_comando=lambda texto: "ok",
+        gravar_audio=_gravar_audio_falso,
+        continuar_audio=continuar,
+        frase_ativacao="Oi? Pode falar!",
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert sintetizador.falas[:1] == ["Oi? Pode falar!"]
+    bus.parar()
+    await tarefa

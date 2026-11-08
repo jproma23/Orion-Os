@@ -729,6 +729,7 @@ async def principal() -> None:
         detector_atividade=detector_atividade,
         # Fonte obrigatoria: nunca usar o microfone local apos reinicio.
         gravar_audio=gravar_audio,
+        continuar_audio=getattr(ouvidos_esp32, "continuar", None),
         identificador_locutor=identificador_locutor,
     )
 

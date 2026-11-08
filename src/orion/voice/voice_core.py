@@ -52,6 +52,7 @@ class VoiceCore:
         duracao_janela_escuta_s: float = 3.0,
         duracao_comando_s: float = 5.0,
         gravar_audio: CallbackGravarAudio | None = None,
+        continuar_audio: CallbackGravarAudio | None = None,
         frase_ativacao: str | None = None,
         transcritor_ativacao: Transcritor | None = None,
         detector_atividade: DetectorAtividadeSonora | None = None,
@@ -129,6 +130,9 @@ class VoiceCore:
         #: IA, inclusive conversa entre outras pessoas e TV. Ver o comentario
         #: de `voice.exigir_palavra_ativacao` no orion.yaml.
         self._exigir_palavra_ativacao = exigir_palavra_ativacao
+        #: Grava SEM descartar o que chegou desde a ultima janela - ver
+        #: `OuvidosESP32.continuar`. None = fonte que nao guarda o passado.
+        self._continuar_audio = continuar_audio
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
         )
@@ -319,6 +323,24 @@ class VoiceCore:
         # terminado. Pedir para falar em dois tempos seria remendo - ninguem
         # fala com assistente assim.
         texto_comando = self._comando_na_janela(texto_janela)
+        if texto_comando is None and self._continuar_audio is not None:
+            # O COMANDO QUE VEIO LOGO DEPOIS (2026-11-08). Quem diz "Jarvis, me
+            # siga" de uma vez tem o "me siga" chegando enquanto a janela de
+            # ativacao e transcrita. Antes de responder qualquer coisa - a
+            # resposta falada cobria a fala e a janela dela era descartada -
+            # ouve o que chegou em seguida. So se vier silencio e que ele diz
+            # "pode falar" e espera, como antes.
+            try:
+                audio_seguinte = await self._continuar_audio(self._duracao_janela_escuta_s)
+            except ErroAudio as erro:
+                await self._publicar_erro_audio(erro)
+                return False
+            if self._detector_atividade is None or self._detector_atividade.tem_som(audio_seguinte):
+                texto_seguinte = await self._transcritor.transcrever(audio_seguinte)
+                if self._motivo_para_descartar(texto_seguinte) is None:
+                    logger.info("comando veio logo depois da ativacao: %r", texto_seguinte)
+                    texto_comando = texto_seguinte
+                    await self._identificar_falante(audio_seguinte)
         if texto_comando is None:
             if self._frase_ativacao:
                 await self._falar_com_protecao(self._frase_ativacao)
@@ -338,7 +360,7 @@ class VoiceCore:
                 self._transcritor.transcrever(audio_comando),
                 self._identificar_falante(audio_comando),
             )
-        else:
+        elif self._continuar_audio is None or texto_comando == self._comando_na_janela(texto_janela):
             logger.info("comando veio junto com a ativacao: %r", texto_comando)
             # O comando inteiro (incluindo quem o disse) esta na janela da
             # ativacao: identifica ai mesmo, antes de responder - quem_fala

@@ -220,7 +220,38 @@ class OuvidosESP32:
                 f"({len(self._bruto)} de {necessario} bytes em {limite_s:.1f}s)"
             ) from erro
 
-        return self._converter(bytes(self._bruto[:necessario]))
+        janela = bytes(self._bruto[:necessario])
+        # Tira do buffer SO o que foi entregue: o que chegou depois fica, para
+        # `continuar` poder pegar a fala que veio logo em seguida.
+        del self._bruto[:necessario]
+        return self._converter(janela)
+
+    async def continuar(self, duracao_s: float) -> np.ndarray:
+        """Como `gravar`, mas SEM jogar fora o que chegou desde a ultima janela.
+
+        POR QUE (2026-11-08): "Jarvis, me siga" numa respirada so. A janela de
+        ativacao pegou "Jarvis" no fim; o "me siga" chegou enquanto ele
+        transcrevia (~2 s) e respondia "Oi? Pode falar!" - e o `gravar` seguinte
+        comecava com `clear()`, jogando fora justamente a fala do pedido. Aqui o
+        que ja esta no buffer conta como o comeco da janela.
+        """
+        if not self._conectado:
+            raise ErroAudio(f"ouvidos do ESP32 indisponíveis ({self._host}:{self._porta})")
+        necessario = self._bytes_para(duracao_s)
+        limite_s = duracao_s * 2 + 2.0
+        try:
+            async with asyncio.timeout(limite_s):
+                while len(self._bruto) < necessario:
+                    self._chegou.clear()
+                    await self._chegou.wait()
+        except TimeoutError as erro:
+            raise ErroAudio(
+                f"ouvidos do ESP32 pararam de entregar áudio "
+                f"({len(self._bruto)} de {necessario} bytes em {limite_s:.1f}s)"
+            ) from erro
+        janela = bytes(self._bruto[:necessario])
+        del self._bruto[:necessario]
+        return self._converter(janela)
 
     def _converter(self, cru: bytes) -> np.ndarray:
         """Bytes intercalados -> mono float32, com o canal MAIS FORTE.
