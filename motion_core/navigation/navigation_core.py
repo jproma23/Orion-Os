@@ -116,6 +116,7 @@ FOLLOW_PERIODO_S = 0.2              # CMD_VEL a 5 Hz (o firmware para em 0,5 s s
 FOLLOW_IDADE_MAX_ALVO_S = 1.5       # sem ver a pessoa ha isto: para e espera
 FOLLOW_JANELA_LIDAR_GRAUS = 5
 MESMO_QUADRO_S = 0.3
+FOLLOW_TILT_GRAUS = 25.0           # cabeca para cima: ver o tronco, nao os pes
 LARGURA_QUADRO_PX = 640.0
 #: Campo de visao da DV20 - o MESMO valor da ponte camera->LiDAR do estado do
 #: mundo (motion_core/behavior/estado_do_mundo.py). NAO MEDIDO.
@@ -1244,6 +1245,13 @@ class NavigationCore:
         if self._tarefa_follow is not None:
             self._tarefa_follow.cancel()
         self._tarefa_follow = disparar(self._laco_follow(), "follow")
+        # CABECA PARA CIMA (teste de 08/11 16:38): com a camera a 45 cm do chao
+        # e a cabeca nivelada, quem esta em pe perto do robo e so canela e pe -
+        # o YOLO nao achou pessoa nenhuma em 10 s e ele desistiu. O tronco de
+        # alguem a 1-2 m fica uns 20-30 graus acima.
+        await self._event_bus.publish(
+            "motion.pan_tilt", {"pan": 0.0, "tilt": FOLLOW_TILT_GRAUS, "origem": "navegacao"}
+        )
         logger.info("follow: comecando - sigo a pessoa mais perto a %.0f cm", FOLLOW_DISTANCIA_CM)
 
     async def _ao_mover_cabeca_follow(self, evento: Evento) -> None:
