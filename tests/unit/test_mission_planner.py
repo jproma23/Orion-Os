@@ -875,3 +875,31 @@ async def test_pessoa_reconhecida_nao_vira_tambem_uma_pessoa():
     resposta = await planner.processar("o que voce esta vendo?")
 
     assert resposta == "Na minha frente agora estou vendo o Joao Paulo."
+
+
+class _IaEmFrases:
+    """Modelo que responde em frases, com o marcador numa frase do MEIO."""
+
+    def __init__(self, frases):
+        self.frases = frases
+
+    async def responder(self, texto_usuario, contexto=None, **kwargs):
+        return " ".join(self.frases)
+
+    async def responder_em_frases(self, texto_usuario, contexto=None, **kwargs):
+        for frase in self.frases:
+            yield frase
+
+
+@pytest.mark.asyncio
+async def test_marcador_fora_da_primeira_frase_nao_vai_para_a_fala():
+    """Visto no chat de 01/11 e 08/11: '#acao:varrer_a_frente De olho...'
+    saiu no alto-falante e ficou gravado na conversa."""
+    planner = MissionPlanner(
+        ai_manager=_IaEmFrases(["Claro.", "#acao:varrer_a_frente De olho em tudo por aqui."])
+    )
+
+    respostas = [frase async for frase in planner.responder_em_frases("use a camera")]
+
+    assert respostas == ["Claro.", "De olho em tudo por aqui."]
+    assert not any("#acao" in frase for frase in respostas)

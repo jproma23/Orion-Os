@@ -32,6 +32,7 @@ from orion.ensino.banco_aulas import normalizar_nivel as _normalizar_nivel
 from orion.mission.acoes_faladas import MARCADOR, AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
+from orion.mission.acoes_faladas import sem_marcador as _sem_marcador
 from orion.mission.acoes_faladas import parametros_do_comando as _parametros_do_comando
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.mission.ai_manager import SEM_IA, AiManager
@@ -601,6 +602,14 @@ class MissionPlanner:
                     # A resposta era so o marcador. Nao ha o que falar ainda -
                     # e um yield vazio faria o sintetizador carregar o Piper
                     # para produzir silencio.
+                    continue
+            else:
+                # MARCADOR FORA DA PRIMEIRA FRASE (2026-11-08): so a primeira
+                # executa acao, mas o modelo as vezes escreve `#acao:` depois -
+                # e ele ia para o alto-falante e para o banco (2 vezes no chat
+                # de 01-08/11). Aqui so sai do texto; nao executa nada.
+                frase = _sem_marcador(frase)
+                if not frase:
                     continue
             partes.append(frase)
             yield frase
