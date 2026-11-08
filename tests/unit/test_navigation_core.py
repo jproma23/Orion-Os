@@ -429,9 +429,10 @@ async def _follow_com_pessoa(cenario, caixa, distancia_cm, pan=0.0):
     for angulo in range(360):
         raios[angulo] = distancia_cm
     await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
+    await cenario.nav.iniciar_follow()
+    # depois do follow: ele mesmo centraliza o pan ao levantar a cabeca
     await cenario.bus.publish("motion.pan_tilt", {"pan": pan, "tilt": 0})
     await cenario.bus.aguardar_fila_vazia()
-    await cenario.nav.iniciar_follow()
     await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": caixa})
     await cenario.bus.aguardar_fila_vazia()
     await asyncio.sleep(0.5)

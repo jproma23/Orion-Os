@@ -647,7 +647,10 @@ voice:
     # 08/11: tambem os comandos curtos. "me siga" saiu "e ciga", "Missiga" e
     # "Ouja" em tres testes seguidos - e comando curto e o que menos tem
     # contexto para o modelo acertar. So desempata; os portoes continuam.
-    hotwords: "Jarvis, me siga, para, vira a esquerda, vira a direita, anda para frente, anda para tras, olha"
+    # 08/11 16:39: com os comandos de MOVIMENTO aqui o Whisper passou a tirar
+    # a propria lista do ruido ("olha, olha, olha", "anda para frente, anda
+    # para frente") - perigoso num robo que obedece. So o nome e o me siga.
+    hotwords: "Jarvis, me siga"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
