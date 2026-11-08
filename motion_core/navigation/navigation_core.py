@@ -117,6 +117,12 @@ FOLLOW_IDADE_MAX_ALVO_S = 1.5       # sem ver a pessoa ha isto: para e espera
 FOLLOW_JANELA_LIDAR_GRAUS = 5
 MESMO_QUADRO_S = 0.3
 FOLLOW_TILT_GRAUS = 25.0           # cabeca para cima: ver o tronco, nao os pes
+FOLLOW_JANELA_RASTRO_GRAUS = 15     # LiDAR procura a pessoa ate isto da ultima direcao
+FOLLOW_SALTO_MAX_CM = 40.0          # entre duas varreduras ela nao anda mais que isto
+FOLLOW_GRUPO_CM = 15.0              # raios a ate isto do achado sao a mesma pessoa
+FOLLOW_IDADE_MAX_LIDAR_S = 0.6      # rastro do LiDAR mais velho que isto nao guia
+FOLLOW_SO_LIDAR_MAX_S = 6.0         # sem a camera confirmar ha isto, o LiDAR para de seguir
+FOLLOW_W_PROCURA_RAD_S = 0.35       # giro lento procurando quem sumiu
 LARGURA_QUADRO_PX = 640.0
 #: Campo de visao da DV20 - o MESMO valor da ponte camera->LiDAR do estado do
 #: mundo (motion_core/behavior/estado_do_mundo.py). NAO MEDIDO.
@@ -219,6 +225,12 @@ class NavigationCore:
         #: Alvo do FOLLOW: (desvio em graus no robo, + = direita; largura da
         #: caixa em px; instante). Ver `_ao_ver_pessoa_follow`.
         self._alvo_follow: tuple[float, float, float] | None = None
+        #: O MESMO alvo no LiDAR: (desvio em graus, distancia cm, instante).
+        #: A camera ACHA (2 quadros/s, falha); o LiDAR ACOMPANHA (~5-10/s) o
+        #: ponto mais perto daquele lugar - as pernas - entre um quadro e outro.
+        self._alvo_lidar: tuple[float, float, float] | None = None
+        #: Quando a camera confirmou a pessoa pela ultima vez.
+        self._camera_viu_em: float | None = None
         #: Ultimo pan da cabeca (graus, + = direita): a pessoa no centro da
         #: imagem com a cabeca virada esta para o lado, nao a frente.
         self._pan_follow_graus = 0.0
@@ -386,6 +398,8 @@ class NavigationCore:
         if raios and len(raios) == 360:
             self._raios_lidar = list(raios)
             self._raios_recebido_em = time.monotonic()
+            if self._modo == ModoNavegacao.FOLLOW:
+                self._rastrear_alvo_lidar()
         setores = evento.dados.get("setores")
         if setores is not None:
             self._setores_lidar = setores
@@ -1242,6 +1256,8 @@ class NavigationCore:
         await self._mudar_modo(ModoNavegacao.FOLLOW)
         self._ultima_deteccao_follow_s = time.monotonic()
         self._alvo_follow = None
+        self._alvo_lidar = None
+        self._camera_viu_em = None
         if self._tarefa_follow is not None:
             self._tarefa_follow.cancel()
         self._tarefa_follow = disparar(self._laco_follow(), "follow")
@@ -1276,6 +1292,12 @@ class NavigationCore:
             return
         self._alvo_follow = (desvio, largura, agora)
         self._ultima_deteccao_follow_s = agora
+        self._camera_viu_em = agora
+        # A camera reancora o alvo do LiDAR: a distancia e a do LiDAR naquela
+        # direcao, e dai em diante ele acompanha esse ponto.
+        distancia = self._distancia_lidar_em(desvio)
+        if distancia is not None:
+            self._alvo_lidar = (desvio, distancia, agora)
 
     def _distancia_lidar_em(self, desvio_graus: float) -> float | None:
         """Menor raio do LiDAR em volta da direcao (graus no robo, + = direita)."""
@@ -1291,17 +1313,74 @@ class NavigationCore:
         medidas = [m for m in medidas if m is not None]
         return min(medidas) if medidas else None
 
+    def _rastrear_alvo_lidar(self) -> None:
+        """Acompanha no LiDAR o ponto que a camera disse ser a pessoa.
+
+        Procura, perto da ultima direcao e distancia, o raio mais parecido; o
+        alvo passa a ser o centro do grupo de raios ali (as duas pernas viram
+        um ponto so). Salto grande demais ou nada perto = nao e ela: o alvo do
+        LiDAR fica parado e envelhece, e o laco passa a procurar.
+        So vale com a camera tendo confirmado ha pouco - o LiDAR nao sabe o
+        que e pessoa, so segue o que a camera apontou.
+        """
+        alvo = self._alvo_lidar
+        raios = self._raios_lidar
+        agora = time.monotonic()
+        if alvo is None or raios is None or self._camera_viu_em is None:
+            return
+        if agora - self._camera_viu_em > FOLLOW_SO_LIDAR_MAX_S:
+            return
+        desvio0, distancia0, _ = alvo
+        eixo0 = 90.0 + desvio0
+        melhor: tuple[float, int, float] | None = None  # (custo, angulo, distancia)
+        for delta in range(-FOLLOW_JANELA_RASTRO_GRAUS, FOLLOW_JANELA_RASTRO_GRAUS + 1):
+            angulo = int(round(eixo0 + delta)) % 360
+            r = raios[angulo]
+            if r is None or abs(r - distancia0) > FOLLOW_SALTO_MAX_CM:
+                continue
+            custo = abs(r - distancia0) / 10.0 + abs(delta) / 5.0
+            if melhor is None or custo < melhor[0]:
+                melhor = (custo, angulo, r)
+        if melhor is None:
+            return
+        _, angulo_achado, r_achado = melhor
+        grupo = []
+        for delta in range(-FOLLOW_JANELA_RASTRO_GRAUS, FOLLOW_JANELA_RASTRO_GRAUS + 1):
+            angulo = int(round(eixo0 + delta)) % 360
+            r = raios[angulo]
+            if r is not None and abs(r - r_achado) <= FOLLOW_GRUPO_CM:
+                grupo.append((eixo0 + delta, r))
+        centro = sum(a for a, _ in grupo) / len(grupo)
+        distancia = min(r for _, r in grupo)
+        self._alvo_lidar = (centro - 90.0, distancia, agora)
+        self._ultima_deteccao_follow_s = agora
+
+    def _direcao_follow(self) -> tuple[float, float | None] | None:
+        """(desvio, distancia) do alvo agora: LiDAR fresco, senao camera."""
+        agora = time.monotonic()
+        lidar = self._alvo_lidar
+        if lidar is not None and agora - lidar[2] <= FOLLOW_IDADE_MAX_LIDAR_S:
+            return lidar[0], lidar[1]
+        camera = self._alvo_follow
+        if camera is not None and agora - camera[2] <= FOLLOW_IDADE_MAX_ALVO_S:
+            return camera[0], self._distancia_lidar_em(camera[0])
+        return None
+
     def _velocidade_follow(self) -> tuple[float, float]:
         """(v m/s, w rad/s) para agora. w > 0 gira para a ESQUERDA (firmware)."""
-        alvo = self._alvo_follow
-        if alvo is None or time.monotonic() - alvo[2] > FOLLOW_IDADE_MAX_ALVO_S:
-            return 0.0, 0.0  # nao estou vendo: paro e espero (a perda de vez e no timeout)
-        desvio = alvo[0]
+        alvo = self._direcao_follow()
+        if alvo is None:
+            # PROCURA: nem camera nem LiDAR com a pessoa. Gira devagar para o
+            # lado onde ela foi vista por ultimo, ate o timeout de perda.
+            ultimo = self._alvo_lidar or self._alvo_follow
+            if ultimo is None or abs(ultimo[0]) < FOLLOW_ZONA_MORTA_GRAUS:
+                return 0.0, 0.0
+            return 0.0, (-FOLLOW_W_PROCURA_RAD_S if ultimo[0] > 0 else FOLLOW_W_PROCURA_RAD_S)
+        desvio, distancia = alvo
         w = 0.0
         if abs(desvio) > FOLLOW_ZONA_MORTA_GRAUS:
             w = max(-FOLLOW_W_MAX_RAD_S, min(FOLLOW_W_MAX_RAD_S, -FOLLOW_KP_W * math.radians(desvio)))
         v = 0.0
-        distancia = self._distancia_lidar_em(desvio)
         if distancia is not None and abs(desvio) <= FOLLOW_ANDA_ATE_GRAUS and distancia > FOLLOW_DISTANCIA_CM:
             v = min(FOLLOW_V_MAX_M_S, (distancia - FOLLOW_DISTANCIA_CM) / 100.0 * FOLLOW_V_MAX_M_S)
         return round(v, 3), round(w, 3)
@@ -1313,6 +1392,21 @@ class NavigationCore:
                     await self._perdi_o_alvo_follow()
                     return
                 v, w = self._velocidade_follow()
+                ciclo = getattr(self, "_ciclo_follow", 0) + 1
+                self._ciclo_follow = ciclo
+                if ciclo % 5 == 0:  # 1x por segundo: onde acho que a pessoa esta
+                    alvo = self._direcao_follow()
+                    fonte = (
+                        "procurando" if alvo is None
+                        else "lidar" if self._alvo_lidar and time.monotonic() - self._alvo_lidar[2] <= FOLLOW_IDADE_MAX_LIDAR_S
+                        else "camera"
+                    )
+                    logger.info(
+                        "follow: %s %s -> v=%.2f m/s w=%.2f rad/s",
+                        fonte,
+                        "" if alvo is None else f"{alvo[0]:+.0f} graus a {alvo[1] or 0:.0f} cm",
+                        v, w,
+                    )
                 try:
                     await self._comm.send(
                         DESTINO_HARDWARE, {"comando": "CMD_VEL", "v_m_s": v, "w_rad_s": w}
