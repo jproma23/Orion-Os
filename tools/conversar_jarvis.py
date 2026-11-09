@@ -166,14 +166,33 @@ async def principal() -> None:
     # Freios contra invencao (ver transcricao.py). `.get` com default para nao
     # quebrar um orion.yaml mais antigo que ainda nao tenha a secao.
     conf_transcricao = secao_voz.get("transcricao") or {}
+    # Os modelos carregam em OUTRA thread (asyncio.to_thread), como o YOLO da
+    # visao. Construidos aqui, no laco, os dois Whisper + o Piper travavam o
+    # programa por ~6 s no boot (medido com PYTHONASYNCIODEBUG em 08/11): os
+    # ouvidos ja estavam conectados, ninguem lia o socket, e o detector de
+    # "ESP32 mudo ha 5 s" derrubava a conexao em TODA partida. O heartbeat
+    # com o Pi sofria a mesma trava.
     logger.info("Carregando Whisper '%s' (a primeira vez demora)...", secao_voz["whisper_model"])
-    transcritor = TranscritorComLog(modelo=secao_voz["whisper_model"], **conf_transcricao)
-    logger.info("Carregando Whisper '%s' (vigia da wake word)...", secao_voz["whisper_model_ativacao"])
-    transcritor_ativacao = TranscritorComLog(
-        modelo=secao_voz["whisper_model_ativacao"], **conf_transcricao
+    transcritor = await asyncio.to_thread(
+        TranscritorComLog, modelo=secao_voz["whisper_model"], **conf_transcricao
     )
+    # UM Whisper so quando os dois nomes sao iguais (dono, 08/11: "2 whisper?
+    # nao pode"). Os dois eram o mesmo `base` carregado duas vezes - memoria
+    # gasta a toa e mais ~2 s de boot. O WhisperModel aceita chamadas de
+    # threads diferentes; o VoiceCore ja usa o da conversa como vigia quando
+    # nao recebe outro (`transcritor_ativacao or transcritor`).
+    if secao_voz["whisper_model_ativacao"] == secao_voz["whisper_model"]:
+        transcritor_ativacao = transcritor
+    else:
+        logger.info(
+            "Carregando Whisper '%s' (vigia da wake word)...", secao_voz["whisper_model_ativacao"]
+        )
+        transcritor_ativacao = await asyncio.to_thread(
+            TranscritorComLog, modelo=secao_voz["whisper_model_ativacao"], **conf_transcricao
+        )
 
-    sintetizador = Sintetizador(
+    sintetizador = await asyncio.to_thread(
+        Sintetizador,
         secao_voz["piper_voice_path"],
         indice_dispositivo_saida=secao_voz["saida_audio_indice"],
     )
