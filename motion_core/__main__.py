@@ -1080,6 +1080,9 @@ async def principal() -> None:
                 situacao, "falhou", janela_s
             )
         )
+        # O seguir aprende: as ultimas tentativas vao junto quando ele pergunta
+        # a IA o que fazer (08/11).
+        navigation.registrar_consulta_experiencias(memory_api.experiencias_recentes)
     tarefa_manutencao = None
     tarefa_manutencao_task = None
     if memory_api is not None:

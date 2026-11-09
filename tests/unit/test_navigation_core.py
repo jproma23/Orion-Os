@@ -1003,16 +1003,59 @@ async def test_follow_acompanha_pelo_lidar_entre_as_fotos(cenario):
 
 
 @pytest.mark.asyncio
-async def test_follow_procura_para_o_lado_onde_viu_por_ultimo(cenario):
+async def test_follow_sem_a_pessoa_quem_decide_a_procura_e_a_ia(cenario):
+    """08/11, dono: "em vez de regrar, contexto para a IA". Sem decisao, espera;
+    com 'procurar_direita', gira devagar para a direita."""
     import time as _t
 
     await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
     await cenario.bus.aguardar_fila_vazia()
     await cenario.nav.iniciar_follow()
-    cenario.nav._alvo_follow = (40.0, 100.0, _t.monotonic() - 5)  # vista a direita, ha 5 s
-    cenario.nav._alvo_lidar = None
+    assert cenario.nav._velocidade_follow() == (0.0, 0.0)
+    cenario.nav._decisao_follow = ("procurar_direita", "ela foi para a direita", _t.monotonic())
     v, w = cenario.nav._velocidade_follow()
-    assert v == 0 and w < 0  # gira devagar para a direita, sem andar
+    assert v == 0 and w < 0
+
+
+@pytest.mark.asyncio
+async def test_follow_contexto_da_ia_vem_pronto_com_as_experiencias(cenario):
+    import time as _t
+
+    await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    cenario.nav._camera_viu_em = _t.monotonic() - 3
+    cenario.nav._alvo_lidar = (35.0, 120.0, _t.monotonic() - 3)
+    texto = cenario.nav._contexto_follow(
+        [{"resultado": "funcionou", "o_que_aconteceu": "segui por 40 s", "o_que_funcionou": "decidi 'procurar_direita'"}]
+    )
+    assert "35 graus a direita" in texto and "120 cm" in texto
+    assert "frente 199 cm" in texto  # corredor de 25 cm pega o raio inclinado
+    assert "segui por 40 s" in texto
+    assert "procurar_esquerda" in texto
+
+
+@pytest.mark.asyncio
+async def test_follow_ia_fora_do_ar_ele_espera(cenario):
+    await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    await cenario.nav._perguntar_ia_follow()  # sem Notebook no teste: request falha
+    assert cenario.nav._decisao_follow[0] == "esperar"
+    assert cenario.nav._velocidade_follow() == (0.0, 0.0)
+
+
+@pytest.mark.asyncio
+async def test_follow_resumo_vira_experiencia_com_o_que_a_ia_decidiu(cenario):
+    await cenario.nav.iniciar_follow()
+    r = cenario.nav._resumo_follow
+    r["achou_em"] = 2.0
+    r["perdas"] = 1
+    r["decisoes"] = [("procurar_esquerda", "foi para a esquerda", True)]
+    exp = cenario.nav._resumo_para_experiencia()
+    assert "achei a pessoa em 2 s" in exp["o_que_aconteceu"]
+    assert "procurar_esquerda" in exp["o_que_funcionou"]
+    assert exp["funcionou"] is True
 
 
 @pytest.mark.asyncio
@@ -1037,7 +1080,7 @@ async def test_follow_so_anda_depois_de_achar_a_pessoa_duas_vezes(cenario):
     await cenario.bus.aguardar_fila_vazia()
     await cenario.nav.iniciar_follow()
     v, w = cenario.nav._velocidade_follow()
-    assert v == 0 and w > 0  # ninguem ainda: procura girando, sem andar
+    assert (v, w) == (0.0, 0.0)  # ninguem ainda: espera a IA decidir, sem andar
     await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
     await cenario.bus.aguardar_fila_vazia()
     assert cenario.nav._velocidade_follow()[0] == 0  # uma deteccao so: ainda nao anda

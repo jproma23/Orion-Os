@@ -128,6 +128,12 @@ FOLLOW_CONFIRMAR_DETECCOES = 2      # so anda depois de a camera ver a pessoa 2 
 FOLLOW_FREIO_CM = 50.0              # freio proprio, em QUALQUER modo (no MANUAL a trava e 15)
 FOLLOW_FOLGA_FREIO_CM = 10.0
 FOLLOW_GIRO_LIVRE_CM = 30.0         # cantos do corpo passam a ~21-29 cm do LiDAR no giro
+#: Sem a pessoa, quem decide e a IA (08/11, dono: "em vez de regrar, contexto
+#: para a IA aprender"). Estas sao as opcoes que ela tem; os tetos acima
+#: (FOLLOW_PROCURA_MAX_S, follow_lost_timeout_s) ficam so como seguranca.
+OPCOES_FOLLOW = ("procurar_esquerda", "procurar_direita", "esperar", "desistir")
+FOLLOW_REDECIDIR_S = 6.0            # decisao sem achar ninguem vence e ele pergunta de novo
+FOLLOW_TIMEOUT_IA_S = 8.0
 LARGURA_QUADRO_PX = 640.0
 #: Campo de visao da DV20 - o MESMO valor da ponte camera->LiDAR do estado do
 #: mundo (motion_core/behavior/estado_do_mundo.py). NAO MEDIDO.
@@ -238,6 +244,13 @@ class NavigationCore:
         self._camera_viu_em: float | None = None
         #: Deteccoes da camera desde o "me siga" - so anda depois de confirmar.
         self._deteccoes_follow = 0
+        #: Decisao da IA para quando ele nao acha a pessoa: (opcao, motivo,
+        #: instante). None = ainda nao perguntou neste sumico.
+        self._decisao_follow: tuple[str, str, float] | None = None
+        self._perguntando_follow = False
+        self._consultar_experiencias = None
+        #: O que aconteceu nesta tentativa - vira experiencia no fim.
+        self._resumo_follow: dict = {}
         #: Ultimo pan da cabeca (graus, + = direita): a pessoa no centro da
         #: imagem com a cabeca virada esta para o lado, nao a frente.
         self._pan_follow_graus = 0.0
@@ -312,6 +325,10 @@ class NavigationCore:
         `await consulta(situacao, janela_s) -> int` (contagem de falhas).
         """
         self._consultar_repeticoes = consulta
+
+    def registrar_consulta_experiencias(self, consulta) -> None:
+        """`await consulta(situacao, limite) -> list[dict]` (memoria do Pi)."""
+        self._consultar_experiencias = consulta
 
     # ---------- telemetria / seguranca tatica ----------
 
@@ -1266,6 +1283,15 @@ class NavigationCore:
         self._alvo_lidar = None
         self._camera_viu_em = None
         self._deteccoes_follow = 0
+        self._decisao_follow = None
+        self._perguntando_follow = False
+        self._resumo_follow = {
+            "inicio": time.monotonic(),
+            "achou_em": None,
+            "perdas": 0,
+            "freios": 0,
+            "decisoes": [],  # [(opcao, motivo, achou_depois)]
+        }
         if self._tarefa_follow is not None:
             self._tarefa_follow.cancel()
         self._tarefa_follow = disparar(self._laco_follow(), "follow")
@@ -1300,8 +1326,17 @@ class NavigationCore:
             return
         self._alvo_follow = (desvio, largura, agora)
         self._ultima_deteccao_follow_s = agora
+        sumida = self._camera_viu_em is None or agora - self._camera_viu_em > FOLLOW_IDADE_MAX_ALVO_S
         self._camera_viu_em = agora
         self._deteccoes_follow += 1
+        resumo = self._resumo_follow
+        if resumo and resumo.get("achou_em") is None:
+            resumo["achou_em"] = agora - resumo["inicio"]
+        if sumida and self._decisao_follow is not None and resumo.get("decisoes"):
+            opcao, motivo, _ = resumo["decisoes"][-1]
+            resumo["decisoes"][-1] = (opcao, motivo, True)
+        if sumida:
+            self._decisao_follow = None  # achou: a proxima perda pergunta de novo
         # A camera reancora o alvo do LiDAR: a distancia e a do LiDAR naquela
         # direcao, e dai em diante ele acompanha esse ponto.
         distancia = self._distancia_lidar_em(desvio)
@@ -1402,14 +1437,18 @@ class NavigationCore:
         agora = time.monotonic()
         alvo = self._direcao_follow()
         if alvo is None:
-            # PROCURA: gira devagar no lugar, para o lado onde viu por ultimo
-            # (ou para a esquerda, se ainda nao viu ninguem).
-            if not self._pode_girar_follow():
+            # NAO ACHO A PESSOA: quem decide e a IA, com o contexto pronto
+            # (`_perguntar_ia_follow`). Ate ela responder - ou se nao responder
+            # - ele ESPERA parado. O giro so acontece se ela mandar procurar e
+            # se nao houver nada encostado (reflexo).
+            decisao = self._decisao_follow
+            if decisao is None:
                 return 0.0, 0.0
-            ultimo = self._alvo_lidar or self._alvo_follow
-            if ultimo is not None and ultimo[0] > FOLLOW_ZONA_MORTA_GRAUS:
-                return 0.0, -FOLLOW_W_PROCURA_RAD_S
-            return 0.0, FOLLOW_W_PROCURA_RAD_S
+            opcao = decisao[0]
+            if opcao in ("procurar_esquerda", "procurar_direita") and self._pode_girar_follow():
+                w = FOLLOW_W_PROCURA_RAD_S
+                return 0.0, (w if opcao == "procurar_esquerda" else -w)
+            return 0.0, 0.0
         desvio, distancia = alvo
         w = 0.0
         if abs(desvio) > FOLLOW_ZONA_MORTA_GRAUS and self._pode_girar_follow():
@@ -1427,6 +1466,8 @@ class NavigationCore:
             and distancia > FOLLOW_DISTANCIA_CM
         ):
             livre = livre_na_direcao(self._raios_lidar, 90.0, self._meia_largura_desvio_cm)
+            if (livre is None or livre <= FOLLOW_FREIO_CM + FOLLOW_FOLGA_FREIO_CM) and self._resumo_follow:
+                self._resumo_follow["freios"] = self._resumo_follow.get("freios", 0) + 1
             if livre is not None and livre > FOLLOW_FREIO_CM + FOLLOW_FOLGA_FREIO_CM:
                 v = min(
                     FOLLOW_V_MAX_M_S,
@@ -1446,6 +1487,18 @@ class NavigationCore:
                 if time.monotonic() - self._ultima_deteccao_follow_s > limite:
                     await self._perdi_o_alvo_follow()
                     return
+                if self._direcao_follow() is None:
+                    agora = time.monotonic()
+                    decisao = self._decisao_follow
+                    if decisao is not None and decisao[0] == "desistir":
+                        await self._perdi_o_alvo_follow()
+                        return
+                    vencida = decisao is not None and agora - decisao[2] > FOLLOW_REDECIDIR_S
+                    if (decisao is None or vencida) and not self._perguntando_follow:
+                        if decisao is None and self._camera_viu_em is not None:
+                            self._resumo_follow["perdas"] = self._resumo_follow.get("perdas", 0) + 1
+                        self._perguntando_follow = True
+                        disparar(self._perguntar_ia_follow(), "follow_pergunta_ia")
                 v, w = self._velocidade_follow()
                 ciclo = getattr(self, "_ciclo_follow", 0) + 1
                 self._ciclo_follow = ciclo
@@ -1488,8 +1541,115 @@ class NavigationCore:
             # sozinho sem CMD_VEL em 0,5 s).
             logger.exception("follow: STOP nao chegou ao perder o alvo - saindo do modo mesmo assim")
         finally:
-            await self._event_bus.publish("navigation.target_lost", {})
+            await self._event_bus.publish("navigation.target_lost", self._resumo_para_experiencia())
             await self._mudar_modo(ModoNavegacao.HOLD)
+
+    def _contexto_follow(self, experiencias: list[dict]) -> str:
+        """O que a IA precisa para decidir, PRONTO - ela nao consulta nada."""
+        agora = time.monotonic()
+        linhas = ["ESTOU SEGUINDO UMA PESSOA (ela me pediu: 'me siga') E NAO A ESTOU VENDO AGORA."]
+        ultimo = self._alvo_lidar or self._alvo_follow
+        if self._camera_viu_em is None:
+            linhas.append("- ainda nao achei a pessoa desde que ela pediu.")
+        elif ultimo is not None:
+            lado = "a frente" if abs(ultimo[0]) < 10 else (
+                f"{abs(ultimo[0]):.0f} graus a {'direita' if ultimo[0] > 0 else 'esquerda'}"
+            )
+            dist = self._distancia_lidar_em(ultimo[0]) if len(ultimo) < 2 else ultimo[1]
+            linhas.append(
+                f"- vi a pessoa pela ultima vez ha {agora - self._camera_viu_em:.0f} s, {lado}"
+                + (f", a uns {dist:.0f} cm" if isinstance(dist, (int, float)) and dist > 0 else "")
+                + "."
+            )
+        livres = []
+        for nome, eixo in (("frente", 90.0), ("esquerda", 0.0), ("direita", 180.0), ("tras", 270.0)):
+            livre = livre_na_direcao(self._raios_lidar, eixo, self._meia_largura_desvio_cm)
+            livres.append(f"{nome} {'sem medida' if livre is None else f'{livre:.0f} cm'}")
+        linhas.append("- espaco livre em volta (LiDAR): " + ", ".join(livres) + ".")
+        linhas.append(
+            "- posso girar no lugar agora: " + ("sim" if self._pode_girar_follow() else "NAO, tem algo encostado") + "."
+        )
+        r = self._resumo_follow or {}
+        if r:
+            partes = [f"estou nisto ha {agora - r.get('inicio', agora):.0f} s"]
+            if r.get("achou_em") is not None:
+                partes.append(f"achei a pessoa em {r['achou_em']:.0f} s")
+            partes.append(f"perdi {r.get('perdas', 0)} vez(es)")
+            for opcao, _motivo, achou in r.get("decisoes", [])[-3:]:
+                partes.append(f"decidi '{opcao}' e {'achei' if achou else 'nao achei'}")
+            linhas.append("- nesta tentativa: " + "; ".join(partes) + ".")
+        if experiencias:
+            linhas.append("- como foram as ultimas vezes que segui alguem:")
+            for e in experiencias[:5]:
+                linhas.append(
+                    f"  * [{e.get('resultado', '?')}] {e.get('o_que_aconteceu', '')}"
+                    + (f" | funcionou: {e['o_que_funcionou']}" if e.get("o_que_funcionou") else "")
+                    + (f" | falhou: {e['o_que_falhou']}" if e.get("o_que_falhou") else "")
+                )
+        linhas.append(
+            "Escolha: procurar_esquerda ou procurar_direita (giro devagar no lugar), "
+            "esperar (fico parado olhando) ou desistir (paro de seguir)."
+        )
+        return "\n".join(linhas)
+
+    async def _perguntar_ia_follow(self) -> None:
+        """Pergunta a IA o que fazer sem a pessoa a vista. Sem resposta: espera."""
+        try:
+            experiencias: list[dict] = []
+            if self._consultar_experiencias is not None:
+                try:
+                    experiencias = await self._consultar_experiencias("seguir_pessoa", 5)
+                except Exception:
+                    logger.debug("follow: experiencias indisponiveis", exc_info=True)
+            contexto = self._contexto_follow(experiencias)
+            opcao, motivo = "esperar", "IA sem resposta"
+            try:
+                resposta = await self._comm.request(
+                    "mission_core",
+                    {
+                        "comando": "behavior.aconselhar",
+                        "contexto": contexto,
+                        "opcoes": list(OPCOES_FOLLOW),
+                        "seguranca_ativa": False,
+                    },
+                    timeout_s=FOLLOW_TIMEOUT_IA_S,
+                )
+                escolha = resposta.payload.get("comportamento") if resposta.payload.get("ok") else None
+                if escolha in OPCOES_FOLLOW:
+                    opcao, motivo = escolha, str(resposta.payload.get("motivo", ""))
+            except Exception:
+                logger.debug("follow: IA indisponivel - espero", exc_info=True)
+            if self._modo != ModoNavegacao.FOLLOW:
+                return
+            self._decisao_follow = (opcao, motivo, time.monotonic())
+            if self._resumo_follow is not None:
+                self._resumo_follow.setdefault("decisoes", []).append((opcao, motivo, False))
+            logger.info("follow: IA decidiu '%s' (%s)", opcao, motivo)
+        finally:
+            self._perguntando_follow = False
+
+    def _resumo_para_experiencia(self) -> dict:
+        """O que aconteceu nesta tentativa, para a tabela de experiencias."""
+        r = self._resumo_follow or {}
+        if not r:
+            return {}
+        duracao = time.monotonic() - r.get("inicio", time.monotonic())
+        achou = r.get("achou_em")
+        aconteceu = (
+            f"segui por {duracao:.0f} s; "
+            + (f"achei a pessoa em {achou:.0f} s" if achou is not None else "nao achei a pessoa")
+            + f"; perdi {r.get('perdas', 0)} vez(es); freei por obstaculo {r.get('freios', 0)} vez(es)"
+        )
+        boas = [f"'{o}' ({m})" for o, m, ok in r.get("decisoes", []) if ok]
+        ruins = [f"'{o}' ({m})" for o, m, ok in r.get("decisoes", []) if not ok]
+        return {
+            "o_que_aconteceu": aconteceu,
+            "o_que_funcionou": ("decidi " + ", ".join(boas) + " e achei de novo") if boas else "",
+            "o_que_falhou": ("decidi " + ", ".join(ruins) + " e nao achei") if ruins else (
+                "" if achou is not None else "nao achei a pessoa"
+            ),
+            "funcionou": achou is not None and r.get("perdas", 0) <= len(boas),
+        }
 
     async def executar_explore(self) -> None:
         """Explora um trecho DESVIANDO sozinho (2026-11-01).
