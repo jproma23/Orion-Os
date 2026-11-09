@@ -131,19 +131,11 @@ não são fotos do ORION montado.
 - **Interface web** — dashboard com o mapa do LiDAR, telemetria ao vivo,
   diagnóstico e configuração
 
-## O que ainda NÃO funciona
+## Fase atual: correção de bugs
 
-- **O LiDAR fica a 45 cm do chão**: é cego para obstáculo baixo (degrau,
-  rodapé, cabo, pé de cadeira), e uma faixa de uns 15° fica sempre cega,
-  tampada por algo encostado no próprio robô.
-- **"Jarvis, me siga"** ainda é instável. No último teste ele achou a pessoa
-  e girou atrás dela (câmera acha, LiDAR mede a distância), mas a voz às vezes
-  perde o pedido e ele já bateu em móvel antes do freio próprio de 50 cm.
-- **O SSD solta quando o robô cai** e o Pi perde o disco (aconteceu duas vezes
-  em 08/11). Falta fixação mecânica e um adaptador USB 3 melhor.
-- **Reconhecimento de voz** (saber quem fala só pela voz): o código existe, mas
-  nada cadastra a voz das pessoas.
-- **Sem internet** o robô continua seguro, mas não conversa.
+Todos os módulos acima estão funcionando no robô. O trabalho agora é
+encontrar e corrigir bugs com ele rodando de verdade em casa; cada correção
+fica registrada no [diário de bordo](https://jproma23.github.io/Orion-Os/).
 
 ## Estrutura
 
