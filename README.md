@@ -125,6 +125,7 @@ não são fotos do ORION montado.
 - **Explorar sozinho** — anda pelo cômodo sem comando: mira o meio da passagem,
   fica paralelo à parede e no meio do corredor, e a trava ignora a própria
   carcaça (antes parava achando obstáculo a 1 cm). Ver o vídeo acima
+- **Pan/tilt** — a cabeça com a câmera se move nos dois eixos
 - **Câmera ligada ao LiDAR** — cada objeto que o YOLO vê chega à IA com direção
   no robô e distância medida pelo LiDAR
 - **Interface web** — dashboard com o mapa do LiDAR, telemetria ao vivo,
@@ -132,16 +133,12 @@ não são fotos do ORION montado.
 
 ## O que ainda NÃO funciona
 
-- **Ir a um lugar da casa.** Ele já explora o cômodo sozinho, mas sem mapa
-  (SLAM do Nav2) não sabe ir até um ponto escolhido: refazer um caminho só
-  pela odometria acumula erro e já terminou em parede.
 - **O LiDAR fica a 45 cm do chão**: é cego para obstáculo baixo (degrau,
   rodapé, cabo, pé de cadeira), e uma faixa de uns 15° fica sempre cega,
   tampada por algo encostado no próprio robô.
 - **"Jarvis, me siga"** ainda é instável. No último teste ele achou a pessoa
   e girou atrás dela (câmera acha, LiDAR mede a distância), mas a voz às vezes
   perde o pedido e ele já bateu em móvel antes do freio próprio de 50 cm.
-  A cabeça não gira sozinha para seguir ninguém: só levanta 25° no "me siga".
 - **O SSD solta quando o robô cai** e o Pi perde o disco (aconteceu duas vezes
   em 08/11). Falta fixação mecânica e um adaptador USB 3 melhor.
 - **Reconhecimento de voz** (saber quem fala só pela voz): o código existe, mas
