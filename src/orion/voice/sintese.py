@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import time
 import wave
 
@@ -23,6 +24,23 @@ from piper import PiperVoice
 
 from orion.voice import timbre as _timbre
 from orion.voice.audio_utils import reamostrar as _reamostrar
+
+logger = logging.getLogger("orion.voice.sintese")
+
+
+def _recarregar_portaudio() -> None:
+    """Refaz a lista de dispositivos do PortAudio.
+
+    O PortAudio lista as placas de som UMA vez, quando o `sounddevice` e
+    importado. No boot do Notebook o alto-falante USB aparece alguns segundos
+    DEPOIS do processo subir; sem refazer a lista ele nunca e encontrado e a
+    primeira fala levantava ValueError, derrubando conversa, camera e chat
+    juntos (01/11 e 08/11). E o caminho que o proprio sounddevice indica para
+    reler os dispositivos. Seguro aqui porque o unico stream do processo e o
+    `sd.play` desta classe, que roda sob `_trava_fala`.
+    """
+    sd._terminate()
+    sd._initialize()
 
 #: A VOZ DO FOFAO (2026-08-03) - pedido do dono: "caloroso e presente".
 #:
@@ -147,9 +165,22 @@ class Sintetizador:
             # o dispositivo de saida pode nao suportar a taxa nativa do
             # Piper (ex.: USB Audio Device so aceita 44100Hz) - reamostra
             # em vez de deixar o PortAudio recusar com "Invalid sample rate".
-            taxa_dispositivo = int(
-                sd.query_devices(self._indice_dispositivo_saida)["default_samplerate"]
-            )
+            try:
+                info = sd.query_devices(self._indice_dispositivo_saida)
+            except ValueError:
+                _recarregar_portaudio()
+                try:
+                    info = sd.query_devices(self._indice_dispositivo_saida)
+                except ValueError:
+                    # Sem alto-falante ele fica mudo nesta frase, mas o resto
+                    # do robo continua de pe. A proxima fala tenta de novo.
+                    logger.warning(
+                        "saida de audio %r nao encontrada - frase nao falada: %r",
+                        self._indice_dispositivo_saida,
+                        texto[:60],
+                    )
+                    return
+            taxa_dispositivo = int(info["default_samplerate"])
             if taxa_dispositivo != taxa:
                 audio = _reamostrar(audio, taxa, taxa_dispositivo)
                 taxa = taxa_dispositivo

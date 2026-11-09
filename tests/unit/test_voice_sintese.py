@@ -123,3 +123,51 @@ async def test_falha_numa_fala_nao_tranca_a_proxima(monkeypatch):
 
     await sintetizador.falar("segunda")  # nao pode travar aqui
     assert len(chamadas) == 2
+
+
+# ---------------------------------------------------------------------------
+# Alto-falante USB que aparece depois do boot (08/11): o PortAudio lista as
+# placas de som uma vez so; a primeira fala nao achava o "USB Audio Device" e
+# o ValueError derrubava conversa, camera e chat juntos.
+# ---------------------------------------------------------------------------
+
+
+def _sintetizador_com_saida_falsa(monkeypatch, presente_depois_de_recarregar):
+    estado = {"recarregou": False, "tocou": False}
+
+    def _query(dispositivo):
+        if estado["recarregou"] and presente_depois_de_recarregar:
+            return {"default_samplerate": 22050}
+        raise ValueError("No output device matching USB Audio Device")
+
+    def _recarregar():
+        estado["recarregou"] = True
+
+    def _tocar(*args, **kwargs):
+        estado["tocou"] = True
+
+    monkeypatch.setattr("orion.voice.sintese.sd.query_devices", _query)
+    monkeypatch.setattr("orion.voice.sintese._recarregar_portaudio", _recarregar)
+    monkeypatch.setattr("orion.voice.sintese.sd.play", _tocar)
+    monkeypatch.setattr("orion.voice.sintese.sd.wait", lambda: None)
+
+    sintetizador = _sintetizador_sem_hardware()
+    sintetizador._indice_dispositivo_saida = "USB Audio Device"
+    sintetizador._sintetizar = lambda texto: (np.zeros(10, dtype=np.int16), 22050)
+    sintetizador.falando = False
+    return sintetizador, estado
+
+
+@pytest.mark.asyncio
+async def test_alto_falante_que_chega_depois_do_boot_e_encontrado(monkeypatch):
+    sintetizador, estado = _sintetizador_com_saida_falsa(monkeypatch, True)
+    await sintetizador.falar("Oi! Eu sou o Jarvis.")
+    assert estado["recarregou"] and estado["tocou"]
+
+
+@pytest.mark.asyncio
+async def test_sem_alto_falante_fica_mudo_mas_nao_derruba(monkeypatch):
+    sintetizador, estado = _sintetizador_com_saida_falsa(monkeypatch, False)
+    await sintetizador.falar("Oi! Eu sou o Jarvis.")  # nao pode levantar
+    assert estado["recarregou"] and not estado["tocou"]
+    assert sintetizador.falando is False
