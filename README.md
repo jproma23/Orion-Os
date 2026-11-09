@@ -28,6 +28,22 @@ pouco.
 — cada sessão registrada no dia em que aconteceu, os acertos e os bugs que
 custaram caro.
 
+## Em movimento (08/11/2026)
+
+<p align="center">
+  <a href="docs/assets/fotos/jarvis-andando-2026-11-08.mp4"><img src="docs/assets/fotos/jarvis-andando-2026-11-08.gif" alt="Jarvis andando sozinho pelo quarto enquanto o radar do LiDAR aparece na webui" width="560"></a><br>
+  <sub>O Jarvis andando sozinho pelo quarto. No notebook, a webui mostra o contorno do quarto
+  medido pelo LiDAR e a trava de 50 cm à frente dele. GIF acelerado 3×,
+  <a href="docs/assets/fotos/jarvis-andando-2026-11-08.mp4">clique para o vídeo original (55 s)</a>.</sub>
+</p>
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/assets/fotos/jarvis-frente-2026-11-08.webp" alt="Jarvis de frente: rosto na tela, webcam e rodas com encoder" width="320"><br><sub>De frente: o rosto na tela, a webcam e as rodas com encoder.</sub></td>
+<td align="center" width="50%"><img src="docs/assets/fotos/jarvis-andando-2026-11-08.webp" alt="Jarvis andando junto à parede, com o LiDAR no topo" width="320"><br><sub>Andando junto à parede, com o LiDAR girando no topo.</sub></td>
+</tr>
+</table>
+
 ## Arquitetura
 
 Duas máquinas e três ESP32. A divisão vigente é a da
