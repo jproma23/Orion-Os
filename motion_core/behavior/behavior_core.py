@@ -181,6 +181,12 @@ class BehaviorCore:
                 f"modo de controle invalido: {modo!r} - use um de {list(MODOS_DE_CONTROLE)}"
             )
         if modo == self._modo_controle:
+            # PEDIR MANUAL JA ESTANDO EM MANUAL ZERA O CRONOMETRO (2026-11-01).
+            # Antes o pedido repetido era ignorado e os 3 minutos seguiam
+            # contando da primeira entrega: o dono tocou MANUAL as 08:37:00 e
+            # 21 s depois o volante voltou para a IA - no meio da exploracao.
+            if modo == MODO_MANUAL:
+                self._ultima_atividade_manual = time.monotonic()
             return
         anterior = self._modo_controle
         self._modo_controle = modo

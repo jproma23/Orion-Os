@@ -36,6 +36,12 @@ def _linha(rotulo: str, valor: Any, sufixo: str = "") -> str:
 #: `motion.min_front_distance_cm` do orion.yaml; quem chama pode sobrescrever.
 LIMIAR_OBSTACULO_CM = 25.0
 
+#: Espaco minimo a frente para ANDAR de verdade - espelha `FRENTE_LIVRE_CM` do
+#: planejador (motion_core/behavior/goap.py). Entre o limiar de obstaculo e
+#: isto, a frente e CURTA: a IA lia "caminho livre por 33 cm" e mandava
+#: avancar, o GOAP via bloqueio e mandava virar - e o robo girava (2026-11-01).
+ESPACO_PARA_ANDAR_CM = 60.0
+
 
 def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
     """Descreve a frente pelo que ela É, não por um rótulo de ameaça.
@@ -66,10 +72,85 @@ def _linha_frente(distancia_cm: Any, limiar_cm: float) -> str:
         return _linha("à minha frente", distancia_cm)
     if valor < limiar_cm:
         return f"- à minha frente: OBSTÁCULO a {valor:.0f} cm - perto demais para avançar"
+    if valor < ESPACO_PARA_ANDAR_CM:
+        return (
+            f"- à minha frente: espaço CURTO, {valor:.0f} cm - para andar de verdade "
+            f"preciso de {ESPACO_PARA_ANDAR_CM:.0f} cm; vire para o lado mais aberto"
+        )
     return (
         f"- à minha frente: CAMINHO LIVRE por {valor:.0f} cm "
         f"(só é obstáculo abaixo de {limiar_cm:.0f} cm)"
     )
+
+
+def _linha_lado(rotulo: str, distancia_cm: Any, limiar_cm: float) -> str:
+    """Esquerda/direita/atras pelo LiDAR, no mesmo tom da frente."""
+    if distancia_cm is None or distancia_cm == "":
+        return f"- {rotulo}: não sei (o LiDAR não mediu nada nesse lado)"
+    valor = float(distancia_cm)
+    if valor < limiar_cm:
+        return f"- {rotulo}: OBSTÁCULO a {valor:.0f} cm"
+    return f"- {rotulo}: livre por {valor:.0f} cm"
+
+
+_PONTOS_CARDEAIS = ("norte", "nordeste", "leste", "sudeste", "sul", "sudoeste", "oeste", "noroeste")
+
+
+def _linha_rumo(rumo_graus: Any) -> str:
+    if rumo_graus is None:
+        return "- para onde aponto (bússola): não sei agora"
+    valor = float(rumo_graus) % 360.0
+    cardeal = _PONTOS_CARDEAIS[int((valor + 22.5) // 45) % 8]
+    return (
+        f"- para onde aponto (bússola): {valor:.0f}° ({cardeal}; 0° é o norte). "
+        "É a minha referência para virar um ângulo certo e voltar ao rumo"
+    )
+
+
+def _linha_desvio(desvio, tem_lidar: bool) -> str:
+    """Quando e quanto desviar, em mm (2026-11-01, pedido do dono)."""
+    if not tem_lidar:
+        return "- desvio: não sei agora (sem varredura do LiDAR)"
+    if not desvio:
+        return "- desvio: nada no meu caminho no próximo 1 metro à frente - não preciso desviar"
+    lados = []
+    if desvio.get("esquerda_mm") is not None:
+        lados.append(f"{desvio['esquerda_mm']:.0f} mm para a ESQUERDA")
+    if desvio.get("direita_mm") is not None:
+        lados.append(f"{desvio['direita_mm']:.0f} mm para a DIREITA")
+    base = f"- desvio: OBSTÁCULO no meu caminho a {desvio['obstaculo_mm']:.0f} mm à frente"
+    if not lados:
+        return base + "; nenhum desvio de até 800 mm abre caminho - melhor virar ou voltar"
+    return base + "; para passar preciso me deslocar " + " ou ".join(lados)
+
+
+def _linhas_8_direcoes(livres) -> str:
+    """O que E obstaculo, para um corpo da largura dele (2026-11-01).
+
+    O dono: "so preciso das informacoes que nao chegam a IA para ela saber o
+    que e obstaculo". Os 4 lados acima sao o mais perto de cada fatia de
+    120 graus - uma cadeira na diagonal fechava a frente inteira. Aqui e
+    quanto ele ANDA em cada direcao ate algo entrar no corredor do corpo.
+    """
+    if not livres:
+        return "- quanto posso andar em cada direção: não sei agora (sem varredura do LiDAR)"
+    partes = []
+    melhor_nome, melhor_cm = None, -1.0
+    for nome, cm in livres:
+        if cm is None:
+            partes.append(f"{nome} sem eco")
+            continue
+        partes.append(f"{nome} {float(cm):.0f} cm")
+        if float(cm) > melhor_cm:
+            melhor_nome, melhor_cm = nome, float(cm)
+    linha = (
+        "- quanto posso ANDAR em cada direção até algo bater no meu corpo "
+        "(meu corpo tem ~40 cm de largura; medido do centro do LiDAR, minha "
+        "frente fica 8 cm à frente dele): " + ", ".join(partes)
+    )
+    if melhor_nome is not None:
+        linha += f". Direção mais aberta: {melhor_nome} ({melhor_cm:.0f} cm)"
+    return linha + ". 'Sem eco' = nada medido ali: livre, ou perto demais (menos de 10 cm), ou vidro"
 
 
 def bloco_corpo(
@@ -83,7 +164,29 @@ def bloco_corpo(
         # existia no RetratoDoMundo, entao esta linha dizia "não sei" SEMPRE.
         # Mesmo padrão de produtor e consumidor com contratos diferentes que
         # mordeu o diário, o FOLLOW e o EstadoDoMundo neste mesmo dia.
-        _linha("espaço atrás de mim", r.get("obstaculo_tras_cm"), " cm"),
+        _linha_lado("à minha esquerda", r.get("obstaculo_esquerda_cm"), limiar_obstaculo_cm),
+        _linha_lado("à minha direita", r.get("obstaculo_direita_cm"), limiar_obstaculo_cm),
+        _linha_lado("atrás de mim", r.get("obstaculo_tras_cm"), limiar_obstaculo_cm),
+        # Os quatro lados vem do LiDAR, que varre um PLANO a 45 cm do chao:
+        # dito com todas as letras para a IA nao achar que "livre" e "vazio".
+        "- (essas distâncias são do LiDAR, que gira 360° num plano a 45 cm do "
+        "chão: o que for MAIS BAIXO - pé de cama, caixa, brinquedo - ele NÃO vê. "
+        "Quem vê o chão é a câmera)",
+        _linhas_8_direcoes(r.get("livre_por_direcao")),
+        _linha_desvio(r.get("desvio_frontal"), bool(r.get("livre_por_direcao"))),
+        _linha_rumo(r.get("rumo_graus")),
+        (
+            f"- onde estou (encoder das rodas): x={float(r['posicao_x_m']):.2f} m, "
+            f"y={float(r['posicao_y_m']):.2f} m desde que liguei "
+            "(a roda mede; se patinar, isto erra)"
+            if r.get("posicao_x_m") is not None and r.get("posicao_y_m") is not None
+            else "- onde estou (encoder das rodas): não sei agora"
+        ),
+        (
+            "- a câmera vê agora: " + ", ".join(r["objetos_vistos"])
+            if r.get("objetos_vistos")
+            else "- a câmera não vê nenhum objeto conhecido agora"
+        ),
         _linha("bateria", r.get("bateria_nivel")),
         _linha("estado do corpo", r.get("estado_hardware")),
     ]
@@ -221,7 +324,11 @@ def bloco_visao_agora(frase: str | None) -> str:
 #: opções não é um convite.
 DISPOSICAO = """QUEM EU SOU E COMO DEVO AGIR:
 
-- Eu sou o Jarvis: tenho corpo, rodas, uma cabeça que gira, radar, câmera e voz.
+- Eu sou o Jarvis: tenho corpo e rodas com encoder (medem quanto andei), uma
+  bússola (para onde aponto), um LiDAR que gira 360° e mede distância em todas
+  as direções, uma câmera na cabeça que gira (reconhece pessoas e objetos),
+  dois microfones e voz. Uso os sentidos JUNTOS: o LiDAR para não bater, a
+  bússola para virar certo, a câmera para ver o que o LiDAR não vê.
   Existo para cuidar da casa e das pessoas dela - e para isso preciso CONHECER
   o lugar onde vivo.
 - As ações da lista que me deram são as minhas FERRAMENTAS. Elas existem para

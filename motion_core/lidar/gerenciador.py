@@ -65,7 +65,9 @@ PORTAS_CANDIDATAS = (
 QUADROS_NA_JANELA = 45
 #: Intervalo minimo entre publicacoes de `lidar.scan` (o LiDAR gira a 10-15 Hz;
 #: ninguem precisa de setores 15 vezes por segundo).
-INTERVALO_MINIMO_PUBLICACAO_S = 0.4
+#: 0,2 desde 2026-11-01 (era 0,4): o watchdog da trava para o robo com 0,6 s
+#: sem varredura. A 0,4 s, uma varredura atrasada ja chegava perto do limite.
+INTERVALO_MINIMO_PUBLICACAO_S = 0.2
 #: Tempo sem nenhum quadro valido para declarar o LiDAR mudo.
 SEM_DADOS_LIMITE_S = 3.0
 #: Intervalo entre tentativas de abrir a porta (tolerancia Cap 6 s.8).

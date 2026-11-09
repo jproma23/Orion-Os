@@ -21,6 +21,7 @@ from orion.communication.protocol import (
 )
 from orion.communication.transport import ErroTransporte, Transporte
 from orion.kernel.event_bus import EventBus, Prioridade
+from orion.kernel.tarefas import disparar
 
 logger = logging.getLogger("orion.communication.service")
 
@@ -57,6 +58,7 @@ class ComunicacaoService:
         self._versao_modulo = versao_modulo
         self._links: dict[str, Transporte] = {}
         self._rotas: dict[str, str] = {}
+        self._porteiros: dict = {}
         self._pendentes_ack: dict[str, asyncio.Future[Mensagem]] = {}
         self._pendentes_resposta: dict[str, asyncio.Future[Mensagem]] = {}
         # Uma tarefa de recepcao POR PEER (nao uma lista solta): ao
@@ -125,8 +127,23 @@ class ComunicacaoService:
             except Exception:
                 logger.debug("falha ao fechar link antigo '%s'", nome_peer, exc_info=True)
 
-        asyncio.create_task(_fechar())
+        disparar(_fechar(), f"fechar_link_{nome_peer}")
         logger.info("Link anterior com '%s' descartado (socket e tarefa fechados)", nome_peer)
+
+    def definir_porteiro(self, destino: str, porteiro) -> None:
+        """Todo COMMAND para `destino` passa antes por `porteiro(payload)`,
+        que devolve None (segue) ou o motivo da recusa (2026-11-01).
+
+        Vale para os dois caminhos: o que nasce aqui (`send`/`request`) e o
+        que so passa por aqui (`_encaminhar`). Existe porque a checagem de
+        obstaculo morava num modulo que a acao falada do Notebook nao
+        atravessava - o roteamento transparente era um atalho para as rodas.
+        """
+        self._porteiros[destino] = porteiro
+
+    def _motivo_recusa(self, destino: str, payload: dict) -> str | None:
+        porteiro = self._porteiros.get(destino)
+        return porteiro(payload) if porteiro is not None else None
 
     def _resolver_link(self, destino: str) -> Transporte:
         nome_peer = self._rotas.get(destino)
@@ -139,6 +156,10 @@ class ComunicacaoService:
     ) -> Mensagem:
         """comm.send: envia e aguarda ACK, com ate `max_retries` retransmissoes
         (Cap 14 secao 5). Publica comm.link_degraded se esgotar as tentativas."""
+        if tipo is TipoMensagem.COMMAND:
+            motivo = self._motivo_recusa(destino, payload)
+            if motivo is not None:
+                raise ErroComunicacao(f"Comando recusado antes de '{destino}': {motivo}")
         mensagem = Mensagem.nova(tipo, self._nome_local, destino, payload)
         transporte = self._resolver_link(destino)
 
@@ -219,6 +240,9 @@ class ComunicacaoService:
     async def request(self, destino: str, payload: dict, timeout_s: float) -> Mensagem:
         """comm.request: envia um COMMAND e aguarda a RESPONSE correspondente
         (correlacionada por id_referencia), de forma sincrona ate `timeout_s`."""
+        motivo = self._motivo_recusa(destino, payload)
+        if motivo is not None:
+            raise ErroComunicacao(f"Comando recusado antes de '{destino}': {motivo}")
         mensagem = Mensagem.nova(TipoMensagem.COMMAND, self._nome_local, destino, payload)
         transporte = self._resolver_link(destino)
 
@@ -359,6 +383,21 @@ class ComunicacaoService:
 
     async def _encaminhar(self, mensagem: Mensagem) -> None:
         """Roteamento transparente: reenvia para quem sabe chegar em `mensagem.destino`."""
+        if mensagem.tipo is TipoMensagem.COMMAND:
+            motivo = self._motivo_recusa(mensagem.destino, mensagem.payload)
+            if motivo is not None:
+                logger.warning(
+                    "Comando de '%s' para '%s' recusado: %s",
+                    mensagem.origem,
+                    mensagem.destino,
+                    motivo,
+                )
+                try:
+                    volta = self._resolver_link(mensagem.origem)
+                    await volta.enviar(Mensagem.nack(mensagem, self._nome_local, motivo).to_bytes())
+                except (ErroComunicacao, ErroTransporte):
+                    logger.warning("Nao consegui avisar '%s' da recusa", mensagem.origem)
+                return
         try:
             transporte = self._resolver_link(mensagem.destino)
         except ErroComunicacao:

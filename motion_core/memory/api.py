@@ -194,6 +194,25 @@ class MemoryAPI:
         )
         return contagem
 
+    async def experiencias_recentes(self, situacao: str, limite: int = 5) -> list[dict[str, Any]]:
+        """As ultimas experiencias de uma situacao, da mais nova para a mais velha.
+
+        Para a IA decidir com o que JA aconteceu (08/11, dono: "estabelecer
+        contexto para a IA aprender"): o seguir pergunta "o que faco agora?"
+        levando junto como foram as ultimas vezes.
+        """
+
+        def _ler() -> list[dict[str, Any]]:
+            linhas = self._db.conexao.execute(
+                "SELECT o_que_aconteceu, o_que_funcionou, o_que_falhou, resultado, criado_em "
+                "FROM experiencias WHERE situacao = ? ORDER BY id DESC LIMIT ?",
+                (situacao, int(limite)),
+            ).fetchall()
+            return [dict(linha) for linha in linhas]
+
+        async with self._db.lock:
+            return await asyncio.to_thread(_ler)
+
     async def update(self, categoria: str, id: int, dados: dict[str, Any]) -> bool:
         """Atualiza um registro existente. Retorna False se o id nao existir."""
         tabela = self._tabela(categoria)

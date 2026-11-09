@@ -10,12 +10,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import date, datetime
 
 from motion_core.memory.database import DatabaseManager
 from orion.kernel.event_bus import EventBus, Prioridade
 
 logger = logging.getLogger("motion_core.memory.manutencao")
+
+#: Backup mais velho que isto e feito na hora, fora do horario - ver
+#: `TarefaManutencao._backup_atrasado`.
+BACKUP_ATRASADO_APOS_S = 24 * 3600.0
 
 
 async def iniciar_banco(db: DatabaseManager, event_bus: EventBus) -> None:
@@ -83,7 +88,8 @@ class TarefaManutencao:
         while self._executando:
             agora = datetime.now()
             hoje = agora.date()
-            if agora.hour == self._hora_backup and self._ultimo_backup_data != hoje:
+            devido = agora.hour == self._hora_backup or self._backup_atrasado()
+            if devido and self._ultimo_backup_data != hoje:
                 try:
                     await self.executar_backup_agora()
                 except Exception:
@@ -101,6 +107,24 @@ class TarefaManutencao:
                 else:
                     self._ultimo_backup_data = hoje
             await asyncio.sleep(self._intervalo_verificacao_s)
+
+    def _backup_atrasado(self) -> bool:
+        """O backup mais novo no disco tem mais de um dia (ou nao existe).
+
+        POR QUE (2026-11-08): o horario das 3h pressupunha um robo ligado de
+        madrugada. O dono desliga as duas maquinas entre as sessoes - o ultimo
+        backup automatico era de 12/09, quase dois meses. Agora, ligou e o
+        backup esta velho: faz na hora, sem esperar as 3h que nunca chegam.
+        """
+        try:
+            backups = self._db._listar_backups()
+        except Exception:
+            logger.warning("nao consegui listar os backups", exc_info=True)
+            return False
+        if not backups:
+            return True
+        mais_novo = max(caminho.stat().st_mtime for caminho in backups)
+        return time.time() - mais_novo > BACKUP_ATRASADO_APOS_S
 
     def parar(self) -> None:
         self._executando = False

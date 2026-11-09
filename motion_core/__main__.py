@@ -54,6 +54,7 @@ from motion_core.memory.replica_pendente import (
 from motion_core.memory.vault import VaultConhecimento
 from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
+from motion_core.navigation.trava_lidar import TravaLidar
 from motion_core.navigation.gerente_nav2 import GerenteNav2
 from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
@@ -429,6 +430,39 @@ async def principal() -> None:
     config_motion = config.secao("motion")
     config_navigation = config.secao("navigation")
     navigation = NavigationCore(event_bus, comm, config_motion, config_navigation)
+    # TRAVA DO LIDAR (2026-11-01): porteiro do enlace com as rodas. Todo
+    # comando que anda - do Notebook, da webui, do maestro ou do Nav2 - so
+    # chega ao ESP32 se o corredor a frente (ou atras) estiver livre. Ver
+    # motion_core/navigation/trava_lidar.py.
+    conf_trava = config_motion.get("trava_lidar", {})
+    chassi = config.secao("chassi") or {}
+    # EDR-0037 (01/11 tarde): BLOQUEIA por padrao - um yaml sem a chave fica
+    # no lado seguro. 50 cm frente/tras no autonomo, piso de 15 cm no manual.
+    trava_lidar = TravaLidar(
+        event_bus,
+        distancia_cm=float(conf_trava.get("distancia_cm", 50.0)),
+        meia_largura_cm=float(conf_trava.get("meia_largura_cm", 25.0)),
+        idade_max_s=float(conf_trava.get("idade_max_s", 0.6)),
+        bloquear=bool(conf_trava.get("bloquear", True)),
+        piso_manual_cm=float(conf_trava.get("piso_manual_cm", 15.0)),
+        # 08/11: ponto com avanco menor que isto e o proprio corpo, nao
+        # obstaculo (75 paradas por "obstaculo a 1 cm" numa semana).
+        corpo_frente_cm=100.0 * float(chassi.get("lidar_recuo_m", 0.0)),
+        corpo_tras_cm=100.0
+        * max(0.0, float(chassi.get("profundidade_m", 0.0)) - float(chassi.get("lidar_recuo_m", 0.0))),
+        cegas_para_parar=int(conf_trava.get("cegas_para_parar", 2)),
+    )
+
+    async def _parar_rodas() -> None:
+        try:
+            await comm.send("hardware_core", {"comando": "STOP"})
+        except ErroComunicacao:
+            logger.warning("trava do LiDAR: STOP nao chegou ao Hardware Core")
+
+    trava_lidar.ligar_parada(_parar_rodas)
+    # Watchdog: andando e o LiDAR calado alem de idade_max_s -> STOP.
+    tarefa_watchdog_trava = asyncio.create_task(trava_lidar.vigiar())
+    comm.definir_porteiro("hardware_core", trava_lidar.motivo_recusa)
     FusaoSensores(event_bus, config_motion)
     # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
     # COMO chegar (mapa, costmap, replanejamento); o Motion Core decide ONDE.
@@ -491,10 +525,21 @@ async def principal() -> None:
         conf_vision = {}
         logger.warning("secao `vision` ausente no orion.yaml - Vision Engine desligado")
     vision_engine = None
-    if conf_vision:
+    # DESLIGADO POR PADRAO (2026-11-01). Desde 30/09 a camera (DV20) mora na
+    # USB do Notebook e o stream do Pi (:8091) foi desligado: este engine
+    # ficava publicando vision.camera_error a cada 3 s (5 em 15 s medidos),
+    # e antes disso, com o ustreamer de pe, rodava o YOLO na tela "NO SIGNAL"
+    # parecendo saudavel. Volta com vision.pi_engine_ativo: true quando houver
+    # camera no Pi (o YOLO de reserva).
+    if conf_vision and not conf_vision.get("pi_engine_ativo", False):
+        logger.info("Vision Engine do Pi desligado (vision.pi_engine_ativo: false)")
+    elif conf_vision:
         classes = conf_vision.get("pi_classes_interesse")
         if classes is None:
             classes = sorted(CLASSES_PESSOAS_ANIMAIS)
+        # O YOLO chama as classes compostas com ESPACO ("cell phone"); a
+        # lista do yaml usava sublinhado e as 15 compostas nunca casavam.
+        classes = [str(c).replace("_", " ") for c in classes]
         vision_engine = VisionEngine(
             event_bus,
             camera_url=conf_vision.get("camera_url_pi", "http://127.0.0.1:8091/stream"),
@@ -601,6 +646,14 @@ async def principal() -> None:
                 # `distancia_tras_cm`, nome que o RetratoDoMundo nunca teve, e
                 # "espaco atras de mim" saia como "nao sei" SEMPRE.
                 "obstaculo_tras_cm": r.obstaculo_tras_cm,
+                "obstaculo_esquerda_cm": r.obstaculo_esquerda_cm,
+                "obstaculo_direita_cm": r.obstaculo_direita_cm,
+                "rumo_graus": r.rumo_graus,
+                "posicao_x_m": r.posicao_x_m,
+                "posicao_y_m": r.posicao_y_m,
+                "objetos_vistos": r.objetos_vistos,
+                "livre_por_direcao": r.livre_por_direcao,
+                "desvio_frontal": r.desvio_frontal,
                 "bateria_nivel": r.bateria_nivel,
                 "estado_hardware": r.estado_hardware,
                 "telemetria_viva": r.telemetria_viva,
@@ -917,6 +970,8 @@ async def principal() -> None:
             event_bus,
             comm,
             intervalo_s=conf_ia_estrategica["intervalo_s"],
+            # os sensores respondem em poucos segundos; a 1a consulta espera
+            espera_inicial_s=float(conf_ia_estrategica.get("espera_inicial_s", 20.0)),
             # O quadro do mundo (EstadoDoMundo + grounding) vai no prompt de
             # quem DECIDE, e nao so no do conselheiro desligado - ate
             # 2026-07-29 esta IA recebia uma linha de contexto e decidia
@@ -931,7 +986,22 @@ async def principal() -> None:
             # ser lido NA HORA de planejar. Passar o retrato ja montado aqui
             # congelaria o mundo no instante do boot - exatamente o "dado velho
             # nao e dado" que o EstadoDoMundo existe para impedir.
-            retrato=mundo.retrato,
+            #
+            # DESLIGADO POR PADRAO (2026-11-01, dono: "muito chefe para pouco
+            # indio"). Com o GOAP a IA escolhia um objetivo e ele traduzia em
+            # acao por conta propria - e girou para a parede seis vezes. Agora
+            # a IA escolhe a acao direto, com o retrato das 8 direcoes na mao.
+            # Volta com `behavior.ia_estrategica.goap: true`.
+            retrato=mundo.retrato if conf_ia_estrategica.get("goap", False) else None,
+            # A IA ESCOLHE INTENCAO, NAO MANOBRA (2026-11-01, dono: "a ia nao
+            # precisa fazer manobras, isso sai caro" / "a ia so decide onde ir
+            # e o corpo usa os motores e sensores para ir"). Na 1a volta do
+            # autonomo com o freio novo ela escolheu desviar_esquerda_mm: girou
+            # 90 graus para uma parede a 47 cm e a trava recusou. Quem desvia e
+            # o EXPLORE (desvio_local.py). Sem a chave, o catalogo inteiro.
+            acoes_validas=tuple(
+                conf_ia_estrategica.get("acoes_permitidas") or contrato.NOMES
+            ),
         )
         ia_estrategica.prioridade = conf_ia_estrategica["prioridade"]
         # Guarda-rail (achado da vistoria de 2026-07-24): nenhum
@@ -965,7 +1035,10 @@ async def principal() -> None:
         )
 
     tarefa_maestro = asyncio.create_task(maestro.executar())
-    intervalo_ronda_s = config.secao("behavior").get("ronda_automatica_intervalo_s", 90.0)
+    # 0 POR PADRAO (2026-11-01, mesmo motivo do GOAP): a ronda a cada 90 s era
+    # mais um chefe mexendo a cabeca por conta propria. Ela continua no
+    # catalogo da IA - quem decide fazer ronda e a IA.
+    intervalo_ronda_s = config.secao("behavior").get("ronda_automatica_intervalo_s", 0.0)
 
     async def _pedir_ronda_periodica() -> None:
         """Faz a camera principal observar o ambiente quando o robo esta livre.
@@ -1007,6 +1080,9 @@ async def principal() -> None:
                 situacao, "falhou", janela_s
             )
         )
+        # O seguir aprende: as ultimas tentativas vao junto quando ele pergunta
+        # a IA o que fazer (08/11).
+        navigation.registrar_consulta_experiencias(memory_api.experiencias_recentes)
     tarefa_manutencao = None
     tarefa_manutencao_task = None
     if memory_api is not None:
@@ -1098,6 +1174,7 @@ async def principal() -> None:
     logger.info("Motion Core: iniciando desligamento seguro")
     heartbeat.parar()
     tarefa_heartbeat.cancel()
+    tarefa_watchdog_trava.cancel()
     tarefa_recentragem.cancel()
     if tarefa_ronda is not None:
         tarefa_ronda.cancel()

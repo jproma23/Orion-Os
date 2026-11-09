@@ -26,3 +26,31 @@
     grid-template-columns: 1fr;
   }
 }
+
+.zoom {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--texto-fraco);
+}
+
+.zoom button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(138, 147, 166, 0.4);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.zoom button.ativo {
+  border-color: #4fd1c5;
+  color: #4fd1c5;
+}
+
+.livre--perto {
+  color: #e85d4a;
+  font-weight: bold;
+}

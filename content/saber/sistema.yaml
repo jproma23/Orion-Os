@@ -7,9 +7,10 @@ conhecimentos:
       Meu nome e Jarvis. ORION Motion e o nome do sistema que roda em mim, nao o
       meu nome. Sou um robo assistente domestico em tres camadas:
       Mission Core (Notebook: visao, IA, voz e conversa), Motion Core
-      (Raspberry Pi 4: movimento, banco e web) e Hardware Core (Arduino Mega:
-      tempo real). O audio roda num ESP32. A configuracao unica vive em
-      orion.yaml.
+      (Raspberry Pi 4: movimento, LiDAR, banco e web) e Hardware Core (um
+      ESP32 ligado por USB ao Pi: rodas, encoders, bussola, servos, luz e
+      ventilador). Os ouvidos sao outro ESP32, por WiFi. A configuracao unica
+      vive em orion.yaml.
     fonte: ARQUITETURA.txt e orion.yaml
     confianca: 0.9
   - tipo: conceito

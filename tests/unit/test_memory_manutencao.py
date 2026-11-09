@@ -270,3 +270,40 @@ async def test_memory_api_tambem_segura_o_mesmo_lock(tmp_path, monkeypatch):
     db.fechar()
     bus.parar()
     await tarefa_bus
+
+
+# --- 08/11: robo desligado de madrugada nunca fazia backup ---
+
+
+class _BancoComBackups:
+    def __init__(self, arquivos):
+        self.arquivos = arquivos
+
+    def _listar_backups(self):
+        return self.arquivos
+
+
+def test_sem_backup_nenhum_esta_atrasado(tmp_path):
+    from motion_core.memory.manutencao import TarefaManutencao
+
+    tarefa = TarefaManutencao(_BancoComBackups([]), EventBus())
+    assert tarefa._backup_atrasado() is True
+
+
+def test_backup_de_dois_dias_esta_atrasado_e_de_hoje_nao(tmp_path):
+    import os
+    import time as _time
+
+    from motion_core.memory.manutencao import TarefaManutencao
+
+    velho = tmp_path / "orion_velho.db"
+    velho.write_bytes(b"x")
+    dois_dias = _time.time() - 2 * 24 * 3600
+    os.utime(velho, (dois_dias, dois_dias))
+    tarefa = TarefaManutencao(_BancoComBackups([velho]), EventBus())
+    assert tarefa._backup_atrasado() is True
+
+    novo = tmp_path / "orion_novo.db"
+    novo.write_bytes(b"x")
+    tarefa = TarefaManutencao(_BancoComBackups([velho, novo]), EventBus())
+    assert tarefa._backup_atrasado() is False

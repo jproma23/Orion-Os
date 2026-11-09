@@ -26,6 +26,7 @@ decide a encarar a incerteza em vez de ignorá-la.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -47,6 +48,23 @@ VALIDADE_TELEMETRIA_S = 3.0
 VALIDADE_LIDAR_S = 3.0
 VALIDADE_ESTADO_HARDWARE_S = 5.0
 VALIDADE_VISAO_S = 15.0
+#: O que a camera viu fica no contexto da IA por este tempo, com a idade
+#: (2026-11-08). A IA estrategica decide a cada 5 min: com 15 s, em 23 de 25
+#: decisoes ela recebeu "a camera nao ve nenhum objeto" com o YOLO vendo coisas.
+MEMORIA_OBJETOS_S = 60.0
+#: Campo de visao horizontal da DV20, em graus. NAO MEDIDO: valor tipico de
+#: webcam. Erra o angulo do objeto na proporcao do erro deste numero.
+FOV_HORIZONTAL_GRAUS = 60.0
+#: Janela do LiDAR em volta da direcao do objeto para medir a distancia dele.
+JANELA_LIDAR_OBJETO_GRAUS = 5
+#: Objeto NOVO dentro deste cone da frente e mais perto que isto pede a IA
+#: para decidir na hora (behavior.reconsiderar), sem esperar o ciclo de 5 min.
+CONE_FRENTE_OBJETO_GRAUS = 30.0
+PERTO_OBJETO_CM = 150.0
+#: Teto de pressa: a cota gratis do Gemini e 500/dia e ja acabou uma vez.
+PRESSA_POR_CLASSE_S = 60.0
+PRESSA_MINIMA_S = 20.0
+TOPICO_RECONSIDERAR = "behavior.reconsiderar"
 VALIDADE_VOZ_S = 30.0
 #: Por quanto tempo "andei sem medida confiavel" continua sendo noticia para
 #: quem decide. 30s cobre alguns segmentos de movimento; passado isso, o fato
@@ -73,6 +91,97 @@ class _Campo:
     def escrever(self, valor: Any) -> None:
         self.valor = valor
         self.instante = time.monotonic()
+
+
+#: As 8 direcoes, na convencao do projeto (0 esquerda, 90 frente, 180 direita).
+DIRECOES_8 = (
+    ("frente", 90.0),
+    ("frente-direita", 135.0),
+    ("direita", 180.0),
+    ("trás-direita", 225.0),
+    ("trás", 270.0),
+    ("trás-esquerda", 315.0),
+    ("esquerda", 0.0),
+    ("frente-esquerda", 45.0),
+)
+
+#: Meia largura do corpo para o corredor: 0,36 m de bitola medida na fita +
+#: rodas = ~0,40 m; 20 cm de cada lado do eixo do movimento.
+MEIA_LARGURA_CORPO_CM = 20.0
+
+
+def livre_no_corredor(raios_cm, eixo_graus: float, meia_largura_cm: float) -> float | None:
+    """Quanto da para andar na direcao `eixo_graus` antes de um ponto do
+    LiDAR entrar no CORREDOR da largura do corpo (2026-11-01).
+
+    E isto, e nao a menor distancia de uma fatia, que diz o que e obstaculo:
+    parede ao lado num corredor nao bate; caixa na frente bate. None = nenhum
+    ponto medido no corredor (livre ate o alcance, ou perto demais/vidro).
+    """
+    menor: float | None = None
+    for angulo, distancia in enumerate(raios_cm or ()):
+        if distancia is None:
+            continue
+        desvio = math.radians(angulo - eixo_graus)
+        avanco = distancia * math.cos(desvio)
+        if avanco > 0 and abs(distancia * math.sin(desvio)) < meia_largura_cm:
+            if menor is None or avanco < menor:
+                menor = avanco
+    return menor
+
+
+#: Ate onde o desvio olha o caminho a frente, e o maior desvio testado.
+ALCANCE_DESVIO_MM = 1000.0
+DESVIO_MAXIMO_MM = 800.0
+PASSO_DESVIO_MM = 50.0
+
+
+def desvio_frontal(
+    raios_cm, meia_largura_cm: float = 20.0, alcance_mm: float = ALCANCE_DESVIO_MM
+) -> dict | None:
+    """QUANTO DESVIAR, EM MM (2026-11-01). O dono: "ela precisa saber quando
+    desviar e o quanto desvia em mm".
+
+    Olha o caminho a frente ate `alcance_mm` numa faixa da largura do corpo.
+    Livre: None (nao ha o que desviar). Com algo no caminho, desloca a faixa
+    de lado, 50 em 50 mm, e acha o MENOR deslocamento para cada lado que
+    deixa o caminho livre ate o alcance. E medida, nao decisao: quem escolhe
+    o lado e quando comecar e a IA.
+
+    Devolve {"obstaculo_mm", "esquerda_mm", "direita_mm"} - os dois ultimos
+    None quando nenhum desvio ate DESVIO_MAXIMO_MM abre o caminho.
+    """
+    pontos = []
+    for angulo, distancia in enumerate(raios_cm or ()):
+        if distancia is None:
+            continue
+        desvio = math.radians(angulo - 90.0)  # 90 = frente
+        x = distancia * 10.0 * math.cos(desvio)  # mm a frente
+        y = distancia * 10.0 * math.sin(desvio)  # mm para a DIREITA (+)
+        if 0 < x <= alcance_mm:
+            pontos.append((x, y))
+    meia_mm = meia_largura_cm * 10.0
+
+    def bloqueado(deslocamento: float) -> list:
+        return [x for x, y in pontos if abs(y - deslocamento) < meia_mm]
+
+    no_caminho = bloqueado(0.0)
+    if not no_caminho:
+        return None
+
+    def menor_livre(sinal: int) -> float | None:
+        passo = PASSO_DESVIO_MM
+        while passo <= DESVIO_MAXIMO_MM:
+            if not bloqueado(sinal * passo):
+                return passo
+            passo += PASSO_DESVIO_MM
+        return None
+
+    return {
+        "obstaculo_mm": round(min(no_caminho)),
+        "esquerda_mm": menor_livre(-1),
+        "direita_mm": menor_livre(+1),
+    }
 
 
 @dataclass(frozen=True)
@@ -117,6 +226,25 @@ class RetratoDoMundo:
     #: Default False para não quebrar quem constrói o retrato à mão (testes).
     risco_frontal_assumido: bool = False
 
+    # --- OS SENTIDOS QUE A IA NAO CONHECIA (2026-11-01) ---
+    # O dono, vendo o robo bater: "ele nao sabe usar a bussola como
+    # referencia, nao sabe que tem um sensor de pontos para se guiar, nao
+    # usa a visao computacional". Os sensores mediam; o retrato e que so
+    # contava frente e tras. Agora conta os quatro lados do LiDAR, o rumo
+    # da bussola, a posicao pelo encoder e o que a camera ve AGORA.
+    obstaculo_esquerda_cm: float | None = None
+    obstaculo_direita_cm: float | None = None
+    rumo_graus: float | None = None
+    posicao_x_m: float | None = None
+    posicao_y_m: float | None = None
+    #: "classe (lado)" de cada objeto que a camera viu nos ultimos segundos.
+    objetos_vistos: tuple = ()
+    #: (direcao, cm ou None) para as 8 direcoes - quanto ele pode ANDAR em
+    #: cada uma antes de algo bater no corpo. Ver `livre_no_corredor`.
+    livre_por_direcao: tuple = ()
+    #: Ver `desvio_frontal`. None = caminho a frente livre (ou sem LiDAR).
+    desvio_frontal: dict | None = None
+
     def resumo(self) -> str:
         """Uma linha legível - útil em log e para explicar decisão."""
         def fmt(v: Any, sufixo: str = "") -> str:
@@ -144,6 +272,19 @@ class EstadoDoMundo:
         self._pessoa = _Campo()
         self._alerta = _Campo()
         self._risco_frente = _Campo()
+        self._posicao = _Campo()
+        self._raios = _Campo()
+        #: classe -> (lado, instante). Ver `_ao_ver_objeto`.
+        #: classe -> (desvio em graus no ROBO, + = direita; instante). O
+        #: desvio ja soma a cabeca (pan): com ela virada, o "centro da imagem"
+        #: nao e a frente do robo.
+        self._objetos: dict[str, tuple[float, float]] = {}
+        #: Ultima pressa pedida (global e por classe) - ver PRESSA_*.
+        self._ultima_pressa = float("-inf")
+        self._pressa_por_classe: dict[str, float] = {}
+        self._event_bus = event_bus
+        #: Ultimo pan da cabeca comandado (graus, + = direita).
+        self._pan_graus = 0.0
         self._voz_ativa = False
 
         # Corpo do robô: telemetria periódica vinda do Mega pela ponte serial.
@@ -179,6 +320,12 @@ class EstadoDoMundo:
         event_bus.subscribe("vision.person_recognized", self._ao_reconhecer_pessoa)
         event_bus.subscribe("vision.person_lost", self._ao_perder_pessoa)
         event_bus.subscribe("sentinela.alerta", self._ao_receber_alerta)
+        # Objetos que a camera ve (cadeira, tv, gato...) - chegam do Notebook
+        # encaminhados, estrangulados la a 1/s por classe (2026-11-01).
+        event_bus.subscribe("vision.object_detected", self._ao_ver_objeto)
+        event_bus.subscribe("motion.pan_tilt", self._ao_mover_cabeca)
+        # Pose pela roda (encoder) com rumo fundido a bussola - mesmo processo.
+        event_bus.subscribe("motion.position", self._ao_receber_posicao)
         # A navegação declarando que andou sem saber o que havia à frente.
         # CONFERIDO ANTES DE ASSINAR (a regra que este projeto aprendeu a
         # duras penas): `navigation.risco_assumido` é publicado pelo
@@ -196,6 +343,9 @@ class EstadoDoMundo:
         setores = evento.dados.get("setores")
         if setores is not None:
             self._lidar.escrever(setores)
+        raios = evento.dados.get("raios_cm")
+        if raios and len(raios) == 360:
+            self._raios.escrever(list(raios))
 
     #: Meia-largura da janela que conta como FRENTE e como TRAS, em graus.
     #:
@@ -209,6 +359,8 @@ class EstadoDoMundo:
     #: 180° = direita, 270° = TRAS.
     _GRAUS_FRENTE = 90.0
     _GRAUS_TRAS = 270.0
+    _GRAUS_ESQUERDA = 0.0
+    _GRAUS_DIREITA = 180.0
 
     def _distancia_em(self, setores, centro_graus: float) -> float | None:
         """Menor distancia medida na janela em torno de `centro_graus`.
@@ -298,6 +450,95 @@ class EstadoDoMundo:
         # Vence na hora: sumiu de vista, não há mais ninguém presente.
         self._pessoa = _Campo()
 
+    #: Largura do quadro da camera (640x480): divide em terços para dizer
+    #: de que lado o objeto esta. Com a cabeca centrada, e o lado do ROBO.
+    _LARGURA_QUADRO = 640.0
+
+    async def _ao_ver_objeto(self, evento: Evento) -> None:
+        """Guarda ONDE o objeto esta em relacao ao robo, nao so na imagem.
+
+        Posicao na imagem (centro da caixa) vira angulo pelo campo de visao, e
+        soma o pan da cabeca. Antes era so o terco da IMAGEM: com a cabeca
+        virada 60 graus, "a frente" era a lateral do robo.
+        """
+        classe = evento.dados.get("classe")
+        caixa = evento.dados.get("caixa") or ()
+        if not classe:
+            return
+        na_imagem = 0.0
+        if len(caixa) == 4:
+            centro = (float(caixa[0]) + float(caixa[2])) / 2.0
+            na_imagem = (centro / self._LARGURA_QUADRO - 0.5) * FOV_HORIZONTAL_GRAUS
+        desvio = self._pan_graus + na_imagem
+        agora = time.monotonic()
+        self._objetos[str(classe)] = (desvio, agora)
+        await self._pedir_pressa_se_a_frente(str(classe), desvio, agora)
+
+    async def _pedir_pressa_se_a_frente(self, classe: str, desvio: float, agora: float) -> None:
+        """Objeto novo bem a frente e perto: a IA decide AGORA, com o dado pronto.
+
+        O dono (08/11): a IA nao pode consultar, tem que receber pronto - e no
+        momento certo. Quem informa nao decide, mas pode pedir pressa (o mesmo
+        caminho que a vigilancia de obstaculo usa).
+        """
+        if abs(desvio) > CONE_FRENTE_OBJETO_GRAUS:
+            return
+        raios = self._raios.ler(VALIDADE_LIDAR_S, agora)
+        if not raios:
+            return
+        eixo = int(round(90.0 + desvio))
+        medidas = [
+            raios[(eixo + d) % 360]
+            for d in range(-JANELA_LIDAR_OBJETO_GRAUS, JANELA_LIDAR_OBJETO_GRAUS + 1)
+        ]
+        medidas = [m for m in medidas if m is not None]
+        if not medidas or min(medidas) > PERTO_OBJETO_CM:
+            return
+        if agora - self._pressa_por_classe.get(classe, float("-inf")) < PRESSA_POR_CLASSE_S:
+            return
+        if agora - self._ultima_pressa < PRESSA_MINIMA_S:
+            return
+        self._pressa_por_classe[classe] = agora
+        self._ultima_pressa = agora
+        await self._event_bus.publish(
+            TOPICO_RECONSIDERAR,
+            {
+                "origem": "camera+lidar",
+                "motivo": f"{classe} a frente a {min(medidas):.0f} cm",
+            },
+        )
+
+    async def _ao_mover_cabeca(self, evento: Evento) -> None:
+        try:
+            self._pan_graus = float(evento.dados.get("pan", self._pan_graus))
+        except (TypeError, ValueError):
+            pass
+
+    def _descrever_objeto(self, classe: str, desvio: float, idade_s: float, raios) -> str:
+        """'chair (20 graus a direita, a 85 cm pelo LiDAR, ha 12 s)'."""
+        if abs(desvio) < 10:
+            direcao = "bem a frente"
+        else:
+            direcao = f"{abs(desvio):.0f} graus a {'direita' if desvio > 0 else 'esquerda'}"
+        partes = [direcao]
+        if raios:
+            eixo = int(round(90.0 + desvio))
+            medidas = [
+                raios[(eixo + d) % 360]
+                for d in range(-JANELA_LIDAR_OBJETO_GRAUS, JANELA_LIDAR_OBJETO_GRAUS + 1)
+            ]
+            medidas = [m for m in medidas if m is not None]
+            if medidas:
+                partes.append(f"a {min(medidas):.0f} cm pelo LiDAR")
+            else:
+                partes.append("LiDAR sem eco nessa direcao (perto demais, baixo ou longe)")
+        if idade_s >= 5:
+            partes.append(f"ha {idade_s:.0f} s")
+        return f"{classe} ({', '.join(partes)})"
+
+    async def _ao_receber_posicao(self, evento: Evento) -> None:
+        self._posicao.escrever(dict(evento.dados))
+
     async def _ao_receber_alerta(self, evento: Evento) -> None:
         self._alerta.escrever(evento.dados.get("tipo", "desconhecido"))
 
@@ -349,6 +590,8 @@ class EstadoDoMundo:
         # se for recente (`VALIDADE_LIDAR_S`), e None é "não sei", nunca
         # "está livre" - ver `_distancia_em`.
         setores = self._lidar.ler(VALIDADE_LIDAR_S, agora)
+        posicao = self._posicao.ler(VALIDADE_TELEMETRIA_S, agora)
+        raios = self._raios.ler(VALIDADE_LIDAR_S, agora)
 
         return RetratoDoMundo(
             obstaculo_frente_cm=self._distancia_em(setores, self._GRAUS_FRENTE),
@@ -363,4 +606,23 @@ class EstadoDoMundo:
             ouvindo=self._voz_ativa,
             telemetria_viva=viva,
             risco_frontal_assumido=bool(self._risco_frente.ler(VALIDADE_RISCO_S, agora)),
+            obstaculo_esquerda_cm=self._distancia_em(setores, self._GRAUS_ESQUERDA),
+            obstaculo_direita_cm=self._distancia_em(setores, self._GRAUS_DIREITA),
+            rumo_graus=do_mega("rumo_graus", "rumo_valido"),
+            posicao_x_m=(posicao or {}).get("x_m"),
+            posicao_y_m=(posicao or {}).get("y_m"),
+            desvio_frontal=desvio_frontal(raios, MEIA_LARGURA_CORPO_CM) if raios else None,
+            livre_por_direcao=(
+                tuple(
+                    (nome, livre_no_corredor(raios, eixo, MEIA_LARGURA_CORPO_CM))
+                    for nome, eixo in DIRECOES_8
+                )
+                if raios
+                else ()
+            ),
+            objetos_vistos=tuple(
+                self._descrever_objeto(classe, desvio, agora - instante, raios)
+                for classe, (desvio, instante) in sorted(self._objetos.items())
+                if agora - instante <= MEMORIA_OBJETOS_S
+            ),
         )

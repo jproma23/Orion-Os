@@ -394,10 +394,18 @@ class IaEstrategica(Comportamento):
         montar_contexto=None,
         retrato=None,
         objetivos_validos: tuple[str, ...] = modelo_goap.NOMES_OBJETIVOS,
+        espera_inicial_s: float = 0.0,
     ) -> None:
         super().__init__(event_bus)
         self._comm = comm
         self._intervalo_s = intervalo_s
+        #: Quanto esperar antes da PRIMEIRA consulta (2026-11-01). Sem isto
+        #: ela saia no instante da subida, antes de LiDAR, bussola e corpo
+        #: responderem: a IA recebia "nao sei" em tudo e "perdi contato com
+        #: meu corpo" - cota gasta para decidir no escuro.
+        self._espera_inicial_s = espera_inicial_s
+        #: o NUMERO que veio com a acao (mm ou graus) - ver contrato.Acao.parametro
+        self._valor_atual = 0.0
         #: O QUE LIGA O GOAP (2026-08-03). Callable que devolve o
         #: `RetratoDoMundo` - tipicamente `EstadoDoMundo.retrato`.
         #:
@@ -463,6 +471,10 @@ class IaEstrategica(Comportamento):
         #: jeito que exige decisão agora (hoje: obstáculo à frente).
         self._reconsiderar = asyncio.Event()
         event_bus.subscribe(TOPICO_RECONSIDERAR, self._ao_pedirem_reconsideracao)
+        #: Modo da navegacao (navigation.mode_changed). Em FOLLOW quem pediu foi
+        #: uma pessoa ("Jarvis, me siga") - ver `_consultar`.
+        self._modo_navegacao: str | None = None
+        event_bus.subscribe("navigation.mode_changed", self._ao_mudar_modo_navegacao)
 
     async def _ao_pedirem_reconsideracao(self, evento: Evento) -> None:
         """Alguém viu algo que não dá para esperar 30s - decida agora.
@@ -495,6 +507,8 @@ class IaEstrategica(Comportamento):
         self._reconsiderar.set()
 
     async def _loop_consulta(self) -> None:
+        if self._espera_inicial_s > 0:
+            await asyncio.sleep(self._espera_inicial_s)
         while self._executando:
             await self._consultar()
             # Espera o intervalo normal OU um pedido de pressa, o que vier
@@ -506,7 +520,18 @@ class IaEstrategica(Comportamento):
             except TimeoutError:
                 pass
 
+    async def _ao_mudar_modo_navegacao(self, evento: Evento) -> None:
+        self._modo_navegacao = str(evento.dados.get("modo") or "") or None
+
     async def _consultar(self) -> None:
+        # ORDEM DE GENTE VENCE A INICIATIVA (teste de 08/11 16:41): seis
+        # segundos depois do "Jarvis, me siga", esta IA decidiu "explorar - sem
+        # ninguem a vista" e trocou o FOLLOW pelo explore. Seguindo alguem, ela
+        # nao decide movimento; volta a decidir quando o follow acabar (perdeu a
+        # pessoa ou alguem disse para).
+        if (self._modo_navegacao or "").upper() == "FOLLOW":
+            logger.debug("IA: seguindo uma pessoa - nao decido movimento agora")
+            return
         nome_ativo = self._maestro.ativo_nome if self._maestro else None
         # Seguranca nao se negocia: com a vigilancia de obstaculo no comando,
         # nem se pergunta a IA (Cap 18, regra 3 do contrato).
@@ -545,9 +570,13 @@ class IaEstrategica(Comportamento):
             ok = resposta.payload.get("ok")
             escolha = resposta.payload.get("comportamento") if ok else None
             motivo = resposta.payload.get("motivo", "") if ok else ""
+            try:
+                valor = float(resposta.payload.get("valor") or 0.0) if ok else 0.0
+            except (TypeError, ValueError):
+                valor = 0.0
         except Exception:
             logger.debug("IA indisponivel (sem Notebook/internet?)", exc_info=True)
-            escolha, motivo = None, ""
+            escolha, motivo, valor = None, "", 0.0
 
         if em_goap:
             nome_acao, motivo = self._planejar(escolha, motivo)
@@ -558,8 +587,11 @@ class IaEstrategica(Comportamento):
                 logger.info("maestro: IA respondeu %r, fora do contrato - abstendo", escolha)
             nome_acao = acao.nome if acao is not None else None
 
-        mudou = nome_acao != self._acao_atual
+        # O numero conta como mudanca: "andar 400" depois de "andar 200" e
+        # outra ordem, e tem que ser executada de novo.
+        mudou = nome_acao != self._acao_atual or valor != self._valor_atual
         self._acao_atual = nome_acao
+        self._valor_atual = valor
         self._motivo_atual = motivo
         if mudou:
             self._reavaliar()
@@ -610,6 +642,8 @@ class IaEstrategica(Comportamento):
             return None, ""
 
         self._plano_atual = [acao.nome for acao in plano]
+        if self._plano_atual[0] in ("virar_esquerda", "virar_direita"):
+            self._plano_atual[0] = self._lado_mais_aberto(self._plano_atual[0])
         self._objetivo_atual = objetivo.nome
         self._registrar_plano(
             f"maestro: objetivo '{objetivo.nome}' -> plano "
@@ -618,6 +652,31 @@ class IaEstrategica(Comportamento):
         self._passo_anterior = self._plano_atual[0]
         rastro = f"objetivo '{objetivo.nome}' via {' -> '.join(self._plano_atual)}"
         return self._plano_atual[0], f"{motivo} [{rastro}]" if motivo else rastro
+
+    def _lado_mais_aberto(self, sugerido: str) -> str:
+        """Vira para o lado que o LiDAR mede mais livre (2026-11-01).
+
+        O GOAP so sabe que precisa virar - virar_esquerda e virar_direita tem
+        o mesmo efeito no modelo, e ele pegava sempre a primeira. Num canto,
+        com a esquerda a 33 cm e a direita a 103, o robo virava para a parede,
+        continuava sem frente e virava de novo: o dono viu ele "ficar girando".
+        Lado sem medida conta como 0 - preferir o que se mediu aberto.
+        """
+        try:
+            r = self._retrato()
+        except Exception:
+            return sugerido
+        esquerda = getattr(r, "obstaculo_esquerda_cm", None) or 0.0
+        direita = getattr(r, "obstaculo_direita_cm", None) or 0.0
+        if esquerda == direita:
+            return sugerido
+        lado = "virar_esquerda" if esquerda > direita else "virar_direita"
+        if lado != sugerido:
+            logger.info(
+                "maestro: vira para o lado aberto (%s): esquerda %.0f cm, direita %.0f cm",
+                lado, esquerda, direita,
+            )
+        return lado
 
     def _registrar_plano(self, texto: str) -> None:
         """Registra a decisao de plano, sem repetir a mesma frase em laco.
@@ -734,7 +793,22 @@ class IaEstrategica(Comportamento):
                 "plano": list(self._plano_atual),
             },
         )
-        logger.info("maestro: IA decidiu '%s' (%s)", self._acao_atual, self._motivo_atual)
+        dados = dict(acao.dados) if acao is not None else {}
+        if acao is not None and acao.parametro:
+            valor = abs(float(self._valor_atual or 0.0))
+            if valor <= 0:
+                # Acao com numero sem numero nao e ordem: e ordem pela metade.
+                logger.info("maestro: IA escolheu '%s' sem valor - abstendo", acao.nome)
+                acao = None
+            else:
+                valor = min(valor, acao.maximo) if acao.maximo else valor
+                dados[acao.parametro] = valor * acao.escala
+        logger.info(
+            "maestro: IA decidiu '%s'%s (%s)",
+            self._acao_atual,
+            f" {self._valor_atual:g}" if self._valor_atual else "",
+            self._motivo_atual,
+        )
         if acao is not None:
             # UMA vez por ativacao, nunca em laco: repetir empurraria o robo
             # indefinidamente enquanto a IA mantivesse a mesma decisao.
@@ -743,7 +817,7 @@ class IaEstrategica(Comportamento):
             # autonomo passa pela navegacao, que checa obstaculo antes de
             # avancar (regra 2 do contrato). O `_avancar` que existia aqui
             # ate 2026-07-28 falava direto com o Arduino e pulava essa camada.
-            await self._event_bus.publish(acao.topico, dict(acao.dados))
+            await self._event_bus.publish(acao.topico, dados)
 
         if acao is not None and acao.delega_para:
             # ACAO DELEGADA: publica e SAI (2026-07-30).
@@ -1000,7 +1074,11 @@ class ControleManual(Comportamento):
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
 
     async def _ao_receber_comando(self, evento: Evento) -> None:
-        if evento.dados.get("acao") != "MANUAL":
+        # VELOCIDADE tambem e o operador dirigindo (2026-11-01): o /velocidade
+        # serve o joystick continuo e a ponte do Nav2. Sem isto o maestro via
+        # o Nav2 guiando o robo como "ninguem no volante" e, em 3 minutos,
+        # devolvia as rodas a IA - e o /velocidade passava a responder 409.
+        if evento.dados.get("acao") not in ("MANUAL", "VELOCIDADE"):
             return
         ja_ativo = self.quer_rodar()
         self._ultimo_comando_monotonic = time.monotonic()

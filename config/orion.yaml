@@ -234,7 +234,17 @@ chassi:
   #     em toda decisão de parada, e sempre no sentido perigoso.
 
 motion:
-  max_speed_percent: 60
+  # 30 e nao 60 (EDR-0037, 01/11): bateu duas vezes no mesmo dia. Sobe so
+  # depois do teste de frenagem medido com trena.
+  max_speed_percent: 30
+  # TRAVA DO LIDAR (EDR-0037): porteiro de todo comando de roda + STOP no meio
+  # do movimento + watchdog. Numeros do dono, 01/11.
+  trava_lidar:
+    bloquear: true
+    distancia_cm: 50        # frente e tras, modo autonomo
+    piso_manual_cm: 15      # modo manual: obedece, mas nao encosta (frente e tras)
+    meia_largura_cm: 25     # corredor: 39 cm de corpo / 2 + folga
+    idade_max_s: 0.6        # LiDAR publica a cada 0,2 s: 3 varreduras perdidas = STOP
   acceleration_percent: 40
   # PULSOS DE ENCODER POR METRO desde 2026-10-31 (o nome ficou de quando eram
   # passos de motor de passo). Derivado, nao digitado:
@@ -334,8 +344,24 @@ lidar:
   # o robo quase tombou encostando numa parede. O gerenciador gira tudo para
   # que, publicado, 90 seja a frente (convencao do projeto: 0 esquerda, 90
   # frente, 180 direita - sentido conferido girando o robo).
-  angulo_frente_graus: 345
-  min_distancia_mm: 50        # abaixo disso e poeira/no proprio robo
+  # 19 desde 2026-11-01 (noite), MEDIDO e CONFIRMADO PELO DONO ("esta
+  # certinho"). Parede a 30 cm de frente: reta ajustada nos pontos dava a
+  # perpendicular em 124 graus publicados = 19 bruto. Conferido com a parede
+  # encostada a direita: ponto mais perto exatamente em 180 graus. O 345 de
+  # 31/10 era a BORDA da faixa onde o sensor perde a parede perto e de frente
+  # - o raio da frente nao tinha eco e o teste pegou o primeiro visivel.
+  # (255 ficou valendo minutos, por engano de leitura do mapa.)
+  angulo_frente_graus: 19
+  # 100 e nao 50 (2026-10-31): com a escala certa apareceram leituras a 5-6 cm
+  # do centro do LiDAR (39-42 graus, frente-esquerda) - dentro do proprio
+  # robo (cabo/fio perto do sensor). No mapa do Nav2 isso vira "obstaculo
+  # dentro do corpo" e ele recusa andar. Dentro de 10 cm do LiDAR so existe o
+  # robo.
+  # 50 desde 2026-11-01 (noite). Era 100 de manha, por leituras de 5-6 cm
+  # "dentro do robo" - mas 30 s de captura bruta com filtro em 0 nao acharam
+  # NENHUM ponto a menos de 12 cm em 360 graus: nao ha peca do robo na visao
+  # do LiDAR. 100 descartaria parede encostada no para-choque.
+  min_distancia_mm: 50
   max_distancia_mm: 12000     # limite do sensor (12 m)
   # Intensidade do retorno. O COIN-D6 usa 0..63; o STL-50B2 usa 0..255. Com 0
   # aceita tudo nos dois - nao subir sem medir, a escala e diferente.
@@ -477,6 +503,9 @@ vision:
   # --- Vision Engine do Pi (motion_core/vision) -------------------------
   # Caminho do modelo YOLO no Raspberry e URL do stream da propria camera.
   yolo_model_path: "data/modelos/yolov8n.pt"
+  # Engine de visao do PI desligado (2026-11-01): a camera esta no Notebook
+  # e o stream :8091 nao existe mais. true so com camera no Pi.
+  pi_engine_ativo: false
   camera_url_pi: "http://127.0.0.1:8091/stream"
   # FPS pedido ao laco do Pi (0 = sem limite, roda o mais rapido possivel).
   fps_pi: 0
@@ -521,7 +550,11 @@ voice:
   # aceita gasta uma - inclusive conversa entre outras pessoas, TV e radio.
   # Os portoes continuam na frente (VAD, transcricao vazia, alucinacao e eco
   # da propria voz). Se a cota voltar a acabar cedo, e aqui que se volta.
-  exigir_palavra_ativacao: false
+  # 2026-11-08, dono: "so com jarvis". O chat de 01-08/11 tinha dezenas de
+  # respostas a conversa de fundo (TV, familia) transcrita como se fosse com
+  # ele - "bingo de alias", "Coro do Fale". Volta a exigir o nome; depois do
+  # "Jarvis" a conversa segue aberta ate 2 silencios.
+  exigir_palavra_ativacao: true
   # MEDIDO EM 2026-08-05, nesta maquina, com audio de gabarito gerado pelo
   # proprio Piper (4 frases, resposta conhecida, servico rodando junto):
   #
@@ -611,7 +644,13 @@ voice:
     compression_ratio_threshold: 2.4
     # Diz ao modelo que esta palavra e esperada. Nao inventa nada: desempata
     # a favor dela quando o som esta no limite.
-    hotwords: "Jarvis"
+    # 08/11: tambem os comandos curtos. "me siga" saiu "e ciga", "Missiga" e
+    # "Ouja" em tres testes seguidos - e comando curto e o que menos tem
+    # contexto para o modelo acertar. So desempata; os portoes continuam.
+    # 08/11 16:39: com os comandos de MOVIMENTO aqui o Whisper passou a tirar
+    # a propria lista do ruido ("olha, olha, olha", "anda para frente, anda
+    # para frente") - perigoso num robo que obedece. So o nome e o me siga.
+    hotwords: "Jarvis, me siga"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
@@ -840,7 +879,7 @@ security:
   child_safe_profile_on_detection: true
 
 behavior:                        # Behavior Core / maestro (EDR-0020)
-  ronda_automatica_intervalo_s: 90  # camera pan-tilt observa o ambiente em modo autonomo
+  ronda_automatica_intervalo_s: 0  # 2026-11-01: desligada - ronda so quando a IA escolher (dono: muito chefe)
   # Conselheiro de IA: o maestro pergunta ao Notebook o que fazer quando
   # esta ocioso. DESLIGADO por padrao desde 2026-07-19, e o motivo importa.
   #
@@ -945,7 +984,23 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     # Repouso, a Vigilancia de obstaculo, o Atender, a Ronda e o
     # AcompanharPessoa nao passam por modelo nenhum. O que para e so a
     # escolha discricionaria "o que eu faco agora, por conta propria".
-    habilitado: false
+    # RELIGADA 2026-11-01 a pedido do dono, com o retrato novo (LiDAR nos 4
+    # lados, bussola, encoder, objetos da camera) e a trava do LiDAR nas
+    # rodas. 300 s e nao 30: a cota gratis do Gemini (500/dia) e dividida com
+    # a conversa - a 30 s ela acabou em 3h30. So dirige em modo AUTONOMO.
+    # RELIGADA 2026-11-01 ~17:20 a pedido do dono, com o freio do EDR-0037
+    # (trava 50 cm, frente cega = obstaculo), o desvio local no EXPLORE, a
+    # frente do LiDAR corrigida (19) e 30% de velocidade. Desligada 16:27
+    # depois de bater na comoda e na parede com a trava em so-avisa.
+    habilitado: true
+    intervalo_s: 300
+    # So INTENCOES (2026-11-01, dono). Fora: andar_mm, girar_*_graus,
+    # desviar_*_mm, avancar, virar_*, manobrar (manobra e do EXPLORE, que
+    # desvia pelo LiDAR) e calibrar_bussola (gira o robo voltas a 70%).
+    # 08/11: sem `observar_ambiente` - era o radar de ultrassom, que saiu do
+    # robo; 251 falhas e 0 sucessos no banco, e a IA o escolhia em laco parado.
+    # O LiDAR ja da a frente o tempo todo (navigation_core._leituras_do_lidar).
+    acoes_permitidas: [explorar, seguir_pessoa, olhar_em_volta, parar, fotografar, acender_luz, apagar_luz, ligar_ventilador, desligar_ventilador]
     prioridade: 40
     # A CADENCIA TEM DE CABER NO ORCAMENTO DO PROVEDOR, e este numero mudou
     # de significado quando o provedor mudou.

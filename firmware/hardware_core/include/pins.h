@@ -138,8 +138,10 @@ constexpr uint8_t DHT_DATA = 4;  // (Mega: 24)
 
 // --- Servos pan/tilt ---
 // SERVO_PAN = horizontal, SERVO_TILT = vertical. VALIDADO 2026-07-20.
-constexpr uint8_t SERVO_PAN = 19;   // (Mega: 10)
-constexpr uint8_t SERVO_TILT = 23;  // (Mega: 11)
+// TROCADOS em 2026-11-01: na montagem final o dono ligou o pan no 23 e o
+// tilt no 19 (pedir pan=30 levantava a cabeca). Trocado aqui, nao nos fios.
+constexpr uint8_t SERVO_PAN = 23;   // (Mega: 10)
+constexpr uint8_t SERVO_TILT = 19;  // (Mega: 11)
 
 // --- Reles de energia (CONFIRMADO 2026-07-23) ---
 // RELE_MOTORES: agora alimenta o L298N (antes, os TB6600). Mesma logica de

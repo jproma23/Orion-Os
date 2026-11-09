@@ -119,13 +119,27 @@ class RegistradorExperiencias:
         )
 
     async def _ao_perder_alvo(self, evento: Evento) -> None:
+        # O RESUMO DE VERDADE (08/11): o follow manda o que aconteceu - quanto
+        # seguiu, quantas vezes perdeu, o que a IA decidiu e se achou. Antes
+        # gravava sempre "velocidade ou iluminacao a verificar", inventado.
+        dados = evento.dados or {}
+        if dados.get("o_que_aconteceu"):
+            await self._gravar(
+                situacao="seguir_pessoa",
+                o_que_aconteceu=str(dados.get("o_que_aconteceu", "")),
+                o_que_funcionou=str(dados.get("o_que_funcionou", "")),
+                o_que_falhou=str(dados.get("o_que_falhou", "")),
+                resultado=RESULTADO_FUNCIONOU if dados.get("funcionou") else RESULTADO_FALHOU,
+                contexto="follow",
+            )
+            return
         if not self._passou_janela(FAMILIA_FOLLOW):
             return
         await self._gravar(
             situacao="seguir_pessoa",
             o_que_aconteceu="perdeu o alvo durante o acompanhamento",
             o_que_funcionou="",
-            o_que_falhou="perdeu o alvo; velocidade ou iluminacao a verificar",
+            o_que_falhou="perdeu o alvo",
             resultado=RESULTADO_FALHOU,
             contexto="follow_lost",
         )
