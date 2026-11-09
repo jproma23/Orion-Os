@@ -9503,3 +9503,40 @@ A suíte do Pi deu **1341 passed**. No chão, a primeira decisão da IA com o fr
 **Também neste dia:**
 - A voz não falou no boot. O alto-falante USB apareceu depois da saudação (33 s), e o erro derrubou a conversa. Reiniciado.
 - A câmera do Notebook estava apontada para o teto.
+
+
+## 08/11 — auditoria, ele anda de novo, a câmera ligada ao LiDAR e o "me siga"
+
+Sessão longa, com o dono testando o robô na sala enquanto o código mudava. Em ordem:
+
+**1. Servo zumbindo = mecânica.** O firmware prende os dois servos em 90° no boot e segura; a cabeça estava agarrando. O dono mexeu e parou. Achado ao lado: o firmware tem `PAN_TILT_SOLTAR`, mas nada no Python ou na webui o envia.
+
+**2. Auditoria.** Suítes verdes nas duas máquinas (Pi 1343, Notebook 1286 no começo do dia). Achados com número: o **backup do banco só rodava às 3h** e as máquinas dormem desligadas — o último automático era de **12/09**; seis `create_task` sem referência (tarefa pode ser recolhida no meio e o erro some); os plugins do Jarvis (`exec()` no processo, `kill`, `launch`, sem lista do permitido) — desligados, trabalho do dono sem commit; 11 eventos sem assinante; Pi e Notebook divergindo (26 x 9 commits).
+
+**3. "Ele só gira".** 24 de 25 paradas da trava eram "obstáculo a 1–2 cm" — pontos ao lado do robô, dentro do corredor de 25 cm, ou seja, a **própria carcaça** — ou "frente cega" de uma varredura só. A trava agora ignora pontos com avanço menor que a distância do LiDAR até a ponta do corpo (8 cm frente, 22 atrás, de `chassi`) e, no meio do avanço, pede 2 varreduras cegas seguidas. Depois: **zero** paradas por "1 cm".
+
+**4. O "observar" morto.** `observar_ambiente` mandava `SCAN_FRONT` ao radar de ultrassom que saiu do robô: no banco, **251 falhas e 0 sucessos**. A IA escolhia, nada acontecia, ela escolhia de novo. A varredura agora vem do LiDAR, e o "observar" saiu das ações da IA. O teste novo pegou um **bug de segurança antigo**: com o centro da frente sem eco e os lados medindo longe, a navegação confirmava "frente livre".
+
+**5. Leitura geral (banco + chat + logs).** O robô respondia conversa de fundo como se fosse com ele; dizia "não tenho bússola" e "encoder em uma roda só" (o saber descrevia Arduino Mega, TB6600 e TCRT5000 "a montar"); lia em voz alta fichas de código ("fusao_sensores.py. Classes: ...") e o marcador `#acao:`. Corrigidos: saber regravado com o corpo real; ficha de código nunca vira fala; frase longa precisa cobrir metade das palavras; `#acao:` sai de toda frase. **Só responde com "Jarvis"** (decisão do dono, revertendo a de 25/10).
+
+**6. Código unificado.** O Notebook recebeu os 26 commits do Pi (sem conflito) e rodava um `sobre_mim` velho — era por isso que negava a bússola. Achado no caminho: **"vira 90" e "anda 20 cm" falhavam desde 01/11** — o planner passou a mandar comando + parâmetros e quem entrega ao corpo aceitava só o comando. Os testes usavam um corpo falso que aceita tudo.
+
+**7. Auto alinhamento (pedido do dono: "visão, bússola e LiDAR").** O explore gira para o **meio** da passagem (porta até 90°), não para a borda; antes de avançar fica **paralelo à parede** e no **meio do corredor** (reta ajustada nos pontos do LiDAR); a cabeça olha para onde ele vai virar. A **câmera foi sincronizada ao LiDAR**: cada objeto do YOLO vira direção no robô (caixa + pan da cabeça, na mesma frente do mapa) e distância pelo LiDAR, e chega **pronto** à IA, que antes recebia "não vejo nada" em 23 de 25 decisões. Objeto novo perto pede a IA **na hora**, em vez de esperar o ciclo de 5 min. O campo de visão da câmera (60°) **não foi medido**.
+
+**8. "Me siga" — o que os testes com o dono ensinaram.** O FOLLOW antigo estava morto (esperava um `centro_x` que ninguém mandava, só girava, chamava o radar). Refeito com CMD_VEL a 5 Hz pela direção da câmera e distância do LiDAR. No chão, em sequência:
+- a voz perdia o pedido: a janela cortava "Jarvis" | "me siga" e ele respondia "Oi? Pode falar!" por cima — os ouvidos agora guardam o que vem depois da janela;
+- o Whisper escrevia "e ciga", "Missiga", "Ouja" — hotwords ajudaram, mas com comandos de **movimento** na lista ele **inventou** "olha, olha, olha" e "anda para frente" do ruído: a lista ficou só "Jarvis, me siga";
+- a câmera, com a cabeça nivelada num robô de 45 cm, via **só pés** — no FOLLOW ele levanta a cabeça 25°;
+- **a IA estratégica atropelou a ordem**: 6 s depois do "me siga" decidiu "explorar" — em FOLLOW ela não decide movimento;
+- **bateu nos móveis**: em MANUAL a trava cai para 15 cm, e o LiDAR seguia um móvel — o FOLLOW ganhou freio próprio de 50 cm em qualquer modo, só avança com a câmera vendo a pessoa, e não gira com algo a menos de 30 cm.
+No último teste ele **achou o dono e girou atrás dele** (LiDAR +17°/84 cm, +23°/88 cm).
+
+**9. Regra x contexto (dono: "em vez de regrar, contexto para a IA aprender").** Reflexo continua código (freio, não raspar, só anda vendo). A decisão de quando não acha a pessoa — procurar de que lado, esperar, desistir — passou a ser da IA, com contexto pronto (onde e quando viu, espaço livre pelo LiDAR, esta tentativa e as **últimas experiências de seguir**); cada tentativa vira experiência com o que a IA decidiu e se achou. Ficou sem commit quando a sessão caiu; sobreviveu no disco e entrou em `cacddaa` (94 testes dos arquivos tocados).
+
+**10. A sessão caiu — duas vezes — e a causa era o SSD.** Às 17:30 o Notebook travou e o SSH do Pi passou a recusar toda conexão, com o Motion Core no ar. Às 21:03, com o Pi recém-religado, aconteceu de novo. O dono achou a causa: **o SSD desconecta quando o robô cai**. O log bate: nas duas vezes o journal do sistema simplesmente para, sem erro — o disco onde ele grava sumiu. O que já estava na memória continuou (webui `/estado`, LiDAR, câmera vendo pessoa) e tudo que precisava ler do disco falhou: o `sshd` fechava antes do banner (pela rede local, pelo Tailscale e até a partir do Notebook), o Raspberry Pi Connect não abria, `head: command not found`, a página da webui dava 404. Gastei tempo suspeitando de sshd, rede, bloqueio por IP e da suíte de testes (o crash do torch foi **consequência**). Lição: **sshd mudo + `/estado` 200 + `/` 404 = disco sumiu, não rede**. O SSD está numa ponte USB-SATA antiga (Super Top M6116) no barramento USB 2, que já no boot responde estranho ao `IDENTIFY DEVICE`; precisa de fixação mecânica e, de preferência, um adaptador melhor numa porta USB 3. Só voltou com corte de energia.
+
+Erros meus registrados: commit com teste quebrado (corrigido no seguinte) e reinício da voz em cima de um conflito de merge no `orion.yaml` (YAML inválido por minutos).
+
+**11. Ele andando, em público.** O vídeo de 55 s do robô circulando sozinho pelo quarto (radar do LiDAR e trava de 50 cm na webui) foi para o README do GitHub (seção "Em movimento", com GIF e duas fotos), para o YouTube (https://youtu.be/mMFkYHiu2Kc, canal ELETRO MAKERS) e para o LinkedIn.
+
+**Pendentes:** levar ao Pi os commits de voz que só o Notebook tem (o `mission_planner.py` do Pi tem trabalho do dono sem commit); prender o SSD; medir o campo de visão da câmera; a faixa cega fixa do LiDAR em 56–70° (algo encostado?); rostos que não carregam quando o Notebook sobe antes do Pi; ganho dos microfones (rms 0,03–0,07).

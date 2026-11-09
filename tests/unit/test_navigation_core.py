@@ -150,6 +150,14 @@ class Cenario:
                 pass
 
 
+@pytest.fixture(autouse=True)
+def _procura_curta(monkeypatch):
+    """Nos testes a procura inicial do follow dura o mesmo que a perda (0,3 s)."""
+    from motion_core.navigation import navigation_core as nc
+
+    monkeypatch.setattr(nc, "FOLLOW_PROCURA_MAX_S", CONFIG_NAVIGATION["follow_lost_timeout_s"])
+
+
 @pytest_asyncio.fixture
 async def cenario():
     c = Cenario()
@@ -433,7 +441,8 @@ async def _follow_com_pessoa(cenario, caixa, distancia_cm, pan=0.0):
     # depois do follow: ele mesmo centraliza o pan ao levantar a cabeca
     await cenario.bus.publish("motion.pan_tilt", {"pan": pan, "tilt": 0})
     await cenario.bus.aguardar_fila_vazia()
-    await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": caixa})
+    for _ in range(2):  # achar antes de seguir: duas deteccoes
+        await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": caixa})
     await cenario.bus.aguardar_fila_vazia()
     await asyncio.sleep(0.5)
 
@@ -963,3 +972,157 @@ async def test_lidar_velho_volta_ao_caminho_antigo(cenario, monkeypatch):
     monkeypatch.setattr(nc, "PAUSA_APOS_SCAN_S", 0.0)
     await cenario.nav._escanear_a_frente()
     assert "SCAN_FRONT" in cenario.comandos_enviados()
+
+
+def _raios_com_pessoa(angulo_centro: int, distancia_cm: float, fundo: float = 300.0):
+    raios = [fundo] * 360
+    for a in range(angulo_centro - 3, angulo_centro + 4):
+        raios[a % 360] = distancia_cm
+    return raios
+
+
+@pytest.mark.asyncio
+async def test_follow_acompanha_pelo_lidar_entre_as_fotos(cenario):
+    """08/11, dono: "precisa usar a camera e o LiDAR para me achar e acompanhar".
+    A camera ve a pessoa a frente; depois so o LiDAR mostra que ela foi 10 graus
+    para a direita - ele segue pelo LiDAR, sem esperar a proxima foto."""
+    await cenario.bus.publish("lidar.scan", {"raios_cm": _raios_com_pessoa(90, 150.0)})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    for _ in range(2):
+        await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
+    await cenario.bus.aguardar_fila_vazia()
+    for angulo in (93, 96, 100, 104):  # ela anda para a direita (angulos maiores)
+        await cenario.bus.publish("lidar.scan", {"raios_cm": _raios_com_pessoa(angulo, 150.0)})
+        await cenario.bus.aguardar_fila_vazia()
+    desvio, distancia, _ = cenario.nav._alvo_lidar
+    assert desvio == pytest.approx(14, abs=2)
+    assert distancia == 150.0
+    v, w = cenario.nav._velocidade_follow()
+    assert w < 0 and v > 0  # gira para a direita e anda
+
+
+@pytest.mark.asyncio
+async def test_follow_sem_a_pessoa_quem_decide_a_procura_e_a_ia(cenario):
+    """08/11, dono: "em vez de regrar, contexto para a IA". Sem decisao, espera;
+    com 'procurar_direita', gira devagar para a direita."""
+    import time as _t
+
+    await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    assert cenario.nav._velocidade_follow() == (0.0, 0.0)
+    cenario.nav._decisao_follow = ("procurar_direita", "ela foi para a direita", _t.monotonic())
+    v, w = cenario.nav._velocidade_follow()
+    assert v == 0 and w < 0
+
+
+@pytest.mark.asyncio
+async def test_follow_contexto_da_ia_vem_pronto_com_as_experiencias(cenario):
+    import time as _t
+
+    await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    cenario.nav._camera_viu_em = _t.monotonic() - 3
+    cenario.nav._alvo_lidar = (35.0, 120.0, _t.monotonic() - 3)
+    texto = cenario.nav._contexto_follow(
+        [{"resultado": "funcionou", "o_que_aconteceu": "segui por 40 s", "o_que_funcionou": "decidi 'procurar_direita'"}]
+    )
+    assert "35 graus a direita" in texto and "120 cm" in texto
+    assert "frente 199 cm" in texto  # corredor de 25 cm pega o raio inclinado
+    assert "segui por 40 s" in texto
+    assert "procurar_esquerda" in texto
+
+
+@pytest.mark.asyncio
+async def test_follow_ia_fora_do_ar_ele_espera(cenario):
+    await cenario.bus.publish("lidar.scan", {"raios_cm": [200.0] * 360})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    await cenario.nav._perguntar_ia_follow()  # sem Notebook no teste: request falha
+    assert cenario.nav._decisao_follow[0] == "esperar"
+    assert cenario.nav._velocidade_follow() == (0.0, 0.0)
+
+
+@pytest.mark.asyncio
+async def test_follow_resumo_vira_experiencia_com_o_que_a_ia_decidiu(cenario):
+    await cenario.nav.iniciar_follow()
+    r = cenario.nav._resumo_follow
+    r["achou_em"] = 2.0
+    r["perdas"] = 1
+    r["decisoes"] = [("procurar_esquerda", "foi para a esquerda", True)]
+    exp = cenario.nav._resumo_para_experiencia()
+    assert "achei a pessoa em 2 s" in exp["o_que_aconteceu"]
+    assert "procurar_esquerda" in exp["o_que_funcionou"]
+    assert exp["funcionou"] is True
+
+
+@pytest.mark.asyncio
+async def test_follow_nao_segue_salto_grande_no_lidar(cenario):
+    """Outra coisa aparece longe: nao e a pessoa, o alvo nao pula."""
+    await cenario.bus.publish("lidar.scan", {"raios_cm": _raios_com_pessoa(90, 150.0)})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
+    await cenario.bus.aguardar_fila_vazia()
+    salto = [300.0] * 360
+    salto[95] = 60.0  # um movel perto, nada a ~150
+    await cenario.bus.publish("lidar.scan", {"raios_cm": salto})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._alvo_lidar[1] == 150.0
+
+
+@pytest.mark.asyncio
+async def test_follow_so_anda_depois_de_achar_a_pessoa_duas_vezes(cenario):
+    """08/11, dono: primeiro me encontrar, depois seguir."""
+    await cenario.bus.publish("lidar.scan", {"raios_cm": _raios_com_pessoa(90, 200.0)})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    v, w = cenario.nav._velocidade_follow()
+    assert (v, w) == (0.0, 0.0)  # ninguem ainda: espera a IA decidir, sem andar
+    await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._velocidade_follow()[0] == 0  # uma deteccao so: ainda nao anda
+    await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._velocidade_follow()[0] > 0
+
+
+@pytest.mark.asyncio
+async def test_follow_so_com_o_lidar_gira_mas_nao_anda(cenario):
+    """O LiDAR nao sabe o que e pessoa - ja grudou num movel (08/11)."""
+    import time as _t
+
+    await cenario.bus.publish("lidar.scan", {"raios_cm": _raios_com_pessoa(100, 200.0)})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    cenario.nav._deteccoes_follow = 5
+    cenario.nav._camera_viu_em = _t.monotonic() - 4  # camera viu ha 4 s
+    cenario.nav._alvo_lidar = (10.0, 200.0, _t.monotonic())
+    v, w = cenario.nav._velocidade_follow()
+    assert v == 0 and w != 0
+
+
+@pytest.mark.asyncio
+async def test_follow_freio_proprio_vale_mesmo_no_manual(cenario):
+    """Movel a 45 cm no caminho e a pessoa a 2 m: nao avanca (no MANUAL a trava era 15)."""
+    raios = _raios_com_pessoa(90, 200.0)
+    raios[88] = 45.0
+    await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    for _ in range(2):
+        await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": (290, 100, 350, 400)})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._velocidade_follow()[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_follow_nao_gira_com_movel_encostado(cenario):
+    raios = [200.0] * 360
+    raios[10] = 22.0  # algo a 22 cm do lado: o canto raspa
+    await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
+    await cenario.bus.aguardar_fila_vazia()
+    await cenario.nav.iniciar_follow()
+    assert cenario.nav._velocidade_follow() == (0.0, 0.0)
