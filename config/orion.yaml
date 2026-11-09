@@ -418,6 +418,31 @@ vision:
   # chefe"). A cabeca tem DOIS donos - esta visao e o AcompanharPessoa do Pi -
   # entao olhar o log por briga nos servos.
   cabeca_segue_pessoa: true
+  # PARA ONDE A CAMERA OLHA (2026-11-08, dono: "aplicar o PTZ na camera a
+  # fim dele realmente enxergar"; escolhidos: mirar o rosto e procurar).
+  # Codigo e o porque em src/orion/vision/olhar.py. Tudo aqui so vale com
+  # `cabeca_segue_pessoa: true`, e NADA mexe na cabeca em modo MANUAL.
+  olhar:
+    # Centraliza o ROSTO (ou o alto da caixa da pessoa), nao o meio do corpo.
+    # A camera fica a ~20 cm do chao: mirando o centro ela via barriga e pes.
+    mirar_no_rosto: true
+    # Sem rosto achado, mira esta fracao da altura da caixa, a partir do topo.
+    fracao_altura_cabeca: 0.15
+    # Sem ninguem no quadro, varre devagar de um lado ao outro.
+    procurar: true
+    # Segundos sem alvo antes de comecar a procurar - evita sair varrendo por
+    # um quadro em que o YOLO piscou.
+    procurar_apos_s: 6.0
+    # Ate onde a varredura vai para cada lado (dentro de pan_limits_degrees).
+    pan_procura_graus: 60.0
+    # Camera erguida durante a procura: rosto de adulto, nao o chao.
+    tilt_procura_graus: 15.0
+    # Devagar de proposito: a ~2 quadros/s reais, mais rapido que isso o YOLO
+    # ve borrao e a pessoa passa entre dois quadros sem ser vista.
+    velocidade_procura_graus_s: 15.0
+    # Se outro dono mexeu na cabeca (explore apontando o giro, ronda,
+    # joystick, conversa), a procura espera este tempo antes de voltar.
+    ceder_a_outro_dono_s: 10.0
   # De quantos em quantos quadros rodar o RECONHECIMENTO FACIAL (2026-07-30).
   #
   # 1 = todo quadro (o comportamento anterior a esta chave).

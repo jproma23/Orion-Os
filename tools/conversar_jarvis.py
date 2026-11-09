@@ -157,11 +157,31 @@ async def principal() -> None:
         raise RuntimeError("ouvidos_esp32 precisa ficar habilitado em producao")
     ouvidos_esp32 = OuvidosESP32(conf_ouvidos["host"], conf_ouvidos["porta"])
     await ouvidos_esp32.iniciar()
-    while not ouvidos_esp32.conectado:
-        logger.warning("OUVIDOS: aguardando ESP32 (%s:%d)", conf_ouvidos["host"], conf_ouvidos["porta"])
+    # ESPERA CURTA, NAO ETERNA (2026-11-08). Antes era `while not conectado`:
+    # com o ESP32 dos ouvidos desligado o boot parava AQUI para sempre, e a
+    # camera, o chat, a fala e o PTZ nunca subiam - faltar o ouvido cegava o
+    # robo. Aconteceu as 22:38 depois de uma queda de energia. Os ouvidos
+    # reconectam sozinhos em segundo plano (`_drenar_sempre`); enquanto nao
+    # voltam, o Voice Core avisa "surdo" no log e tenta de novo a cada 2 s.
+    for _ in range(4):
+        if ouvidos_esp32.conectado:
+            break
+        logger.warning(
+            "OUVIDOS: aguardando ESP32 (%s:%d)", conf_ouvidos["host"], conf_ouvidos["porta"]
+        )
         await asyncio.sleep(3.0)
     gravar_audio = ouvidos_esp32.gravar
-    logger.info("OUVIDOS: os dois mics I2S do ESP32 (%s:%d)", conf_ouvidos["host"], conf_ouvidos["porta"])
+    if ouvidos_esp32.conectado:
+        logger.info(
+            "OUVIDOS: os dois mics I2S do ESP32 (%s:%d)",
+            conf_ouvidos["host"], conf_ouvidos["porta"],
+        )
+    else:
+        logger.error(
+            "OUVIDOS: ESP32 (%s:%d) fora do ar - seguindo SURDO; camera, chat e fala "
+            "continuam, e os ouvidos entram sozinhos quando ele voltar",
+            conf_ouvidos["host"], conf_ouvidos["porta"],
+        )
 
     # Freios contra invencao (ver transcricao.py). `.get` com default para nao
     # quebrar um orion.yaml mais antigo que ainda nao tenha a secao.
