@@ -352,3 +352,180 @@ async def test_ver_agora_cena_velha_deve_dizer_que_nao_esta_vendo(monkeypatch):
 
     bus.parar()
     await tarefa
+
+
+# ---------------------------------------------------------------------------
+# Snapshot da API (2026-11-01): o dono da camera entrega o quadro em JPEG.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ultimo_frame_jpeg_entrega_o_quadro_lido():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    vision = VisionCore(
+        bus,
+        captura=CapturaFalsa([_frame_fake()]),
+        detector=DetectorFalso([]),
+        reconhecedor=ReconhecedorFalso([]),
+    )
+
+    assert vision.ultimo_frame_jpeg() is None  # ainda nao houve frame
+
+    await vision.processar_um_frame()
+
+    jpeg = vision.ultimo_frame_jpeg()
+    assert jpeg is not None and jpeg[:2] == b"\xff\xd8"  # assinatura JPEG
+
+    bus.parar()
+    await tarefa
+
+
+# ---------------------------------------------------------------------------
+# "NAO ESTOU VENDO NADA" COM O YOLO VENDO (2026-11-01)
+#
+# Tres causas em volta do YOLO: a camera cega que parece saudavel, a resposta
+# que dependia de UM quadro, e um limiar so (0,55) para mover a cabeca e para
+# listar objetos. Estes testes prendem as tres correcoes - e, o mais
+# importante, que o limiar baixo de DESCREVER nao vaza para a cabeca.
+# ---------------------------------------------------------------------------
+
+
+def _frame_vivo(semente=0):
+    """Quadro com ruido de sensor - o detector de sem-sinal o aceita."""
+    gerador = np.random.default_rng(semente)
+    return gerador.integers(40, 200, size=(480, 640, 3), dtype=np.uint8)
+
+
+class DetectorSequencia:
+    """Devolve uma lista de deteccoes diferente a cada quadro."""
+
+    def __init__(self, por_quadro):
+        self._por_quadro = list(por_quadro)
+
+    async def detectar(self, frame):
+        return self._por_quadro.pop(0)
+
+    @staticmethod
+    def pessoas(deteccoes):
+        return [d for d in deteccoes if d.classe == "person"]
+
+
+def _vision_com_dois_limiares(bus, frames, detector):
+    return VisionCore(
+        bus,
+        captura=CapturaFalsa(frames),
+        detector=detector,
+        reconhecedor=ReconhecedorFalso([]),
+        confianca_minima=0.55,
+        confianca_para_descrever=0.35,
+    )
+
+
+@pytest.mark.asyncio
+async def test_pessoa_com_confianca_baixa_aparece_na_cena_mas_nao_move_a_cabeca():
+    """O que importa: o limiar de descrever (0,35) NAO pode fazer a cabeca
+    seguir falso positivo nem gerar evento de pessoa."""
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    detectadas, cabeca = [], []
+    bus.subscribe("vision.person_detected", lambda e: detectadas.append(e.dados))
+    bus.subscribe("motion.pan_tilt", lambda e: cabeca.append(e.dados))
+
+    talvez = Deteccao(classe="person", confianca=0.45, caixa=(100, 100, 300, 400))
+    vision = _vision_com_dois_limiares(bus, [_frame_vivo()], DetectorFalso([talvez]))
+    await vision.processar_um_frame()
+    await bus.aguardar_fila_vazia()
+
+    assert {o["classe"] for o in vision.ver_agora()["objetos"]} == {"person"}
+    assert detectadas == [], "0,45 nao pode virar vision.person_detected"
+    assert cabeca == [], "0,45 nao pode chegar ao rastreador e mover a cabeca"
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_copo_com_confianca_baixa_entra_na_resposta():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    copo = Deteccao(classe="cup", confianca=0.40, caixa=(10, 10, 40, 40))
+    vision = _vision_com_dois_limiares(bus, [_frame_vivo()], DetectorFalso([copo]))
+    await vision.processar_um_frame()
+
+    assert [o["classe"] for o in vision.ver_agora()["objetos"]] == ["cup"]
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_pessoa_confiavel_segue_o_fluxo_de_sempre():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    detectadas, cabeca = [], []
+    bus.subscribe("vision.person_detected", lambda e: detectadas.append(e.dados))
+    bus.subscribe("motion.pan_tilt", lambda e: cabeca.append(e.dados))
+
+    pessoa = Deteccao(classe="person", confianca=0.60, caixa=(100, 100, 300, 400))
+    vision = _vision_com_dois_limiares(bus, [_frame_vivo()], DetectorFalso([pessoa]))
+    await vision.processar_um_frame()
+    await bus.aguardar_fila_vazia()
+
+    assert len(detectadas) == 1
+    assert len(cabeca) == 1
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_objeto_que_pisca_em_2_de_6_quadros_entra_na_resposta():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    copo = Deteccao(classe="cup", confianca=0.6, caixa=(10, 10, 40, 40))
+    cadeira = Deteccao(classe="chair", confianca=0.6, caixa=(50, 50, 90, 90))
+    quadros = [[copo], [], [cadeira], [copo], [], []]  # copo 2x, cadeira 1x
+    vision = _vision_com_dois_limiares(
+        bus, [_frame_vivo(i) for i in range(6)], DetectorSequencia(quadros)
+    )
+    for _ in range(6):
+        await vision.processar_um_frame()
+
+    cena = vision.ver_agora()
+    classes = {o["classe"] for o in cena["objetos"]}
+    assert "cup" in classes, "o ultimo quadro estava vazio, e mesmo assim o copo foi visto 2x"
+    assert "chair" not in classes, "um quadro so pode ser engano do modelo"
+    assert cena["quadros"] == 6
+
+    bus.parar()
+    await tarefa
+
+
+@pytest.mark.asyncio
+async def test_camera_preta_publica_erro_uma_vez_e_nao_roda_o_yolo():
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    erros = []
+    bus.subscribe("vision.camera_error", lambda e: erros.append(e.dados))
+    chamadas = []
+
+    class DetectorContador(DetectorFalso):
+        async def detectar(self, frame):
+            chamadas.append(1)
+            return []
+
+    vision = _vision_com_dois_limiares(
+        bus, [_frame_fake() for _ in range(10)], DetectorContador([])
+    )
+    for _ in range(10):
+        await vision.processar_um_frame()
+    await bus.aguardar_fila_vazia()
+
+    assert len(erros) == 1, "camera cega avisa na borda, nao a cada quadro"
+    assert erros[0]["motivo"].startswith("sem_sinal")
+    assert len(chamadas) == 5, "depois de declarar cega, o YOLO para de rodar na tela preta"
+    assert vision.ver_agora() is None, "cega nao responde 'nao estou vendo nada' - nao responde"
+
+    bus.parar()
+    await tarefa

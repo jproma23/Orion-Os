@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from enum import Enum
 from typing import Any
 from collections.abc import Awaitable, Callable
@@ -51,6 +52,7 @@ class VoiceCore:
         duracao_janela_escuta_s: float = 3.0,
         duracao_comando_s: float = 5.0,
         gravar_audio: CallbackGravarAudio | None = None,
+        continuar_audio: CallbackGravarAudio | None = None,
         frase_ativacao: str | None = None,
         transcritor_ativacao: Transcritor | None = None,
         detector_atividade: DetectorAtividadeSonora | None = None,
@@ -102,6 +104,9 @@ class VoiceCore:
         #: barato perto de ele responder a si mesmo. Se ainda escapar eco,
         #: SUBIR este numero antes de mexer em qualquer outra coisa.
         self._assentamento_pos_fala_s = assentamento_pos_fala_s
+        #: Audio da propria fala ainda em transito (ESP32 -> WiFi) depois que
+        #: o alto-falante cala. Ver `_gravar_sem_eco`.
+        self._rastro_eco_s = 1.0
         #: Quantas janelas de silencio seguidas fecham a conversa.
         #:
         #: 2 janelas de comando (5 s cada) = ~10 s de silencio. Curto o
@@ -125,6 +130,9 @@ class VoiceCore:
         #: IA, inclusive conversa entre outras pessoas e TV. Ver o comentario
         #: de `voice.exigir_palavra_ativacao` no orion.yaml.
         self._exigir_palavra_ativacao = exigir_palavra_ativacao
+        #: Grava SEM descartar o que chegou desde a ultima janela - ver
+        #: `OuvidosESP32.continuar`. None = fonte que nao guarda o passado.
+        self._continuar_audio = continuar_audio
         self._gravar_audio = gravar_audio or (
             lambda duracao: gravar_trecho(self._indice_microfone, duracao)
         )
@@ -244,6 +252,29 @@ class VoiceCore:
             if self._assentamento_pos_fala_s > 0:
                 await asyncio.sleep(self._assentamento_pos_fala_s)
 
+    async def _gravar_sem_eco(self, duracao_s: float):
+        """Grava, e devolve SILENCIO se ele falou durante a janela (2026-11-01).
+
+        O portao de eco por TEXTO (`_eh_eco_da_propria_fala`) falha quando o
+        eco volta mal transcrito - e volta: "Oi de novo. Tudo em ordem por
+        ai?" virou "Onde o novo? Tudo em hora em por ai?", ele respondeu a si
+        mesmo e, nessa conversa com o eco, mandou as rodas andarem. E a
+        espera pos-fala so cobre as falas DESTE laco; a saudacao espontanea
+        fala por outro caminho, no meio de uma gravacao.
+
+        Aqui a pergunta e QUANDO, nao O QUE: se o sintetizador falou entre o
+        inicio da janela (menos o rastro em transito do ESP32) e agora, o
+        audio e dele. Zeros em vez de None para os chamadores nao mudarem: o
+        VAD ve silencio, e sem VAD o Whisper devolve vazio.
+        """
+        inicio = time.monotonic()
+        audio = await self._gravar_audio(duracao_s)
+        falou_desde = getattr(self._sintetizador, "falou_desde", None)
+        if falou_desde is not None and falou_desde(inicio, self._rastro_eco_s):
+            logger.info("janela descartada: ele estava falando enquanto ela era gravada")
+            return audio * 0
+        return audio
+
     async def ciclo_uma_vez(self) -> bool:
         """Um ciclo: escuta uma janela curta, verifica a palavra de
         ativacao e, se detectada, processa um comando completo ate falar a
@@ -260,7 +291,7 @@ class VoiceCore:
 
         await self._definir_estado(EstadoVoz.LISTENING)
         try:
-            audio_janela = await self._gravar_audio(self._duracao_janela_escuta_s)
+            audio_janela = await self._gravar_sem_eco(self._duracao_janela_escuta_s)
         except ErroAudio as erro:
             await self._publicar_erro_audio(erro)
             return False
@@ -292,13 +323,31 @@ class VoiceCore:
         # terminado. Pedir para falar em dois tempos seria remendo - ninguem
         # fala com assistente assim.
         texto_comando = self._comando_na_janela(texto_janela)
+        if texto_comando is None and self._continuar_audio is not None:
+            # O COMANDO QUE VEIO LOGO DEPOIS (2026-11-08). Quem diz "Jarvis, me
+            # siga" de uma vez tem o "me siga" chegando enquanto a janela de
+            # ativacao e transcrita. Antes de responder qualquer coisa - a
+            # resposta falada cobria a fala e a janela dela era descartada -
+            # ouve o que chegou em seguida. So se vier silencio e que ele diz
+            # "pode falar" e espera, como antes.
+            try:
+                audio_seguinte = await self._continuar_audio(self._duracao_janela_escuta_s)
+            except ErroAudio as erro:
+                await self._publicar_erro_audio(erro)
+                return False
+            if self._detector_atividade is None or self._detector_atividade.tem_som(audio_seguinte):
+                texto_seguinte = await self._transcritor.transcrever(audio_seguinte)
+                if self._motivo_para_descartar(texto_seguinte) is None:
+                    logger.info("comando veio logo depois da ativacao: %r", texto_seguinte)
+                    texto_comando = texto_seguinte
+                    await self._identificar_falante(audio_seguinte)
         if texto_comando is None:
             if self._frase_ativacao:
                 await self._falar_com_protecao(self._frase_ativacao)
 
             await self._definir_estado(EstadoVoz.TRANSCRIBING)
             try:
-                audio_comando = await self._gravar_audio(self._duracao_comando_s)
+                audio_comando = await self._gravar_sem_eco(self._duracao_comando_s)
             except ErroAudio as erro:
                 await self._publicar_erro_audio(erro)
                 return False
@@ -311,7 +360,7 @@ class VoiceCore:
                 self._transcritor.transcrever(audio_comando),
                 self._identificar_falante(audio_comando),
             )
-        else:
+        elif self._continuar_audio is None or texto_comando == self._comando_na_janela(texto_janela):
             logger.info("comando veio junto com a ativacao: %r", texto_comando)
             # O comando inteiro (incluindo quem o disse) esta na janela da
             # ativacao: identifica ai mesmo, antes de responder - quem_fala
@@ -410,7 +459,7 @@ class VoiceCore:
         while silencios < self._silencios_para_fechar_sessao:
             await self._definir_estado(EstadoVoz.LISTENING)
             try:
-                audio = await self._gravar_audio(self._duracao_comando_s)
+                audio = await self._gravar_sem_eco(self._duracao_comando_s)
             except ErroAudio as erro:
                 await self._publicar_erro_audio(erro)
                 return

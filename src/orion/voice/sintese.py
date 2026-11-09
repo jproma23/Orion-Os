@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
+import time
 import wave
 
 import numpy as np
@@ -22,6 +24,23 @@ from piper import PiperVoice
 
 from orion.voice import timbre as _timbre
 from orion.voice.audio_utils import reamostrar as _reamostrar
+
+logger = logging.getLogger("orion.voice.sintese")
+
+
+def _recarregar_portaudio() -> None:
+    """Refaz a lista de dispositivos do PortAudio.
+
+    O PortAudio lista as placas de som UMA vez, quando o `sounddevice` e
+    importado. No boot do Notebook o alto-falante USB aparece alguns segundos
+    DEPOIS do processo subir; sem refazer a lista ele nunca e encontrado e a
+    primeira fala levantava ValueError, derrubando conversa, camera e chat
+    juntos (01/11 e 08/11). E o caminho que o proprio sounddevice indica para
+    reler os dispositivos. Seguro aqui porque o unico stream do processo e o
+    `sd.play` desta classe, que roda sob `_trava_fala`.
+    """
+    sd._terminate()
+    sd._initialize()
 
 #: A VOZ DO FOFAO (2026-08-03) - pedido do dono: "caloroso e presente".
 #:
@@ -94,6 +113,12 @@ class Sintetizador:
         #: foi assim que o primeiro recado entregue da historia do projeto se
         #: perdeu, com a pessoa na frente ouvindo.
         self._trava_fala = asyncio.Lock()
+        #: QUANDO ele falou, para a escuta descartar o proprio eco por TEMPO
+        #: (2026-11-01). `falando` cobre a fala em curso; `fim_ultima_fala` e
+        #: o instante (time.monotonic) em que a ultima terminou. Mora aqui
+        #: porque TODA fala passa por `falar` - resposta, saudacao, recado.
+        self.falando = False
+        self.fim_ultima_fala = float("-inf")
         self._voz = PiperVoice.load(caminho_modelo)
         self._indice_dispositivo_saida = indice_dispositivo_saida
         self._aplicar_timbre = aplicar_timbre
@@ -140,9 +165,22 @@ class Sintetizador:
             # o dispositivo de saida pode nao suportar a taxa nativa do
             # Piper (ex.: USB Audio Device so aceita 44100Hz) - reamostra
             # em vez de deixar o PortAudio recusar com "Invalid sample rate".
-            taxa_dispositivo = int(
-                sd.query_devices(self._indice_dispositivo_saida)["default_samplerate"]
-            )
+            try:
+                info = sd.query_devices(self._indice_dispositivo_saida)
+            except ValueError:
+                _recarregar_portaudio()
+                try:
+                    info = sd.query_devices(self._indice_dispositivo_saida)
+                except ValueError:
+                    # Sem alto-falante ele fica mudo nesta frase, mas o resto
+                    # do robo continua de pe. A proxima fala tenta de novo.
+                    logger.warning(
+                        "saida de audio %r nao encontrada - frase nao falada: %r",
+                        self._indice_dispositivo_saida,
+                        texto[:60],
+                    )
+                    return
+            taxa_dispositivo = int(info["default_samplerate"])
             if taxa_dispositivo != taxa:
                 audio = _reamostrar(audio, taxa, taxa_dispositivo)
                 taxa = taxa_dispositivo
@@ -154,4 +192,14 @@ class Sintetizador:
         # `synthesize_wav` deixaria dois `sd.play()` se cruzarem, que e a
         # metade do problema que mata o processo. Ver `_trava_fala`.
         async with self._trava_fala:
-            await asyncio.to_thread(_sintetizar_e_reproduzir)
+            self.falando = True
+            try:
+                await asyncio.to_thread(_sintetizar_e_reproduzir)
+            finally:
+                self.falando = False
+                self.fim_ultima_fala = time.monotonic()
+
+    def falou_desde(self, instante: float, rastro_s: float) -> bool:
+        """True se ele estava falando a partir de `instante` (monotonic),
+        contando `rastro_s` de audio ainda em transito depois de calar."""
+        return self.falando or self.fim_ultima_fala + rastro_s > instante

@@ -55,6 +55,12 @@ logger = logging.getLogger("orion.mission.comando_local")
 #: luz", quem esta explicando fala "voce pode desligar a lanterna". Uma
 #: forma so daria um robo que obedece a quem acerta a senha.
 GATILHOS: dict[str, tuple[str, ...]] = {
+    "me_siga": (
+        "me siga", "me segue", "segue eu", "siga me", "segue me", "vem comigo",
+        "venha comigo", "me acompanha", "me acompanhe", "vem atras de mim",
+        # como o Whisper base escreve "me siga" (teste de 08/11 15:50: "Missiga!")
+        "missiga", "mi siga", "me ciga", "messiga",
+    ),
     "acender_luz": (
         "acende a luz", "acender a luz", "liga a luz", "ligar a luz",
         "acende a lanterna", "liga a lanterna", "ligue a luz", "acenda a luz",

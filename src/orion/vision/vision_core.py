@@ -15,6 +15,7 @@ import asyncio
 import copy
 import logging
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable
 
 import cv2
@@ -25,6 +26,7 @@ from orion.vision.deteccao import Deteccao, DetectorYolo
 from orion.vision.pan_tilt import CalculadoraPanTilt, LimitesPanTilt
 from orion.vision.rastreamento import Caixa, Rastreador
 from orion.vision.reconhecimento_facial import ReconhecedorFacial, RostoReconhecido
+from orion.vision.sem_sinal import DetectorSemSinal
 
 logger = logging.getLogger("orion.vision.vision_core")
 
@@ -36,6 +38,15 @@ CallbackPanTilt = Callable[[float, float], Awaitable[None]]
 #: disso a visao NAO esta mais vendo de verdade (pausada pelo alivio de
 #: carga, camera engasgada) e responder do snapshot antigo seria mentir.
 TEMPO_MAXIMO_CENA_S = 3.0
+
+#: "O que voce esta vendo" responde da JANELA dos ultimos segundos, nao de um
+#: quadro so (2026-11-01). Com imgsz 320, objeto pequeno (copo, celular,
+#: controle) aparece num quadro e some no seguinte; se a pergunta caisse no
+#: quadro vazio, a resposta era "nada". Entra na resposta o que apareceu em
+#: pelo menos PRESENCAS_MINIMAS quadros da janela - um quadro so pode ser
+#: engano do modelo.
+JANELA_CENA_S = 3.0
+PRESENCAS_MINIMAS = 2
 
 #: Marca os `motion.pan_tilt` que ESTA classe publicou, para nao ressincronizar
 #: a estimativa com o proprio eco (ver `_ao_outro_dono_mover_a_cabeca`).
@@ -65,6 +76,7 @@ class VisionCore:
         fps: float = 0.0,
         imgsz: int = 640,
         reconhecer_rosto_a_cada: int = 1,
+        confianca_para_descrever: float | None = None,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -77,8 +89,21 @@ class VisionCore:
         # modelo_yolo vem do orion.yaml (vision.yolo_model). Antes o nome do
         # modelo ficava fixo no default do DetectorYolo e a config era
         # ignorada - configuracao morta, contra a regra 6 do ARQUITETURA.txt.
+        # DOIS LIMIARES (2026-11-01). `confianca_minima` (0,55) decide o que
+        # vira EVENTO, chega ao rastreador e move a cabeca - ali um falso
+        # positivo custa caro. `confianca_para_descrever` (0,35) decide so o
+        # que entra na resposta "o que voce esta vendo" - ali 0,55 era
+        # rigoroso demais e calava objeto pequeno. O detector solta tudo a
+        # partir do MENOR dos dois; o corte de acao e feito num ponto so,
+        # logo depois do `detectar()`, para nenhum assinante novo herdar o
+        # limiar baixo sem querer.
+        self._confianca_acao = confianca_minima
+        self._confianca_descrever = min(
+            confianca_para_descrever if confianca_para_descrever is not None else confianca_minima,
+            confianca_minima,
+        )
         self._detector = detector or DetectorYolo(
-            modelo=modelo_yolo, confianca_minima=confianca_minima, imgsz=imgsz
+            modelo=modelo_yolo, confianca_minima=self._confianca_descrever, imgsz=imgsz
         )
         self._reconhecedor = reconhecedor or ReconhecedorFacial()
         self._rastreador = Rastreador(
@@ -123,6 +148,13 @@ class VisionCore:
         #: em vez disso - preenchido a cada quadro e consultavel por
         #: `ver_agora()`.
         self._ultima_cena: dict | None = None
+        #: As cenas da janela de `JANELA_CENA_S` - de onde `ver_agora()` tira
+        #: a resposta. A 2 quadros/s cabem ~6; 30 e folga para fps maior.
+        self._cenas_recentes: deque[dict] = deque(maxlen=30)
+        #: Camera que entrega imagem mas nao enxerga (tela "NO SIGNAL", lente
+        #: tampada, quadro congelado) - ver `sem_sinal.py`.
+        self._sem_sinal = DetectorSemSinal()
+        self._sem_sinal_reportado = False
         # 0 = sem limite (comportamento antigo). Vem de vision.fps no
         # orion.yaml: ate 2026-07-25 essa chave era configuracao MORTA e o
         # laco rodava a toda velocidade, medido em 131% de CPU disputando os
@@ -168,8 +200,20 @@ class VisionCore:
         cv2.imwrite(caminho, self._ultimo_frame)
         return caminho
 
+    def ultimo_frame_jpeg(self, qualidade: int = 80) -> bytes | None:
+        """A ultima imagem lida, em JPEG, para o snapshot da API (2026-11-01).
+
+        Mesmo motivo do `salvar_ultimo_frame`: a camera USB so aceita um
+        leitor, entao quem quer ver a imagem PEDE ao dono em vez de abrir o
+        dispositivo. None se ainda nao houve frame.
+        """
+        if self._ultimo_frame is None:
+            return None
+        ok, jpeg = cv2.imencode(".jpg", self._ultimo_frame, [cv2.IMWRITE_JPEG_QUALITY, qualidade])
+        return jpeg.tobytes() if ok else None
+
     def ver_agora(self) -> dict | None:
-        """O que a camera ve neste instante - a ultima cena processada.
+        """O que a camera ve neste instante - a janela dos ultimos segundos.
 
         O caminho que faltava para "o que e isso?": a visao via, o diario
         guardava, e nada consultava o AGORA. Devolve o estado da ultima
@@ -183,10 +227,60 @@ class VisionCore:
         """
         if self._ultima_cena is None:
             return None
-        idade = time.monotonic() - self._ultima_cena.get("timestamp", 0.0)
+        agora = time.monotonic()
+        idade = agora - self._ultima_cena.get("timestamp", 0.0)
         if idade > TEMPO_MAXIMO_CENA_S:
             return None
-        return copy.deepcopy(self._ultima_cena)
+        janela = [
+            c for c in self._cenas_recentes if agora - c["timestamp"] <= JANELA_CENA_S
+        ] or [self._ultima_cena]
+        return self._agregar_cenas(janela)
+
+    @staticmethod
+    def _agregar_cenas(cenas: list[dict]) -> dict:
+        """Junta as cenas da janela numa so, no MESMO formato de uma cena.
+
+        Objeto entra se apareceu em `PRESENCAS_MINIMAS` quadros. Com menos
+        quadros que isso na janela (visao lenta, recem-ligada), basta um -
+        senao a visao lenta responderia sempre "nada". `pessoas` e o maior
+        numero de pessoas visto num quadro; `reconhecidos` e a uniao dos
+        nomes; `desconhecidos` vem do quadro mais recente, porque o rosto e
+        reaproveitado entre quadros e somar contaria a mesma cara varias vezes.
+        """
+        minimo = PRESENCAS_MINIMAS if len(cenas) >= PRESENCAS_MINIMAS else 1
+        presencas: dict[str, int] = {}
+        melhor: dict[str, float] = {}
+        for cena in cenas:
+            for classe in {o["classe"] for o in cena.get("objetos", [])}:
+                presencas[classe] = presencas.get(classe, 0) + 1
+            for o in cena.get("objetos", []):
+                melhor[o["classe"]] = max(melhor.get(o["classe"], 0.0), o["confianca"])
+        objetos = [
+            {"classe": classe, "confianca": melhor[classe]}
+            for classe in sorted(presencas, key=lambda c: -melhor[c])
+            if presencas[classe] >= minimo
+        ]
+        reconhecidos: list[dict] = []
+        vistos: set = set()
+        for cena in cenas:
+            for r in cena.get("reconhecidos", []):
+                if r["pessoa_id"] not in vistos:
+                    vistos.add(r["pessoa_id"])
+                    reconhecidos.append(dict(r))
+        pessoas = 0
+        if any(o["classe"] == "person" for o in objetos):
+            pessoas = max(c.get("pessoas", 0) for c in cenas)
+        mais_recente = max(cenas, key=lambda c: c["timestamp"])
+        return copy.deepcopy(
+            {
+                "objetos": objetos,
+                "reconhecidos": reconhecidos,
+                "desconhecidos": mais_recente.get("desconhecidos", 0),
+                "pessoas": pessoas,
+                "quadros": len(cenas),
+                "timestamp": mais_recente["timestamp"],
+            }
+        )
 
     def carregar_pessoas_conhecidas(self, pessoas: list[dict]) -> None:
         self._reconhecedor.carregar_pessoas_conhecidas(pessoas)
@@ -237,7 +331,42 @@ class VisionCore:
             except Exception:
                 logger.debug("observador de frame falhou", exc_info=True)
 
-        deteccoes = await self._detector.detectar(frame)
+        # CAMERA CEGA GRITA (2026-11-01). Antes do YOLO: quadro escuro e
+        # uniforme, ou congelado, por varios quadros seguidos = a camera nao
+        # esta enxergando. Publica `vision.camera_error` UMA vez (na borda) e
+        # nao roda o YOLO sobre a tela preta - era assim que a visao ficava
+        # "saudavel" e cega ao mesmo tempo.
+        self._ultimo_frame = frame
+        avaliacao = self._sem_sinal.avaliar(frame)
+        if avaliacao.sem_sinal:
+            if not self._sem_sinal_reportado:
+                self._sem_sinal_reportado = True
+                logger.error(
+                    "camera SEM SINAL (%s: brilho %.1f, desvio %.1f, diferenca %s) - "
+                    "a visao nao esta enxergando",
+                    avaliacao.motivo,
+                    avaliacao.brilho_medio,
+                    avaliacao.desvio,
+                    avaliacao.diferenca_anterior,
+                )
+                await self._event_bus.publish(
+                    "vision.camera_error",
+                    {"motivo": f"sem_sinal:{avaliacao.motivo}"},
+                    prioridade=Prioridade.ALTA,
+                )
+            self._ultima_cena = None
+            self._cenas_recentes.clear()
+            return frame
+        if self._sem_sinal_reportado:
+            self._sem_sinal_reportado = False
+            logger.info("camera voltou a enxergar")
+
+        # O CORTE DE ACAO E AQUI, num ponto so: `deteccoes` (>= limiar de
+        # acao) alimenta rastreador, cabeca, identidades e eventos;
+        # `para_descrever` (>= limiar de descrever) alimenta SO a cena.
+        para_descrever = await self._detector.detectar(frame)
+        deteccoes = [d for d in para_descrever if d.confianca >= self._confianca_acao]
+        para_descrever = [d for d in para_descrever if d.confianca >= self._confianca_descrever]
         pessoas_detectadas = DetectorYolo.pessoas(deteccoes)
 
         # O RECONHECIMENTO FACIAL TEM RITMO PROPRIO (2026-07-30), porque ele
@@ -255,9 +384,8 @@ class VisionCore:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self._ultimos_rostos = await self._reconhecedor.reconhecer(frame_rgb)
         rostos = self._ultimos_rostos
-        # guardado para quem precisar da imagem do momento (a Sentinela salva
-        # a foto do estranho). So o dono da camera tem o frame (EDR-0023 s.3).
-        self._ultimo_frame = frame
+        # O frame do momento (a Sentinela salva a foto do estranho) ja foi
+        # guardado la em cima, antes da checagem de sinal.
 
         # Rostos que nao casaram com ninguem conhecido. A Sentinela consome
         # este evento em vez de abrir a propria camera e rodar um SEGUNDO
@@ -295,7 +423,7 @@ class VisionCore:
         self._ultima_cena = {
             "objetos": [
                 {"classe": d.classe, "confianca": round(float(d.confianca), 2)}
-                for d in deteccoes
+                for d in para_descrever
             ],
             "reconhecidos": [
                 {"nome": nome, "pessoa_id": pessoa_id}
@@ -303,8 +431,10 @@ class VisionCore:
                 if pessoa_id is not None and nome
             ],
             "desconhecidos": len(desconhecidos),
+            "pessoas": sum(1 for d in para_descrever if d.classe == "person"),
             "timestamp": agora,
         }
+        self._cenas_recentes.append(self._ultima_cena)
         caixas = [d.caixa for d in pessoas_detectadas]
         alvo = self._rastreador.atualizar(caixas, identidades, agora=agora)
 

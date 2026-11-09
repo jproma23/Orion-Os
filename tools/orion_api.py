@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger("orion.api")
@@ -18,6 +18,8 @@ logger = logging.getLogger("orion.api")
 # Variáveis globais injetadas pelo conversar_jarvis.py
 _mission_planner = None
 _quem_fala = None
+#: Quem entrega o JPEG do momento (ModuloVisao.foto_agora). None = sem visao.
+_foto_camera = None
 
 
 class ExecuteRequest(BaseModel):
@@ -37,6 +39,12 @@ def set_mission_planner(planner, quem_fala):
     global _mission_planner, _quem_fala
     _mission_planner = planner
     _quem_fala = quem_fala
+
+
+def set_camera(foto_camera):
+    "Injetado pelo conversar_jarvis.py depois que a visao sobe."
+    global _foto_camera
+    _foto_camera = foto_camera
 
 
 @asynccontextmanager
@@ -93,6 +101,34 @@ async def execute_command_stream(req: ExecuteRequest):
             yield f"data: Erro: {e}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/camera/snapshot.jpg")
+async def camera_snapshot():
+    """O ultimo quadro que o Vision Core leu (2026-11-01).
+
+    503 quando nao ha imagem: visao fora, pausada pelo guardiao de RAM ou
+    camera recem-aberta. Sem cache, senao o navegador mostra foto velha.
+    """
+    foto = _foto_camera() if _foto_camera else None
+    if foto is None:
+        raise HTTPException(503, "Sem imagem da camera agora")
+    return Response(foto, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/camera", response_class=HTMLResponse)
+async def camera_pagina():
+    "Pagina simples que recarrega o snapshot a cada segundo."
+    return """<!doctype html><meta charset="utf-8"><title>Camera do robo</title>
+<body style="margin:0;background:#111;color:#ccc;font-family:sans-serif;text-align:center">
+<img id="f" style="max-width:100%" alt="camera"><p id="s"></p>
+<script>
+const f = document.getElementById("f"), s = document.getElementById("s");
+f.onload = () => { s.textContent = new Date().toLocaleTimeString(); };
+f.onerror = () => { s.textContent = "sem imagem (visao fora?)"; };
+setInterval(() => { f.src = "/camera/snapshot.jpg?t=" + Date.now(); }, 1000);
+f.src = "/camera/snapshot.jpg";
+</script>"""
 
 
 # Para rodar standalone (teste)

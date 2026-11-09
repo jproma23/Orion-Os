@@ -33,14 +33,22 @@ from orion.vision.vision_core import VisionCore  # noqa: E402
 
 
 class CapturaFalsa:
+    """Quadros com ruido de sensor, um diferente a cada leitura.
+
+    Eram quadros PRETOS e iguais. Desde 2026-11-01 o Vision Core detecta a
+    camera cega (escura e uniforme, ou congelada) e para de rodar o YOLO -
+    e um quadro preto repetido e exatamente isso. Camera viva tem ruido.
+    """
+
     def __init__(self):
         self.aberta = True
+        self._gerador = np.random.default_rng(0)
 
     async def abrir(self):
         self.aberta = True
 
     async def ler_frame(self):
-        return np.zeros((480, 640, 3), dtype=np.uint8)
+        return self._gerador.integers(40, 200, size=(480, 640, 3), dtype=np.uint8)
 
     async def fechar(self):
         self.aberta = False

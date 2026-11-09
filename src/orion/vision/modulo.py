@@ -219,6 +219,21 @@ class ModuloVisao:
             logger.debug("falha ao consultar a visao atual", exc_info=True)
             return None
 
+    def foto_agora(self) -> bytes | None:
+        """O ultimo quadro da camera em JPEG, ou None (2026-11-01).
+
+        Serve o `/camera/snapshot.jpg` da API: ver de fora o que o robo ve,
+        sem disputar a camera com o Vision Core. Nunca levanta.
+        """
+        foto = getattr(self._nucleo, "ultimo_frame_jpeg", None)
+        if foto is None:
+            return None
+        try:
+            return foto()
+        except Exception:
+            logger.debug("falha ao gerar o snapshot da camera", exc_info=True)
+            return None
+
     def pausar(self) -> None:
         """Suspende a visao inteira sob pressao de memoria (EDR-0020).
 
@@ -305,7 +320,15 @@ class ModuloVisao:
                 tilt_max_graus=tilt_max,
                 velocidade_max_graus_s=self._conf["servo_max_speed_deg_s"],
             ),
-            publicar_pan_tilt=self._publicar_pan_tilt or self._mover_servos,
+            # A CAMERA NAO MEXE MAIS A CABECA SOZINHA (2026-11-01, dono: muito
+            # chefe para pouco indio). A visao segue vendo, reconhecendo e
+            # informando; quem vira a cabeca e a IA (ou o joystick). Volta com
+            # vision.cabeca_segue_pessoa: true no orion.yaml.
+            publicar_pan_tilt=(
+                (self._publicar_pan_tilt or self._mover_servos)
+                if self._conf.get("cabeca_segue_pessoa", False)
+                else None
+            ),
             # Quadros seguidos com a mesma deteccao antes de confirmar o alvo
             # e mover o servo. Vinha FIXO em 3 aqui (contra a regra 6 da
             # arquitetura) e por isso nunca aparecia em investigacao nenhuma;
@@ -323,6 +346,7 @@ class ModuloVisao:
             # tenha a chave - o Pi e o Notebook nem sempre atualizam a config
             # no mesmo instante.
             reconhecer_rosto_a_cada=self._conf.get("face_recognition_every_n_frames", 1),
+            confianca_para_descrever=self._conf.get("confianca_para_descrever"),
         )
 
 

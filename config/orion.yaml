@@ -408,6 +408,16 @@ vision:
   # Fofao parar de enxergar gente de longe, este e o primeiro numero a subir.
   yolo_imgsz: 320
   confidence_threshold: 0.55
+  # So para a resposta "o que voce esta vendo" (2026-11-01). 0,55 serve
+  # para mover a cabeca e gerar eventos, onde falso positivo custa caro;
+  # para LISTAR objetos era rigoroso demais e calava copo, celular e
+  # controle. Os eventos e a cabeca continuam no confidence_threshold.
+  confianca_para_descrever: 0.35
+  # A CABECA SEGUE ROSTO E PESSOA DE NOVO (2026-11-01 noite, dono: "religa o
+  # seguir rosto e pessoa"). Tinha sido desligado de manha (ebcd59d, "muito
+  # chefe"). A cabeca tem DOIS donos - esta visao e o AcompanharPessoa do Pi -
+  # entao olhar o log por briga nos servos.
+  cabeca_segue_pessoa: true
   # De quantos em quantos quadros rodar o RECONHECIMENTO FACIAL (2026-07-30).
   #
   # 1 = todo quadro (o comportamento anterior a esta chave).
@@ -540,6 +550,8 @@ voice:
   # chamam o robo, e ele continua se apresentando como Fofao.
   # So vale para a ATIVACAO POR VOZ: enquanto nao houver microfone ligado
   # (ver docs/journal.md), nenhum dos dois nomes e ouvido.
+  # 2026-11-01: "boku" e "defai" a pedido do dono. Conferido que nao
+  # disparam com boca, foco, desafio, de fato; casam com bocu e de fai.
   wake_word: ["jarvis"]
   # SEM PALAVRA DE ATIVACAO (2026-10-25, decisao do dono: "prefiro sem
   # palavra de ativacao"). false = a conversa fica sempre aberta e toda fala
@@ -693,7 +705,12 @@ voice:
     # 2026-10-31: 0.003 -> 0.03. O ganho dos ouvidos dobrou (firmware >>12) e
     # o ruido de fundo passou a ~0.013: com 0.003 o Whisper rodava a cada 5 s
     # em silencio. Voz medida a 0.15 - folga de 5x.
-    rms_minimo: 0.03
+    # 2026-11-01: 0.03 -> 0.012. Robo remontado, mics em outro lugar: ruido
+    # MEDIDO 0.007 e voz a 1 m entre 0.03 e 0.07 - a fala ficava em cima do
+    # piso fixo e era descartada como silencio, sem log (ele "nao ouvia").
+    # Com 0.012 quem decide e o adaptativo (2.5 x ruido ~ 0.018). Remontou de
+    # novo? MECA antes de mexer aqui: o piso fixo nao acompanha a montagem.
+    rms_minimo: 0.012
     janelas_de_historico: 30
   # IDENTIFICACAO DE LOCUTOR POR VOZ (2026-08-19, trazida do Notebook em
   # 2026-10-25): saber QUEM falou so pela voz, no nivel do reconhecimento

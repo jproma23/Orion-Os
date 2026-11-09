@@ -847,3 +847,86 @@ async def test_cena_velha_nao_entra_no_contexto():
 
     contexto = ai.chamadas[0][1]
     assert "visao_agora" not in (contexto or {}), "cena ausente virou afirmacao"
+
+
+@pytest.mark.asyncio
+async def test_pessoa_sem_rosto_vira_uma_pessoa():
+    """De costas ou longe o rosto nao e achado - e ainda e gente (2026-11-01)."""
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(objetos=[{"classe": "person", "confianca": 0.5}]),
+    )
+
+    resposta = await planner.processar("o que voce esta vendo?")
+
+    assert resposta == "Na minha frente agora estou vendo uma pessoa."
+
+
+@pytest.mark.asyncio
+async def test_pessoa_reconhecida_nao_vira_tambem_uma_pessoa():
+    planner = MissionPlanner(
+        ai_manager=AiManagerFalso(),
+        consultar_visao=lambda: _cena_fake(
+            objetos=[{"classe": "person", "confianca": 0.9}],
+            reconhecidos=[{"nome": "Joao Paulo", "pessoa_id": 1}],
+        ),
+    )
+
+    resposta = await planner.processar("o que voce esta vendo?")
+
+    assert resposta == "Na minha frente agora estou vendo o Joao Paulo."
+
+
+class _IaEmFrases:
+    """Modelo que responde em frases, com o marcador numa frase do MEIO."""
+
+    def __init__(self, frases):
+        self.frases = frases
+
+    async def responder(self, texto_usuario, contexto=None, **kwargs):
+        return " ".join(self.frases)
+
+    async def responder_em_frases(self, texto_usuario, contexto=None, **kwargs):
+        for frase in self.frases:
+            yield frase
+
+
+@pytest.mark.asyncio
+async def test_marcador_fora_da_primeira_frase_nao_vai_para_a_fala():
+    """Visto no chat de 01/11 e 08/11: '#acao:varrer_a_frente De olho...'
+    saiu no alto-falante e ficou gravado na conversa."""
+    planner = MissionPlanner(
+        ai_manager=_IaEmFrases(["Claro.", "#acao:varrer_a_frente De olho em tudo por aqui."])
+    )
+
+    respostas = [frase async for frase in planner.responder_em_frases("use a camera")]
+
+    assert respostas == ["Claro.", "De olho em tudo por aqui."]
+    assert not any("#acao" in frase for frase in respostas)
+
+
+@pytest.mark.asyncio
+async def test_me_siga_pede_o_follow_a_navegacao_do_pi():
+    pedidos = []
+
+    async def comandar_navegacao(dados):
+        pedidos.append(dados)
+
+    planner = MissionPlanner(ai_manager=AiManagerFalso(), comandar_navegacao=comandar_navegacao)
+    falado = await planner._cumprir_acao_pedida("#acao:me_siga Vou atras de voce.", "Jarvis, me siga")
+    assert pedidos == [{"acao": "FOLLOW"}]
+    assert "#acao" not in falado
+
+
+@pytest.mark.asyncio
+async def test_acao_com_numero_entrega_os_parametros_ao_corpo():
+    """O callback real aceitava so o comando e 'vira 90' falhava (08/11)."""
+    recebidos = []
+
+    async def enviar(comando, parametros=None):
+        recebidos.append((comando, parametros))
+
+    planner = MissionPlanner(ai_manager=AiManagerFalso(), enviar_comando_hardware=enviar)
+    await planner._cumprir_acao_pedida("#acao:virar_direita 90", "vira para a direita")
+    assert recebidos and recebidos[0][0] == "TURN_RIGHT"
+    assert recebidos[0][1]["graus"] == 90

@@ -67,6 +67,11 @@ TOPICOS_QUE_ACORDAM = (
     "display.quadro",
     "display.tela",
     "system.ready",
+    # 08/11, dono: "toda vez que eu falar com ele a tela deve acender". So
+    # os dois eventos de alguem falar COM ele - ouviu "Jarvis" e recebeu um
+    # pedido. Nao o voice.status, que muda o dia inteiro (ver abaixo).
+    "voice.wake_detected",
+    "voice.command_received",
 )
 
 #: Eventos que apenas EMPURRAM o prazo de uma tela que ja esta acesa. Nao

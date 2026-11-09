@@ -32,6 +32,7 @@ from orion.ensino.banco_aulas import normalizar_nivel as _normalizar_nivel
 from orion.mission.acoes_faladas import MARCADOR, AcaoFalada
 from orion.mission.acoes_faladas import bloco_para_prompt as _bloco_acoes
 from orion.mission.acoes_faladas import extrair as _extrair_acao
+from orion.mission.acoes_faladas import sem_marcador as _sem_marcador
 from orion.mission.acoes_faladas import parametros_do_comando as _parametros_do_comando
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.mission.ai_manager import SEM_IA, AiManager
@@ -389,6 +390,7 @@ class MissionPlanner:
         mover_cabeca: CallbackCabeca | None = None,
         deixar_recado: CallbackRecado | None = None,
         guardar_conhecimento: CallbackConhecimento | None = None,
+        comandar_navegacao=None,
         consultar_internet=None,
         consultar_visao: CallbackVisao | None = None,
         professor=None,
@@ -438,6 +440,9 @@ class MissionPlanner:
         #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
         #: codigo do robo o chamava. Este e o fio que faltava.
         self._guardar_conhecimento = guardar_conhecimento
+        #: Pede a navegacao do Pi (FOLLOW do "me siga", 08/11) - recebe o
+        #: dict de `navigation.comando`.
+        self._comandar_navegacao = comandar_navegacao
         #: Quem diz o que a camera ve AGORA (2026-08-09). None = o robo nao
         #: responde "o que e isso?" por aqui e a pergunta vai para a IA -
         #: que nao ve o frame e inventa. Mesmo contrato dos outros callbacks:
@@ -601,6 +606,14 @@ class MissionPlanner:
                     # A resposta era so o marcador. Nao ha o que falar ainda -
                     # e um yield vazio faria o sintetizador carregar o Piper
                     # para produzir silencio.
+                    continue
+            else:
+                # MARCADOR FORA DA PRIMEIRA FRASE (2026-11-08): so a primeira
+                # executa acao, mas o modelo as vezes escreve `#acao:` depois -
+                # e ele ia para o alto-falante e para o banco (2 vezes no chat
+                # de 01-08/11). Aqui so sai do texto; nao executa nada.
+                frase = _sem_marcador(frase)
+                if not frase:
                     continue
             partes.append(frase)
             yield frase
@@ -1003,6 +1016,10 @@ class MissionPlanner:
                 await self._despachar_cabeca(acao)
             elif acao.entrega == "recado":
                 await self._despachar_recado(argumento)
+            elif acao.entrega == "navegacao":
+                if self._comandar_navegacao is None:
+                    raise _SemCaminho("sem callback de navegacao")
+                await self._comandar_navegacao({"acao": "FOLLOW"})
             elif acao.entrega == "internet":
                 # SAI AQUI, e a saida antecipada e o ponto: nas outras acoes
                 # a fala do modelo vence (`falado or acao.resposta`), porque
@@ -1038,7 +1055,18 @@ class MissionPlanner:
             # caminho existe para nao repetir. Quem esta ouvindo precisa saber
             # que nao pode contar com isso.
             return "Desculpe, nao consegui guardar isso."
-        except Exception:
+        except Exception as erro:
+            # A TRAVA DO LIDAR DIZ POR QUE (2026-11-01). O Pi recusa comando
+            # de roda com obstaculo no caminho e manda o motivo no NACK
+            # ("obstaculo a 24 cm para frente"). Ate aqui ele virava
+            # "Nao consegui" e o dono achava que o robo estava quebrado.
+            motivo = str(erro)
+            if "obstaculo a " in motivo:
+                trecho = motivo.split("obstaculo a ", 1)[1].split(" (limite", 1)[0]
+                logger.info("acao %r recusada pela trava do LiDAR: %s", acao.nome, trecho)
+                return f"Nao vou andar: tem um obstaculo a {trecho}."
+            if "nao ando as cegas" in motivo:
+                return "Nao vou andar: estou sem leitura do LiDAR agora."
             logger.exception("falha ao executar a acao %r", acao.nome)
             return "Nao consegui fazer isso agora."
 
@@ -1233,8 +1261,25 @@ class MissionPlanner:
             nome = str(reconhecido.get("nome") or "").strip()
             if nome:
                 itens.append(f"o {nome}")
-        if int(cena.get("desconhecidos") or 0) > 0:
+        desconhecidos = int(cena.get("desconhecidos") or 0)
+        if desconhecidos > 0:
             itens.append("alguem que eu nao conheco")
+        # GENTE SEM ROSTO TAMBEM E GENTE (2026-11-01). A classe `person` e
+        # pulada acima porque quem tem rosto achado ja entra pelo nome ou como
+        # desconhecido. Mas de costas, longe ou de lado o rosto nao e achado,
+        # e ate aqui a resposta era "nao estou vendo nada" com o YOLO vendo
+        # alguem. Conta as pessoas que sobram depois dos rostos.
+        pessoas = int(cena.get("pessoas") or 0)
+        if not pessoas and any(
+            isinstance(o, dict) and o.get("classe") == "person"
+            for o in cena.get("objetos") or []
+        ):
+            pessoas = 1
+        sem_rosto = pessoas - len(cena.get("reconhecidos") or []) - desconhecidos
+        if sem_rosto == 1:
+            itens.append("uma pessoa")
+        elif sem_rosto > 1:
+            itens.append(f"{sem_rosto} pessoas")
         if not itens:
             return "Nao estou vendo nada na minha frente agora."
         if len(itens) == 1:

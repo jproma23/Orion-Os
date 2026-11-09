@@ -69,5 +69,11 @@ class PonteConselho:
 
         await self._servico.responder(
             mensagem_original,
-            {"ok": True, "comportamento": conselho.comportamento, "motivo": conselho.motivo},
+            {
+                "ok": True,
+                "comportamento": conselho.comportamento,
+                "motivo": conselho.motivo,
+                # o numero da acao (mm ou graus) - ver Conselho.valor
+                "valor": getattr(conselho, "valor", 0.0),
+            },
         )
