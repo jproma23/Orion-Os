@@ -34,7 +34,8 @@ custaram caro.
   <a href="docs/assets/fotos/jarvis-andando-2026-11-08.mp4"><img src="docs/assets/fotos/jarvis-andando-2026-11-08.gif" alt="Jarvis andando sozinho pelo quarto enquanto o radar do LiDAR aparece na webui" width="560"></a><br>
   <sub>O Jarvis andando sozinho pelo quarto. No notebook, a webui mostra o contorno do quarto
   medido pelo LiDAR e a trava de 50 cm à frente dele. GIF acelerado 3×,
-  <a href="docs/assets/fotos/jarvis-andando-2026-11-08.mp4">clique para o vídeo original (55 s)</a>.</sub>
+  <a href="docs/assets/fotos/jarvis-andando-2026-11-08.mp4">clique para o vídeo original (55 s)</a>.</sub><br><br>
+  <a href="https://youtu.be/mMFkYHiu2Kc"><img alt="Assistir no YouTube" src="https://img.shields.io/badge/assistir_no_YouTube_(com_som)-FF0000?style=for-the-badge&logo=youtube&logoColor=white"></a>
 </p>
 
 <table>
