@@ -125,6 +125,10 @@ class AcaoFalada:
     entrega: str = "hardware"
     #: Comando de firmware, quando `entrega == "hardware"`.
     comando: str = ""
+    #: A `acao` do `navigation.comando` do Pi, quando `entrega == "navegacao"`
+    #: (2026-11-10). Antes o despachante mandava FOLLOW para toda acao de
+    #: navegacao - so existia uma -, e a segunda acao viraria "me siga".
+    acao_navegacao: str = ""
     #: Posicao da cabeca, quando `entrega == "cabeca"`.
     pan: float | None = None
     tilt: float | None = None
@@ -165,6 +169,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
             "diz 'para'"
         ),
         entrega="navegacao",
+        acao_navegacao="FOLLOW",
         resposta="Estou te seguindo. Quando quiser que eu pare, diga: Jarvis, para.",
     ),
     # ---- O MUNDO LA FORA (2026-08-07) -----------------------------------
@@ -255,7 +260,13 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="varrer_a_frente",
         descricao="varrer a frente com o sensor de distancia, escanear o que tem na frente",
-        comando="SCAN_FRONT",
+        # PELA NAVEGACAO, NAO PELO FIRMWARE (2026-11-10, auditoria C4-01/C5-03).
+        # O SCAN_FRONT cru ia ao ESP32, que nao conhece esse comando (o radar
+        # de servo saiu do robo) e mesmo assim devolve ACK: o robo dizia
+        # "Varrendo a frente" e nada acontecia. A navegacao do Pi responde
+        # SCAN_FRONT medindo pelo LiDAR (`_escanear_a_frente`).
+        entrega="navegacao",
+        acao_navegacao="SCAN_FRONT",
         resposta="Varrendo a frente.",
     ),
     # ---- O CORPO ANDANDO (2026-10-31) -------------------------------------
@@ -413,6 +424,10 @@ def _conferir_catalogo() -> None:
             raise RuntimeError(f"acao {acao.nome!r}: entrega {acao.entrega!r} nao existe")
         if acao.entrega == "hardware" and not acao.comando:
             raise RuntimeError(f"acao {acao.nome!r} entrega por hardware e nao tem comando")
+        if (acao.entrega == "navegacao") != bool(acao.acao_navegacao):
+            # Sem `acao_navegacao` o despachante nao tem o que pedir ao Pi; com
+            # ela fora da navegacao, ninguem a leria.
+            raise RuntimeError(f"acao {acao.nome!r}: acao_navegacao so (e sempre) na navegacao")
         if acao.entrega == "cabeca":
             if acao.pan is None or acao.tilt is None:
                 # Meia posicao nao existe: mandar so o pan deixaria o tilt

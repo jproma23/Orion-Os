@@ -907,8 +907,11 @@ class AtenderGesto(Comportamento):
         await self._event_bus.publish(
             "behavior.status", {"estado": self.nome, "gesto": gesto}, prioridade=Prioridade.ALTA
         )
+        #: Mandou roda? Entao tem que parar no fim (ver o `finally`).
+        moveu = False
         try:
             if gesto == "vem":
+                moveu = True
                 # Chamou: o robo VAI. Nao serve mandar FOLLOW aqui - o modo
                 # FOLLOW so GIRA para centralizar quem ele reconhece
                 # (_ao_reconhecer_pessoa manda TURN_LEFT/TURN_RIGHT e mais
@@ -938,6 +941,25 @@ class AtenderGesto(Comportamento):
             # Solta o controle mesmo se preemptado no meio, senao o gesto
             # ficaria pendurado pedindo a vez para sempre.
             self._gesto = None
+            if moveu:
+                # O "VEM" PARA NO FIM (2026-11-10, auditoria C1-05/C4-03). O
+                # MOVE_FORWARD acima nao tem fim, e o homem-morto do firmware
+                # e renovado por QUALQUER comando (o SET_PAN_TILT da visao):
+                # sem este HOLD o robo seguia andando depois do gesto. HOLD,
+                # e nao STOP do operador, porque o gesto e o robo agindo - nao
+                # gente pedindo parada, e nao deve tirar o volante da IA.
+                # `shield`: preemptado no meio, o cancelamento nao pode engolir
+                # justamente o pedido de parar.
+                try:
+                    await asyncio.shield(
+                        self._event_bus.publish(
+                            "navigation.comando",
+                            {"acao": "HOLD", "origem": "gesto"},
+                            prioridade=Prioridade.ALTA,
+                        )
+                    )
+                except asyncio.CancelledError:
+                    pass
             self._reavaliar()
 
 

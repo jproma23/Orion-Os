@@ -440,8 +440,8 @@ class MissionPlanner:
         #: ZERO notas: `nota_escrever` funcionava ponta a ponta e nenhum
         #: codigo do robo o chamava. Este e o fio que faltava.
         self._guardar_conhecimento = guardar_conhecimento
-        #: Pede a navegacao do Pi (FOLLOW do "me siga", 08/11) - recebe o
-        #: dict de `navigation.comando`.
+        #: Pede a navegacao do Pi (FOLLOW do "me siga", 08/11; SCAN_FRONT do
+        #: "varre a frente", 10/11) - recebe o dict de `navigation.comando`.
         self._comandar_navegacao = comandar_navegacao
         #: Quem diz o que a camera ve AGORA (2026-08-09). None = o robo nao
         #: responde "o que e isso?" por aqui e a pergunta vai para a IA -
@@ -467,42 +467,8 @@ class MissionPlanner:
         self._jarvis_plugins = jarvis_plugins or get_registry()
 
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
-        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
-
-        if self._pediu_para_parar(texto_usuario):
-            # "para" tambem encerra a aula. Sem isto, o robo pararia as rodas
-            # e continuaria dando aula - obedecendo pela metade, que e pior
-            # que nao obedecer, porque parece que ele ignorou.
-            if self._professor is not None:
-                await self._professor.parar()
-            resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
-        elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
-            resposta = aula_pausada
-        elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
-            resposta = escolha
-        elif (modo_aula := self._ativar_modo_aula(texto_usuario)) is not None:
-            resposta = modo_aula
-        elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
-            resposta = aula
-        elif (programa := self._responder_ementa(texto_usuario)) is not None:
-            resposta = programa
-        elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
-            resposta = sobre_mim
-        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
-            resposta = ja_sei
-        elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
-            resposta = jarvis_resp
-        elif self._eh_pergunta_de_hora(texto_usuario):
-            resposta = self._responder_hora()
-        elif (resposta_diario := await self._responder_sobre_quem_viu(
-            texto_usuario, contexto
-        )) is not None:
-            resposta = resposta_diario
-        elif (visao_agora := await self._responder_sobre_o_que_ve(
-            texto_usuario
-        )) is not None:
-            resposta = visao_agora
-        else:
+        resposta, contexto = await self._resposta_sem_ia(texto_usuario, pessoa_id)
+        if resposta is None:
             await self._contar_consulta_ia()
             bruta = await self._ai_manager.responder(texto_usuario, contexto)
             # Mesmo degrau do caminho por frases: se a IA nao respondeu, ele
@@ -529,43 +495,7 @@ class MissionPlanner:
 
         So o caminho da IA usa o streaming - e e justamente o unico que demora.
         """
-        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
-
-        if self._pediu_para_parar(texto_usuario):
-            # "para" tambem encerra a aula. Sem isto, o robo pararia as rodas
-            # e continuaria dando aula - obedecendo pela metade, que e pior
-            # que nao obedecer, porque parece que ele ignorou.
-            if self._professor is not None:
-                await self._professor.parar()
-            resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
-        elif (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
-            resposta = aula_pausada
-        elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
-            resposta = escolha
-        elif (modo_aula := self._ativar_modo_aula(texto_usuario)) is not None:
-            resposta = modo_aula
-        elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
-            resposta = aula
-        elif (programa := self._responder_ementa(texto_usuario)) is not None:
-            resposta = programa
-        elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
-            resposta = sobre_mim
-        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
-            resposta = ja_sei
-        elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
-            resposta = jarvis_resp
-        elif self._eh_pergunta_de_hora(texto_usuario):
-            resposta = self._responder_hora()
-        elif (resposta_diario := await self._responder_sobre_quem_viu(
-            texto_usuario, contexto
-        )) is not None:
-            resposta = resposta_diario
-        elif (visao_agora := await self._responder_sobre_o_que_ve(
-            texto_usuario
-        )) is not None:
-            resposta = visao_agora
-        else:
-            resposta = None
+        resposta, contexto = await self._resposta_sem_ia(texto_usuario, pessoa_id)
 
         if resposta is not None:
             yield resposta
@@ -619,6 +549,63 @@ class MissionPlanner:
             yield frase
         if partes:
             await self._registrar_interacao(pessoa_id, texto_usuario, " ".join(partes))
+
+    async def _resposta_sem_ia(
+        self, texto_usuario: str, pessoa_id: int | None
+    ) -> tuple[str | None, dict | None]:
+        """A cascata de respostas prontas, ANTES da IA: (resposta, contexto).
+
+        `resposta` None = nenhum degrau respondeu e a frase vai para a IA, com
+        o `contexto` ja montado. Era escrita duas vezes, igual, em `processar`
+        e em `responder_em_frases` (unificada em 2026-11-10).
+
+        PARAR VEM ANTES DO CONTEXTO (2026-11-10, auditoria C5-02). O
+        `_consultar_contexto` faz ate 3 idas a memoria do Pi, de 2 s cada
+        quando o link nao responde (a SSD solta depois de uma queda): o
+        "Jarvis, para" levou 6,03 s medidos para sair. Parar nao precisa de
+        memoria nenhuma - entao o STOP sai primeiro, e o contexto (None) nem
+        e montado.
+        """
+        if self._pediu_para_parar(texto_usuario):
+            # "para" tambem encerra a aula. Sem isto, o robo pararia as rodas
+            # e continuaria dando aula - obedecendo pela metade, que e pior
+            # que nao obedecer, porque parece que ele ignorou. As rodas
+            # primeiro: a aula pode esperar alguns milissegundos, o corpo nao.
+            resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
+            if self._professor is not None:
+                await self._professor.parar()
+            return resposta, None
+
+        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
+        if (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
+            resposta = aula_pausada
+        elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
+            resposta = escolha
+        elif (modo_aula := self._ativar_modo_aula(texto_usuario)) is not None:
+            resposta = modo_aula
+        elif (aula := await self._tentar_dar_aula(texto_usuario)) is not None:
+            resposta = aula
+        elif (programa := self._responder_ementa(texto_usuario)) is not None:
+            resposta = programa
+        elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
+            resposta = sobre_mim
+        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
+            resposta = ja_sei
+        elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
+            resposta = jarvis_resp
+        elif self._eh_pergunta_de_hora(texto_usuario):
+            resposta = self._responder_hora()
+        elif (resposta_diario := await self._responder_sobre_quem_viu(
+            texto_usuario, contexto
+        )) is not None:
+            resposta = resposta_diario
+        elif (visao_agora := await self._responder_sobre_o_que_ve(
+            texto_usuario
+        )) is not None:
+            resposta = visao_agora
+        else:
+            resposta = None
+        return resposta, contexto
 
     async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
         contexto: dict = {}
@@ -1019,7 +1006,7 @@ class MissionPlanner:
             elif acao.entrega == "navegacao":
                 if self._comandar_navegacao is None:
                     raise _SemCaminho("sem callback de navegacao")
-                await self._comandar_navegacao({"acao": "FOLLOW"})
+                await self._comandar_navegacao({"acao": acao.acao_navegacao})
             elif acao.entrega == "internet":
                 # SAI AQUI, e a saida antecipada e o ponto: nas outras acoes
                 # a fala do modelo vence (`falado or acao.resposta`), porque

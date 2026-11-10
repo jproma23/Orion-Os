@@ -13,6 +13,11 @@ Nao decide destino: e ponte. Quem decide e a camada de comportamento
 
 O resultado volta para o bus como `navigation.goal_resultado` (completado,
 falhou, cancelado, timeout) para quem pediu saber se o robo chegou.
+
+STOP CANCELA O GOAL (2026-11-10, auditoria C1-01): `navigation.parar` (o ponto
+unico de parada do NavigationCore) vira POST em `URL_CANCELAR`. Antes a URL
+existia e ninguem a chamava: o STOP parava as rodas e o Nav2, com o goal
+vivo, voltava a mandar /cmd_vel em <=100 ms.
 """
 from __future__ import annotations
 
@@ -31,6 +36,8 @@ logger = logging.getLogger("motion_core.navigation.nav2_goal")
 #: Endereco do bridge_goal (no container, network_mode host = 127.0.0.1 local).
 URL_GOAL = "http://127.0.0.1:8081/goal"
 URL_CANCELAR = "http://127.0.0.1:8081/cancelar"
+#: O cancelamento e curto: o bridge_goal so repassa o cancel ao Nav2.
+TIMEOUT_CANCELAR_S = 3.0
 #: Quanto tempo esperar o Nav2 completar o goal antes de desistir.
 TIMEOUT_GOAL_S = 600.0
 #: Intervalo minimo entre o pedido de um goal e a proxima aceitacao
@@ -48,6 +55,24 @@ class Nav2Goal:
         #: com o Nav2 de pe o tempo todo - e o que os testes usam.
         self._gerente = gerente
         event_bus.subscribe("navigation.goal", self._ao_goal)
+        event_bus.subscribe("navigation.parar", self._ao_parar)
+
+    async def _ao_parar(self, evento: Evento) -> None:
+        """STOP: cancela o goal do Nav2. Volta na hora (o POST roda numa tarefa).
+
+        Cancela SEMPRE, mesmo sem goal nosso em voo: quem o mandou pode ter
+        sido outro (RViz, um teste a mao) e o custo de cancelar o nada e um
+        POST. Nav2 desligado = conexao recusada = so log.
+        """
+        disparar(self._cancelar(evento.dados.get("origem")), "nav2_cancelar")
+
+    async def _cancelar(self, origem: Any) -> None:
+        try:
+            await asyncio.to_thread(self._enviar_cancelar)
+        except Exception as exc:  # Nav2 fora do ar e normal (sob demanda)
+            logger.info("cancelar goal do Nav2 (STOP de %s) nao chegou: %s", origem, exc)
+            return
+        logger.info("goal do Nav2 cancelado (STOP de %s)", origem)
 
     async def _ao_goal(self, evento: Evento) -> None:
         """Handler nao bloqueante: o despacho do bus faz `await` no handler,
@@ -122,6 +147,17 @@ class Nav2Goal:
         with urllib.request.urlopen(req, timeout=TIMEOUT_GOAL_S) as resp:
             corpo = json.loads(resp.read())
         return corpo.get("resultado", "falhou"), resp.status
+
+    def _enviar_cancelar(self) -> None:
+        """POST sincrono em /cancelar; roda fora do loop (to_thread)."""
+        req = urllib.request.Request(
+            URL_CANCELAR,
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=TIMEOUT_CANCELAR_S) as resp:
+            resp.read()
 
     async def _publicar(self, resultado: str, detalhes: dict[str, Any]) -> None:
         await self._event_bus.publish(

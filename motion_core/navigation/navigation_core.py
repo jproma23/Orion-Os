@@ -193,6 +193,14 @@ COMANDOS_DE_MOVIMENTO = COMANDOS_QUE_AVANCAM | frozenset(
 #: portugues de proposito: quem publica isto e o maestro, nao o firmware.
 SENTIDOS_DE_GIRO = {"ESQUERDA": "TURN_LEFT", "DIREITA": "TURN_RIGHT"}
 
+#: Quem pede parada sendo GENTE (2026-11-10, decisao do dono: "STOP em
+#: AUTONOMO passa para MANUAL"). "operador" = STOP da webui/joystick
+#: (`acao: MANUAL, comando: STOP` so nasce no /comando); "notebook" = o STOP
+#: falado ("Jarvis, para") que o Pi so repassa. O HOLD dos comportamentos
+#: (atender o dono, joystick solto, a acao "parar" da IA) NAO e gente pedindo
+#: para parar o robo: e o proprio robo pausando, e nao tira o volante da IA.
+ORIGENS_HUMANAS_DE_PARADA = frozenset({"operador", "notebook"})
+
 
 class ModoNavegacao(str, Enum):
     HOLD = "HOLD"
@@ -302,8 +310,23 @@ class NavigationCore:
         #: Ver _ao_receber_comando para o porque.
         self._comando_pendente: dict[str, Any] | None = None
         self._tarefa_comando: asyncio.Task | None = None
+        #: STOP TRAVA O NAV2 (2026-11-10, auditoria C1-01). Depois de um STOP,
+        #: a VELOCIDADE (o /cmd_vel do Nav2 pela ponte) e recusada ate um
+        #: `navigation.goal` NOVO. Sem isto, o bridge_cmd_vel voltava a mandar
+        #: CMD_VEL em <=100 ms e o robo saia andando de novo - o STOP nao
+        #: cancelava o goal. So o goal novo solta: e o unico pedido explicito
+        #: de "Nav2, dirija". Joystick, EXPLORE, FOLLOW e GOTO nao passam por
+        #: VELOCIDADE e nao sao afetados. Comeca solta: antes do primeiro STOP
+        #: o comportamento e o de sempre.
+        self._velocidade_travada = False
+        self._avisou_velocidade_travada = False
+        #: Ultimo `navigation.goal_resultado` do Nav2 (auditoria A5): o
+        #: evento era publicado no vazio. Ver `_ao_resultado_goal`.
+        self._ultimo_goal_resultado: dict[str, Any] | None = None
 
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
+        event_bus.subscribe("navigation.goal", self._ao_receber_goal)
+        event_bus.subscribe("navigation.goal_resultado", self._ao_resultado_goal)
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_atualizar_telemetria)
         event_bus.subscribe("vision.person_detected", self._ao_ver_pessoa_follow)
         event_bus.subscribe("motion.pan_tilt", self._ao_mover_cabeca_follow)
@@ -315,6 +338,35 @@ class NavigationCore:
     @property
     def modo(self) -> ModoNavegacao:
         return self._modo
+
+    @property
+    def velocidade_travada(self) -> bool:
+        """True = a VELOCIDADE do Nav2 esta recusada desde o ultimo STOP."""
+        return self._velocidade_travada
+
+    @property
+    def ultimo_goal_resultado(self) -> dict[str, Any] | None:
+        """O ultimo resultado do Nav2 (resultado, x_m, y_m..., `instante`)."""
+        return self._ultimo_goal_resultado
+
+    async def _ao_receber_goal(self, evento: Evento) -> None:
+        """Goal novo = pedido explicito para o Nav2 dirigir: solta a trava."""
+        if self._velocidade_travada:
+            logger.info("navegacao: goal novo do Nav2 - velocidade destravada")
+        self._velocidade_travada = False
+
+    async def _ao_resultado_goal(self, evento: Evento) -> None:
+        """Guarda o fim do goal (2026-11-10, auditoria A5).
+
+        O Nav2Goal publicava `navigation.goal_resultado` e ninguem assinava:
+        "cheguei", "falhou" ou "cancelado" sumiam. Aqui fica o ultimo, com o
+        instante, para quem precisar saber se o robo chegou (retrato do mundo,
+        webui). Nao fala e nao decide nada - so deixa de jogar fora.
+        """
+        dados = dict(evento.dados)
+        dados["instante"] = time.monotonic()
+        self._ultimo_goal_resultado = dados
+        # O log de cada resultado ja sai no Nav2Goal._publicar; aqui so guarda.
 
     def registrar_consulta_repeticoes(self, consulta) -> None:
         """Liga o degrau do ciclo fechado apos a memoria existir.
@@ -823,7 +875,7 @@ class NavigationCore:
 
         O ULTIMO VENCE, e nao ha fila: comando de joystick velho nao deve ser
         executado atrasado, deve ser DESCARTADO. Soltar o joystick manda STOP,
-        que por ser o mais recente ganha de qualquer movimento pendente. Uma
+        que esvazia a vaga e cancela o movimento em curso (`parar_tudo`). Uma
         fila faria o robo continuar andando depois de solto - exatamente o que
         a re, sem seguranca reativa, nao pode fazer (Cap 18).
         """
@@ -840,6 +892,28 @@ class NavigationCore:
         # prioridade 100 e preempta a IA em 40 - antes de
         # `_executar_pendentes` chegar nele. Nenhuma linha em nenhuma das duas
         # pontas: a decisao da IA simplesmente evaporava.
+        #
+        # PARAR NAO ENTRA NA VAGA (2026-11-10, auditoria C1-03). HOLD e o STOP
+        # do operador iam para a mesma vaga que o resto e esperavam o passo em
+        # andamento acabar (medido: STOP apertado em 1,03 s chegou ao corpo em
+        # 4,53 s, no meio de um EXPLORE); pior, a VELOCIDADE do Nav2 que vinha
+        # logo depois APAGAVA o STOP da vaga (20 publicados, 0 entregues). Parar
+        # agora e na hora, aqui mesmo, antes de qualquer outra coisa - e por
+        # isso nenhum STOP fica pendente para ser sobrescrito.
+        dados = evento.dados
+        acao = dados.get("acao")
+        if acao == "HOLD":
+            self.parar_ja(str(dados.get("origem") or "hold"))
+            return
+        if acao == "MANUAL" and dados.get("comando") == "STOP":
+            self.parar_ja(str(dados.get("origem") or "operador"))
+            return
+        if acao == "VELOCIDADE" and self._velocidade_travada:
+            # Recusa NA ENTRADA, sem tocar na vaga: com o goal que nao
+            # cancelou, o Nav2 segue mandando 10 por segundo, e cada um
+            # apagaria o comando que o operador acabou de dar no joystick.
+            self._recusar_velocidade()
+            return
         anterior = self._comando_pendente
         if anterior is not None:
             # QUAL descarte merece alarme (ajustado em 2026-07-30, medido).
@@ -880,9 +954,9 @@ class NavigationCore:
     async def _despachar_comando(self, dados: dict[str, Any]) -> None:
         acao = dados.get("acao")
         try:
-            if acao == "HOLD":
-                await self.definir_modo_hold()
-            elif acao == "MANUAL":
+            # HOLD e o STOP do operador nao chegam aqui: param na entrada
+            # (`_ao_receber_comando` -> `parar_ja`).
+            if acao == "MANUAL":
                 await self.executar_manual(
                     dados["comando"],
                     dados.get("velocidade_percent"),
@@ -947,17 +1021,87 @@ class NavigationCore:
 
     # ---------- HOLD ----------
 
-    async def definir_modo_hold(self) -> None:
+    async def definir_modo_hold(self, origem: str = "hold") -> None:
         """Para o robo e mantem so os sensores ativos (Cap 12 s.3)."""
-        if self._tarefa_follow is not None:
-            self._tarefa_follow.cancel()
-            self._tarefa_follow = None
+        await self.parar_tudo(origem)
+
+    # ---------- PARAR: o ponto unico (2026-11-10, auditoria C1-01/02/03) ----------
+    #
+    # Ate esta data havia tres jeitos de "parar" e nenhum parava tudo: o HOLD
+    # esperava na vaga o passo acabar; o STOP falado ia direto ao corpo e a
+    # navegacao nem sabia (FOLLOW/EXPLORE voltavam a andar em <=200 ms); e
+    # nenhum cancelava o goal do Nav2. Agora todo STOP que conta passa por aqui.
+
+    def _segurar_tudo(self) -> ModoNavegacao:
+        """A parte SINCRONA da parada: roda inteira antes de qualquer `await`.
+
+        Sincrona de proposito: entre dois `await` nenhum outro handler roda,
+        entao nada que chegue depois (uma VELOCIDADE, o proximo passo do
+        EXPLORE) consegue passar na frente. Devolve o modo anterior.
+        """
+        atual = asyncio.current_task()
+        self._comando_pendente = None
+        for nome in ("_tarefa_comando", "_tarefa_follow"):
+            tarefa = getattr(self, nome)
+            # Nao cancela a si mesma: quem chama de dentro da tarefa (o
+            # definir_modo_hold de uma chamada direta) morreria no meio.
+            if tarefa is not None and tarefa is not atual and not tarefa.done():
+                tarefa.cancel()
+            if tarefa is not atual:
+                setattr(self, nome, None)
+        anterior = self._modo
         # O modo muda ANTES do envio: o estado interno da navegacao nao pode
-        # depender de o Arduino estar plugado. Antes, se o send falhasse, o
+        # depender de o corpo estar plugado. Antes, se o send falhasse, o
         # operador mandava PARAR, nao via erro nenhum, e o robo continuava
         # registrado em FOLLOW/PATROL.
-        await self._mudar_modo(ModoNavegacao.HOLD)
-        await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+        self._modo = ModoNavegacao.HOLD
+        self._velocidade_travada = True
+        self._avisou_velocidade_travada = False
+        return anterior
+
+    async def _anunciar_e_parar(self, origem: str, anterior: ModoNavegacao) -> None:
+        """A parte que espera: avisa o bus e manda o STOP ao corpo."""
+        humana = origem in ORIGENS_HUMANAS_DE_PARADA
+        logger.info("navegacao: PARAR (origem=%s, era %s)", origem, anterior.value)
+        if anterior is not ModoNavegacao.HOLD:
+            await self._event_bus.publish(
+                "navigation.mode_changed", {"modo": ModoNavegacao.HOLD.value}
+            )
+        # `navigation.parar`: o Nav2Goal cancela o goal; o maestro tira o
+        # volante da IA quando quem pediu foi gente (`humana`).
+        await self._event_bus.publish(
+            "navigation.parar", {"origem": origem, "humana": humana}, prioridade=Prioridade.ALTA
+        )
+        try:
+            await self._comm.send(DESTINO_HARDWARE, {"comando": "STOP"})
+        except ErroComunicacao as erro:
+            logger.warning("navegacao: STOP nao chegou ao corpo (origem=%s): %s", origem, erro)
+            await self._event_bus.publish(
+                "navigation.error",
+                {"acao": "STOP", "motivo": str(erro)},
+                prioridade=Prioridade.ALTA,
+            )
+
+    async def parar_tudo(self, origem: str) -> None:
+        """Para TUDO: vaga, tarefa em curso, FOLLOW, Nav2 e o corpo.
+
+        Antes de qualquer `await`: zera o comando pendente, cancela a tarefa de
+        comando e o FOLLOW, poe em HOLD e trava a VELOCIDADE do Nav2. Depois
+        publica `navigation.parar` {origem, humana} e manda STOP ao corpo.
+        """
+        anterior = self._segurar_tudo()
+        await self._anunciar_e_parar(origem, anterior)
+
+    def parar_ja(self, origem: str) -> asyncio.Task:
+        """O mesmo `parar_tudo`, para quem NAO pode esperar o ACK do corpo.
+
+        O handler do bus e o gancho do repasse (`ComunicacaoService`) chamam
+        isto: a parte que segura tudo roda AQUI, na hora; o aviso e o STOP vao
+        numa tarefa, para o bus e a recepcao do Notebook nao ficarem presos
+        ate 1,5 s esperando o ACK de um corpo que talvez esteja fora.
+        """
+        anterior = self._segurar_tudo()
+        return disparar(self._anunciar_e_parar(origem, anterior), "parar_tudo")
 
     # ---------- MANUAL ----------
 
@@ -977,6 +1121,11 @@ class NavigationCore:
         """
         if comando not in COMANDOS_MANUAIS:
             raise ErroNavegacao(f"comando manual desconhecido: {comando!r}")
+        if comando == "STOP":
+            # O STOP do operador e o ponto unico de parada, venha por onde
+            # vier (2026-11-10) - nao um comando a mais repassado ao corpo.
+            await self.parar_tudo("operador")
+            return
 
         await self._mudar_modo(ModoNavegacao.MANUAL)
 
@@ -1021,11 +1170,29 @@ class NavigationCore:
         10 Hz cada mensagem e a continuacao da anterior, e esperar faria o
         robo parar entre elas. Quem para e o proprio firmware, se as
         mensagens pararem de chegar por 0,5 s.
+
+        RECUSADA DEPOIS DE UM STOP ate o proximo `navigation.goal` (2026-11-10,
+        auditoria C1-01): ver `_velocidade_travada`.
         """
+        if self._velocidade_travada:
+            self._recusar_velocidade()
+            return
         await self._mudar_modo(ModoNavegacao.MANUAL)
         await self._comm.send(
             DESTINO_HARDWARE,
             {"comando": "CMD_VEL", "v_m_s": float(v_m_s), "w_rad_s": float(w_rad_s)},
+        )
+
+    def _recusar_velocidade(self) -> None:
+        """Registra a recusa: WARNING na primeira desde o STOP, DEBUG depois.
+
+        O Nav2 manda 10 por segundo; avisar cada uma afogaria o log (o mesmo
+        motivo do descarte silencioso do joystick em `_ao_receber_comando`).
+        """
+        registrar = logger.debug if self._avisou_velocidade_travada else logger.warning
+        self._avisou_velocidade_travada = True
+        registrar(
+            "navegacao: VELOCIDADE recusada - houve STOP e nenhum navigation.goal novo desde entao"
         )
 
     async def girar(
@@ -1672,8 +1839,10 @@ class NavigationCore:
         alinhou = False
 
         for passo in range(1, SEGMENTOS_POR_EXPLORE + 1):
-            # O TRECHO E INTERROMPIVEL A CADA PASSO (2026-07-30): STOP,
-            # joystick ou HOLD que chegaram na vaga encerram o trecho aqui.
+            # O TRECHO E INTERROMPIVEL A CADA PASSO (2026-07-30): joystick ou
+            # comando novo que chegou na vaga encerra o trecho aqui. STOP e
+            # HOLD nem esperam o passo: cancelam esta tarefa na hora
+            # (`parar_tudo`, 2026-11-10).
             if self._comando_pendente is not None:
                 logger.info(
                     "explore: comando %r chegou - encerrando o trecho no passo %d",

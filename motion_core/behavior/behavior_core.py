@@ -20,7 +20,7 @@ from motion_core.behavior.comportamento import (
     resolver_contexto,
 )
 from motion_core.behavior.memoria_decisoes import MemoriaDeDecisoes, assinatura
-from orion.kernel.event_bus import EventBus
+from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("motion_core.behavior.behavior_core")
 
@@ -127,6 +127,14 @@ class BehaviorCore:
         #: se comporta exatamente como antes - pergunta sempre.
         self._decisoes_aprendidas = memoria_decisoes
 
+        #: STOP DE GENTE TIRA O VOLANTE DA IA (2026-11-10, decisao do dono).
+        #: Sem isto, em AUTONOMO a IA re-decidia na hora: a prova da auditoria
+        #: (C1-03) viu o STOP da webui e, 0,3 s depois, outro EXPLORE da IA
+        #: andando de novo. O `navigation.parar` sai do ponto unico de parada
+        #: da navegacao, com `humana` ja decidido la; a trava do LiDAR nao
+        #: passa por ele e nao mexe no modo.
+        event_bus.subscribe("navigation.parar", self._ao_parar_navegacao)
+
     def registrar(self, comportamento: Comportamento, discricionario: bool = False) -> None:
         """Adiciona um comportamento e reordena do mais forte ao mais fraco.
 
@@ -198,6 +206,21 @@ class BehaviorCore:
             "behavior.modo_controle", {"modo": modo, "anterior": anterior}
         )
         self.pedir_reavaliacao()
+
+    async def _ao_parar_navegacao(self, evento: Evento) -> None:
+        """Gente mandou parar com a IA no volante: o volante vai para MANUAL.
+
+        So em AUTONOMO: em MANUAL o operador ja esta no volante, e repetir o
+        pedido zeraria o cronometro de volta ao automatico a cada STOP.
+        Os 3 minutos de ociosidade (`_checar_ocioso`) devolvem a IA depois.
+        """
+        if not evento.dados.get("humana") or self._modo_controle != MODO_AUTONOMO:
+            return
+        logger.info(
+            "maestro: STOP de %s com a IA no volante - passando para MANUAL",
+            evento.dados.get("origem", "?"),
+        )
+        await self.definir_modo_controle(MODO_MANUAL)
 
     async def _checar_ocioso(self) -> None:
         """Devolve o volante ao robô depois de `SEGUNDOS_OCIOSO_ATE_AUTO` sem uso.
