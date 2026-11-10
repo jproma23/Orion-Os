@@ -15,7 +15,9 @@ roda: os nascidos no Pi (webui, maestro, Nav2) e os repassados do Notebook.
 O QUE ELA CONFERE: o CORREDOR que o robo vai ocupar, nao um cone. Um ponto
 do LiDAR so bloqueia se estiver na direcao do movimento, dentro da largura
 do robo (mais folga) e mais perto que `distancia_cm`. Parede ao lado num
-corredor nao trava; caixa na frente, sim. Giro no lugar sempre passa.
+corredor nao trava; caixa na frente, sim. Giro no lugar confere o raio de
+varredura do canto traseiro em volta do eixo dianteiro de tracao (37,5 cm,
+decisao de 10/11); obstaculo dentro desse circulo bloqueia o giro.
 
 "NAO SEI" NAO E CAMINHO LIVRE: sem varredura recente, comando que anda e
 recusado. E se o obstaculo aparece DURANTE um movimento continuo (CMD_VEL,
@@ -24,8 +26,10 @@ MOVE_CONTINUOUS), recusar o proximo comando nao basta - ela manda STOP.
 BLOQUEIA POR PADRAO (EDR-0037, 01/11 a tarde). De manha ela foi posta em
 "so informa" (a IA desvia). A tarde, com ela assim, o robo bateu na comoda e
 na parede: o LiDAR mediu 34 e 25 cm, ela avisou no log e deixou passar.
-Decisao do dono: 50 cm na frente, 50 cm atras, e no MANUAL um piso duro de
-15 cm nos dois sentidos (o operador manda, mas nao encosta). Desviar e
+Decisao do dono: 50 cm na frente e atras no autonomo, e no MANUAL um piso
+de 25 cm nos dois sentidos a partir do centro do LiDAR (atualizado em 10/11:
+o piso de 15 cm ficava dentro da carcaca traseira de 22 cm e nunca travava
+a re manual; com 25 cm a re volta a travar com seguranca). Desviar e
 trabalho do desvio local do EXPLORE; esta trava e a rede por baixo dele.
 
 WATCHDOG: andando e sem varredura nova ha mais de `idade_max_s`, manda STOP
@@ -118,12 +122,12 @@ class TravaLidar:
         relogio=time.monotonic,
         bloquear: bool = True,
         piso_manual_cm: float = 25.0,
-        corpo_frente_cm: float = 0.0,
-        corpo_tras_cm: float = 0.0,
+        corpo_frente_cm: float = 8.0,
+        corpo_tras_cm: float = 22.0,
         meia_largura_corpo_cm: float = 19.5,
         eixo_dist_cm: float = 10.0,
         raio_giro_cm: float = 37.5,
-        cegas_para_parar: int = 1,
+        cegas_para_parar: int = 2,
     ) -> None:
         self._bloquear = bloquear
         #: Do LiDAR ate a ponta do corpo em cada sentido: ponto com avanco

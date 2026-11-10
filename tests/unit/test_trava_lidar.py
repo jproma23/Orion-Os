@@ -71,7 +71,8 @@ async def test_obstaculo_a_frente_nao_impede_re_nem_giro():
 
 @pytest.mark.asyncio
 async def test_obstaculo_atras_recusa_a_re():
-    trava = await _trava_com_scan(_raios(g270=20.0))
+    # Obstaculo a 30 cm atras (8 cm da carcaca traseira de 22 cm, dentro do limite de 50 cm):
+    trava = await _trava_com_scan(_raios(g270=30.0))
     assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -20}) is not None
     assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
 
@@ -303,7 +304,9 @@ async def test_manual_obedece_ate_o_piso_de_25_cm_nos_dois_sentidos():
     await _scan(trava, _raios(g90=30.0, g270=30.0))
     assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
     assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10}) is None
-    await _scan(trava, _raios(g90=20.0, g270=20.0))
+    # 20 cm a frente (fora da carcaca de 8 cm, dentro do piso 25 cm): recusa
+    # 24 cm atras (fora da carcaca de 22 cm, dentro do piso 25 cm): recusa
+    await _scan(trava, _raios(g90=20.0, g270=24.0))
     assert "limite 25 cm" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
     assert "limite 25 cm" in trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
 
@@ -339,6 +342,10 @@ async def test_frente_fica_cega_no_meio_do_avanco_para():
     cega = [200.0] * 360
     for angulo in range(65, 116):
         cega[angulo] = None
+    # Com cegas_para_parar=2 (padrao seguro), 1 varredura solta nao para...
+    await _scan(trava, cega)
+    assert paradas.vezes == 0
+    # ...mas 2 consecutivas mandam STOP:
     await _scan(trava, cega)
     assert paradas.vezes == 1
 
@@ -366,7 +373,7 @@ async def test_obstaculo_logo_alem_da_ponta_ainda_trava():
 
 @pytest.mark.asyncio
 async def test_sem_corpo_configurado_mantem_o_comportamento_antigo():
-    trava = TravaLidar(EventBus(), relogio=Relogio())
+    trava = TravaLidar(EventBus(), relogio=Relogio(), corpo_frente_cm=0.0, corpo_tras_cm=0.0)
     await _scan(trava, _raios(g2=20.0))
     assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is not None
 
