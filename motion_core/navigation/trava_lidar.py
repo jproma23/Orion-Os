@@ -68,15 +68,16 @@ logger = logging.getLogger("motion_core.navigation.trava_lidar")
 
 FRENTE = "frente"
 TRAS = "tras"
+GIRO = "giro"
 
-#: Angulo (convencao do projeto: 0 esquerda, 90 frente, 180 direita) para
+#: Angulo (convencao do projeto: 0 esquerda, 90 frente, 180 direita, 270 tras) para
 #: onde aponta cada sentido de movimento.
 ANGULO_DO_SENTIDO = {FRENTE: 90.0, TRAS: 270.0}
 
 #: Abaixo disto a velocidade linear do CMD_VEL conta como parado (giro puro).
 VELOCIDADE_PARADO_M_S = 0.01
 
-#: Comandos que giram no lugar: encerram o avanco em curso.
+#: Comandos que giram no lugar.
 COMANDOS_DE_GIRO = frozenset({"TURN_LEFT", "TURN_RIGHT"})
 #: Telemetria "parado" so encerra o movimento depois deste tempo do comando -
 #: logo apos o envio o corpo ainda nao comecou a andar.
@@ -86,19 +87,24 @@ INTERVALO_WATCHDOG_S = 0.1
 
 
 def sentido_do_comando(payload: dict[str, Any]) -> str | None:
-    """Para onde o comando leva o robo: FRENTE, TRAS ou None (nao anda)."""
+    """Para onde o comando leva o robo: FRENTE, TRAS, GIRO ou None (nao anda)."""
     comando = payload.get("comando")
     if comando in ("MOVE_FORWARD", "MOVE_CONTINUOUS"):
         return FRENTE
     if comando == "MOVE_DISTANCE":
         distancia = float(payload.get("distancia_cm", 0.0) or 0.0)
         return FRENTE if distancia > 0 else TRAS if distancia < 0 else None
+    if comando in COMANDOS_DE_GIRO:
+        return GIRO
     if comando == "CMD_VEL":
         v = float(payload.get("v_m_s", 0.0) or 0.0)
+        w = float(payload.get("w_rad_s", 0.0) or 0.0)
         if v > VELOCIDADE_PARADO_M_S:
             return FRENTE
         if v < -VELOCIDADE_PARADO_M_S:
             return TRAS
+        if abs(w) > 0.01:
+            return GIRO
     return None
 
 
@@ -111,15 +117,21 @@ class TravaLidar:
         idade_max_s: float = 0.6,
         relogio=time.monotonic,
         bloquear: bool = True,
-        piso_manual_cm: float = 15.0,
+        piso_manual_cm: float = 25.0,
         corpo_frente_cm: float = 0.0,
         corpo_tras_cm: float = 0.0,
+        meia_largura_corpo_cm: float = 19.5,
+        eixo_dist_cm: float = 10.0,
+        raio_giro_cm: float = 37.5,
         cegas_para_parar: int = 1,
     ) -> None:
         self._bloquear = bloquear
         #: Do LiDAR ate a ponta do corpo em cada sentido: ponto com avanco
         #: menor que isto e o proprio robo (ou esta ao lado dele).
         self._corpo_cm = {FRENTE: corpo_frente_cm, TRAS: corpo_tras_cm}
+        self._meia_largura_corpo_cm = meia_largura_corpo_cm
+        self._eixo_dist_cm = eixo_dist_cm
+        self._raio_giro_cm = raio_giro_cm
         self._cegas_para_parar = max(1, int(cegas_para_parar))
         self._cegas_seguidas = 0
         self._distancia_cm = distancia_cm
@@ -133,7 +145,7 @@ class TravaLidar:
         self._relogio = relogio
         self._raios_cm: list[float | None] | None = None
         self._recebido_em: float | None = None
-        #: Sentido do ultimo comando que ANDA e passou. Serve para parar um
+        #: Sentido do ultimo comando que anda/gira e passou. Serve para parar um
         #: movimento continuo quando o obstaculo aparece no meio dele.
         self._sentido_em_curso: str | None = None
         #: Quem manda o STOP (injetado depois, porque o comm nasce antes).
@@ -154,8 +166,8 @@ class TravaLidar:
         comando = payload.get("comando")
         sentido = sentido_do_comando(payload)
         if sentido is None:
-            if comando in ("STOP", "CMD_VEL") or comando in COMANDOS_DE_GIRO:
-                # STOP, giro, ou CMD_VEL de giro puro / zero: o avanco acabou.
+            if comando in ("STOP", "CMD_VEL"):
+                # STOP ou CMD_VEL parado (v=0, w=0): o movimento acabou.
                 self._sentido_em_curso = None
             return None
         motivo = self._bloqueio(sentido)
@@ -179,6 +191,10 @@ class TravaLidar:
         """O limite que vale agora: o piso no manual, o cheio no autonomo."""
         return self._piso_manual_cm if self._modo_controle == "manual" else self._distancia_cm
 
+    @property
+    def raio_giro_cm(self) -> float:
+        return self._raio_giro_cm
+
     def _bloqueio(self, sentido: str) -> str | None:
         if self._raios_cm is None or self._recebido_em is None:
             return "LiDAR sem leitura - nao ando as cegas"
@@ -192,10 +208,20 @@ class TravaLidar:
             fracao = fracao_sem_eco(self._raios_cm, ANGULO_DO_SENTIDO[FRENTE])
             if fracao > FRACAO_CEGA_MAXIMA:
                 return f"frente cega ({fracao:.0%} dos raios sem eco) - pode ser parede perto"
-        perto = self._mais_perto_no_corredor(sentido)
-        limite = self.limite_cm
-        if perto is not None and perto < limite:
-            return f"obstaculo a {perto:.0f} cm para {sentido} (limite {limite:.0f} cm)"
+            perto = self._mais_perto_no_corredor(sentido)
+            limite = self.limite_cm
+            if perto is not None and perto < limite:
+                return f"obstaculo a {perto:.0f} cm para {sentido} (limite {limite:.0f} cm)"
+        elif sentido == TRAS:
+            perto = self._mais_perto_no_corredor(sentido)
+            limite = self.limite_cm
+            if perto is not None and perto < limite:
+                return f"obstaculo a {perto:.0f} cm para {sentido} (limite {limite:.0f} cm)"
+        elif sentido == GIRO:
+            perto = self._mais_perto_no_giro()
+            limite = self._raio_giro_cm
+            if perto is not None and perto < limite:
+                return f"obstaculo no raio de giro a {perto:.0f} cm do eixo (limite {limite:.0f} cm)"
         return None
 
     async def checar_watchdog(self) -> None:
@@ -239,6 +265,39 @@ class TravaLidar:
             if avanco > corpo and lateral < self._meia_largura_cm:
                 if menor is None or avanco < menor:
                     menor = avanco
+        return menor
+
+    def _mais_perto_no_giro(self) -> float | None:
+        """Menor distancia ao eixo dianteiro (cm) de obstaculo fora da carcaca
+        que cai dentro do raio de giro. None se a area de giro esta livre."""
+        if not self._raios_cm:
+            return None
+        menor: float | None = None
+        corpo_frente = self._corpo_cm[FRENTE]
+        corpo_tras = self._corpo_cm[TRAS]
+        meia_largura = self._meia_largura_corpo_cm
+
+        for angulo, distancia in enumerate(self._raios_cm):
+            if distancia is None:
+                continue
+            rad = math.radians(angulo)
+            # Convencao do projeto: 0 esquerda (+y), 90 frente (+x), 180 direita (-y), 270 tras (-x)
+            x_lidar = distancia * math.sin(rad)
+            y_lidar = distancia * math.cos(rad)
+
+            # Ponto dentro da carcaca do proprio robo e descartado
+            if corpo_frente > 0 or corpo_tras > 0:
+                if (-corpo_tras <= x_lidar <= corpo_frente) and (abs(y_lidar) <= meia_largura):
+                    continue
+
+            # Distancia em relacao ao eixo de rotacao (eixo dianteiro, eixo_dist_cm a frente do LiDAR)
+            x_eixo = x_lidar - self._eixo_dist_cm
+            y_eixo = y_lidar
+            dist_eixo = math.hypot(x_eixo, y_eixo)
+
+            if dist_eixo < self._raio_giro_cm:
+                if menor is None or dist_eixo < menor:
+                    menor = dist_eixo
         return menor
 
     # --- o que ela escuta -------------------------------------------------

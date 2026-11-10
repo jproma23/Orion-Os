@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import signal
 import time
 from pathlib import Path
@@ -436,20 +437,30 @@ async def principal() -> None:
     # motion_core/navigation/trava_lidar.py.
     conf_trava = config_motion.get("trava_lidar", {})
     chassi = config.secao("chassi") or {}
-    # EDR-0037 (01/11 tarde): BLOQUEIA por padrao - um yaml sem a chave fica
-    # no lado seguro. 50 cm frente/tras no autonomo, piso de 15 cm no manual.
+    raio_seguranca_m = float(chassi.get("raio_seguranca_m", 0.25))
+    piso_manual_cm = float(conf_trava.get("piso_manual_cm", raio_seguranca_m * 100.0))
+    eixo_lidar_cm = 100.0 * float(chassi.get("lidar_ate_eixo_motriz_m", 0.10))
+    corpo_frente_cm = 100.0 * float(chassi.get("lidar_recuo_m", 0.08))
+    corpo_tras_cm = 100.0 * max(0.0, float(chassi.get("profundidade_m", 0.30)) - float(chassi.get("lidar_recuo_m", 0.08)))
+    meia_largura_corpo_cm = 100.0 * float(chassi.get("largura_m", 0.39)) / 2.0
+    canto_traseiro_eixo_cm = math.hypot(eixo_lidar_cm + corpo_tras_cm, meia_largura_corpo_cm)
+    raio_giro_cm = float(conf_trava.get("raio_giro_cm", canto_traseiro_eixo_cm))
+
+    # EDR-0037 (01/11 tarde) + Auditoria 10/11: BLOQUEIA por padrao.
+    # 50 cm frente/tras no autonomo, piso de 25 cm no manual (raio_seguranca_m),
+    # protecao de giro no lugar com raio em volta do eixo dianteiro (37.5 cm).
     trava_lidar = TravaLidar(
         event_bus,
         distancia_cm=float(conf_trava.get("distancia_cm", 50.0)),
         meia_largura_cm=float(conf_trava.get("meia_largura_cm", 25.0)),
         idade_max_s=float(conf_trava.get("idade_max_s", 0.6)),
         bloquear=bool(conf_trava.get("bloquear", True)),
-        piso_manual_cm=float(conf_trava.get("piso_manual_cm", 15.0)),
-        # 08/11: ponto com avanco menor que isto e o proprio corpo, nao
-        # obstaculo (75 paradas por "obstaculo a 1 cm" numa semana).
-        corpo_frente_cm=100.0 * float(chassi.get("lidar_recuo_m", 0.0)),
-        corpo_tras_cm=100.0
-        * max(0.0, float(chassi.get("profundidade_m", 0.0)) - float(chassi.get("lidar_recuo_m", 0.0))),
+        piso_manual_cm=piso_manual_cm,
+        corpo_frente_cm=corpo_frente_cm,
+        corpo_tras_cm=corpo_tras_cm,
+        meia_largura_corpo_cm=meia_largura_corpo_cm,
+        eixo_dist_cm=eixo_lidar_cm,
+        raio_giro_cm=raio_giro_cm,
         cegas_para_parar=int(conf_trava.get("cegas_para_parar", 2)),
     )
 
@@ -463,6 +474,11 @@ async def principal() -> None:
     # Watchdog: andando e o LiDAR calado alem de idade_max_s -> STOP.
     tarefa_watchdog_trava = asyncio.create_task(trava_lidar.vigiar())
     comm.definir_porteiro("hardware_core", trava_lidar.motivo_recusa)
+    # STOP REPASSADO PARA A NAVEGACAO TAMBEM (2026-11-10, auditoria C1-02):
+    # o "Jarvis, para" vem do Notebook e o Pi so o repassa ao corpo; sem isto
+    # FOLLOW/EXPLORE/Nav2 voltavam a andar em <=200 ms. Gancho, e nao porteiro:
+    # o porteiro ve tambem os STOP da propria trava acima.
+    comm.definir_gancho_stop("hardware_core", lambda _mensagem: navigation.parar_ja("notebook"))
     FusaoSensores(event_bus, config_motion)
     # Forwarder de goal para o Nav2 (NaviCore): o Nav2 e quem resolve
     # COMO chegar (mapa, costmap, replanejamento); o Motion Core decide ONDE.

@@ -37,3 +37,16 @@ def test_pulsos_por_metro_batem():
     por_volta = _constante("ENCODER_PPR_MOTOR") * 2 * _constante("REDUCAO_ENGRENAGEM")
     firmware = por_volta / (math.pi * _constante("RODA_DIAMETRO_M"))
     assert CONF["motion"]["steps_per_meter"] == round(firmware)
+
+
+def test_raio_seguranca_e_medidas_eixo_consistentes_no_yaml():
+    """Garante que o raio de seguranca do robo (25 cm) e as medidas do eixo dianteiro
+    sao consistentes em toda a configuracao (decisao do dono, 10/11)."""
+    raio_m = CONF["chassi"]["raio_seguranca_m"]
+    assert raio_m == 0.25
+    assert round(raio_m * 100) == CONF["motion"]["min_front_distance_cm"]
+    assert round(raio_m * 100) == CONF["motion"]["trava_lidar"]["piso_manual_cm"]
+    assert CONF["chassi"]["lidar_ate_eixo_motriz_m"] == 0.10
+    assert CONF["motion"]["trava_lidar"]["distancia_cm"] == 50
+    assert CONF["motion"]["trava_lidar"]["raio_giro_cm"] == 37.5
+

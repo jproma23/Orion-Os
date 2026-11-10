@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 
-from motion_core.navigation.trava_lidar import FRENTE, TRAS, TravaLidar, sentido_do_comando
+from motion_core.navigation.trava_lidar import FRENTE, GIRO, TRAS, TravaLidar, sentido_do_comando
 from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.kernel.event_bus import EventBus, Evento
@@ -45,8 +45,10 @@ def test_sentido_de_cada_comando():
     assert sentido_do_comando({"comando": "MOVE_DISTANCE", "distancia_cm": -20}) == TRAS
     assert sentido_do_comando({"comando": "CMD_VEL", "v_m_s": 0.1, "w_rad_s": 0}) == FRENTE
     assert sentido_do_comando({"comando": "CMD_VEL", "v_m_s": -0.1, "w_rad_s": 0}) == TRAS
-    assert sentido_do_comando({"comando": "CMD_VEL", "v_m_s": 0.0, "w_rad_s": 0.5}) is None
-    assert sentido_do_comando({"comando": "TURN_LEFT"}) is None
+    assert sentido_do_comando({"comando": "CMD_VEL", "v_m_s": 0.0, "w_rad_s": 0.5}) == GIRO
+    assert sentido_do_comando({"comando": "CMD_VEL", "v_m_s": 0.0, "w_rad_s": 0.0}) is None
+    assert sentido_do_comando({"comando": "TURN_LEFT"}) == GIRO
+    assert sentido_do_comando({"comando": "TURN_RIGHT"}) == GIRO
     assert sentido_do_comando({"comando": "STOP"}) is None
 
 
@@ -58,7 +60,10 @@ async def test_obstaculo_a_frente_recusa_andar_para_frente():
 
 @pytest.mark.asyncio
 async def test_obstaculo_a_frente_nao_impede_re_nem_giro():
-    trava = await _trava_com_scan(_raios(g90=30.0))
+    # Obstaculo a 49 cm a frente (39 cm do eixo > 37.5 cm): bloqueia avanco (limite 50 cm),
+    # mas nao impede a re nem o giro no lugar (fora do raio de giro de 37.5 cm).
+    trava = await _trava_com_scan(_raios(g90=49.0))
+    assert "obstaculo a 49 cm" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
     assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -20}) is None
     assert trava.motivo_recusa({"comando": "TURN_LEFT"}) is None
     assert trava.motivo_recusa({"comando": "STOP"}) is None
@@ -215,24 +220,36 @@ async def test_obstaculo_a_20_cm_durante_avanco_continuo_manda_stop():
 
 
 @pytest.mark.asyncio
-async def test_obstaculo_a_20_cm_durante_giro_nao_para():
+async def test_obstaculo_fora_do_raio_de_giro_nao_para():
     relogio = Relogio()
     trava, paradas = _trava_padrao(relogio)
     await _scan(trava, _raios(g90=200.0))
     assert trava.motivo_recusa({"comando": "TURN_LEFT", "graus": 90}) is None
-    await _scan(trava, _raios(g90=20.0))
+    await _scan(trava, _raios(g90=50.0))  # 50 cm do LiDAR = 40 cm do eixo > 37.5 cm
     assert paradas.vezes == 0
 
 
 @pytest.mark.asyncio
+async def test_obstaculo_no_raio_de_giro_durante_giro_manda_stop():
+    relogio = Relogio()
+    trava, paradas = _trava_padrao(relogio)
+    await _scan(trava, _raios(g90=200.0))
+    assert trava.motivo_recusa({"comando": "TURN_LEFT", "graus": 90}) is None
+    await _scan(trava, _raios(g0=25.0))  # parede a 25 cm na lateral (26.9 cm do eixo < 37.5 cm)
+    assert paradas.vezes == 1
+
+
+@pytest.mark.asyncio
 async def test_giro_depois_de_um_avanco_nao_e_parado():
-    """O bug: o avanco em curso nao era apagado pelo giro seguinte."""
+    """O avanco em curso e encerrado pelo giro seguinte.
+    Com o avanco em curso, um obstaculo a 50 cm a frente nao para o giro
+    porque 50 cm do LiDAR = 40 cm do eixo > 37.5 cm."""
     relogio = Relogio()
     trava, paradas = _trava_padrao(relogio)
     await _scan(trava, _raios(g90=200.0))
     trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": 30})
     trava.motivo_recusa({"comando": "TURN_RIGHT", "graus": 60})
-    await _scan(trava, _raios(g90=20.0))
+    await _scan(trava, _raios(g90=50.0))
     assert paradas.vezes == 0
 
 
@@ -279,16 +296,16 @@ async def test_watchdog_parado_nao_faz_nada():
 
 
 @pytest.mark.asyncio
-async def test_manual_obedece_ate_o_piso_de_15_cm_nos_dois_sentidos():
+async def test_manual_obedece_ate_o_piso_de_25_cm_nos_dois_sentidos():
     relogio = Relogio()
     trava, _ = _trava_padrao(relogio)
     await trava._ao_mudar_modo(Evento(topico="behavior.modo_controle", dados={"modo": "manual"}))
-    await _scan(trava, _raios(g90=20.0, g270=20.0))
+    await _scan(trava, _raios(g90=30.0, g270=30.0))
     assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
     assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10}) is None
-    await _scan(trava, _raios(g90=10.0, g270=10.0))
-    assert "limite 15 cm" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
-    assert "limite 15 cm" in trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
+    await _scan(trava, _raios(g90=20.0, g270=20.0))
+    assert "limite 25 cm" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
+    assert "limite 25 cm" in trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
 
 
 @pytest.mark.asyncio
@@ -405,3 +422,91 @@ async def test_sair_andando_com_frente_cega_continua_recusado():
     trava = TravaLidar(EventBus(), relogio=Relogio(), cegas_para_parar=2)
     await _scan(trava, _cega())
     assert "frente cega" in trava.motivo_recusa({"comando": "MOVE_FORWARD"})
+
+
+# ---------- Bloco 2 (Auditoria 10/11): Raio de Seguranca, Re Manual e Giro ----------
+
+
+@pytest.mark.asyncio
+async def test_re_manual_com_corpo_real_trava_obstaculo_atras():
+    """Conserto de C1-04 / C2-10:
+    Com o corpo real (traseira a 22 cm do LiDAR), o piso antigo de 15 cm nunca
+    travava a re manual (24 cm > 22 cm, mas 24 cm > 15 cm). Com o piso manual
+    em 25 cm (raio de seguranca), obstaculo a 24 cm (2 cm atras do para-choque)
+    volta a travar. Ponto a 20 cm (dentro da carcaca) e ignorado.
+    """
+    relogio = Relogio()
+    trava = TravaLidar(
+        EventBus(),
+        relogio=relogio,
+        piso_manual_cm=25.0,
+        corpo_frente_cm=8.0,
+        corpo_tras_cm=22.0,
+        distancia_cm=50.0,
+    )
+    await trava._ao_mudar_modo(Evento(topico="behavior.modo_controle", dados={"modo": "manual"}))
+
+    # Obstaculo a 24 cm atras (2 cm da carcaca): trava no manual!
+    await _scan(trava, _raios(g270=24.0))
+    motivo = trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
+    assert motivo is not None
+    assert "obstaculo a 24 cm para tras" in motivo
+    assert "limite 25 cm" in motivo
+
+    # Ponto a 20 cm atras (dentro da carcaca): eco do proprio corpo, passa
+    await _scan(trava, _raios(g270=20.0))
+    assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10}) is None
+
+    # Obstaculo a 30 cm atras:
+    # No manual passa (30 >= 25 cm)
+    await _scan(trava, _raios(g270=30.0))
+    assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10}) is None
+    # No autonomo trava (30 < 50 cm)
+    await trava._ao_mudar_modo(Evento(topico="behavior.modo_controle", dados={"modo": "autonomo"}))
+    motivo_auto = trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
+    assert motivo_auto is not None
+    assert "limite 50 cm" in motivo_auto
+
+
+@pytest.mark.asyncio
+async def test_giro_recusado_se_houver_obstaculo_no_raio_de_giro():
+    """Giro no lugar confere 37.5 cm em volta do eixo dianteiro.
+    LiDAR fica 10 cm atras do eixo. Obstaculo a 25 cm na lateral (g0=25.0)
+    tem x_eixo=-10 cm, y_eixo=25 cm -> dist_eixo=26.9 cm (< 37.5 cm):
+    TURN_LEFT, TURN_RIGHT e CMD_VEL(w!=0) sao recusados.
+    Obstaculo a 50 cm (dist_eixo=51.0 cm > 37.5 cm) e permitido.
+    """
+    # Parede a 25 cm na lateral (esquerda)
+    trava = await _trava_com_scan(_raios(g0=25.0))
+    for cmd in (
+        {"comando": "TURN_LEFT"},
+        {"comando": "TURN_RIGHT"},
+        {"comando": "CMD_VEL", "v_m_s": 0.0, "w_rad_s": 0.5},
+    ):
+        motivo = trava.motivo_recusa(cmd)
+        assert motivo is not None, f"esperava recusa para {cmd}"
+        assert "obstaculo no raio de giro" in motivo
+
+    # Parede a 50 cm na lateral: livre para girar
+    trava_longe = await _trava_com_scan(_raios(g0=50.0))
+    assert trava_longe.motivo_recusa({"comando": "TURN_LEFT"}) is None
+    assert trava_longe.motivo_recusa({"comando": "TURN_RIGHT"}) is None
+    assert trava_longe.motivo_recusa({"comando": "CMD_VEL", "v_m_s": 0.0, "w_rad_s": 0.5}) is None
+
+
+@pytest.mark.asyncio
+async def test_ponto_dentro_da_carcaca_nao_bloqueia_giro():
+    """Eco da carcaca a 15 cm na lateral (dentro de meia_largura 19.5 cm)
+    nao impede o giro."""
+    raios = _raios(g0=15.0)
+    trava = TravaLidar(
+        EventBus(),
+        corpo_frente_cm=8.0,
+        corpo_tras_cm=22.0,
+        meia_largura_corpo_cm=19.5,
+        eixo_dist_cm=10.0,
+        raio_giro_cm=37.5,
+    )
+    await _scan(trava, raios)
+    assert trava.motivo_recusa({"comando": "TURN_LEFT"}) is None
+

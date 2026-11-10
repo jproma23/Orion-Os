@@ -216,6 +216,8 @@ chassi:
   # codigo: quem quiser "X cm do para-choque" soma isto.
   lidar_altura_m: 0.45
   lidar_recuo_m: 0.08
+  lidar_ate_eixo_motriz_m: 0.10  # eixo dianteiro ate o centro do LiDAR (LiDAR 10 cm atras do eixo)
+  raio_seguranca_m: 0.25         # raio de seguranca unico do robo (25 cm do centro do LiDAR, decisao do dono 10/11)
   # TEM que bater com RODA_DIAMETRO_M em firmware/.../motor_manager.h
   # (tests/unit/test_medidas_corpo.py prende os dois).
   # PENDENTE - medir e preencher:
@@ -242,8 +244,9 @@ motion:
   trava_lidar:
     bloquear: true
     distancia_cm: 50        # frente e tras, modo autonomo
-    piso_manual_cm: 15      # modo manual: obedece, mas nao encosta (frente e tras)
+    piso_manual_cm: 25      # modo manual: obedece ate o raio de seguranca (25 cm do LiDAR; a re volta a travar)
     meia_largura_cm: 25     # corredor: 39 cm de corpo / 2 + folga
+    raio_giro_cm: 37.5      # varredura do canto traseiro em volta do eixo dianteiro (dono, 10/11)
     idade_max_s: 0.6        # LiDAR publica a cada 0,2 s: 3 varreduras perdidas = STOP
   acceleration_percent: 40
   # PULSOS DE ENCODER POR METRO desde 2026-10-31 (o nome ficou de quando eram
