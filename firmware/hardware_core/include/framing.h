@@ -21,11 +21,20 @@ void enviarQuadro(Stream& porta, const String& payload);
 // Decodificador stateful: alimente byte a byte conforme chegam da porta.
 class DecodificadorQuadro {
  public:
-  static constexpr size_t CAPACIDADE = 320;
+  // 768 e nao 320 (2026-11-10, auditoria C4-06). Com 320 o maior COMMAND
+  // real (TEST_WHEEL "ambos" com "varrer", vindo do Notebook) sobrava com 5
+  // bytes de folga: um campo a mais no payload, ou um id/origem mais longo,
+  // e o quadro era descartado como "invalido" - o mesmo sintoma mudo do bug
+  // de 2026-07-26 (comando some, sem erro). 768 da folga de >2x sobre o
+  // maior comando (tests/unit/test_firmware_hardware_core.py prende que ele
+  // fica abaixo de 0,8 x CAPACIDADE) e ainda cabe no buffer de 1024 da UART
+  // (Serial.setRxBufferSize em main.cpp). Custa 448 bytes de RAM estatica.
+  static constexpr size_t CAPACIDADE = 768;
 
   // Retorna true quando um quadro valido termina de chegar (payload em
-  // buffer()/tamanho()). Quadros com CRC invalido sao descartados
-  // silenciosamente (contam em quadrosInvalidos()) - Cap 14 secao 5.
+  // buffer()/tamanho()). Quadros com CRC invalido ou maiores que CAPACIDADE
+  // sao descartados (contam em quadrosInvalidos(), que vai na telemetria
+  // completa como `quadros_invalidos` desde 2026-11-10) - Cap 14 secao 5.
   bool alimentar(uint8_t byte);
 
   const uint8_t* buffer() const { return _buffer; }

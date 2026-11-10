@@ -1,12 +1,13 @@
 // Leitura de encoder por PCNT (periferico de hardware do ESP32) - CANAL
 // UNICO por roda (2026-09-13), nao quadratura completa.
 //
-// Por que canal unico: os dois pinos que sobrariam pra quadratura completa
-// (A+B por roda) esbarravam nos ECHO dos ultrassons - um deles (frontal,
-// GPIO34) alimenta o SafetyManager de verdade (parada por obstaculo). Nao
-// vale a pena arriscar seguranca por resolucao de encoder. Os UNICOS dois
-// pinos input-only totalmente livres nesta montagem (GPIO 36 e 39) bastam
-// pra 1 canal por roda.
+// Por que canal unico (o MOTIVO CAIU, corrigido 2026-11-10): os pinos que
+// sobrariam para o canal B esbarravam nos ECHO dos ultrassons, e esses
+// sairam do robo em 2026-09-19. Este comentario dizia que os encoders
+// moravam nos "GPIO 36 e 39" - a placa do dono NAO TEM esses pinos
+// (2026-10-25). Fiacao real (pins.h): esquerdo A=14/B=27, direito A=34/B=35.
+// O canal B esta ligado e nao e lido: quadratura completa e tarefa nao
+// feita, nao impossibilidade.
 //
 // Consequencia: este encoder NAO sabe o sentido de giro sozinho (isso
 // exigiria o segundo canal). O MotorManager aplica o sinal (+/-) usando o
@@ -22,8 +23,8 @@ namespace orion {
 
 class EncoderPcnt {
  public:
-  // unidade: unidade PCNT dedicada a esta roda (0 a 7). pino: unico canal
-  // de pulso (input-only: GPIO 36 ou 39 nesta montagem).
+  // unidade: unidade PCNT dedicada a esta roda (0 a 7). pino: canal A
+  // (pins.h: ENCODER_ESQ=14, ENCODER_DIR=34).
   void iniciar(int unidade, int pino);
 
   // Contagem BRUTA acumulada (sempre crescente, nunca decrementa - canal

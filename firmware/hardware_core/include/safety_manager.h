@@ -24,6 +24,21 @@
 // travou, o processo morreu. Parar ai nao vence uma decisao da inteligencia:
 // e o que sobra na ausencia dela. Sem isto, um cabo solto deixa o robo
 // andando sozinho ate bater em alguma coisa.
+//
+// DUAS REGRAS DESDE 2026-11-10 (auditoria C1-05/C4-03):
+//
+//   1. O homem-morto de COMANDO (5 s) so e renovado por comando de MOVIMENTO
+//      (command_executor.h, renovaHomemMorto). Antes qualquer COMMAND o
+//      renovava - inclusive o SET_PAN_TILT que a visao manda varias vezes
+//      por segundo seguindo uma pessoa. Com isso o gesto "vem" (MOVE_FORWARD
+//      sem STOP depois) andava para sempre: a camera mantinha vivo um
+//      movimento que ninguem mais comandava.
+//   2. Movimento COM FIM (MOVE_DISTANCE, TURN com graus) nao passa pelo
+//      homem-morto de comando - 50 cm levam ~10 s, mais que os 5 s - mas
+//      tambem nao anda mais sem dono: ele so continua enquanto o HEARTBEAT do
+//      Raspberry (1 por segundo) estiver chegando. Pi travado = o heartbeat
+//      cala = parada em TIMEOUT_HEARTBEAT_PI_MS, e nao "anda ate o fim" (2 m
+//      eram ~45 s andando sozinho).
 #pragma once
 
 #include <Arduino.h>
@@ -33,22 +48,37 @@
 namespace orion {
 
 constexpr unsigned long TIMEOUT_COMANDO_MS = 5000;
+// 2,5 s com heartbeat a 1 Hz (communication.heartbeat_interval_s): aguenta
+// UM heartbeat atrasado (o Python manda por timer, com jitter), nunca dois
+// perdidos. Abaixo dos 3 s em que o proprio Pi declara o corpo perdido
+// (heartbeats_lost_threshold), para o corpo parar antes de o Pi comecar a
+// reconectar - a reconexao reseta o ESP32.
+constexpr unsigned long TIMEOUT_HEARTBEAT_PI_MS = 2500;
+//: Valor de `idadeHeartbeatPiMs` quando o Pi nunca mandou heartbeat.
+constexpr unsigned long HEARTBEAT_PI_NUNCA = 0xFFFFFFFFul;
 
 class SafetyManager {
  public:
   // Chamar todo loop(). Retorna true no instante em que uma parada de
   // seguranca e ACIONADA (a transicao, nao a cada ciclo em que ela persiste).
-  bool avaliar(MotorManager& motores, unsigned long ultimoComandoMs) {
-    const bool timeoutComando =
-        motores.emMovimento() && (millis() - ultimoComandoMs) > TIMEOUT_COMANDO_MS;
+  //
+  // `ultimoComandoMs`: millis() do ultimo comando de MOVIMENTO (main.cpp).
+  // `idadeHeartbeatPiMs`: ha quanto tempo chegou o ultimo HEARTBEAT do Pi
+  // (HEARTBEAT_PI_NUNCA se nunca chegou).
+  bool avaliar(MotorManager& motores, unsigned long ultimoComandoMs,
+               unsigned long idadeHeartbeatPiMs) {
+    const bool comFim = motores.movimentoComFim();
+    const bool timeoutComando = motores.emMovimento() && !comFim &&
+                                (millis() - ultimoComandoMs) > TIMEOUT_COMANDO_MS;
+    const bool semPi = comFim && idadeHeartbeatPiMs > TIMEOUT_HEARTBEAT_PI_MS;
 
     // Homem-morto: reforcado TODO ciclo enquanto durar, nao so na borda.
     // Um comando atrasado/reenviado nao pode religar o motor de um robo que
     // ficou sem dono (achado real da vistoria de 2026-07-24).
-    if (timeoutComando) {
+    if (timeoutComando || semPi) {
       motores.parar();
       if (!_pararAtivo) {
-        _motivo = "timeout_comando";
+        _motivo = semPi ? "heartbeat_pi_perdido" : "timeout_comando";
         _pararAtivo = true;
         return true;
       }

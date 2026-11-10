@@ -83,6 +83,17 @@ constexpr float QMC5883L_LSB_POR_GAUSS = 3000.0f;  // escala +-8 Gauss
 // leituras por segundo, de sobra para medir um giro.
 constexpr unsigned long INTERVALO_LEITURA_BUSSOLA_MS = 100;
 
+// RUMO VELHO NAO E RUMO (2026-11-10, auditoria C2-03). Quando o I2C falha
+// (fio solto, chip travado), `_lerCampo` devolve false e o atualizar()
+// mantem o rumo anterior - e `rumoValido()` continuava true PARA SEMPRE com
+// um numero congelado. A malha da reta (motor_manager.h) e a odometria do Pi
+// confiavam nele: medido na auditoria, um giro de 90 graus virava ~2 graus
+// em 6 s, porque o rumo parado "corrigia" o encoder que via o giro. 500 ms
+// = 5 leituras perdidas seguidas (a 10 Hz): uma falha isolada passa, um
+// barramento mudo derruba o rumo para "nao sei" - e ai o encoder segue
+// sozinho, que e o que ele ja sabe fazer.
+constexpr unsigned long IDADE_MAXIMA_RUMO_MS = 500;
+
 // Quanto tempo a calibracao fica coletando min/max enquanto o robo gira.
 constexpr unsigned long DURACAO_CALIBRACAO_BUSSOLA_MS = 25000;
 
@@ -196,6 +207,7 @@ class BussolaManager {
     float graus = _rumoDe(m, _cal);
     _rumoGraus = graus;
     _temLeitura = true;
+    _ultimaLeituraBoaMs = agora;
   }
 
   // Comeca a coleta de min/max. Quem chama volta na hora - a coleta acontece
@@ -220,8 +232,13 @@ class BussolaManager {
   bool calibrando() const { return _calibrando; }
   bool calibrada() const { return _calibrada; }
   // O rumo so significa alguma coisa com o modulo calibrado: sem calibracao
-  // o offset de hard-iron pode ser maior que o proprio campo da Terra.
-  bool rumoValido() const { return _conectado && _calibrada && _temLeitura && !_calibrando; }
+  // o offset de hard-iron pode ser maior que o proprio campo da Terra. E so
+  // vale FRESCO: leitura boa mais velha que IDADE_MAXIMA_RUMO_MS = rumo
+  // congelado, que e pior que rumo nenhum (C2-03, 2026-11-10).
+  bool rumoValido() const {
+    return _conectado && _calibrada && _temLeitura && !_calibrando &&
+           (millis() - _ultimaLeituraBoaMs) <= IDADE_MAXIMA_RUMO_MS;
+  }
   float rumoGraus() const { return _rumoGraus; }
   float campoUt() const { return _campoUt; }
   //: Eixos usados no rumo ("XY", "YZ"...) - diagnostico da montagem.
@@ -444,6 +461,10 @@ class BussolaManager {
   float _campoUt = 0.0f;
 
   unsigned long _ultimaLeituraMs = 0;
+  //: millis() da ultima leitura que virou rumo (I2C ok, dado novo, fora da
+  //: calibracao). E ela, e nao _ultimaLeituraMs (que marca a TENTATIVA), que
+  //: diz se o rumo ainda vale.
+  unsigned long _ultimaLeituraBoaMs = 0;
   unsigned long _inicioCalibracaoMs = 0;
 
   int16_t _minX = 0, _maxX = 0, _minY = 0, _maxY = 0, _minZ = 0, _maxZ = 0;

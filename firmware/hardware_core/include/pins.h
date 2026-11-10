@@ -22,17 +22,28 @@
 //      para ECHO, encoder e bateria; nunca para TRIG, servo ou rele.
 //   3. O ADC2 (GPIO 0,2,4,12..15,25..27) PARA DE FUNCIONAR quando o WiFi
 //      liga. Toda leitura analogica tem que cair no ADC1 (GPIO 32..39).
-//      Por isso BATERIA_SENSE = 36 e nao um pino qualquer.
+//      (Corrigido 2026-11-10: aqui dizia "BATERIA_SENSE = 36" - nao existe
+//      BATERIA_SENSE neste mapa, e a placa do dono NAO TEM GPIO 36 nem 39.
+//      O sensor de bateria ainda nao tem pino; ver a secao dele abaixo.)
 //
-// E os dois pinos que ficaram DE PROPOSITO vazios:
+// STRAPPING PINS - NADA DE SAIDA EM 0, 2 E 12 (2026-11-10, C4-04):
+//   GPIO 0  - BOOT. Em LOW no reset a placa entra em modo de gravacao.
+//   GPIO 2  - CUSTOU UMA NOITE EM 2026-08-05: com o modulo de rele da
+//             lanterna pendurado nele, o esptool dizia "Wrong boot mode
+//             detected (0xb)" e a aplicacao NUNCA subia. Nao e "a lanterna
+//             pisca no reset" - e a placa nao bootar.
 //   GPIO 12 - se estiver em HIGH no instante do boot, o ESP32 escolhe a
 //             tensao errada para a flash e a placa nao sobe.
-//   GPIO 15 - idem, com o log de boot. LIVRE OUTRA VEZ (ver secao de
+//   tests/unit/test_firmware_hardware_core.py prende isto: nenhum pino
+//   deste mapa pode ser 0, 2 ou 12.
+//
+// E o pino que fica com ressalva:
+//   GPIO 15 - strapping do log de boot. LIVRE OUTRA VEZ (ver secao de
 //             motor abaixo) - usado como PWM de UM lado do L298N. So
 //             importa o nivel de boot se algo mais puxar o pino durante o
 //             reset; um ENB de ponte H nao faz isso sozinho, mas fica
 //             registrado o risco.
-//   Deixar os dois livres e mais barato que descobrir isso com o robo
+//   Deixar strapping livre e mais barato que descobrir isso com o robo
 //   montado. Se um dia faltar pino, tirar daqui e o ULTIMO recurso.
 //
 // GPIO 1 e 3 sao a UART0 (USB) e pertencem ao protocolo com o Raspberry.
@@ -89,7 +100,8 @@ constexpr bool DIR_INVERTIDO_DIREITO = true;
 // encoder.
 //
 // Os ultrassons sairam do robo. GPIO 34 e 35 ficaram livres e, desde
-// 2026-10-25, sao o encoder esquerdo (A e B). Sao
+// 2026-10-25, sao um dos encoders (A e B - o DIREITO, ver a troca de
+// 2026-10-31 logo abaixo). Sao
 // input-only - exatamente o que um canal B de encoder precisa. Quem for
 // atras de quadratura completa (a odometria hoje roda com um encoder so,
 // decisao de custo de 13/08) comeca por aqui: os pinos existem e nao
@@ -143,36 +155,49 @@ constexpr uint8_t DHT_DATA = 4;  // (Mega: 24)
 constexpr uint8_t SERVO_PAN = 23;   // (Mega: 10)
 constexpr uint8_t SERVO_TILT = 19;  // (Mega: 11)
 
-// --- Reles de energia (CONFIRMADO 2026-07-23) ---
-// RELE_MOTORES: agora alimenta o L298N (antes, os TB6600). Mesma logica de
-// fail-safe: HIGH = motores SEM energia, LOW so enquanto anda de verdade.
+// --- Reles de energia: NAO EXISTEM MAIS (2026-11-10, C4-04) ---
+// RELE_MOTORES (GPIO 5) e RELE_VENTILADOR (GPIO 17) SAIRAM DESTE MAPA:
+//   - o rele dos motores saiu do robo em 2026-10-25 (dono): o L298N esta
+//     direto na fonte. O pino 5 continuava sendo escrito sem cortar nada, e
+//     os comentarios seguiam prometendo um "fail-safe no boot" que nao
+//     existe. Quem para a roda e IN1=IN2=LOW (motor_manager.h).
+//   - o ventilador vai DIRETO na energia (dono, 2026-08-05: "o ventilador
+//     ja deixo direto"); o rele dele estava desconectado desde 2026-07-24.
+//     FAN_ON/FAN_OFF deixaram de existir no firmware e agora recebem NACK
+//     (comando_desconhecido) em vez de um ACK para um rele que nao esta la.
+// O GPIO 17 virou a LANTERNA (abaixo). O GPIO 5 esta LIVRE (e strapping
+// fraco - nivel do SDIO no boot -, entao pede o mesmo cuidado do 15).
 //
-// O RELE SAIU DO ROBO (dono, 2026-10-25): o L298N esta direto na fonte. O
-// pino continua sendo escrito, mas nao corta nada - o motor so para porque
-// IN1=IN2=LOW. Consequencia: NO BOOT E NO RESET do ESP32 os IN ficam
-// flutuando por alguns milissegundos e a ponte esta energizada; a roda pode
-// dar um tranco. Antes o rele cobria essa janela.
-constexpr uint8_t RELE_MOTORES = 5;  // (Mega: 12, antes 13) - sem rele desde 25/10
-// RELE_VENTILADOR: fisicamente DESCONECTADO desde 2026-07-24.
-constexpr uint8_t RELE_VENTILADOR = 17;  // (Mega: 7)
+// CONSEQUENCIA FISICA, sem rele nenhum: NO BOOT E NO RESET do ESP32 os IN
+// do L298N ficam em alta impedancia ate o motores.iniciar() (a primeira
+// linha do setup(), justamente por isso) e a ponte esta energizada - um IN
+// flutuando pode dar um tranco na roda. Software nao fecha essa janela por
+// inteiro: o conserto e de HARDWARE, um resistor de pull-down (10k) de cada
+// IN1..IN4 para o GND.
 
-// --- Tensao da bateria (RESERVADO - divisor ainda nao montado, e o pino
-// que ele usaria foi realocado pro encoder acima) ---
-// Pack de parafusadeira 18V. O GPIO 36 que estava reservado pra isto virou
-// ENCODER_DIR (nada fisico foi perdido: o divisor nunca chegou a ser
-// montado). Antes de montar o sensor de bateria, escolher outro pino ADC1
-// livre e recalcular o divisor para a faixa 0-3,3V do ESP32 (NAO usar os
-// valores antigos de 100k/27k, dimensionados pra um ADC de 5V).
+// --- Tensao da bateria (SEM PINO - divisor ainda nao montado) ---
+// Pack de parafusadeira 18V. O mapa antigo reservava o GPIO 36 para isto,
+// mas a placa do dono NAO TEM GPIO 36 (2026-10-25; corrigido aqui em
+// 2026-11-10 - dizia que o 36 "virou ENCODER_DIR", que e o 34). Nada fisico
+// foi perdido: o divisor nunca chegou a ser montado. Antes de montar o
+// sensor de bateria, escolher um pino ADC1 livre que EXISTA nesta placa e
+// recalcular o divisor para a faixa 0-3,3V do ESP32 (NAO usar os valores
+// antigos de 100k/27k, dimensionados pra um ADC de 5V).
 
 // --- Lanterna: rele (desde 2026-08-04) ---
-// Modulo de rele ATIVO EM LOW, igual aos outros dois desta montagem: LOW
-// fecha o contato e ACENDE, HIGH abre e apaga.
+// Modulo de rele ATIVO EM LOW: LOW fecha o contato e ACENDE, HIGH abre e
+// apaga.
 //
-// ATENCAO AO ESTADO DE BOOT: o GPIO 2 do ESP32 e strapping pin e nasce em
-// LOW (pull-down interno), ou seja, nasce ACESO para um rele ativo em LOW.
-// O `digitalWrite(HIGH)` antes do `pinMode(OUTPUT)` encurta essa janela ao
-// minimo, mas nao a elimina.
-constexpr uint8_t RELE_LANTERNA = 2;  // (Mega: 25) era LED_LANTERNA
+// GPIO 17, NAO MAIS O 2 (2026-11-10, decisao do dono de 2026-08-05: "17
+// lanterna"). No GPIO 2 (strapping) o modulo de rele, cuja entrada fica em
+// HIGH puxada pelo VCC dele, impedia a placa de bootar - ver o topo deste
+// arquivo. O 17 nao e strapping, o fio ja esteve nele e o rele do
+// ventilador que ocupava o numero nao existe mais.
+// >>> O FIO DA LANTERNA TEM QUE IR PARA O GPIO 17 antes de gravar este
+// firmware; no 2 o rele nao acende e a placa volta a nao bootar.
+// O `digitalWrite(HIGH)` antes do `pinMode(OUTPUT)` (command_executor.h)
+// evita que o rele feche no instante em que o pino vira saida.
+constexpr uint8_t RELE_LANTERNA = 17;  // (Mega: 25) era LED_LANTERNA; GPIO 2 ate 2026-11-10
 
 //: Niveis do modulo de rele da lanterna, nomeados para o codigo dizer o que
 //: FAZ e nao o que escreve.

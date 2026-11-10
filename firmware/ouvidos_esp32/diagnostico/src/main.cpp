@@ -14,6 +14,12 @@
 #include <ArduinoOTA.h>
 #include <driver/i2s.h>
 
+// Mesma senha de OTA do firmware normal (../include/segredos.h, 2026-11-10,
+// C4-08). Sem o arquivo, compila sem senha.
+#if __has_include("segredos.h")
+#include "segredos.h"
+#endif
+
 constexpr int SCK_ = 26, WS_ = 25, SD_ = 33;
 int32_t buf[512];
 WiFiServer srv(9101);
@@ -35,6 +41,11 @@ void setup() {
   Serial.printf("WiFi=%d IP=%s\n", WiFi.status(), WiFi.localIP().toString().c_str());
   MDNS.begin("ouvidos");
   ArduinoOTA.setHostname("ouvidos");
+#ifdef OTA_SENHA
+  ArduinoOTA.setPassword(OTA_SENHA);
+#else
+  Serial.println("[OTA] AVISO: SEM SENHA (../include/segredos.h ausente)");
+#endif
   ArduinoOTA.begin();
   srv.begin();
 

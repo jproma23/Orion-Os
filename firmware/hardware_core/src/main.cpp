@@ -64,7 +64,16 @@ constexpr unsigned long INTERVALO_TELEMETRIA_MOVENDO_MS = 200;
 
 unsigned long ultimoHeartbeat = 0;
 unsigned long ultimaTelemetria = 0;
+//: millis() do ultimo comando de MOVIMENTO - o relogio do homem-morto. So
+//: os comandos de orion::renovaHomemMorto() (command_executor.h) mexem
+//: aqui; SET_PAN_TILT e companhia nao (2026-11-10, C1-05/C4-03).
 unsigned long ultimoComandoRecebido = 0;
+//: Ultimo HEARTBEAT que chegou do Raspberry. Ate 2026-11-10 ele era
+//: recebido e ignorado; agora e o que mantem vivo um movimento com fim
+//: (safety_manager.h). `heartbeatPiVisto` separa "nunca chegou" de "chegou
+//: no millis() 0".
+unsigned long ultimoHeartbeatPi = 0;
+bool heartbeatPiVisto = false;
 // O robo esta girando no lugar PARA calibrar a bussola (CALIBRATE_COMPASS
 // com "girar": true). O loop() para as rodas quando a coleta acaba.
 bool girandoParaCalibrar = false;
@@ -152,6 +161,7 @@ void responderWhoAreYou(const char* origem, const char* idMsg) {
   payload["nome"] = orion::NOME_MODULO;
   payload["versao_modulo"] = orion::VERSAO_FIRMWARE;
   payload["versao_protocolo"] = orion::VERSAO_PROTOCOLO;
+  payload["firmware_git"] = orion::COMMIT_FIRMWARE;  // C4-07, ver protocolo.h
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
@@ -206,7 +216,10 @@ void responderCalibrarBussola(JsonObjectConst p, const char* origem, const char*
 // empurrado para a frente e se as duas giram juntas.
 void responderTesteAmbas(JsonObjectConst p, const char* origem, const char* idMsg) {
   bool frente = (p["sentido"] | 1) >= 0;
-  float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
+  // Teto de duty tambem aqui (C4-02): o `potencia_percent` devolvido e o que
+  // a roda RECEBEU, nao o que foi pedido.
+  float fracao = (p["potencia_percent"] | 40.0f) / 100.0f;
+  fracao = constrain(fracao, 0.0f, orion::DUTY_MAX_FRACAO);
   uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
   int64_t esqIni = motores.pulsosBrutos(true), dirIni = motores.pulsosBrutos(false);
   motores.testeAmbasMalhaAberta(frente, fracao);
@@ -236,7 +249,8 @@ void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg
   }
   bool esquerda = strcmp(p["lado"] | "esq", "dir") != 0;
   bool sentidoIn1 = (p["sentido"] | 1) >= 0;
-  float fracao = constrain((p["potencia_percent"] | 40.0f) / 100.0f, 0.0f, 1.0f);
+  float fracao = (p["potencia_percent"] | 40.0f) / 100.0f;
+  fracao = constrain(fracao, 0.0f, orion::DUTY_MAX_FRACAO);  // ver responderTesteAmbas
   uint32_t duracaoMs = constrain(p["duracao_ms"] | 800, 50, 1200);
 
   // VARREDURA (2026-10-31): a roda girou e o encoder contou 0, com os fios
@@ -335,28 +349,57 @@ void responderTesteRoda(JsonObjectConst p, const char* origem, const char* idMsg
   orion::enviarMensagem(Serial, "RESPONSE", origem, payload.as<JsonObjectConst>(), idMsg);
 }
 
-void tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
+// NACK de comando que este firmware nao conhece (2026-11-10, C4-01). Vai NO
+// LUGAR do ACK, nunca depois dele: o send() do Python resolve o pedido no
+// primeiro dos dois que chegar (communication/service.py), entao um NACK
+// atras de um ACK seria ignorado - e o robo seguiria dizendo "Varrendo a
+// frente" para um SCAN_FRONT que nao existe.
+void enviarNackDesconhecido(const char* comando, const char* origem, const char* idMsg) {
+  JsonDocument payload;
+  payload["motivo"] = "comando_desconhecido";
+  payload["comando"] = comando;
+  orion::enviarMensagem(Serial, "NACK", origem, payload.as<JsonObjectConst>(), idMsg);
+}
+
+// Devolve true se o comando foi reconhecido (ACK enviado), false se virou
+// NACK.
+//
+// ORDEM DO ACK (2026-11-10, C4-01). Os quatro comandos tratados aqui
+// respondem ACK ANTES de executar: TEST_WHEEL bloqueia ate 1,2 s e o ACK tem
+// que chegar dentro dos 500 ms do ack_timeout_ms. Os do CommandExecutor
+// respondem DEPOIS de executar() dizer se reconheceu - executar() so ajusta
+// alvos e pinos (microssegundos), entao o ACK nao atrasa de forma visivel.
+bool tratarComando(JsonDocument& msg, const char* origem, const char* idMsg) {
   const char* comando = msg["payload"]["comando"] | "";
 
   if (strcmp(comando, "WHO_ARE_YOU") == 0) {
+    enviarPayloadVazio("ACK", origem, idMsg);
     responderWhoAreYou(origem, idMsg);
-    return;
+    return true;
   }
   if (strcmp(comando, "RETURN_STATUS") == 0) {
+    enviarPayloadVazio("ACK", origem, idMsg);
     responderReturnStatus(origem, idMsg);
-    return;
+    return true;
   }
   if (strcmp(comando, "TEST_WHEEL") == 0) {
+    enviarPayloadVazio("ACK", origem, idMsg);
     responderTesteRoda(msg["payload"], origem, idMsg);
-    return;
+    return true;
   }
   if (strcmp(comando, "CALIBRATE_COMPASS") == 0) {
+    enviarPayloadVazio("ACK", origem, idMsg);
     responderCalibrarBussola(msg["payload"], origem, idMsg);
-    return;
+    return true;
   }
 
   JsonObjectConst payload = msg["payload"];
-  comandos.executar(comando, payload);
+  if (comandos.executar(comando, payload)) {
+    enviarPayloadVazio("ACK", origem, idMsg);
+    return true;
+  }
+  enviarNackDesconhecido(comando, origem, idMsg);
+  return false;
 }
 
 void processarQuadro(const uint8_t* dados, size_t tamanho) {
@@ -375,16 +418,45 @@ void processarQuadro(const uint8_t* dados, size_t tamanho) {
   const char* idMsg = msg["id"] | "";
 
   if (strcmp(tipo, "COMMAND") == 0) {
-    ultimoComandoRecebido = millis();
-    enviarPayloadVazio("ACK", origem, idMsg);
-    tratarComando(msg, origem, idMsg);
+    const char* comando = msg["payload"]["comando"] | "";
+    // `comando` aponta para dentro de `msg`, que ninguem altera e que vive
+    // ate o fim desta funcao - segue valido depois do tratarComando().
+    bool reconhecido = tratarComando(msg, origem, idMsg);
+    // Homem-morto: SO comando de movimento renova (C1-05/C4-03,
+    // command_executor.h). Antes qualquer COMMAND renovava - o SET_PAN_TILT
+    // da visao mantinha vivo para sempre um MOVE_FORWARD sem dono.
+    if (reconhecido && orion::renovaHomemMorto(comando, msg["payload"])) {
+      ultimoComandoRecebido = millis();
+    }
+    return;
   }
-  // HEARTBEAT recebido do Raspberry: so precisa ter chegado, nada a responder.
+  if (strcmp(tipo, "HEARTBEAT") == 0) {
+    // Nada a responder (o corpo manda o proprio heartbeat a cada 1 s no
+    // loop), mas a HORA importa desde 2026-11-10: movimento com fim so
+    // continua com o Pi vivo (safety_manager.h).
+    ultimoHeartbeatPi = millis();
+    heartbeatPiVisto = true;
+  }
 }
 
 }  // namespace
 
 void setup() {
+  // MOTORES PRIMEIRO, ANTES DE TUDO (2026-11-10, auditoria C4-05). Nao ha
+  // mais rele cortando a ponte H (pins.h): do reset ate esta linha os IN do
+  // L298N ficam em alta impedancia com a ponte energizada, e um IN
+  // flutuando pode dar um tranco na roda. Antes esta chamada vinha depois do
+  // WiFi, da serial, do I2C, da varredura e da EEPROM - dezenas de ms de
+  // janela. Aqui ela fica no minimo que o software consegue; o resto da
+  // janela (bootloader + arranque do ESP-IDF) so fecha com pull-down de 10k
+  // nos IN1..IN4, que e HARDWARE.
+  //
+  // Pode vir antes de tudo porque nao depende de nada: pinMode/digitalWrite,
+  // ledcSetup (canais 14/15, fora dos que a ESP32Servo pega - motor_manager.h)
+  // e o PCNT dos encoders. O ESP32PWM::allocateTimer la embaixo nao mexe
+  // nesses canais.
+  motores.iniciar();
+
   // O par MCUSR=0 + wdt_disable() do AVR nao tem equivalente aqui e foi
   // REMOVIDO (2026-08-02). Ele existia porque o bootloader do Mega deixava o
   // watchdog "quente" depois de um reset causado por ele, e o chip podia se
@@ -401,15 +473,16 @@ void setup() {
   //     so para existir. O ESP32 com radio ligado fica em ~100 mA com picos
   //     de ~400 mA na transmissao, ou seja PIOR que o Mega; com o radio
   //     desligado cai para 20-40 mA, que e o ganho que se queria.
-  //  2. O ADC2 VOLTA A EXISTIR. O ESP32 desliga o ADC2 quando o WiFi sobe -
-  //     e por isso que BATERIA_SENSE foi para o GPIO 36 (ADC1) em pins.h.
-  //     Aquela escolha continua valendo como margem de seguranca; esta linha
-  //     e a segunda trava.
-  //  3. OS PULSOS DE STEP PARAM DE ENGASGAR. A pilha de WiFi roda em tarefa
-  //     de prioridade alta e rouba a CPU em rajadas imprevisiveis. Como os
-  //     pulsos dos TB6600 sao gerados por temporizacao em software
-  //     (motor_manager.h), cada rajada dessas vira passo perdido - o motor
-  //     "pula" sem que nada no codigo esteja errado.
+  //  2. O ADC2 VOLTA A EXISTIR. O ESP32 desliga o ADC2 quando o WiFi sobe.
+  //     (Dizia que BATERIA_SENSE "foi para o GPIO 36": a placa do dono nao
+  //     tem GPIO 36 e o sensor de bateria ainda nao tem pino - pins.h.
+  //     Corrigido 2026-11-10.) Quando ele tiver, esta linha e a segunda
+  //     trava para leitura analogica.
+  //  3. O LOOP NAO ENGASGA. A pilha de WiFi roda em tarefa de prioridade
+  //     alta e rouba a CPU em rajadas imprevisiveis. Era critico com os
+  //     TB6600 (passo por temporizacao em software virava passo perdido);
+  //     com o motor DC o PWM e do LEDC (hardware) e o encoder do PCNT, mas
+  //     a malha de 50 Hz, a serial e o homem-morto ainda rodam neste loop.
   //
   // Custo aceito: nao ha OTA. A gravacao e por cabo, que e como ja se faz.
   // Se um dia o radio for reativado, reler os tres itens acima ANTES.
@@ -519,14 +592,14 @@ void setup() {
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
 
-  motores.iniciar();
+  // motores.iniciar() ja rodou - e a primeira linha do setup() (C4-05).
   bussola.iniciar();
   dht.iniciar();
-  // BATERIA_SENSE (GPIO36) foi realocado pro encoder do motor DC em
-  // 2026-09-13 - o divisor de tensao nunca chegou a ser montado nesse pino
-  // (ver pins.h), entao nada fisico foi perdido. Desligado ate escolher um
-  // novo pino ADC1 livre e recalcular o divisor para 3,3V.
-  // bateria.iniciar(pinos::BATERIA_SENSE);
+  // Bateria SEM PINO: o GPIO 36 que o mapa antigo reservava nao existe na
+  // placa do dono, e o divisor de tensao nunca foi montado (pins.h).
+  // Desligado ate escolher um pino ADC1 livre e recalcular o divisor para
+  // 3,3V. (Corrigido 2026-11-10: dizia que o 36 "virou encoder".)
+  // bateria.iniciar(<pino ADC1>);
 
   // O AUTOTESTE DE PRESENCA DO ULTRASSOM saiu junto com o sensor (19/09).
   // Ele existia porque o latch de presenca so fechava com um eco de verdade,
@@ -544,12 +617,14 @@ void setup() {
   // 2026-07-24): rede de seguranca final contra QUALQUER travamento do
   // loop() (I2C, biblioteca de terceiros, bug futuro) que o timeout do I2C
   // acima nao cubra - se o loop() nao chamar wdt_reset() por 2s seguidos,
-  // o proprio chip se reinicia sozinho. E seguro reiniciar assim porque o
-  // rele dos motores (motor_manager.h) ja fica desenergizado por padrao no
-  // boot (fail-safe confirmado na vistoria) - e no ESP32 esse fail-safe
-  // ficou mais forte ainda, porque o GPIO 5 escolhido para o rele nasce em
-  // HIGH por hardware, ou seja, "sem energia" e o estado natural da placa
-  // antes de qualquer linha de codigo rodar. Ver pins.h.
+  // o proprio chip se reinicia sozinho.
+  //
+  // CORRIGIDO 2026-11-10 (C4-05): aqui dizia que reiniciar era seguro porque
+  // "o rele dos motores fica desenergizado no boot". O rele SAIU do robo em
+  // 2026-10-25 - o L298N esta direto na fonte. O que acontece de verdade num
+  // reset por watchdog: os IN flutuam ate o motores.iniciar() (primeira
+  // linha deste setup) e a roda pode dar um tranco; depois disso ficam em
+  // LOW e o robo para. Fechar a janela inteira pede pull-down nos IN (pins.h).
   //
   // A API mudou de familia junto com a placa. O guarda de versao existe
   // porque o Arduino-ESP32 2.x (ESP-IDF 4.4) e o 3.x (ESP-IDF 5.x) assinam
@@ -629,15 +704,14 @@ void loop() {
     }
   }
 
-  // Movimento com fim (distancia/angulo) nao e cortado pelo homem-morto: ele
-  // para sozinho no alvo, e a roda travada (motor_manager.h) cobre o caso de
-  // a roda nao andar. Com a roda de 60 mm, 50 cm levam ~10 s - mais que os
-  // 5 s do homem-morto, que cortaria todo pedido no meio (2026-10-31).
-  if (motores.movimentoComFim()) {
-    ultimoComandoRecebido = millis();
-  }
-
-  bool acionouParadaAgora = safety.avaliar(motores, ultimoComandoRecebido);
+  // Movimento com fim (distancia/angulo) nao e cortado pelo homem-morto de
+  // comando: 50 cm levam ~10 s, mais que os 5 s (2026-10-31). Ate
+  // 2026-11-10 este trecho renovava o homem-morto a cada volta enquanto ele
+  // durasse - com o Pi travado o robo andava ate o fim (2 m ~ 45 s). Agora
+  // quem o mantem vivo e o HEARTBEAT do Pi, dentro do safety.avaliar().
+  const unsigned long idadeHeartbeatPi =
+      heartbeatPiVisto ? millis() - ultimoHeartbeatPi : orion::HEARTBEAT_PI_NUNCA;
+  bool acionouParadaAgora = safety.avaliar(motores, ultimoComandoRecebido, idadeHeartbeatPi);
   if (acionouParadaAgora) {
     // "frente_desconhecida" tambem bloqueia o movimento, mas nao e a mesma
     // coisa que ver um obstaculo - e o radar estar olhando pro lado sem
@@ -712,6 +786,12 @@ void loop() {
     payload["t_envio_us"] = tempoEnvioAnteriorUs;
     payload["t_bussola_us"] = tempoBussolaAcumuladoUs;
     payload["n_bussola"] = leiturasBussola;
+    // Quadros recebidos e jogados fora (CRC ruim ou maiores que CAPACIDADE),
+    // acumulado desde o boot (2026-11-10, C4-06). Um comando que "some" sem
+    // ACK aparece aqui como contador subindo, em vez de silencio.
+    payload["quadros_invalidos"] = decodificador.quadrosInvalidos();
+    // O commit gravado (C4-07, protocolo.h) - parado, 1 vez por segundo.
+    payload["firmware_git"] = orion::COMMIT_FIRMWARE;
     loopMaxUs = 0;
     loopSomaUs = 0;
     loopVoltas = 0;

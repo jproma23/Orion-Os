@@ -35,7 +35,32 @@
 #include <ArduinoOTA.h>
 #include <driver/i2s.h>
 
+// SENHA DO OTA (2026-11-10, auditoria C4-08). Ate aqui o OTA nao tinha senha:
+// qualquer um na rede KAMALL podia gravar um firmware nos ouvidos (UDP 3232).
+// A senha mora em include/segredos.h, que NAO vai para o git
+// (firmware/ouvidos_esp32/.gitignore); o modelo commitado e
+// include/segredos.exemplo.h. Sem o arquivo o build NAO quebra: compila sem
+// senha, avisa aqui na compilacao e no log serial do boot - para quem esta
+// gravando da maquina de outra pessoa nao ficar sem ouvidos.
+#if __has_include("segredos.h")
+#include "segredos.h"
+#endif
+#ifndef OTA_SENHA
+#warning "ouvidos: include/segredos.h ausente - OTA SEM SENHA (copie segredos.exemplo.h)"
+#endif
+
 namespace {
+
+// Wi-Fi QUE NAO SOBE NO BOOT NAO PODE DEIXAR SURDO PARA SEMPRE (2026-11-10,
+// auditoria C4-08). Antes: 20 s tentando e `return` - o setup() terminava sem
+// servidor TCP e sem OTA, e o loop() so esperava um cliente que nunca chegaria.
+// Roteador que demorou a subir depois de uma queda de energia (o caso comum:
+// tudo volta junto e o ESP32 e mais rapido) = robo surdo ate alguem tirar e
+// por na tomada. Agora: 30 s sem rede = ESP.restart(), e o boot inteiro tenta
+// de novo. Escolhido no lugar de "tentar no loop a cada 10 s" por ser o mais
+// simples de acertar: nao ha estado "meio iniciado" (servidor, mDNS e OTA so
+// existem depois de conectar), e o boot e o caminho que ja foi testado.
+constexpr unsigned long ESPERA_WIFI_MS = 30000;
 
 constexpr int PINO_SCK = 26;
 constexpr int PINO_WS = 25;
@@ -107,15 +132,17 @@ void setup() {
   WiFi.setHostname("ouvidos");
   WiFi.begin();
   Serial.print("[WiFi] conectando");
-  for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) {
+  const unsigned long inicioWifi = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - inicioWifi < ESPERA_WIFI_MS) {
     delay(500);
     Serial.print(".");
   }
   Serial.println();
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WiFi] NAO conectou - credenciais da NVS podem ter sumido.");
-    Serial.println("       O audio so sai pela rede; sem WiFi nao ha ouvidos.");
-    return;
+    Serial.println("[WiFi] NAO conectou em 30 s - REINICIANDO para tentar de novo.");
+    Serial.println("       (se repetir sempre: credenciais da NVS podem ter sumido)");
+    Serial.flush();
+    ESP.restart();
   }
   Serial.printf("[WiFi] conectado - IP %s\n", WiFi.localIP().toString().c_str());
   if (MDNS.begin("ouvidos")) {
@@ -127,8 +154,14 @@ void setup() {
   // firmware dos ouvidos TEM que trazer isto, senao a proxima gravacao
   // volta a exigir o cabo. Gravar: `pio run -e ota -t upload`.
   ArduinoOTA.setHostname("ouvidos");
+#ifdef OTA_SENHA
+  ArduinoOTA.setPassword(OTA_SENHA);
+  Serial.println("[OTA] pronto (UDP 3232, com senha)");
+#else
+  Serial.println("[OTA] AVISO: SEM SENHA - include/segredos.h nao existia na compilacao.");
+  Serial.println("      Qualquer um na rede pode gravar esta placa. Ver segredos.exemplo.h.");
+#endif
   ArduinoOTA.begin();
-  Serial.println("[OTA] pronto (UDP 3232)");
 
   servidor.begin();
   servidor.setNoDelay(true);

@@ -27,11 +27,29 @@ Os dois mics dividem SCK, WS e SD; o L/R diferente é o que separa os canais.
 | Áudio | TCP **9100**, int16 little-endian, estéreo intercalado (esq/dir), **16000 Hz** (64 KB/s) |
 | Nome | `ouvidos.local` (mDNS), hostname `ouvidos` |
 | IP | DHCP — **10.20.20.197** em 31/10/2026 |
-| WiFi | credenciais **já gravadas na NVS** (rede KAMALL); `WiFi.begin()` vai sem senha no código. Gravar firmware não apaga a NVS. |
-| OTA | ArduinoOTA, UDP 3232, sem senha |
+| WiFi | credenciais **já gravadas na NVS** (rede KAMALL); `WiFi.begin()` vai sem senha no código. Gravar firmware não apaga a NVS. Sem rede em 30 s no boot, a placa **reinicia e tenta de novo** (desde 10/11; antes ficava surda até alguém tirar da tomada). |
+| OTA | ArduinoOTA, UDP 3232, **com senha** desde 10/11 (ver "Senha do OTA") |
 
 Só aceita **um cliente TCP por vez**. Se o Voice Core estiver conectado, um
 teste seu derruba ele (ele reconecta sozinho em ~3 s).
+
+## Senha do OTA
+
+A senha mora em `include/segredos.h`, que **não vai para o git**
+(`.gitignore` desta pasta). Para criar:
+
+```bash
+cp include/segredos.exemplo.h include/segredos.h   # e troque a senha
+```
+
+O mesmo arquivo serve ao firmware (que exige a senha) e ao upload
+(`ota_senha.py` passa `--auth` ao espota). Sem ele, o firmware compila **sem
+senha** e avisa no log do boot — não quebra o build.
+
+A primeira gravação com senha passa mesmo assim (a placa de hoje não pede
+senha). Depois dela, sem a senha certa o upload falha com
+`Authentication Failed`. O `diagnostico/` usa a **mesma** senha (lê o
+`include/segredos.h` daqui de cima).
 
 ## Gravar
 

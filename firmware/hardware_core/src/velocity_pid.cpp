@@ -30,13 +30,15 @@ float VelocidadePid::atualizar(float alvo_rad_s, float medido_rad_s, float dt_s)
   // a integral nao acumula. Sem isto, uma roda que passou segundos no maximo
   // sem alcancar o alvo (bateria fraca) guardava a integral cheia - e quando
   // a malha da reta pedia para ela frear, ela demorava segundos para obedecer.
-  if ((saida > 1.0f && erro > 0.0f) || (saida < -1.0f && erro < 0.0f)) {
+  // "Saturado" e o TETO de duty (_saidaMaxima, 2026-11-10), nao 1,0.
+  const float teto = _saidaMaxima;
+  if ((saida > teto && erro > 0.0f) || (saida < -teto && erro < 0.0f)) {
     _integral = integralAntes;
     saida = feedforward + _ganhos.kp * erro + _integral;
   }
 
-  if (saida > 1.0f) saida = 1.0f;
-  if (saida < -1.0f) saida = -1.0f;
+  if (saida > teto) saida = teto;
+  if (saida < -teto) saida = -teto;
   return saida;
 }
 

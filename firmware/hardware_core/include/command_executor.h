@@ -1,8 +1,9 @@
 // Command Executor (Cap 10 secao 10) - traduz COMMAND em acao nos managers.
 //
-// So a logica de despacho; enquadramento/ACK/RESPONSE continuam em
+// So a logica de despacho; enquadramento/ACK/NACK/RESPONSE continuam em
 // main.cpp (ja existentes desde a Fase 2), para nao duplicar
-// responsabilidade de protocolo aqui.
+// responsabilidade de protocolo aqui. O que executar() devolve e o que
+// decide ACK (reconheceu) ou NACK (comando_desconhecido) - ver main.cpp.
 #pragma once
 
 #include <ArduinoJson.h>
@@ -25,6 +26,34 @@ namespace orion {
 // uma mudanca de arquitetura (mesmo protocolo, mesmo formato de payload).
 constexpr float SERVO_CENTRO_GRAUS = 90.0f;
 
+// TETO DO MOVIMENTO COM FIM (2026-11-10, auditoria C1-05/C4-03). LIMITE, nao
+// recusa: pedido acima vira o teto - a mesma regra do catalogo falado
+// (acoes_faladas.py, "anda 10 metros" anda o maximo). O Python legitimo
+// nunca passa disto: voz 200 cm / 360 graus, IA (contrato.py) 150 cm /
+// 180 graus, re da webui 15 cm. E a ultima barreira contra um numero
+// absurdo (10000 graus = minutos girando) que escape de todas as de cima.
+constexpr float DISTANCIA_MAXIMA_CM = 300.0f;
+constexpr float GIRO_MAXIMO_GRAUS = 720.0f;
+
+// QUEM RENOVA O HOMEM-MORTO (2026-11-10, auditoria C1-05/C4-03). So comando
+// que MEXE ou PARA as rodas. Ficam de fora de proposito: SET_PAN_TILT (a
+// visao o manda varias vezes por segundo seguindo uma pessoa - e era ele que
+// mantinha vivo para sempre um MOVE_FORWARD sem dono), PAN_TILT_SOLTAR,
+// LIGHT_*, WHO_ARE_YOU, RETURN_STATUS. CALIBRATE_COMPASS so conta com
+// "girar": true (sem isso as rodas nao mexem). Ver safety_manager.h.
+constexpr const char* COMANDOS_DE_MOVIMENTO[] = {
+    "MOVE_FORWARD", "MOVE_CONTINUOUS", "MOVE_DISTANCE", "TURN_LEFT", "TURN_RIGHT",
+    "CMD_VEL",      "STOP",            "DOCK",          "TEST_WHEEL",
+};
+
+inline bool renovaHomemMorto(const char* comando, JsonObjectConst payload) {
+  if (strcmp(comando, "CALIBRATE_COMPASS") == 0) return payload["girar"] | false;
+  for (const char* nome : COMANDOS_DE_MOVIMENTO) {
+    if (strcmp(comando, nome) == 0) return true;
+  }
+  return false;
+}
+
 class CommandExecutor {
  public:
   CommandExecutor(MotorManager& motores, MaquinaDeEstados& estados,
@@ -39,20 +68,16 @@ class CommandExecutor {
   // "parecendo" correto (mesmo motivo de motores.iniciar()
   // existirem em vez de fazer isso no construtor deles).
   void iniciar() {
-    // Rele da lanterna (pins.h): ATIVO EM LOW, entao o estado seguro e HIGH.
-    // Escreve APAGADO antes do pinMode(OUTPUT) pelo mesmo motivo dos outros
-    // dois reles - sem isso, o instante em que o pino vira saida o latcharia
-    // em LOW, que aqui significa ACENDER.
+    // Rele da lanterna (pins.h, GPIO 17): ATIVO EM LOW, entao o estado
+    // seguro e HIGH. Escreve APAGADO antes do pinMode(OUTPUT) - sem isso, o
+    // instante em que o pino vira saida o latcharia em LOW, que aqui
+    // significa ACENDER.
     digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_APAGADA);
     pinMode(pinos::RELE_LANTERNA, OUTPUT);
     digitalWrite(pinos::RELE_LANTERNA, pinos::LANTERNA_APAGADA);
 
-    // Rele do ventilador (pins.h): fail-safe LIGADO (LOW, ativo em baixo) -
-    // escreve antes do pinMode(OUTPUT) pelo mesmo motivo do rele dos
-    // motores (motor_manager.h), evita glitch no pino durante o boot.
-    digitalWrite(pinos::RELE_VENTILADOR, LOW);
-    pinMode(pinos::RELE_VENTILADOR, OUTPUT);
-    digitalWrite(pinos::RELE_VENTILADOR, LOW);
+    // O rele do ventilador SAIU (2026-11-10): o ventilador vai direto na
+    // energia e o GPIO 17 e da lanterna agora (pins.h).
 
     _servoPan.attach(pinos::SERVO_PAN);
     _servoTilt.attach(pinos::SERVO_TILT);
@@ -60,8 +85,9 @@ class CommandExecutor {
     _servoTilt.write(SERVO_CENTRO_GRAUS);
   }
 
-  // Retorna true se reconheceu e executou o comando (main.cpp so precisa
-  // saber se deve considerar "executado" para fins de log/telemetria).
+  // Retorna true se reconheceu e executou o comando; false = comando que
+  // este firmware nao conhece, e o main.cpp responde NACK
+  // {"motivo": "comando_desconhecido"} em vez de ACK (2026-11-10, C4-01).
   bool executar(const char* comando, JsonObjectConst payload) {
     float velocidade = payload["velocidade_percent"] | 50.0f;
 
@@ -99,6 +125,7 @@ class CommandExecutor {
 
     if (strcmp(comando, "MOVE_DISTANCE") == 0) {
       float distancia = payload["distancia_cm"] | 0.0f;
+      distancia = constrain(distancia, -DISTANCIA_MAXIMA_CM, DISTANCIA_MAXIMA_CM);
       _motores.andarDistancia(distancia, velocidade);
       _estados.transicionarPara(Estado::EXECUTING_MISSION);
       return true;
@@ -107,7 +134,9 @@ class CommandExecutor {
     if (strcmp(comando, "TURN_LEFT") == 0 || strcmp(comando, "TURN_RIGHT") == 0) {
       bool horario = strcmp(comando, "TURN_RIGHT") == 0;
       if (payload["graus"].is<float>()) {
-        _motores.girarGraus(payload["graus"].as<float>(), horario, velocidade);
+        float graus = payload["graus"].as<float>();
+        graus = constrain(graus, -GIRO_MAXIMO_GRAUS, GIRO_MAXIMO_GRAUS);
+        _motores.girarGraus(graus, horario, velocidade);
       } else {
         _motores.girarContinuo(horario, velocidade);
       }
@@ -162,9 +191,13 @@ class CommandExecutor {
     // 12 setores de 360 graus a 2,5 Hz, continuamente e sem parar de andar:
     // a varredura nao foi perdida, foi superada.
     //
-    // Um comando desconhecido cai no NACK la embaixo, que e o certo: se
-    // alguem no Pi ainda mandar SCAN_FRONT, o erro aparece no log em vez de
-    // um ACK mentiroso para um servo que nao existe.
+    // Um comando desconhecido devolve false no fim desta funcao, e o main.cpp
+    // responde NACK {"motivo": "comando_desconhecido"} NO LUGAR do ACK. Este
+    // comentario prometia isso desde 19/09 e era mentira ate 2026-11-10
+    // (C4-01): o main.cpp dava ACK ANTES de saber se o comando existia, e o
+    // `varrer_a_frente` da voz dizia "Varrendo a frente" para um SCAN_FRONT
+    // que nao fazia nada. Agora o send() do Python recebe o NACK e levanta
+    // ErroComunicacao.
 
     // Lanterna: o pino inverteu em 2026-08-04 porque virou RELE ativo em LOW
     // (ver pins.h). O PROTOCOLO nao mudou - LIGHT_ON/LIGHT_OFF continuam
@@ -180,19 +213,11 @@ class CommandExecutor {
       return true;
     }
 
-    // Rele do ventilador (ativo em LOW) - o Raspberry decide o limiar de
-    // temperatura (Cap 17: config/orion.yaml) e manda so o comando ja
-    // resolvido; o Arduino nunca decide isso sozinho (Cap 10: so comandos
-    // simples, nada de logica/decisao aqui).
-    if (strcmp(comando, "FAN_ON") == 0) {
-      digitalWrite(pinos::RELE_VENTILADOR, LOW);
-      return true;
-    }
-
-    if (strcmp(comando, "FAN_OFF") == 0) {
-      digitalWrite(pinos::RELE_VENTILADOR, HIGH);
-      return true;
-    }
+    // FAN_ON / FAN_OFF SAIRAM em 2026-11-10 (C4-04). O rele do ventilador
+    // estava fisicamente desconectado desde 24/07 e o ventilador vai direto
+    // na energia desde 05/08; o pino dele (17) virou a lanterna. Os dois
+    // comandos agora caem no NACK (comando_desconhecido) em vez de um ACK
+    // para um rele que nao existe.
 
     if (strcmp(comando, "SET_PAN_TILT") == 0) {
       // pan_graus/tilt_graus chegam relativos ao centro (-limite..+limite,
@@ -231,7 +256,9 @@ class CommandExecutor {
       return true;
     }
 
-    return false;  // WHO_ARE_YOU/RETURN_STATUS ja tratados em main.cpp
+    // Nao reconhecido -> NACK no main.cpp. (WHO_ARE_YOU, RETURN_STATUS,
+    // TEST_WHEEL e CALIBRATE_COMPASS nem chegam aqui: o main.cpp os trata.)
+    return false;
   }
 
  private:

@@ -18,8 +18,9 @@
 // arrisca seguranca por resolucao de encoder.
 //
 // Os ultrassons SAIRAM do robo em 2026-09-19 (quem mede distancia agora e o
-// LiDAR, no Raspberry). GPIO 34 e 35 estao livres, sao input-only, e o
-// encoder que chegou TEM canal B (fio verde - confirmado na ficha do
+// LiDAR, no Raspberry). GPIO 34 e 35 viraram o encoder direito (A e B,
+// pins.h - era "estao livres" ate 2026-11-10), e o encoder que chegou TEM
+// canal B (fio verde - confirmado na ficha do
 // fabricante, ver ENCODER_PPR_MOTOR). Ou seja: a quadratura completa deixou
 // de ser impossivel e passou a ser so uma tarefa nao feita.
 //
@@ -82,8 +83,8 @@ constexpr float REDUCAO_ENGRENAGEM = 168.0f;
 //
 // A mesma ficha confirma que o encoder e de QUADRATURA (canal A no fio
 // amarelo, canal B no verde). Aqui so o canal A e lido - ver o cabecalho
-// sobre canal unico. O canal B continua disponivel no conector, e os GPIO
-// 34/35 ficaram livres com a saida dos ultrassons.
+// sobre canal unico. O canal B ja esta ligado (pins.h: ENCODER_ESQ_B=27,
+// ENCODER_DIR_B=35), so nao e lido.
 constexpr float ENCODER_PPR_MOTOR = 11.0f;
 // Canal unico conta as DUAS bordas do pulso (2x, ver encoder_pcnt.cpp) -
 // metade da resolucao de uma quadratura 4x completa, mas ainda proporcional
@@ -97,14 +98,37 @@ constexpr float PULSOS_POR_GRAU = PULSOS_POR_VOLTA_RODA * BITOLA_M / (360.0f * R
 // Velocidade angular MAXIMA da RODA, em rad/s: a NOMINAL da etiqueta, 35 rpm
 // a 6 V (35 x 2pi / 60 = 3,66). E de proposito a de 6 V: a bateria e de 10 V,
 // e com 100% = rotacao nominal o PID nunca pede ao motor mais do que ele gira
-// na tensao dele - quem limita o motor de 6 V passa a ser a malha, e nao uma
-// regra de "nao passar de 75%" que so existia na memoria de quem testava.
+// na tensao dele. Isso limita a VELOCIDADE pedida; quem limita a TENSAO
+// media no motor e o DUTY_MAX_FRACAO logo abaixo.
 constexpr float VELOCIDADE_MAXIMA_RODA_RAD_S = 3.66f;
 
 // --- Ponte H L298N (EDR-0031: driver que o dono ja tinha) ---
 constexpr uint32_t PWM_FREQ_HZ = 20000;      // acima do audivel
 constexpr uint8_t PWM_RESOLUCAO_BITS = 10;   // duty 0-1023
 constexpr uint32_t PWM_DUTY_MAX = (1u << PWM_RESOLUCAO_BITS) - 1;
+
+// TETO DE DUTY - LIMITE DE SEGURANCA, NAO DE VELOCIDADE (2026-11-10, C4-02).
+//
+// >>> ESTE E O LUGAR DO TETO. Mexer aqui muda o PID, o anti-windup e os
+// >>> testes de bancada (TEST_WHEEL) de uma vez so.
+//
+// Por que existe: a bateria e de 10 V e o motor e de 6 V. Sem teto, o PID
+// saturava em 100% de duty (~10 V medios no motor) toda vez que a roda nao
+// alcancava o alvo - em toda partida, e principalmente com a RODA TRAVADA,
+// que fica 1,5 s (TEMPO_RODA_TRAVADA_MS) a 100% antes de a protecao cortar.
+// 0,75 x 10 V = 7,5 V: ainda acima do nominal, mas ~25% menos corrente de
+// estol no motor e no L298N nesse 1,5 s.
+//
+// CONSEQUENCIA ACEITA E REGISTRADA: a simulacao de malha fechada da
+// auditoria (provas/v_c402_regime.py) mostrou o regime em 60-91% de duty
+// para CMD_VEL 0,11 m/s COM CARGA - 0,11 m/s e a velocidade MAXIMA da roda
+// (3,66 rad/s x 0,03 m). Com o teto em 75%, com carga pesada ou bateria
+// fraca o robo NAO chega a 0,11 m/s: a roda satura no teto, a malha da reta
+// nivela pela mais fraca (RETA_TAU_NIVELAR_S) e ele anda mais devagar que o
+// pedido, em vez de forcar o motor alem do que ele aguenta. Os 30-40% da voz
+// e do EXPLORE ficam longe do teto. Se no chao o robo nao alcancar o que
+// precisa, SUBIR ESTE NUMERO e decisao consciente - nao tirar o teto.
+constexpr float DUTY_MAX_FRACAO = 0.75f;
 
 // CANAIS LEDC DOS MOTORES: 14 e 15, NUNCA 0 e 1 (bug achado em 2026-10-25).
 // A ESP32Servo distribui canais a partir do 0: o pan pega o 0 e o tilt o 1.
@@ -174,9 +198,11 @@ constexpr float RUMO_SENTIDO_HORARIO = 1.0f;
 // RODA TRAVADA (2026-10-31): roda mandada girar que nao conta pulso nenhum por
 // este tempo para o movimento inteiro. Com a roda de 60 mm o robo anda ~5
 // cm/s, e um movimento com fim (MOVE_DISTANCE, TURN com graus) passou a durar
-// mais que os 5 s do homem-morto - entao ele deixou de valer para movimento
-// com fim (main.cpp), e ESTA e a protecao que ficou no lugar: motor ligado
-// sem a roda andar (travada, sem energia, encoder solto) desliga sozinho.
+// mais que os 5 s do homem-morto - entao ele nao e cortado pelo homem-morto
+// de comando, e duas protecoes cobrem o lugar: ESTA (motor ligado sem a roda
+// andar - travada, sem energia, encoder solto - desliga sozinho) e o
+// HEARTBEAT do Pi (safety_manager.h, 2026-11-10): Pi calado no meio do
+// movimento com fim = parada, em vez de andar ate o fim sem dono.
 constexpr unsigned long TEMPO_RODA_TRAVADA_MS = 1500;
 
 // Periodo da malha de controle (PID de velocidade + reta): 50 Hz.
@@ -224,13 +250,11 @@ struct EstadoRoda {
 
 class MotorManager {
  public:
+  // PRIMEIRA COISA DO setup() (main.cpp, 2026-11-10): ate esta funcao
+  // rodar, os IN do L298N estao em alta impedancia com a ponte energizada
+  // (nao ha mais rele cortando - pins.h). Quanto antes eles virarem saida em
+  // LOW, menor a janela do tranco no boot.
   void iniciar() {
-    // Rele dos motores (pins.h): mesmo fail-safe de antes - escreve o nivel
-    // seguro ANTES do pinMode(OUTPUT).
-    digitalWrite(pinos::RELE_MOTORES, HIGH);
-    pinMode(pinos::RELE_MOTORES, OUTPUT);
-    digitalWrite(pinos::RELE_MOTORES, HIGH);
-
     _configurarRoda(_esquerda, pinos::MOTOR_ESQ_IN1, pinos::MOTOR_ESQ_IN2,
                      pinos::MOTOR_ESQ_EN, 0, CANAL_LEDC_ESQ, pinos::ENCODER_ESQ,
                      pinos::DIR_INVERTIDO_ESQUERDO);
@@ -283,12 +307,10 @@ class MotorManager {
 
     if (_tipo != TipoMovimento::NENHUM && _esquerda.concluido && _direita.concluido) {
       _tipo = TipoMovimento::NENHUM;
-      _desligarRele();
     }
   }
 
   void andarFrente(float velocidadePercent) {
-    _ligarRele();
     _movimentoFinito = false;
     _tipo = TipoMovimento::FRENTE;
     _iniciarMovimento(_esquerda, true, velocidadePercent, -1);
@@ -304,7 +326,6 @@ class MotorManager {
   // Andar de re continua sendo o movimento MENOS protegido do robo: nao ha
   // sensor nenhum apontado para tras.
   void andarRe(float velocidadePercent) {
-    _ligarRele();
     _movimentoFinito = false;
     _tipo = TipoMovimento::RE;
     _iniciarMovimento(_esquerda, false, velocidadePercent, -1);
@@ -313,7 +334,6 @@ class MotorManager {
   }
 
   void andarDistancia(float distanciaCm, float velocidadePercent) {
-    _ligarRele();
     _movimentoFinito = true;
     int64_t pulsos = static_cast<int64_t>(fabsf(distanciaCm) * (PULSOS_POR_METRO / 100.0f));
     bool frente = distanciaCm >= 0;
@@ -324,7 +344,6 @@ class MotorManager {
   }
 
   void girarContinuo(bool sentidoHorario, float velocidadePercent) {
-    _ligarRele();
     _movimentoFinito = false;
     _tipo = TipoMovimento::GIRO;
     _iniciarMovimento(_esquerda, sentidoHorario, velocidadePercent, -1);
@@ -332,7 +351,6 @@ class MotorManager {
   }
 
   void girarGraus(float graus, bool sentidoHorario, float velocidadePercent) {
-    _ligarRele();
     _movimentoFinito = true;
     int64_t pulsos = static_cast<int64_t>(fabsf(graus) * PULSOS_POR_GRAU);
     _tipo = TipoMovimento::GIRO;
@@ -360,7 +378,6 @@ class MotorManager {
       parar();
       return;
     }
-    _ligarRele();
     _movimentoFinito = false;
     bool novo = _tipo != TipoMovimento::VELOCIDADE;
     _tipo = TipoMovimento::VELOCIDADE;
@@ -372,16 +389,17 @@ class MotorManager {
     _pararRoda(_esquerda);
     _pararRoda(_direita);
     _tipo = TipoMovimento::NENHUM;
-    _desligarRele();
   }
 
   // BANCADA (TEST_WHEEL, 2026-10-25): uma roda so, potencia fixa, SEM PID -
   // para conferir fiacao de motor e encoder com as rodas no ar. Quem chama e
   // responsavel por parar() depois. sentidoIn1 = PWM no IN1/IN3 (pins.h).
+  // Malha aberta tambem respeita DUTY_MAX_FRACAO (2026-11-10): roda presa na
+  // bancada e o mesmo estol do chao.
   void testeMalhaAberta(bool esquerda, bool sentidoIn1, float fracao) {
     parar();
     EstadoRoda& roda = esquerda ? _esquerda : _direita;
-    fracao = constrain(fracao, 0.0f, 1.0f);
+    fracao = constrain(fracao, 0.0f, DUTY_MAX_FRACAO);
     _aplicarPonte(roda, sentidoIn1, static_cast<uint32_t>(fracao * PWM_DUTY_MAX));
   }
 
@@ -392,7 +410,7 @@ class MotorManager {
   //: (2026-10-31). `frente`: true = frente do robo, false = re.
   void testeAmbasMalhaAberta(bool frente, float fracao) {
     parar();
-    uint32_t duty = static_cast<uint32_t>(constrain(fracao, 0.0f, 1.0f) * PWM_DUTY_MAX);
+    uint32_t duty = static_cast<uint32_t>(constrain(fracao, 0.0f, DUTY_MAX_FRACAO) * PWM_DUTY_MAX);
     for (EstadoRoda* roda : {&_esquerda, &_direita}) {
       bool sentidoIn1 = roda->dirInvertido ? !frente : frente;
       _aplicarPonte(*roda, sentidoIn1, duty);
@@ -414,8 +432,8 @@ class MotorManager {
   bool girandoNoLugar() const { return movimentoAtual() == TipoMovimento::GIRO; }
 
   //: O movimento em curso para sozinho (distancia ou angulo pedido)? O
-  //: homem-morto do main.cpp nao corta estes - quem os protege e a roda
-  //: travada, logo abaixo.
+  //: homem-morto de comando nao corta estes - quem os protege e a roda
+  //: travada (logo abaixo) e o heartbeat do Pi (safety_manager.h).
   bool movimentoComFim() const { return emMovimento() && _movimentoFinito; }
   //: O ultimo movimento parou porque uma roda nao contou pulso por
   //: TEMPO_RODA_TRAVADA_MS. Fica marcado ate o proximo movimento.
@@ -520,9 +538,6 @@ class MotorManager {
     _direita.alvoRadS = _retaBaseRadS - correcao;
   }
 
-  void _ligarRele() { digitalWrite(pinos::RELE_MOTORES, LOW); }
-  static void _desligarRele() { digitalWrite(pinos::RELE_MOTORES, HIGH); }
-
   void _configurarRoda(EstadoRoda& roda, uint8_t in1, uint8_t in2, uint8_t en,
                         int unidadePcnt, int canalLedc, int pinoEncoder,
                         bool dirInvertido) {
@@ -545,6 +560,10 @@ class MotorManager {
 
     ledcSetup(canalLedc, PWM_FREQ_HZ, PWM_RESOLUCAO_BITS);
     roda.pinoPwmAtivo = 0xFF;
+
+    // O PID satura NO TETO, nao em 1,0: assim o anti-windup (velocity_pid.cpp)
+    // para de acumular integral exatamente onde a saida para de crescer.
+    roda.pid.definirSaidaMaxima(DUTY_MAX_FRACAO);
 
     roda.encoder.iniciar(unidadePcnt, pinoEncoder);
   }
@@ -652,12 +671,15 @@ class MotorManager {
     float medidoRadS = static_cast<float>(roda.sinalMovimento) *
                         (deltaPulsos / dt_s) * (2.0f * PI / PULSOS_POR_VOLTA_RODA);
 
+    // `saida` ja vem limitada a +-DUTY_MAX_FRACAO pelo proprio PID.
     float saida = roda.pid.atualizar(roda.alvoRadS, medidoRadS, dt_s);
     roda.medidoRadS = medidoRadS;
-    roda.saturada = fabsf(saida) >= 0.99f;
+    roda.saturada = fabsf(saida) >= 0.99f * DUTY_MAX_FRACAO;
     float saidaFisica = roda.dirInvertido ? -saida : saida;
 
-    uint32_t duty = static_cast<uint32_t>(fabsf(saidaFisica) * PWM_DUTY_MAX);
+    // fminf de novo, de proposito: o teto nao pode depender so do PID estar
+    // configurado certo.
+    uint32_t duty = static_cast<uint32_t>(fminf(fabsf(saidaFisica), DUTY_MAX_FRACAO) * PWM_DUTY_MAX);
     _aplicarPonte(roda, saidaFisica >= 0, duty);
   }
 };

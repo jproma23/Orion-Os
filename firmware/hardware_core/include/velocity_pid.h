@@ -23,12 +23,20 @@ class VelocidadePid {
  public:
   explicit VelocidadePid(const GanhosPid& ganhos = GanhosPid{}) : _ganhos(ganhos) {}
 
+  // Saida em -saidaMaxima..+saidaMaxima (fracao de duty).
   float atualizar(float alvo_rad_s, float medido_rad_s, float dt_s);
   void zerar();
+
+  // TETO DA SAIDA (2026-11-10, C4-02): quem decide e o motor_manager.h
+  // (DUTY_MAX_FRACAO). Mora aqui, e nao so no ledcWrite, porque o
+  // anti-windup precisa saber onde a saida PARA de crescer - com o teto so
+  // no PWM, o PID acharia que ainda tinha folga ate 1,0 e enchia a integral.
+  void definirSaidaMaxima(float saidaMaxima) { _saidaMaxima = saidaMaxima; }
 
  private:
   GanhosPid _ganhos;
   float _integral = 0.0f;
+  float _saidaMaxima = 1.0f;
 };
 
 }  // namespace orion
