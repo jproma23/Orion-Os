@@ -154,6 +154,38 @@ async def test_conselho_recusado_nao_e_publicado() -> None:
     await tarefa
 
 
+@pytest.mark.asyncio
+async def test_atendente_nao_prende_o_bus_enquanto_a_ia_pensa() -> None:
+    """A1 (auditoria 2026-11-09): o AtendenteConselhoIA esperava a IA dentro
+    do handler e o Event Bus inteiro parava junto."""
+    import time
+
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+
+    async def _lento(ctx, ops):
+        await asyncio.sleep(2.0)
+        return _ConselhoFalso("ronda")
+
+    AtendenteConselhoIA(bus, _lento)
+    entregas: list[float] = []
+    bus.subscribe("vision.person_detected", lambda ev: entregas.append(time.monotonic()))
+    ponte = PonteConselhoIA(bus, timeout_s=5.0)
+
+    pedido = asyncio.create_task(ponte.pedir("ctx", ["ronda"]))
+    await asyncio.sleep(0.1)
+    publicado = time.monotonic()
+    await bus.publish("vision.person_detected", {"classe": "person"})
+    await asyncio.sleep(0.2)
+    assert entregas and entregas[0] - publicado < 0.2
+
+    resposta = await pedido  # o conselho ainda chega
+    assert resposta is not None and resposta["comportamento"] == "ronda"
+
+    bus.parar()
+    await tarefa
+
+
 # ----- gancho no maestro -----
 
 

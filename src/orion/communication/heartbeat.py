@@ -168,16 +168,37 @@ class MonitorHeartbeat:
         """Loop continuo: envia heartbeats e verifica perdas a cada `intervalo_s`."""
         self._executando = True
         while self._executando:
-            for peer in self._peers:
-                try:
-                    await self._servico.enviar_heartbeat(peer)
-                except Exception:
+            # Os envios correm JUNTOS e cada um tem prazo de `intervalo_s`
+            # (2026-11-10, achado A2). Antes era um `await` por peer, em
+            # fila e sem prazo: um peer que parou de ler (o `drain()` do TCP
+            # nunca volta) congelava o laco para TODOS - medido, o corpo
+            # recebeu 0 heartbeats em 3 s e nenhuma perda foi detectada.
+            # Estourar o prazo conta como falha de envio daquele peer.
+            peers = list(self._peers)
+            resultados = await asyncio.gather(
+                *(
+                    asyncio.wait_for(
+                        self._servico.enviar_heartbeat(peer), timeout=self._intervalo_s
+                    )
+                    for peer in peers
+                ),
+                return_exceptions=True,
+            )
+            for peer, resultado in zip(peers, resultados, strict=True):
+                if isinstance(resultado, BaseException):
                     # Antes do primeiro sucesso isto e rotina (link ainda
                     # nao aberto), depois dele e sintoma - o nivel do log
                     # acompanha, para nao gritar no boot.
                     self._falhas_envio[peer] = self._falhas_envio.get(peer, 0) + 1
                     if peer in self._ja_estabelecidos:
-                        logger.warning("Falha ao enviar heartbeat para '%s'", peer)
+                        if isinstance(resultado, TimeoutError):
+                            logger.warning(
+                                "Heartbeat para '%s' nao saiu em %.1fs (peer nao le)",
+                                peer,
+                                self._intervalo_s,
+                            )
+                        else:
+                            logger.warning("Falha ao enviar heartbeat para '%s'", peer)
                     else:
                         logger.debug("Link com '%s' ainda nao aberto", peer)
                     await self._marcar_perdido(peer)

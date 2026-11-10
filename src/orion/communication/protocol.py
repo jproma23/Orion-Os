@@ -194,7 +194,16 @@ class Mensagem:
 
     @classmethod
     def from_bytes(cls, dados: bytes) -> Mensagem:
-        return cls.from_json(dados.decode("utf-8"))
+        # BYTE QUE NAO E UTF-8 E MENSAGEM MALFORMADA, NAO QUEDA DE LINK
+        # (2026-11-10, auditoria A3). O UnicodeDecodeError vazava cru: quem
+        # recebe so trata ErroProtocoloInvalido, e a excecao matava a tarefa
+        # de recepcao do link inteiro, sem log - um byte ruim deixava o Pi
+        # surdo ao Notebook ate o restart.
+        try:
+            texto = dados.decode("utf-8")
+        except UnicodeDecodeError as erro:
+            raise ErroProtocoloInvalido(f"Bytes nao sao UTF-8: {erro}") from erro
+        return cls.from_json(texto)
 
 
 #: Cap 14 secao 5: "Todo COMMAND possui id unico; ACK obrigatorio em ate 500 ms."

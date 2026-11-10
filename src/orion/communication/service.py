@@ -59,6 +59,7 @@ class ComunicacaoService:
         self._links: dict[str, Transporte] = {}
         self._rotas: dict[str, str] = {}
         self._porteiros: dict = {}
+        self._ganchos_stop: dict = {}
         self._pendentes_ack: dict[str, asyncio.Future[Mensagem]] = {}
         self._pendentes_resposta: dict[str, asyncio.Future[Mensagem]] = {}
         # Uma tarefa de recepcao POR PEER (nao uma lista solta): ao
@@ -141,9 +142,35 @@ class ComunicacaoService:
         """
         self._porteiros[destino] = porteiro
 
+    def definir_gancho_stop(self, destino: str, gancho) -> None:
+        """Ao REPASSAR um COMMAND STOP para `destino`, chama `gancho(mensagem)`
+        (2026-11-10, auditoria C1-02/C5-01).
+
+        O "Jarvis, para" nasce no Notebook e o Pi so o repassa ao corpo: a
+        navegacao do Pi nem sabia, e FOLLOW/EXPLORE/Nav2 voltavam a mandar
+        rodas em <=200 ms. O gancho avisa quem tem que parar junto. Fica aqui,
+        e nao no porteiro, porque o porteiro tambem ve os STOP que o proprio
+        Pi manda (a trava do LiDAR) - e esses nao sao pedido de ninguem.
+
+        O gancho e SINCRONO e tem que voltar rapido: roda dentro da recepcao
+        do link de origem. Excecao dele vira log, nunca queda da recepcao.
+        """
+        self._ganchos_stop[destino] = gancho
+
     def _motivo_recusa(self, destino: str, payload: dict) -> str | None:
         porteiro = self._porteiros.get(destino)
-        return porteiro(payload) if porteiro is not None else None
+        if porteiro is None:
+            return None
+        try:
+            return porteiro(payload)
+        except Exception:
+            # PORTEIRO QUE QUEBRA RECUSA (2026-11-10, auditoria C1-06/A3).
+            # Um payload malformado do Notebook ("distancia_cm": "20 cm") fazia
+            # o porteiro levantar ValueError dentro da recepcao do link, e a
+            # recepcao morria calada: o STOP seguinte nunca chegava ao corpo.
+            # Na duvida, comando que nao da para conferir nao anda.
+            logger.exception("porteiro de '%s' falhou em %r - recusando", destino, payload)
+            return "payload invalido"
 
     def _resolver_link(self, destino: str) -> Transporte:
         nome_peer = self._rotas.get(destino)
@@ -304,25 +331,40 @@ class ComunicacaoService:
 
     async def _consumir_mensagens(self, nome_peer: str, transporte: Transporte) -> None:
         async for bruto in transporte.receber():
+            # UMA MENSAGEM RUIM NAO MATA O LINK (2026-11-10, auditoria A3).
+            # Qualquer excecao que nao fosse OSError/ErroTransporte saia daqui,
+            # passava reto pelo `_loop_recepcao` e encerrava a recepcao deste
+            # peer sem uma linha de log - o Pi ficava surdo ao Notebook ate o
+            # restart. Queda de link continua subindo (e o que ela significa).
             try:
-                mensagem = Mensagem.from_bytes(bruto)
-            except ErroProtocoloInvalido:
-                logger.warning("Mensagem malformada recebida de '%s', descartada", nome_peer)
-                continue
+                await self._processar_bruto(nome_peer, transporte, bruto)
+            except (OSError, ErroTransporte):
+                raise
+            except Exception:
+                logger.exception(
+                    "Erro ao tratar mensagem de '%s' - descartada, recepcao segue", nome_peer
+                )
 
-            exige_checksum = self._exigir_checksum_mensagem.get(nome_peer, True)
-            if exige_checksum and not mensagem.checksum_valido():
-                # CRC invalido -> descarte silencioso + NACK (Cap 14 secao 5)
-                logger.warning("Checksum invalido em mensagem de '%s', enviando NACK", nome_peer)
-                try:
-                    await transporte.enviar(
-                        Mensagem.nack(mensagem, self._nome_local, "checksum_invalido").to_bytes()
-                    )
-                except ErroTransporte:
-                    pass
-                continue
+    async def _processar_bruto(self, nome_peer: str, transporte: Transporte, bruto: bytes) -> None:
+        try:
+            mensagem = Mensagem.from_bytes(bruto)
+        except ErroProtocoloInvalido:
+            logger.warning("Mensagem malformada recebida de '%s', descartada", nome_peer)
+            return
 
-            await self._tratar_mensagem_recebida(nome_peer, transporte, mensagem)
+        exige_checksum = self._exigir_checksum_mensagem.get(nome_peer, True)
+        if exige_checksum and not mensagem.checksum_valido():
+            # CRC invalido -> descarte silencioso + NACK (Cap 14 secao 5)
+            logger.warning("Checksum invalido em mensagem de '%s', enviando NACK", nome_peer)
+            try:
+                await transporte.enviar(
+                    Mensagem.nack(mensagem, self._nome_local, "checksum_invalido").to_bytes()
+                )
+            except ErroTransporte:
+                pass
+            return
+
+        await self._tratar_mensagem_recebida(nome_peer, transporte, mensagem)
 
     async def _tratar_mensagem_recebida(
         self, nome_peer: str, transporte: Transporte, mensagem: Mensagem
@@ -383,6 +425,12 @@ class ComunicacaoService:
 
     async def _encaminhar(self, mensagem: Mensagem) -> None:
         """Roteamento transparente: reenvia para quem sabe chegar em `mensagem.destino`."""
+        # O gancho do STOP vem ANTES do envio, e vale mesmo sem rota ou com o
+        # envio falhando: a parte sincrona dele (`NavigationCore.parar_ja`)
+        # segura a navegacao na hora, entao nenhum CMD_VEL dela sai entre o
+        # STOP repassado e o aviso - e quem anda tem que parar mesmo que o
+        # enlace com o corpo esteja caido agora.
+        self._avisar_stop_repassado(mensagem)
         if mensagem.tipo is TipoMensagem.COMMAND:
             motivo = self._motivo_recusa(mensagem.destino, mensagem.payload)
             if motivo is not None:
@@ -419,6 +467,17 @@ class ComunicacaoService:
             await transporte.enviar(mensagem.to_bytes())
         except ErroTransporte:
             logger.warning("Falha ao encaminhar mensagem para '%s'", mensagem.destino)
+
+    def _avisar_stop_repassado(self, mensagem: Mensagem) -> None:
+        if mensagem.tipo is not TipoMensagem.COMMAND or mensagem.payload.get("comando") != "STOP":
+            return
+        gancho = self._ganchos_stop.get(mensagem.destino)
+        if gancho is None:
+            return
+        try:
+            gancho(mensagem)
+        except Exception:
+            logger.exception("gancho do STOP repassado para '%s' falhou", mensagem.destino)
 
     async def encerrar(self) -> None:
         """Desligamento seguro: fecha os links primeiro, so depois para as

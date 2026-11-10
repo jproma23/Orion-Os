@@ -6,18 +6,42 @@ requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
     "pyserial>=3.5",
+    # aiohttp e producao nas DUAS maquinas (2026-11-10, achado C6-06): no Pi a
+    # webui (motion_core/webui/server.py) e o enlace com o corpo ESP32
+    # (motion_core/navigation/ponte_corpo_ws.py); no Notebook o avatar
+    # (orion/display/avatar_server.py). Ficava so no extra `display`, entao uma
+    # instalacao limpa do Pi nao subia.
+    "aiohttp>=3.9",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.4", "pytest-asyncio>=0.23"]
+# Voz + IA. `ollama` e `openwakeword` sairam em 2026-11-10: declarados e
+# nunca importados (grep no repo inteiro) - a IA e remota (EDR-0021) e nao ha
+# palavra de ativacao.
 mission = [
-    "ollama",
     "faster-whisper",
     "sounddevice",
     "numpy",
     "piper-tts",
-    "openwakeword",
     "openai>=1.0",  # IA remota (EDR-0021), provider padrao
+]
+# O que o processo de PRODUCAO do Notebook (tools/conversar_jarvis.py, via
+# tools/orion-avatar.service) importa alem de `mission` e `vision`
+# (2026-11-10, C6-06): sem isto o Notebook nao subia numa instalacao limpa.
+#   fastapi/uvicorn/pydantic - API local (tools/orion_api.py)
+#   httpx                    - busca na internet (orion/mission/internet.py)
+#   mediapipe                - gestos (orion/vision/gestos.py)
+#   speechbrain/torch        - quem fala (orion/voice/identificador_locutor.py)
+# Instalar: pip install -e ".[mission,vision,notebook]"
+notebook = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "httpx",
+    "mediapipe",
+    "speechbrain",
+    "torch",
 ]
 vision = [
     "opencv-python>=4.9",
@@ -30,7 +54,9 @@ vision = [
     # inteiro com um quit() interno (nao da so ImportError).
     "setuptools<81",
 ]
-display = ["aiohttp>=3.9"]
+# Mantido vazio para `pip install -e ".[display]"` antigo nao quebrar: o
+# aiohttp foi para as dependencias base (2026-11-10).
+display = []
 
 [tool.ruff]
 line-length = 100

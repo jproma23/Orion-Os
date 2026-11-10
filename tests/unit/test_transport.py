@@ -12,6 +12,7 @@ import pytest
 
 from orion.communication.transport import (
     ConexaoTcp,
+    ErroTransporte,
     SerialTransport,
     TcpTransport,
     iniciar_servidor_tcp,
@@ -109,8 +110,10 @@ async def test_tcp_transport_enviar_converte_oserror_em_erro_transporte():
     ErroTransporte/asyncio.TimeoutError."""
     from orion.communication.transport import ErroTransporte
 
-    async def ao_conectar(_conexao: ConexaoTcp) -> None:
-        pass
+    conexoes: list[ConexaoTcp] = []
+
+    async def ao_conectar(conexao: ConexaoTcp) -> None:
+        conexoes.append(conexao)
 
     servidor = await iniciar_servidor_tcp("127.0.0.1", 0, ao_conectar)
     porta = servidor.sockets[0].getsockname()[1]
@@ -127,6 +130,10 @@ async def test_tcp_transport_enviar_converte_oserror_em_erro_transporte():
         await cliente.enviar(b"vai falhar no meio do envio")
 
     await cliente.fechar()
+    # No Python 3.12 `wait_closed()` do servidor espera as conexoes aceitas
+    # fecharem; sem isto o teste travava para sempre (visto em 2026-11-10).
+    for conexao in conexoes:
+        await conexao.fechar()
     servidor.close()
     await servidor.wait_closed()
 
@@ -203,3 +210,65 @@ async def test_serial_transport_fechar_nao_espera_read_pendente():
     except asyncio.CancelledError:
         pass
     os.close(mestre_fd)
+
+
+# ---------------------------------------------------------------------------
+# A2 (auditoria 2026-11-09): `drain()` sem prazo. Um peer que para de LER
+# enche o buffer e quem envia fica preso para sempre - no Pi, isso congelava
+# o heartbeat de todos os links. Agora estoura em ErroTransporte.
+# ---------------------------------------------------------------------------
+
+
+async def _encher_ate_travar(transporte) -> None:
+    bloco = b"x" * 256 * 1024
+    for _ in range(800):  # ate ~200 MB: muito acima de qualquer buffer de socket
+        await transporte.enviar(bloco)
+
+
+@pytest.mark.asyncio
+async def test_tcp_transport_drain_preso_vira_erro_transporte():
+    conexoes: list[ConexaoTcp] = []
+
+    async def ao_conectar(conexao: ConexaoTcp) -> None:
+        conexoes.append(conexao)  # aceita e NUNCA le
+
+    servidor = await iniciar_servidor_tcp("127.0.0.1", 0, ao_conectar)
+    porta = servidor.sockets[0].getsockname()[1]
+    cliente = TcpTransport("127.0.0.1", porta, timeout_drain_s=0.2)
+    await cliente.conectar()
+
+    with pytest.raises(ErroTransporte):
+        await asyncio.wait_for(_encher_ate_travar(cliente), timeout=30)
+
+    # fechar() tambem nao pode travar com o buffer cheio (wait_closed esperaria
+    # o outro lado ler para sempre) - o prazo dele e o mesmo do drain.
+    await asyncio.wait_for(cliente.fechar(), timeout=2)
+    for conexao in conexoes:
+        await conexao.fechar()
+    servidor.close()
+    await servidor.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_conexao_tcp_drain_preso_vira_erro_transporte():
+    conexoes: list[ConexaoTcp] = []
+    chegou = asyncio.Event()
+
+    async def ao_conectar(conexao: ConexaoTcp) -> None:
+        conexao._timeout_drain_s = 0.2
+        conexoes.append(conexao)
+        chegou.set()
+
+    servidor = await iniciar_servidor_tcp("127.0.0.1", 0, ao_conectar)
+    porta = servidor.sockets[0].getsockname()[1]
+    cliente = TcpTransport("127.0.0.1", porta)  # conecta e NUNCA le
+    await cliente.conectar()
+    await chegou.wait()
+
+    with pytest.raises(ErroTransporte):
+        await asyncio.wait_for(_encher_ate_travar(conexoes[0]), timeout=30)
+
+    await asyncio.wait_for(conexoes[0].fechar(), timeout=2)
+    await cliente.fechar()
+    servidor.close()
+    await servidor.wait_closed()

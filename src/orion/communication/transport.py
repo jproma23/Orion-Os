@@ -30,6 +30,37 @@ class ErroTransporte(Exception):
     """Falha ao conectar, enviar ou receber em um transporte."""
 
 
+#: Prazo do `drain()` dos transportes TCP (2026-11-10, achado A2). Sem prazo,
+#: um peer que para de LER (processo travado, Wi-Fi meio morto) enche o buffer
+#: e o `drain()` nunca volta - quem enviou fica preso para sempre. 5 s cobre
+#: com folga uma rajada no Wi-Fi e fica abaixo dos timeouts de quem espera
+#: resposta do outro lado.
+TIMEOUT_DRAIN_S = 5.0
+
+
+async def _fechar_writer(writer: asyncio.StreamWriter, timeout_s: float) -> None:
+    """Fecha com prazo. `wait_closed()` espera o buffer de saida esvaziar -
+    com o outro lado sem ler (o caso do `_drenar` acima) isso nunca acontece
+    e o `fechar()` travava no lugar do envio. Estourou: corta a conexao."""
+    writer.close()
+    try:
+        await asyncio.wait_for(writer.wait_closed(), timeout=timeout_s)
+    except TimeoutError:
+        writer.transport.abort()
+    except OSError:
+        pass
+
+
+async def _drenar(writer: asyncio.StreamWriter, timeout_s: float, onde: str) -> None:
+    """`writer.drain()` com prazo; estourar vira ErroTransporte (falha de envio)."""
+    try:
+        await asyncio.wait_for(writer.drain(), timeout=timeout_s)
+    except TimeoutError as erro:
+        raise ErroTransporte(
+            f"Envio {onde} parado ha {timeout_s:.1f}s (o outro lado nao esta lendo)"
+        ) from erro
+
+
 class Transporte(Protocol):
     """Interface comum aos transportes: enviar/receber quadros completos (bytes)."""
 
@@ -46,9 +77,10 @@ class Transporte(Protocol):
 class TcpTransport:
     """Cliente TCP: usado pelo Notebook para falar com o Raspberry (Cap 14 s.2)."""
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, timeout_drain_s: float = TIMEOUT_DRAIN_S) -> None:
         self._host = host
         self._port = port
+        self._timeout_drain_s = timeout_drain_s
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._decodificador = DecodificadorTcp()
@@ -71,7 +103,7 @@ class TcpTransport:
         assert self._writer is not None
         try:
             self._writer.write(codificar_tcp(payload))
-            await self._writer.drain()
+            await _drenar(self._writer, self._timeout_drain_s, f"para {self._host}:{self._port}")
         except OSError as erro:
             # Diferente de conectar(), isso nao tinha tratamento - uma queda
             # de rede no meio do envio (ConnectionResetError, BrokenPipeError,
@@ -95,20 +127,22 @@ class TcpTransport:
 
     async def fechar(self) -> None:
         if self._writer is not None:
-            self._writer.close()
-            try:
-                await self._writer.wait_closed()
-            except OSError:
-                pass
+            await _fechar_writer(self._writer, self._timeout_drain_s)
 
 
 class ConexaoTcp:
     """Envolve uma conexao TCP ja aceita (lado servidor - usado pelo Raspberry
     ao aceitar o Notebook, e pelos simuladores de Fase 2)."""
 
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    def __init__(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        timeout_drain_s: float = TIMEOUT_DRAIN_S,
+    ) -> None:
         self._reader = reader
         self._writer = writer
+        self._timeout_drain_s = timeout_drain_s
         self._decodificador = DecodificadorTcp()
 
     @property
@@ -118,7 +152,7 @@ class ConexaoTcp:
     async def enviar(self, payload: bytes) -> None:
         try:
             self._writer.write(codificar_tcp(payload))
-            await self._writer.drain()
+            await _drenar(self._writer, self._timeout_drain_s, "pela conexao TCP")
         except OSError as erro:
             # Mesmo achado do TcpTransport.enviar() (vistoria de 2026-07-24):
             # o outro lado (Notebook) pode derrubar a conexao no meio do
@@ -134,11 +168,7 @@ class ConexaoTcp:
                 yield mensagem
 
     async def fechar(self) -> None:
-        self._writer.close()
-        try:
-            await self._writer.wait_closed()
-        except OSError:
-            pass
+        await _fechar_writer(self._writer, self._timeout_drain_s)
 
 
 async def iniciar_servidor_tcp(

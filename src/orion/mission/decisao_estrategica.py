@@ -1,10 +1,15 @@
-"""Ponte de decisao estrategica (Cap 7, EDR-0022) - lado Notebook.
+"""Ponte de decisao estrategica (Cap 7, EDR-0022) - lado Notebook. ORFA.
 
-O comportamento `IaEstrategica` (motion_core/behavior, Raspberry) manda um
-pedido de decisao via comm.request; esta ponte recebe, consulta o
-AiManager (vocabulario fechado) e responde com a acao escolhida (ou
-nenhuma). Mesmo padrao de PonteMemoria (motion_core/memory/bridge.py), so
-que na direcao contraria (Pi pergunta, Notebook decide).
+Atendia o `mission.decidir` que o comportamento `IaEstrategica` mandava via
+comm.request. **Ninguem manda mais esse comando** (conferido por grep no
+repositorio inteiro em 2026-11-10, achado C5-10): a IaEstrategica do Pi
+passou a usar `behavior.aconselhar` (PonteConselho), porque `decidir`
+casava a resposta por substring ("parar" casa dentro de "preparar") - ver
+motion_core/behavior/comportamentos.py.
+
+Continua existindo so porque tools/conversar_jarvis.py e
+orion/mission/modulo.py ainda a importam e registram; a remocao tem que ir
+junto com essas duas linhas (e com tests/unit/test_decisao_estrategica.py).
 """
 from __future__ import annotations
 

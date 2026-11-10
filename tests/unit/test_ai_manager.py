@@ -176,3 +176,36 @@ def test_descarregar_nao_existe_mais(ai_manager):
     assert not hasattr(ai_manager, "descarregar")
     assert not hasattr(ai_manager, "_cliente_ollama")
 
+
+
+# ---------------------------------------------------------------------------
+# A1 (auditoria 2026-11-09): cliente OpenAI sem timeout = padrao da lib, 600 s
+# e 2 repeticoes. Um Gemini mudo segurava a conversa por ate meia hora, muito
+# alem dos 60 s que a webui do Pi espera pelo chat.
+# ---------------------------------------------------------------------------
+
+
+def test_cliente_openai_nasce_com_prazo_explicito(ai_manager, monkeypatch):
+    import sys
+    import types
+
+    from orion.mission import ai_manager as modulo
+
+    criados = []
+
+    class _OpenAIFalso:
+        def __init__(self, **kwargs):
+            criados.append(kwargs)
+
+    falso = types.ModuleType("openai")
+    falso.OpenAI = _OpenAIFalso
+    monkeypatch.setitem(sys.modules, "openai", falso)
+
+    ai_manager._garantir_cliente()
+    ai_manager._garantir_cliente()  # reaproveita, nao recria
+
+    assert len(criados) == 1
+    assert criados[0]["timeout"] == modulo.TIMEOUT_IA_S
+    assert criados[0]["max_retries"] == modulo.TENTATIVAS_EXTRAS_IA
+    # Pior caso (todas as tentativas estourando) cabe nos 60 s da webui.
+    assert modulo.TIMEOUT_IA_S * (1 + modulo.TENTATIVAS_EXTRAS_IA) < 60.0

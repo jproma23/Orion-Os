@@ -87,7 +87,9 @@ class EventBus:
 
         Roda ate `parar()` ser chamado. Erro em um handler e logado e isolado
         - nao derruba o bus nem os demais assinantes (Cap 6: uma falha de
-        modulo nao deve derrubar o sistema inteiro).
+        modulo nao deve derrubar o sistema inteiro). Vale tambem para um
+        CancelledError que escapa de um handler (A7, 2026-11-10); so o
+        cancelamento do proprio bus o encerra.
         """
         while self._executando:
             try:
@@ -104,6 +106,20 @@ class EventBus:
                 resultado = handler(evento)
                 if asyncio.iscoroutine(resultado):
                     await resultado
+            except asyncio.CancelledError:
+                # CancelledError e BaseException: passava reto pelo `except
+                # Exception` e matava o laco do bus inteiro, calado (achado A7,
+                # 2026-11-10) - basta um handler que cancela e aguarda uma
+                # tarefa propria sem try/except. So deixa subir quando quem
+                # esta sendo cancelado e o PROPRIO bus (task.cancel() de fora)
+                # ou quando ele ja esta parando; senao loga e segue.
+                tarefa = asyncio.current_task()
+                if not self._executando or (tarefa is not None and tarefa.cancelling()):
+                    raise
+                logger.error(
+                    "Handler do topico '%s' levantou CancelledError (evento isolado, bus continua)",
+                    evento.topico,
+                )
             except Exception:
                 logger.exception(
                     "Erro em handler do topico '%s' (evento isolado, bus continua)",

@@ -269,3 +269,55 @@ async def test_reconexoes_repetidas_nao_deixam_link_nem_heartbeat_orfao():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+# ---------------------------------------------------------------------------
+# A2 (auditoria 2026-11-09): um peer que para de LER deixa o `drain()` preso
+# e, como os envios eram um `await` por peer sem prazo, congelava o laco de
+# heartbeat para TODOS - medido: corpo com 0 heartbeats em 3 s e nenhuma
+# perda detectada.
+# ---------------------------------------------------------------------------
+
+
+class _TransporteQueTrava(FakeTransporte):
+    """Link "vivo" cujo envio nunca volta (= drain() preso)."""
+
+    async def enviar(self, payload: bytes) -> None:
+        await asyncio.Event().wait()
+
+
+@pytest.mark.asyncio
+async def test_peer_travado_nao_congela_o_heartbeat_dos_outros():
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    perdidos = []
+    bus.subscribe("comm.module_lost", lambda e: perdidos.append(e.dados["modulo"]))
+
+    servico = ComunicacaoService("motion_core", bus)
+    notebook = _TransporteQueTrava()
+    corpo = FakeTransporte()
+    servico.adicionar_link("mission_core", notebook)
+    servico.adicionar_link("hardware_core", corpo)
+
+    monitor = MonitorHeartbeat(servico, bus, intervalo_s=0.05, heartbeats_perdidos_limite=3)
+    monitor.monitorar("mission_core")
+    monitor.monitorar("hardware_core")
+
+    tarefa_monitor = asyncio.create_task(monitor.iniciar())
+    await asyncio.sleep(0.6)
+    monitor.parar()
+    tarefa_monitor.cancel()
+    try:
+        await tarefa_monitor
+    except asyncio.CancelledError:
+        pass
+
+    assert len(corpo.enviados) >= 4, "o peer travado congelou o heartbeat do corpo"
+    # O corpo nunca respondeu: tem que virar perda, mesmo com o outro preso.
+    assert "hardware_core" in perdidos
+    # E o peer travado conta como falha de envio (perda, depois da carencia).
+    assert "mission_core" in perdidos
+
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus

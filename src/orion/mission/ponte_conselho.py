@@ -1,18 +1,20 @@
 """Ponte do Mentor de comportamento (lado Notebook), ligada em 2026-07-24.
 
-O comportamento `Mentor` (motion_core/behavior/comportamentos.py, Raspberry)
-manda um pedido de conselho via comm.request; esta ponte recebe, consulta o
-`ConselheiroComportamento` (Ollama local) e responde com o comportamento
-sugerido (ou nenhum). Mesmo padrao de `PonteDecisao`
-(orion/mission/decisao_estrategica.py, usada pela IaEstrategica) - a
-diferenca e so QUEM decide (ConselheiroComportamento local em vez de
-AiManager via OpenRouter).
+O comportamento `IaEstrategica` (motion_core/behavior/comportamentos.py,
+Raspberry) manda um pedido de conselho via comm.request; esta ponte recebe,
+consulta o `ConselheiroComportamento` (IA remota com saida JSON fechada) e
+responde com o comportamento sugerido (ou nenhum).
 
 Nao reaproveita `orion/mission/conselho_protocolo.py`
 (`AtendenteConselhoIA`): aquele modulo usa o Event Bus local puro, que nao
 atravessa a rede sozinho - achado real da vistoria de codigo de
 2026-07-24 (ver docs/journal.md). Esta ponte usa ComunicacaoService de
-verdade, como PonteDecisao/PonteMemoria ja fazem.
+verdade.
+
+**O handler volta na hora** (2026-11-10, achado A1 da auditoria). O Event
+Bus despacha um evento por vez; esperar a IA (ate 20 s) DENTRO do handler
+prendia todo o resto do Notebook - visao, heartbeat, "a pessoa voltou" no
+FOLLOW. O handler so valida e dispara o trabalho com `tarefas.disparar`.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ import logging
 
 from orion.communication.protocol import Mensagem
 from orion.communication.service import ComunicacaoService
+from orion.kernel import tarefas
 from orion.kernel.event_bus import EventBus, Evento
 from orion.mission.conselheiro_comportamento import ConselheiroComportamento
 
@@ -45,8 +48,11 @@ class PonteConselho:
             return  # nao e um pedido de conselho - outro modulo cuida disso
 
         mensagem_original = Mensagem.from_dict(evento.dados)
-        payload = mensagem_original.payload
+        # Fora do despacho do bus (A1): a IA pensa em segundo plano.
+        tarefas.disparar(self._atender(mensagem_original), "ponte_conselho.atender")
 
+    async def _atender(self, mensagem_original: Mensagem) -> None:
+        payload = mensagem_original.payload
         try:
             conselho = await self._conselheiro.aconselhar(
                 payload.get("contexto", ""),
@@ -55,10 +61,10 @@ class PonteConselho:
             )
         except Exception:
             # Falha do conselheiro nao pode derrubar o Notebook nem deixar
-            # o Pi esperando sem resposta (mesmo padrao de PonteDecisao) -
-            # responde "sem conselho" em vez de deixar o timeout agir, ja
-            # que aqui (diferente do AtendenteConselhoIA local) o Pi fica
-            # de fato esperando um comm.request.
+            # o Pi esperando sem resposta - responde "sem conselho" em vez de
+            # deixar o timeout agir, ja que aqui (diferente do
+            # AtendenteConselhoIA local) o Pi fica de fato esperando um
+            # comm.request.
             logger.exception("conselheiro falhou")
             await self._servico.responder(mensagem_original, {"ok": False})
             return

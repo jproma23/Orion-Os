@@ -49,6 +49,17 @@ logger = logging.getLogger("orion.mission.ai_manager")
 SEM_IA = "Agora eu nao consigo pensar - fiquei sem acesso a minha IA."
 
 
+#: Prazo de UMA chamada a IA (2026-11-10). Coerente com quem espera do outro
+#: lado: a webui do Pi espera o chat por 60 s (motion_core/webui/server.py,
+#: CHAT_TIMEOUT_S). Com 1 tentativa extra o pior caso e 2 x 25 s + a espera
+#: curta entre elas, ainda abaixo dos 60 s - a resposta "nao deu" chega antes
+#: de a tela desistir. Numa conversa falada, 25 s ja e silencio demais; e
+#: teto de falha, nao tempo normal (a resposta tipica leva 1-3 s).
+TIMEOUT_IA_S = 25.0
+#: Repeticoes automaticas da lib em erro de rede/5xx (o padrao dela e 2).
+TENTATIVAS_EXTRAS_IA = 1
+
+
 class AiManager:
     def __init__(
         self,
@@ -253,12 +264,7 @@ class AiManager:
 
     def _openai_em_frases(self, mensagens: list[dict[str, str]]):
         """Gerador SINCRONO: consome o stream da OpenAI e solta frases fechadas."""
-        from openai import OpenAI
-
-        if self._cliente_openai is None:
-            self._cliente_openai = OpenAI(
-                api_key=self._openai_api_key, base_url=self._openai_base_url
-            )
+        self._garantir_cliente()
 
         fluxo = self._cliente_openai.chat.completions.create(
             model=self._openai_model,
@@ -306,13 +312,25 @@ class AiManager:
                     return i + 1
         return None
 
-    def _chamar_openai(self, mensagens: list[dict[str, str]]) -> str:
-        from openai import OpenAI
+    def _garantir_cliente(self) -> None:
+        """Cria o cliente OpenAI (sob demanda) com prazo EXPLICITO.
 
+        Sem `timeout` a lib usa 600 s e repete 2 vezes (achado A1 da
+        auditoria, 2026-11-10): um Gemini que nao responde segurava a
+        conversa - e, antes das pontes sairem do despacho, o Event Bus do
+        Notebook - por ate meia hora. Ver TIMEOUT_IA_S."""
         if self._cliente_openai is None:
+            from openai import OpenAI
+
             self._cliente_openai = OpenAI(
-                api_key=self._openai_api_key, base_url=self._openai_base_url
+                api_key=self._openai_api_key,
+                base_url=self._openai_base_url,
+                timeout=TIMEOUT_IA_S,
+                max_retries=TENTATIVAS_EXTRAS_IA,
             )
+
+    def _chamar_openai(self, mensagens: list[dict[str, str]]) -> str:
+        self._garantir_cliente()
 
         resposta = self._cliente_openai.chat.completions.create(
             model=self._openai_model,

@@ -159,3 +159,60 @@ async def test_comando_diferente_e_ignorado_pela_ponte():
         )
 
     await _encerrar(bus_pi, bus_notebook, tarefa_pi, tarefa_notebook, servico_pi, servico_notebook)
+
+
+# ---------------------------------------------------------------------------
+# A1 (auditoria 2026-11-09): o Event Bus despacha um evento por vez, e a
+# ponte esperava a IA DENTRO do handler - medido: visao e heartbeat do
+# Notebook publicados em t=0,1 s so chegavam em 2,02 s com uma IA de 2 s.
+# ---------------------------------------------------------------------------
+
+
+class _ConselheiroLento(ConselheiroFalso):
+    def __init__(self, segundos: float) -> None:
+        super().__init__(Conselho(comportamento="esperar", motivo="lento", aceito=True))
+        self._segundos = segundos
+
+    async def aconselhar(self, contexto_texto, opcoes, seguranca_ativa=False):
+        await asyncio.sleep(self._segundos)  # = chamada ao Gemini
+        return await super().aconselhar(contexto_texto, opcoes, seguranca_ativa)
+
+
+@pytest.mark.asyncio
+async def test_ia_lenta_nao_prende_o_bus_do_notebook_e_a_resposta_ainda_sai():
+    import time
+
+    from orion.kernel.event_bus import Prioridade
+
+    ambiente = await _preparar()
+    bus_pi, bus_notebook, tarefa_pi, tarefa_notebook, servico_pi, servico_notebook = ambiente
+    PonteConselho(_ConselheiroLento(2.0), servico_notebook).registrar(bus_notebook)
+
+    entregas: dict[str, float] = {}
+    t0 = time.monotonic()
+    bus_notebook.subscribe(
+        "vision.person_detected", lambda ev: entregas.setdefault("visao", time.monotonic() - t0)
+    )
+
+    pedido = asyncio.create_task(
+        servico_pi.request(
+            "mission_core",
+            {"comando": "behavior.aconselhar", "contexto": "perdi a pessoa", "opcoes": ["esperar"]},
+            timeout_s=5,
+        )
+    )
+    await asyncio.sleep(0.1)
+    publicado_em = time.monotonic() - t0
+    await bus_notebook.publish(
+        "vision.person_detected", {"classe": "person"}, prioridade=Prioridade.CRITICA
+    )
+    await asyncio.sleep(0.2)
+
+    assert "visao" in entregas, "a visao ficou presa atras da IA"
+    assert entregas["visao"] - publicado_em < 0.2
+
+    resposta = await pedido  # a RESPONSE ainda sai, depois da IA pensar
+    assert resposta.payload["ok"] is True
+    assert resposta.payload["comportamento"] == "esperar"
+
+    await _encerrar(*ambiente)

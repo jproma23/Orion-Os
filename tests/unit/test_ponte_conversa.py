@@ -179,3 +179,80 @@ async def test_outro_comando_nao_e_respondido_por_esta_ponte():
         )
 
     await _encerrar(*ambiente)
+
+
+# ---------------------------------------------------------------------------
+# A1 (auditoria 2026-11-09): atender a conversa DENTRO do handler prendia o
+# Event Bus do Notebook enquanto a IA pensava.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_conversa_lenta_nao_prende_o_bus_e_a_resposta_ainda_sai():
+    import time
+
+    ambiente = await _preparar()
+    _, bus_notebook, _, _, servico_pi, servico_notebook = ambiente
+
+    async def atendente_lento(texto: str) -> str:
+        await asyncio.sleep(2.0)  # = processar_comando com o Gemini
+        return "pronto"
+
+    PonteConversa(atendente_lento, servico_notebook).registrar(bus_notebook)
+    entregas: dict[str, float] = {}
+    t0 = time.monotonic()
+    bus_notebook.subscribe(
+        "comm.mensagem.heartbeat", lambda ev: entregas.setdefault("hb", time.monotonic() - t0)
+    )
+
+    pedido = asyncio.create_task(
+        servico_pi.request(
+            "mission_core", {"comando": "mission.conversa", "texto": "oi"}, timeout_s=5
+        )
+    )
+    await asyncio.sleep(0.1)
+    publicado_em = time.monotonic() - t0
+    await bus_notebook.publish("comm.mensagem.heartbeat", {"origem": "motion_core"})
+    await asyncio.sleep(0.2)
+
+    assert "hb" in entregas and entregas["hb"] - publicado_em < 0.2
+    resposta = await pedido
+    assert resposta.payload == {"ok": True, "resposta": "pronto"}
+
+    await _encerrar(*ambiente)
+
+
+@pytest.mark.asyncio
+async def test_duas_mensagens_seguidas_sao_atendidas_na_ordem():
+    """Fora do bus, mas ainda uma de cada vez: duas mensagens digitadas em
+    seguida nao podem embaralhar o historico da conversa."""
+    ambiente = await _preparar()
+    _, bus_notebook, _, _, servico_pi, servico_notebook = ambiente
+    ordem: list[str] = []
+    dentro = 0
+    pico = 0
+
+    async def atendente(texto: str) -> str:
+        nonlocal dentro, pico
+        dentro += 1
+        pico = max(pico, dentro)
+        await asyncio.sleep(0.1 if texto == "primeira" else 0.01)
+        ordem.append(texto)
+        dentro -= 1
+        return texto
+
+    PonteConversa(atendente, servico_notebook).registrar(bus_notebook)
+    def _pedir(texto: str):
+        return servico_pi.request(
+            "mission_core", {"comando": "mission.conversa", "texto": texto}, timeout_s=2
+        )
+
+    r1 = asyncio.create_task(_pedir("primeira"))
+    await asyncio.sleep(0.02)
+    r2 = asyncio.create_task(_pedir("segunda"))
+    await asyncio.gather(r1, r2)
+
+    assert ordem == ["primeira", "segunda"]
+    assert pico == 1
+
+    await _encerrar(*ambiente)

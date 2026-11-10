@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import threading
 import time
 import wave
 
@@ -26,6 +27,13 @@ from orion.voice import timbre as _timbre
 from orion.voice.audio_utils import reamostrar as _reamostrar
 
 logger = logging.getLogger("orion.voice.sintese")
+
+#: Serializa o `sd.play()` da thread de fala com o `sd.stop()` do
+#: cancelamento (2026-11-10, achado C6-03). O stream do sounddevice e GLOBAL
+#: no processo, entao a trava tambem e global (e nao por instancia). Sem ela,
+#: um `sd.stop()` chamado do laco asyncio no meio de um `sd.play()` ainda
+#: abrindo o stream e a mesma corrida nativa que dava o SEGV de 05/08.
+_trava_sd = threading.Lock()
 
 
 def _recarregar_portaudio() -> None:
@@ -159,6 +167,11 @@ class Sintetizador:
         return audio, taxa
 
     async def falar(self, texto: str) -> None:
+        #: Pedido de cancelamento vindo do laco asyncio (2026-11-10, C6-03).
+        #: A thread olha antes de tocar; se ja estiver tocando, o `sd.stop()`
+        #: do cancelamento interrompe o `sd.wait()`.
+        cancelada = threading.Event()
+
         def _sintetizar_e_reproduzir() -> None:
             audio, taxa = self._sintetizar(texto)
 
@@ -185,7 +198,10 @@ class Sintetizador:
                 audio = _reamostrar(audio, taxa, taxa_dispositivo)
                 taxa = taxa_dispositivo
 
-            sd.play(audio, samplerate=taxa, device=self._indice_dispositivo_saida)
+            with _trava_sd:
+                if cancelada.is_set():
+                    return  # cancelaram durante a sintese: nem comeca a tocar
+                sd.play(audio, samplerate=taxa, device=self._indice_dispositivo_saida)
             sd.wait()
 
         # A trava cobre a sintese E a reproducao: soltar depois do
@@ -193,8 +209,34 @@ class Sintetizador:
         # metade do problema que mata o processo. Ver `_trava_fala`.
         async with self._trava_fala:
             self.falando = True
+            tarefa = asyncio.ensure_future(asyncio.to_thread(_sintetizar_e_reproduzir))
             try:
-                await asyncio.to_thread(_sintetizar_e_reproduzir)
+                # shield: cancelar `falar` NAO cancela a espera da thread.
+                # Antes (ate 2026-11-10, C6-03) o cancelamento (Professor.parar,
+                # o "para" falado) saia do `async with` na hora e soltava a
+                # trava com a thread AINDA tocando - a fala seguinte entrava
+                # num segundo `sd.play()` simultaneo, o SEGV de 05/08 - e
+                # `falando` virava False com o audio no ar (a escuta religava
+                # e ouvia a propria voz).
+                await asyncio.shield(tarefa)
+            except asyncio.CancelledError:
+                cancelada.set()
+                with _trava_sd:
+                    try:
+                        sd.stop()
+                    except Exception:
+                        logger.exception("sd.stop() falhou ao cancelar a fala")
+                # So solta a trava (e o `falando`) depois que a thread acabou
+                # de verdade. Outro cancel nesse meio-tempo nao encurta isso.
+                # (`asyncio.wait` nao cancela nem relanca o erro da tarefa.)
+                while not tarefa.done():
+                    try:
+                        await asyncio.wait({tarefa})
+                    except asyncio.CancelledError:
+                        continue
+                if not tarefa.cancelled() and tarefa.exception() is not None:
+                    logger.warning("fala cancelada terminou com erro: %r", tarefa.exception())
+                raise
             finally:
                 self.falando = False
                 self.fim_ultima_fala = time.monotonic()

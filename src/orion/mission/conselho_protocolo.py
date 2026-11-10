@@ -6,11 +6,16 @@ dele e a dependencia so pode andar num sentido: `motion_core` importa
 
     Pi  --->  behavior.pedir_conselho  --->  Notebook
     Pi  <---  behavior.conselho        <---  Notebook
+
+`AtendenteConselhoIA._ao_receber_pedido` volta na hora (2026-11-10, achado
+A1): o conselho e pensado numa tarefa de `tarefas.disparar`, fora do
+despacho do Event Bus, para a IA nao prender os outros eventos do Notebook.
 """
 from __future__ import annotations
 
 import logging
 
+from orion.kernel import tarefas
 from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("orion.mission.conselho")
@@ -33,10 +38,13 @@ class AtendenteConselhoIA:
         event_bus.subscribe(TOPICO_PEDIDO, self._ao_receber_pedido)
 
     async def _ao_receber_pedido(self, evento: Evento) -> None:
-        id_pedido = evento.dados.get("id")
+        tarefas.disparar(self._atender(dict(evento.dados)), "conselho_protocolo.atender")
+
+    async def _atender(self, dados: dict) -> None:
+        id_pedido = dados.get("id")
         try:
             conselho = await self._aconselhar(
-                evento.dados.get("contexto", ""), evento.dados.get("opcoes") or []
+                dados.get("contexto", ""), dados.get("opcoes") or []
             )
         except Exception:
             # Falha da IA não pode derrubar o Notebook nem deixar o Pi

@@ -410,3 +410,85 @@ async def test_memory_projeto_buscar_sem_indice_responde_ok_falso(
     bus_motion.parar()
     await tarefa_mission
     await tarefa_motion
+
+
+# ---------------------------------------------------------------------------
+# C5-08 (auditoria 2026-11-09): vault.buscar / nota_escrever / projeto.buscar
+# sao sincronos e rodavam DENTRO do laco asyncio do Pi - uma busca lenta no
+# SSD parava trava LiDAR, heartbeat do corpo e webui juntos.
+# ---------------------------------------------------------------------------
+
+
+class _VaultLento:
+    def buscar(self, consulta, limite=5):
+        import time
+
+        time.sleep(0.5)  # SSD USB lento
+        return [{"titulo": "achado", "trecho": consulta}]
+
+    def escrever_nota(self, titulo, conteudo, links=None):
+        import time
+
+        time.sleep(0.5)
+        return titulo
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "pedido",
+    [
+        {"comando": "memory.nota_buscar", "consulta": "bruno"},
+        {"comando": "memory.nota_escrever", "titulo": "t", "conteudo": "c"},
+        {"comando": "memory.projeto_buscar", "consulta": "serial"},
+    ],
+)
+async def test_operacao_sincrona_do_ssd_nao_para_o_laco(
+    tmp_path, par_conectado, monkeypatch, pedido
+):
+    from motion_core.memory import projeto
+
+    def _projeto_lento(*args, **kwargs):
+        import time
+
+        time.sleep(0.5)
+        return []
+
+    monkeypatch.setattr(projeto, "buscar", _projeto_lento)
+
+    bus_mission = EventBus()
+    bus_motion = EventBus()
+    tarefa_mission = await _rodar_bus(bus_mission)
+    tarefa_motion = await _rodar_bus(bus_motion)
+    servico_mission = ComunicacaoService("mission_core", bus_mission)
+    servico_motion = ComunicacaoService("motion_core", bus_motion)
+    transporte_mission, transporte_motion = par_conectado()
+    servico_mission.adicionar_link("motion_core", transporte_mission)
+    servico_motion.adicionar_link("mission_core", transporte_motion)
+
+    db = DatabaseManager(tmp_path / "orion.db", tmp_path / "backups")
+    db.iniciar()
+    PonteMemoria(MemoryAPI(db, bus_motion), servico_motion, _VaultLento()).registrar(bus_motion)
+
+    batidas = 0
+
+    async def _relogio():  # = trava LiDAR / heartbeat no mesmo laco
+        nonlocal batidas
+        while True:
+            await asyncio.sleep(0.02)
+            batidas += 1
+
+    relogio = asyncio.create_task(_relogio())
+    resposta = await servico_mission.request("motion_core", pedido, timeout_s=3)
+    relogio.cancel()
+
+    assert resposta.payload["ok"] is True
+    # Laco livre durante os 0,5 s de disco: ~25 batidas. Bloqueado: ~1.
+    assert batidas >= 10, f"o laco asyncio parou durante a operacao no SSD ({batidas} batidas)"
+
+    await servico_mission.encerrar()
+    await servico_motion.encerrar()
+    db.fechar()
+    bus_mission.parar()
+    bus_motion.parar()
+    await tarefa_mission
+    await tarefa_motion

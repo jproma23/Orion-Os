@@ -13,17 +13,26 @@ igual ao falado, e por isso e gravado em `conversas` (mission_planner grava os
 dois lados) e alimenta o extrator de fatos. Escrever "vai na cozinha" tem
 exatamente o mesmo efeito que dizer.
 
-Mesmo padrao de `PonteConselho` e `PonteDecisao`: usa ComunicacaoService de
-verdade, e nao o Event Bus local puro - evento local nao atravessa a rede
-sozinho (achado da vistoria de 2026-07-24).
+Mesmo padrao de `PonteConselho`: usa ComunicacaoService de verdade, e nao o
+Event Bus local puro - evento local nao atravessa a rede sozinho (achado da
+vistoria de 2026-07-24).
+
+**O handler volta na hora** (2026-11-10, achado A1 da auditoria): valida o
+texto e dispara o atendimento com `tarefas.disparar`. Esperar a IA dentro do
+handler prendia o Event Bus do Notebook inteiro (visao, heartbeat) enquanto
+ela pensava. As mensagens digitadas continuam atendidas UMA de cada vez e na
+ordem (`_trava_atender`) - como era quando o bus as serializava - para duas
+mensagens seguidas nao embaralharem o historico da conversa.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
 from orion.communication.protocol import Mensagem
 from orion.communication.service import ComunicacaoService
+from orion.kernel import tarefas
 from orion.kernel.event_bus import EventBus, Evento
 
 logger = logging.getLogger("orion.mission.ponte_conversa")
@@ -47,6 +56,7 @@ class PonteConversa:
     ) -> None:
         self._atender = atender
         self._servico = servico
+        self._trava_atender = asyncio.Lock()
 
     def registrar(self, event_bus: EventBus) -> None:
         event_bus.subscribe("comm.mensagem.command", self._ao_receber_comando)
@@ -72,17 +82,22 @@ class PonteConversa:
             return
 
         logger.info("chat: %s", texto)
-        try:
-            resposta = await self._atender(texto)
-        except Exception:
-            # Falhar aqui nao pode deixar o Pi esperando ate o timeout: quem
-            # digitou esta olhando a tela. Responder "nao deu" e melhor que
-            # silencio - mesmo raciocinio de PonteConselho.
-            logger.exception("falha ao atender a conversa por texto")
-            await self._servico.responder(
-                mensagem_original, {"ok": False, "erro": "o Jarvis nao conseguiu responder"}
-            )
-            return
+        # Fora do despacho do bus (A1).
+        tarefas.disparar(self._responder(mensagem_original, texto), "ponte_conversa.atender")
+
+    async def _responder(self, mensagem_original: Mensagem, texto: str) -> None:
+        async with self._trava_atender:
+            try:
+                resposta = await self._atender(texto)
+            except Exception:
+                # Falhar aqui nao pode deixar o Pi esperando ate o timeout:
+                # quem digitou esta olhando a tela. Responder "nao deu" e
+                # melhor que silencio - mesmo raciocinio de PonteConselho.
+                logger.exception("falha ao atender a conversa por texto")
+                await self._servico.responder(
+                    mensagem_original, {"ok": False, "erro": "o Jarvis nao conseguiu responder"}
+                )
+                return
 
         logger.info("chat, resposta: %s", resposta)
         await self._servico.responder(mensagem_original, {"ok": True, "resposta": resposta})

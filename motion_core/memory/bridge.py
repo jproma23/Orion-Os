@@ -6,6 +6,12 @@ recebido pelo ComunicacaoService (que ja ACKa e publica
 `comm.mensagem.command` no Event Bus) vira uma chamada na MemoryAPI,
 respondida com uma RESPONSE (Cap 5 s.6).
 
+Vault (arquivos .md) e indice do projeto (SQLite) sao SINCRONOS: rodam em
+`asyncio.to_thread` (2026-11-10, achado C5-08) para uma busca no SSD nao
+parar o laco asyncio do Pi inteiro (trava LiDAR, heartbeat do corpo, webui).
+O handler continua aguardando o resultado, entao o Event Bus ainda atende um
+comando de memoria por vez - a mesma serializacao de antes.
+
 Limitacao conhecida: ainda nao valida a origem da solicitacao contra o
 Service Registry (Cap 14 s.9 / Cap 11 s.8 exigem isso) - o Communication
 Core em si nao implementa esse controle de acesso ainda. Revisitar quando a
@@ -13,6 +19,7 @@ Fase 2 ganhar autenticacao de origem.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from typing import Any
@@ -124,8 +131,11 @@ class PonteMemoria:
         if operacao == "nota_escrever":
             if self._vault is None:
                 raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")
-            return self._vault.escrever_nota(
-                payload["titulo"], payload["conteudo"], payload.get("links")
+            return await asyncio.to_thread(
+                self._vault.escrever_nota,
+                payload["titulo"],
+                payload["conteudo"],
+                payload.get("links"),
             )
         if operacao == "projeto_buscar":
             # A memoria do PROJETO sobre si mesmo (journal, commits, EDRs,
@@ -134,7 +144,8 @@ class PonteMemoria:
             # vault tolera SSD ausente (Cap 6 s.8): some a capacidade, nao
             # o robo.
             try:
-                achados = projeto.buscar(
+                achados = await asyncio.to_thread(
+                    projeto.buscar,
                     projeto.CAMINHO_PADRAO,
                     payload["consulta"],
                     limite=payload.get("limite", 5),
@@ -160,5 +171,7 @@ class PonteMemoria:
         if operacao == "nota_buscar":
             if self._vault is None:
                 raise KeyError("Vault de conhecimento indisponivel (SSD ausente)")
-            return self._vault.buscar(payload["consulta"], payload.get("limite", 5))
+            return await asyncio.to_thread(
+                self._vault.buscar, payload["consulta"], payload.get("limite", 5)
+            )
         raise KeyError(f"Operacao de memoria desconhecida: '{operacao}'")
