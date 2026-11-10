@@ -22,6 +22,13 @@
 > - **`navigation` EXPLORE 🟠 "algoritmo ainda não escrito"** — foi escrito em
 >   30/07 e roda em produção (4 segmentos de 30 cm por decisão).
 > - **As contagens de "439 testes"** — hoje são 608 no Notebook e 538 no Pi.
+> - **A tabela do Hardware Core** (conferido em 2026-11-10 contra
+>   `firmware/hardware_core/include/`): o corpo é um **ESP32**, não o Arduino
+>   Mega (morreu em 02/08). `radar_manager.h` e `sensor_ultrassonico.h` **não
+>   existem mais** (saíram em 19/09, commit `3c71989` — a distância vem do
+>   LiDAR no Pi); `encoder_manager.h` também não existe: o encoder de roda é
+>   `encoder_pcnt.h` (desde 02/08, commit `b1a84e7`). As linhas desses
+>   arquivos ficam abaixo só como registro do snapshot.
 >
 > Não reclassifiquei as linhas de propósito: a rubrica exige evidência datada
 > por módulo, e inventar cor sem medir é exatamente o que ela existe para
@@ -90,7 +97,7 @@ uma das duas.
 
 ---
 
-## Hardware Core (Arduino Mega) — `firmware/hardware_core/`
+## Hardware Core (era Arduino Mega; hoje ESP32) — `firmware/hardware_core/`
 
 *(Sem suíte automatizada — ver nota no topo. "Evidência" cita compilação + bancada.)*
 
@@ -99,15 +106,15 @@ uma das duas.
 | `safety_manager.h` | 🟡 | 2026-07-27 | Compila (`pio run`, sucesso). Bancada: ponto cego do SCAN_FRONT fechado e SAFE_MODE deixou de ser estado sem saída (24–26/07); obstáculo real testado com a mão em 27/07 (174→61→172cm). | nenhum tecnicamente — mantido 🟡 pelo teto de política |
 | `motor_manager.h` — geração de passos (núcleo) | 🟡 | 2026-07-27 | Compila. `ENABLE_ATIVO_EM_BAIXO` calibrado fisicamente em 18/07. **Arquivo alterado nesta sessão** (carência do relé) — regra de rebaixamento 1: qualquer commit que toca o módulo invalida validação anterior até nova conferência. | gravar no Mega e revalidar a geração de passos |
 | `motor_manager.h` — carência do relé (novo, 27/07) | 🟡 | 2026-07-27 | Compila (RAM 46,3%). Achado do usuário, corrigido nesta sessão, commit `6b8815e`. **Não gravado no Mega.** | gravar e medir com 1000 passos contra parede |
-| `radar_manager.h` | 🟡 | 2026-07-27 | Compila. Offset físico (`RADAR_OFFSET_GRAUS = -45`) e arco de 120° calibrados ao vivo (24/07). **Arquivo alterado nesta sessão** (getter `frontalDescartes()`, não toca a calibração) — mesmo assim invalidado pela regra 1 até nova conferência. | gravar no Mega e revalidar |
-| `sensor_ultrassonico.h` — leitura frontal/traseira (núcleo) | 🟡 | 2026-07-27 | Compila. Bug do `sensor_ok` corrigido e validado ao vivo em 27/07 (mão na frente do sensor, 174→61→172cm). **Arquivo alterado nesta sessão** — invalidado pela regra 1. | gravar e revalidar |
-| `sensor_ultrassonico.h` — descarte por cegueira do loop (novo, 27/07) | 🟡 | 2026-07-27 | **Gravado no Mega e medido**: `frontal_descartes=29`, `traseiro_descartes=10` acumulados em poucos minutos de uptime real — confirma a hipótese (o envio da telemetria cega o loop durante o eco com frequência real, não só teórica). Ainda não correlacionado, em janela longa, com sumiço dos 423 ciclos de obstáculo falso. | observação prolongada correlacionando descartes com ausência de obstáculo falso |
+| `radar_manager.h` *(não existe mais — removido em 19/09, `3c71989`)* | ❌ removido | 2026-07-27 | Compila. Offset físico (`RADAR_OFFSET_GRAUS = -45`) e arco de 120° calibrados ao vivo (24/07). **Arquivo alterado nesta sessão** (getter `frontalDescartes()`, não toca a calibração) — mesmo assim invalidado pela regra 1 até nova conferência. | gravar no Mega e revalidar |
+| `sensor_ultrassonico.h` — leitura frontal/traseira (núcleo) *(não existe mais — removido em 19/09, `3c71989`)* | ❌ removido | 2026-07-27 | Compila. Bug do `sensor_ok` corrigido e validado ao vivo em 27/07 (mão na frente do sensor, 174→61→172cm). **Arquivo alterado nesta sessão** — invalidado pela regra 1. | gravar e revalidar |
+| `sensor_ultrassonico.h` — descarte por cegueira do loop *(não existe mais)* | ❌ removido | 2026-07-27 | **Gravado no Mega e medido**: `frontal_descartes=29`, `traseiro_descartes=10` acumulados em poucos minutos de uptime real — confirma a hipótese (o envio da telemetria cega o loop durante o eco com frequência real, não só teórica). Ainda não correlacionado, em janela longa, com sumiço dos 423 ciclos de obstáculo falso. | observação prolongada correlacionando descartes com ausência de obstáculo falso |
 | `bussola_manager.h` (QMC6310) | 🟠 | 2026-07-27 | Compila. Conectada e lendo (`bussola_conectada: true`), mas `rumo_valido: false` — recusa afirmar rumo por falta de calibração, corretamente. Isto é funcionamento parcial por natureza (falta um passo), não risco. | calibrar com o robô montado (`CALIBRATE_COMPASS`) |
 | `imu_manager.h` (MPU6050) | ❌ removido | 2026-08-18 | **Arquivo deletado** com a IMU descartada pelo dono (decisão de 16/08, executada em 18/08). Segurança de inclinação/impacto saiu do firmware; restam a parada reativa por obstáculo e o timeout de comando. Sem validação pendente — módulo não existe mais. | — |
 | `command_executor.h` — `SET_PAN_TILT` | 🟡 | 2026-07-27 | Compila. Sinal invertido nos dois eixos corrigido em `04ec281` (26/07). Journal registra literalmente "falta validar no hardware" — ainda de pé. | validar fisicamente o pan/tilt |
 | `telemetry_manager.h` | 🟡 | 2026-07-27 | Compila. Regime duplo (parado/andando) implementado com custo medido (envio 74→68ms). Regime "andando" nunca testado com o robô em movimento. **Arquivo alterado nesta sessão** (campos de descarte). | testar telemetria reduzida com movimento real |
 | `bussola_manager.h` — I2C físico | 🟡 | 2026-08-18 | Scanner de I2C no boot confirma o chip presente (27/07, após religar o fio). Achado de hard-iron dos motores documentado, sem calibração final. A IMU (MPU6050) saiu do barramento em 18/08 — a bússola é o único sensor I2C além dos servos da cabeça. | ver linha da bússola acima |
-| `encoder_manager.h` | 🔴 *(fora de escopo por decisão)* | 2026-07-27 | Pinos 18/19 reservados, sem sensor físico ligado. Decisão explícita do usuário (27/07): não usar o encoder indutivo LM12-3004NA. Não é bug — é escopo cortado conscientemente. | nenhum — reabrir só se a decisão for revertida |
+| `encoder_manager.h` *(não existe; o encoder é `encoder_pcnt.h` desde 02/08)* | ❌ substituído | 2026-07-27 | Pinos 18/19 reservados, sem sensor físico ligado. Decisão explícita do usuário (27/07): não usar o encoder indutivo LM12-3004NA. Não é bug — é escopo cortado conscientemente. | nenhum — reabrir só se a decisão for revertida |
 | `dht_manager.h`, `bateria_manager.h` | 🟠 | 2026-07-27 | Compilam, aparecem condicionalmente na telemetria (`dht_valido`, `bateria_lida`). Nenhuma validação de bancada com data encontrada no journal para nenhum dos dois. | validar leitura real e registrar data |
 
 ---
