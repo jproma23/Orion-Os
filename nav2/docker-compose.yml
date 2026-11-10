@@ -20,5 +20,8 @@ services:
     # mudar uma ponte nao exige rebuild de uma imagem de 2,3 GB no Pi.
     volumes:
       - ./src:/opt/orion_nav2/src:ro
+      # Onde o mapa salvo vai parar: no SSD do Pi, fora do container -
+      # senao ele morre junto com o container, como morria ate 2026-10-31.
+      - ../data/mapas:/opt/orion_nav2/mapas
     environment:
       - ROS_DOMAIN_ID=0

@@ -14,7 +14,8 @@
 //   - A DISTÂNCIA ESCRITA ao lado do ponto a cada 10 graus, e de QUALQUER grau
 //     passando o mouse (ângulo a partir da frente + cm até o LiDAR);
 //   - SEM ECO em cinza no aro: ali o LiDAR não mediu - pode ser vidro, longe
-//     demais ou PERTO DEMAIS (abaixo de 10 cm). Nunca é "livre";
+//     demais ou PERTO DEMAIS (abaixo de 5 cm, o lidar.min_distancia_mm 50).
+//     Nunca é "livre";
 //   - O ROBÔ EM TAMANHO REAL (39 x 30 cm, LiDAR 8 cm atrás da ponta da frente),
 //     com a FRENTE (lado da câmera) para cima;
 //   - AS LINHAS DA TRAVA: 50 cm à frente e atrás, no corredor da largura do
@@ -23,9 +24,9 @@
 //     trava e do desvio (não é a menor distância de um cone).
 //
 // COMO O ROBÔ SABE ONDE É A FRENTE: o LiDAR mede em relação à marca dele, não
-// à do robô. O `lidar.angulo_frente_graus` (345, medido em 31/10 andando para a
-// frente e vendo qual ângulo encurtou) gira toda leitura antes de publicar, e
-// daí em diante 90° = frente. Se o LiDAR for remontado, o teste da caixa
+// à do robô. O `lidar.angulo_frente_graus` (19 desde 01/11, medido com parede a
+// 30 cm e confirmado pelo dono; o 345 de 31/10 era a borda da faixa sem eco)
+// gira toda leitura antes de publicar, e daí em diante 90° = frente. Se o LiDAR for remontado, o teste da caixa
 // (EDR-0038, passo 1b) diz se a frente desta tela ainda é a frente de verdade.
 //
 // Convenção de ângulo: 0° = esquerda, 90° = frente (para cima), 180° = direita,

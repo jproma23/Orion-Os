@@ -345,6 +345,12 @@ class WebUIServer:
         #: - a pessoa acertava a senha e ja entrava deslogada (varredura de
         #: 2026-08-04). Dict preserva ordem de insercao desde o 3.7.
         self._sessoes: dict[str, float] = {}
+        #: Ligada por `navigation.parar` (o PARAR do ponto unico
+        #: `NavigationCore.parar_tudo`, 2026-11-10): a navegacao recusa
+        #: velocidade ate um goal novo, entao o /velocidade tambem recusa (423).
+        #: Antes respondia `ok: true` com a navegacao recusando - a ponte do
+        #: Nav2 achava que dirigia e o ControleManual contava como atividade.
+        self._velocidade_bloqueada = False
 
         self._app = web.Application(middlewares=[_revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
@@ -373,6 +379,19 @@ class WebUIServer:
 
         for topico in TOPICOS_REPASSADOS:
             event_bus.subscribe(topico, self._fazer_manipulador(topico))
+        event_bus.subscribe("navigation.parar", self._ao_navigation_parar)
+        # Solta no `navigation.goal` (publicado pelo /goal_nav2 ou por quem
+        # mais mandar destino) - a MESMA regra que destrava o NavigationCore.
+        event_bus.subscribe("navigation.goal", self._ao_navigation_goal)
+
+    async def _ao_navigation_parar(self, evento: Evento) -> None:
+        self._velocidade_bloqueada = True
+        dados = evento.dados if isinstance(evento.dados, dict) else {}
+        origem = dados.get("origem")
+        logger.info("webui: /velocidade bloqueado por PARAR (origem=%s)", origem)
+
+    async def _ao_navigation_goal(self, evento: Evento) -> None:
+        self._velocidade_bloqueada = False
 
     async def _handler_comando(self, request: web.Request) -> web.Response:
         """Controle manual: pede um comando ao Hardware Core, via navegacao.
@@ -511,6 +530,10 @@ class WebUIServer:
         Mesmas regras de quem pode dirigir que o `/comando`. Os tetos sao os
         do corpo (roda de 60 mm a 35 rpm: ~0,11 m/s); o firmware ainda encolhe
         as duas rodas juntas se a curva pedir mais que uma roda alcanca.
+
+        Depois de um PARAR (`navigation.parar`) responde 423 ate chegar um
+        `navigation.goal` novo (2026-11-10) - a ponte do Nav2 trata o 423 como
+        fim do episodio e nao insiste.
         """
         try:
             corpo = await request.json()
@@ -524,6 +547,11 @@ class WebUIServer:
             return web.json_response(
                 {"erro": "entre com a senha para dirigir o robô", "precisa_senha": True},
                 status=401,
+            )
+        if self._velocidade_bloqueada:
+            # ANTES de publicar: nem um VELOCIDADE sai depois do PARAR.
+            return web.json_response(
+                {"ok": False, "motivo": "parado_por_stop"}, status=423
             )
         if not self.operador_tem_o_volante():
             return web.json_response(
@@ -801,11 +829,15 @@ class WebUIServer:
         orfao nao e codigo pronto, e este e o segundo caso no mesmo mes (o
         primeiro foi o GOAP).
 
-        EXIGE SESSAO, sem excecao. E a acao mais destrutiva que a interface
-        oferece: derruba as duas maquinas, e voltar delas exige alguem
-        fisicamente perto do botao de energia. O `/comando` abre excecao para o
-        PARAR de emergencia porque parar e sempre seguro; aqui nao ha nada
-        equivalente - desligar nunca e a saida segura de um imprevisto.
+        QUEM PODE: a mesma regra de todo comando, `_acesso_permitido`. Desde
+        2026-11-01 a decisao do dono e SEM SENHA por padrao (ver
+        `_senha_exigida`): quem esta no Wi-Fi de casa ou no Tailscale DESLIGA
+        as duas maquinas sem sessao. A senha volta so com
+        `display.web.exigir_senha: true` - e, com ela ligada, esta rota NAO
+        abre a excecao que o `/comando` abre para o PARAR, porque desligar
+        nunca e a saida segura de um imprevisto: voltar das duas maquinas
+        exige alguem perto do botao de energia. (Ate 2026-11-10 esta docstring
+        dizia "EXIGE SESSAO, sem excecao" - deixou de ser verdade em 01/11.)
 
         Responde ANTES de desligar (`agendar()`): sem isso o poweroff derruba a
         rede no meio da resposta, o navegador mostra erro, e o dono clica de
@@ -1081,6 +1113,16 @@ class WebUIServer:
                 "leituras": dados.get("leituras", [])
                 or dados.get("lidar_leituras", [])
             }
+        elif topico == "lidar.error":
+            # LiDAR calado/caido (2026-11-10, C2-02): o ultimo scan NAO vale
+            # mais. Antes ficava em `_estado["lidar"]` para sempre e a ponte do
+            # Nav2 o republicava como se fosse de agora - o Nav2 navegava num
+            # mundo congelado. None = "nao sei", e quem le o /estado (ponte,
+            # /api/lidar, mapa) para de usar ate chegar um `lidar.scan` novo.
+            # O erro em si entra na lista de erros recentes da tela.
+            self._estado["lidar"] = None
+            self._estado["mapa"] = {"leituras": []}
+            self._registrar_erro(topico, dados)
         elif topico == "lidar.scan":
             self._estado["lidar"] = dados
             self._estado["mapa"] = {
