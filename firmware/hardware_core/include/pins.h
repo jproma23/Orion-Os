@@ -193,8 +193,9 @@ constexpr uint8_t SERVO_TILT = 19;  // (Mega: 11)
 // HIGH puxada pelo VCC dele, impedia a placa de bootar - ver o topo deste
 // arquivo. O 17 nao e strapping, o fio ja esteve nele e o rele do
 // ventilador que ocupava o numero nao existe mais.
-// >>> O FIO DA LANTERNA TEM QUE IR PARA O GPIO 17 antes de gravar este
-// firmware; no 2 o rele nao acende e a placa volta a nao bootar.
+// HOJE NAO HA NADA LIGADO NESTE PINO (dono, 2026-11-11): a lanterna nao
+// esta montada. O 17 fica reservado para quando ela voltar; gravar este
+// firmware nao pede mudanca de fio nenhuma.
 // O `digitalWrite(HIGH)` antes do `pinMode(OUTPUT)` (command_executor.h)
 // evita que o rele feche no instante em que o pino vira saida.
 constexpr uint8_t RELE_LANTERNA = 17;  // (Mega: 25) era LED_LANTERNA; GPIO 2 ate 2026-11-10

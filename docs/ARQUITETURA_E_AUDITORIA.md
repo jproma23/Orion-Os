@@ -124,6 +124,7 @@ Todas as falhas identificadas pelos auditores e verificadas com provas executáv
   - Se a leitura I2C da bússola congelar ou falhar, o rumo é invalidado imediatamente para não anular os giros lidos pelo encoder de pulsos.
 - **Correção Física do Relé da Lanterna ([`pins.h`](file:///C:/Users/jproma/ORION_backup/auditoria/firmware/hardware_core/include/pins.h))**:
   - O pino do relé foi transferido de `GPIO 2` para `GPIO 17`. O GPIO 2 é strapping pin do ESP32 e impedia a placa de ligar se estivesse em nível alto.
+  - Hoje não há nada ligado nesse pino (a lanterna não está montada, dono 11/11): é só reserva, nenhum fio precisa mudar.
 - **Compilação e Testes**: PlatformIO compilando 100% sem erros tanto para `hardware_core` quanto para `ouvidos_esp32`; 40 testes unitários em [`test_firmware_hardware_core.py`](file:///C:/Users/jproma/ORION_backup/auditoria/tests/unit/test_firmware_hardware_core.py) passando.
 
 ---
@@ -194,10 +195,8 @@ sequenceDiagram
 
 ## 5. Próximos Passos Recomendados
 
-1. **Procedimento Físico de Hardware**:
-   - Antes de conectar e gravar o binário atualizado no ESP32 do corpo, certificar-se de mudar a ligação do relé da lanterna do **GPIO 2** para o **GPIO 17**.
-2. **Consolidação do Repositório**:
+1. **Consolidação do Repositório**:
    - Manter os commits atômicos por bloco no branch `auditoria-2026-11-09`.
    - Manter os plugins do Jarvis desligados até a implementação de um sandbox restrito.
-3. **Validação em Bancada**:
+2. **Validação em Bancada**:
    - Testar o robô suspenso (rodas livres) verificando a resposta imediata aos comandos manuais, travamento de giro ao aproximar anteparo lateral a menos de 37,5 cm do eixo dianteiro, e corte imediato da ré a 25 cm de obstáculo traseiro.
