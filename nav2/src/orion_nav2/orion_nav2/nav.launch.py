@@ -28,8 +28,8 @@ from launch_ros.substitutions import FindPackageShare
 RAIZ_PACOTE = os.path.dirname(os.path.abspath(__file__))
 
 #: Posicao do LiDAR no base_link (m). x negativo = atras do eixo dianteiro.
-#: A distancia LiDAR -> eixo motriz vai virar `chassi.lidar_ate_eixo_motriz_m`
-#: no orion.yaml; a altura e o `chassi.lidar_altura_m`. O teste
+#: A distancia LiDAR -> eixo motriz e `chassi.lidar_ate_eixo_motriz_m` no
+#: orion.yaml; a altura e o `chassi.lidar_altura_m`. O teste
 #: tests/unit/test_nav2_footprint.py prende estes numeros ao orion.yaml.
 LASER_X_M = -0.10
 LASER_Y_M = 0.0

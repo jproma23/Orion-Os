@@ -212,8 +212,12 @@ chassi:
   roda_apoio_distancia_m: 0.25  # do eixo das rodas motrizes a roda de apoio
   # MEDIDAS DO LIDAR (2026-10-31): em cima, a 45 cm do chao (cego para tudo
   # mais baixo), ~8 cm atras da ponta da frente - com a trava parada, o LiDAR
-  # mediu 48 cm e a fita deu ~40 da ponta ate a parede. Ainda NAO usado em
-  # codigo: quem quiser "X cm do para-choque" soma isto.
+  # mediu 48 cm e a fita deu ~40 da ponta ate a parede. USADO desde 08/11
+  # pela trava (filtro da carcaca) e pelo footprint do Nav2.
+  # A PONTA DO CORPO (LiDAR + 8 cm) fica 2 cm ATRAS do eixo motriz; quem vai
+  # mais longe na frente e a RODA (eixo + raio = +3 cm). Nao e contradicao:
+  # por isso o footprint do Nav2 termina em +0,03 (dono, 11/11: valem estas
+  # medidas, as anteriores estao erradas).
   lidar_altura_m: 0.45
   lidar_recuo_m: 0.08
   lidar_ate_eixo_motriz_m: 0.10  # eixo dianteiro ate o centro do LiDAR (LiDAR 10 cm atras do eixo)
@@ -230,10 +234,6 @@ chassi:
   #     `ultrassom_frontal_altura_m` até 2026-09-19; os ultrassons saíram do
   #     robô, a pendência não saiu junto, porque o problema nunca foi do
   #     ultrassom - é de qualquer sensor montado numa altura só.
-  #   lidar_recuo_m: quanto o LiDAR está recuado em relação à ponta mais
-  #     avançada do robô. Se for 0,10, então os 25 cm de
-  #     `lidar_min_obstaculo_cm` são 15 cm de para-choque - erro sistemático
-  #     em toda decisão de parada, e sempre no sentido perigoso.
 
 motion:
   # 30 e nao 60 (EDR-0037, 01/11): bateu duas vezes no mesmo dia. Sobe so

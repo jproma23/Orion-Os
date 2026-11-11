@@ -171,6 +171,8 @@ com 8/22; C1-05 = firmware renova homem-morto só em comando de roda + HEARTBEAT
 - Raio de segurança 25 cm em TODAS as direções, a partir do LiDAR; risco aceito: cantos de trás a 29,4 cm.
 - Medida: LiDAR a 10 cm da roda da frente e 15 cm da de trás (10+15 = roda_apoio_distancia_m 0,25 ✔).
   Falta: qual roda é a motriz (TF x = -0,10 ou +0,15) e conferir os 8 cm (LiDAR→ponta) contra os 10 cm (LiDAR→roda da frente).
+  **RESOLVIDO 11/11 (dono: "vai valer o que tá agora"):** motriz = frente; a ponta do corpo fica 2 cm atrás
+  do eixo e a roda passa 3 cm à frente dele (footprint +0,03). As duas medidas valem juntas.
   Nav2: usar `footprint` circular deslocado + TF base_link→laser, não robot_radius.
 - Rodas motrizes = FRENTE (relatado). base_link = eixo dianteiro; TF base_link→laser (-0,10, 0, ~0,45).
   Risco de giro: o diferencial gira no eixo, a traseira varre 37,5 cm em volta dele — o círculo de 25 cm

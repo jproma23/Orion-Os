@@ -6,9 +6,9 @@ partir do eixo. Decisao do dono: rodas motrizes na FRENTE, base_link = meio
 desse eixo, LiDAR 10 cm atras do eixo. Este teste prende o footprint e a TF
 base_link -> laser do nav.launch.py ao `chassi` do config/orion.yaml.
 
-`chassi.lidar_ate_eixo_motriz_m` (0,10) ainda NAO existe no orion.yaml em
-2026-11-10 - outro bloco da auditoria vai criar a chave. Ate la vale o
-padrao 0,10, a medida relatada pelo dono.
+`chassi.lidar_ate_eixo_motriz_m` (0,10) esta no orion.yaml desde 10/11; o
+padrao 0,10 abaixo so cobre um yaml antigo. Medidas confirmadas pelo dono
+em 11/11.
 """
 
 import ast  # o launch e lido sem importar: launch/launch_ros nao existem fora do container
