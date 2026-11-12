@@ -21,7 +21,6 @@ FECHADO (`acoes_faladas.py`); o que cada nome faz continua em codigo. O
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 import time
@@ -35,6 +34,7 @@ from orion.mission.acoes_faladas import extrair as _extrair_acao
 from orion.mission.acoes_faladas import sem_marcador as _sem_marcador
 from orion.mission.acoes_faladas import parametros_do_comando as _parametros_do_comando
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
+from orion.kernel.tarefas import disparar
 from orion.mission.ai_manager import SEM_IA, AiManager
 from orion.mission.comando_local import casar as _casar_comando_local
 from orion.mission.comando_local import combina_com_acao as _combina_com_acao
@@ -871,7 +871,9 @@ class MissionPlanner:
             except Exception:
                 logger.warning("falha ao contar a consulta a IA", exc_info=True)
 
-        asyncio.create_task(_contar())
+        # `disparar` e nao `asyncio.create_task` solto (auditoria C5-11): sem
+        # referencia guardada o Python pode recolher a tarefa no meio.
+        disparar(_contar(), "contar_consulta_ia")
 
     async def _obedecer_sem_ia(self, texto: str) -> str | None:
         """Executa a acao pedida quando a IA NAO RESPONDEU. None = nao deu.

@@ -1041,14 +1041,17 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     # escolha discricionaria "o que eu faco agora, por conta propria".
     # RELIGADA 2026-11-01 a pedido do dono, com o retrato novo (LiDAR nos 4
     # lados, bussola, encoder, objetos da camera) e a trava do LiDAR nas
-    # rodas. 300 s e nao 30: a cota gratis do Gemini (500/dia) e dividida com
+    # rodas. Nao 30 s: a cota gratis do Gemini (500/dia) e dividida com
     # a conversa - a 30 s ela acabou em 3h30. So dirige em modo AUTONOMO.
     # RELIGADA 2026-11-01 ~17:20 a pedido do dono, com o freio do EDR-0037
     # (trava 50 cm, frente cega = obstaculo), o desvio local no EXPLORE, a
     # frente do LiDAR corrigida (19) e 30% de velocidade. Desligada 16:27
     # depois de bater na comoda e na parede com a trava em so-avisa.
     habilitado: true
-    intervalo_s: 300
+    # (auditoria C5-10, 12/11) Aqui havia `intervalo_s: 300` e mais abaixo
+    # `intervalo_s: 600` NA MESMA SECAO. O YAML fica com o ultimo: o que rodou
+    # sempre foi 600, e o 300 era config morta. Ficou so o de baixo, com a
+    # conta da cota. tests/unit/test_config_sem_chave_duplicada.py proibe isso.
     # So INTENCOES (2026-11-01, dono). Fora: andar_mm, girar_*_graus,
     # desviar_*_mm, avancar, virar_*, manobrar (manobra e do EXPLORE, que
     # desvia pelo LiDAR) e calibrar_bussola (gira o robo voltas a 70%).
