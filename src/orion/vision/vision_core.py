@@ -437,8 +437,22 @@ class VisionCore:
                 prioridade=Prioridade.ALTA,
             )
 
-        for deteccao in deteccoes:
-            topico = "vision.person_detected" if deteccao.classe == "person" else "vision.object_detected"
+        # OBJETO INFORMA A IA A PARTIR DO LIMIAR DE DESCREVER (auditoria 12/11,
+        # dono: "o yolo tem que informar a ia sobre os objetos ao seu redor" /
+        # "o problema e que ele nao detecta"). `vision.object_detected` e o que
+        # chega ao retrato do mundo no Pi - e saia so acima de 0,55, o limiar
+        # de ACAO. Com yolov8n a 320 px cadeira, copo e tv costumam vir entre
+        # 0,3 e 0,5: apareciam no "o que voce ve" da conversa e a IA
+        # estrategica nunca sabia deles. Objeto nao move cabeca nem rodas, so
+        # informa - entao vale o limiar de descrever. PESSOA continua no de
+        # acao: ela move a cabeca e o FOLLOW, onde falso positivo custa caro.
+        informar = [d for d in deteccoes if d.classe == "person"] + [
+            d for d in para_descrever if d.classe != "person"
+        ]
+        for deteccao in informar:
+            topico = (
+                "vision.person_detected" if deteccao.classe == "person" else "vision.object_detected"
+            )
             await self._event_bus.publish(
                 topico,
                 {

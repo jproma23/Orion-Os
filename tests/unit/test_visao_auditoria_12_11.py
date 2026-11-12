@@ -193,3 +193,33 @@ def test_caminho_explicito_na_config_e_respeitado(tmp_path):
 
     explicito = "data/modelos/yolov8n.pt"
     assert _nome_do_arquivo_do_modelo(explicito, tmp_path) == explicito
+
+
+# ------------------------------------------------ 6. objetos chegam a IA
+
+
+@pytest.mark.asyncio
+async def test_objeto_entre_os_limiares_informa_a_ia_e_pessoa_nao():
+    """Dono 12/11: 'o yolo tem que informar a ia sobre os objetos ao seu
+    redor'. O evento que chega ao retrato da IA saia so acima de 0,55 - copo a
+    0,40 ficava so na conversa. Pessoa a 0,40 continua sem evento: ela move a
+    cabeca e o FOLLOW."""
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+    objetos, pessoas = [], []
+    bus.subscribe("vision.object_detected", lambda e: objetos.append(e.dados["classe"]))
+    bus.subscribe("vision.person_detected", lambda e: pessoas.append(e.dados["classe"]))
+    visao = VisionCore(
+        bus,
+        captura=_Captura(),
+        detector=_Detector(
+            [Deteccao("cup", 0.40, (10, 10, 60, 60)), Deteccao("person", 0.40, (100, 50, 300, 470))]
+        ),
+        reconhecedor=_Reconhecedor([]),
+        confianca_para_descrever=0.35,
+    )
+    await visao.processar_um_frame()
+    await bus.aguardar_fila_vazia()
+    tarefa.cancel()
+    assert objetos == ["cup"]
+    assert pessoas == []
