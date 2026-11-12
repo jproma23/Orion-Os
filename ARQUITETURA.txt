@@ -20,7 +20,7 @@ EDR-0019 e a aposentadoria do Notebook de 09/09.
 | Motion Core | Navegação, LiDAR, fusão de sensores, ponte com o corpo, banco no SSD, interface web | Raspberry Pi 4 | Python 3.13 |
 | Hardware Core (corpo) | Tempo real: motores, servos, bússola, segurança reativa | ESP32-D0WD-V3 (DevKit), desde 02/08 (o Arduino Mega morreu) | C++ (PlatformIO) |
 | Ouvidos | 2 microfones I2S, fala direto com o Notebook (TCP 9100) | ESP32 | C++ |
-| Rosto | Olhos, boca, toque | ESP32-S3 (tela 3,5"), ligada no Pi | C++ (ESP-IDF) |
+| ~~Rosto~~ | ~~Olhos, boca, toque~~ — **a tela SAIU do robô em 25/10/2026** (dono); o rosto voltou ao avatar do Notebook | ~~ESP32-S3 (tela 3,5")~~ | — |
 
 > **Estado em 25/10/2026:** a EDR-0036 está executada pela metade. O Mission
 > Core está desligado no Pi e roda dentro do `orion-avatar` do Notebook, com
@@ -224,10 +224,17 @@ gate deixou de ser impossível — antes nenhum módulo PODIA ser verde; agora
 quem tiver a evidência datada pode. Continua valendo a regra de rebaixamento
 1: qualquer commit que toca o módulo derruba o status para `?`.
 
-Ressalva que segue de pé: **deslocamento físico ainda não foi medido.** Os
-motores estão desconectados (só os drivers TB6600 no robô, rodas suspensas) e
-não há encoder de roda — a odometria conta passos COMANDADOS, não medidos.
-Logo, "andou 30 cm" é o que o robô mandou fazer, não o que ele fez.
+Ressalva de 30/07 (HISTÓRICA - ver a atualização logo abaixo): **deslocamento
+físico ainda não foi medido.** Os motores estão desconectados (só os drivers
+TB6600 no robô, rodas suspensas) e não há encoder de roda — a odometria conta
+passos COMANDADOS, não medidos.
+
+> **Atualização (auditoria C6-09, 12/11/2026):** o motor de passo e os TB6600
+> saíram. Desde 13/09 os motores são DC com encoder, numa ponte L298N
+> (`firmware/hardware_core/include/pins.h`), e desde 31/10 a odometria conta
+> pulsos MEDIDOS do encoder (`fusao_sensores.py`, `origem: encoder`). O encoder
+> mede a RODA, não o chão: roda no ar ainda "anda" - quem confere o chão é o
+> LiDAR, e desde 12/11 a câmera testemunha o giro (`odometria_visual.py`).
 
 ### Formato obrigatório da tabela
 

@@ -159,8 +159,19 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 python -m orion --sim     # sobe o sistema em simulação, sem hardware
-python -m orion           # boot real
 ```
+
+Em produção cada máquina roda o SEU serviço (`systemctl --user`, unit em
+`tools/*.service`) - não existe um comando único de "boot real":
+
+| Máquina | Serviço | O que executa |
+|---|---|---|
+| Raspberry Pi | `orion-motion` | `python -m motion_core` - corpo, LiDAR, trava, navegação, webui |
+| Raspberry Pi | `orion-mission` | `python -m orion` - Mission Core (memória, recados) |
+| Notebook | `orion-avatar` | `tools/conversar_jarvis.py` - visão, voz, IA e os repasses ao Pi |
+
+`python -m orion` no Notebook NÃO substitui o `orion-avatar`: ele não repassa
+visão, voz nem cabeça ao Pi (auditoria C6-08, 12/11).
 
 Testes e lint:
 
