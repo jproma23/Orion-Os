@@ -89,10 +89,12 @@ async def test_evento_do_bus_e_repassado_para_o_cliente_sse(cliente):
 
 @pytest.mark.asyncio
 async def test_topico_nao_repassado_e_ignorado():
-    # topico fora de TOPICOS_REPASSADOS nao deve ter handler registrado
+    # topico fora de TOPICOS_REPASSADOS nao deve ter handler registrado.
+    # (Era vision.person_detected, que passou a ser repassado em 12/11 para os
+    # olhos do rosto leve olharem para a pessoa.)
     bus = EventBus()
     AvatarServer(bus, config_frontend=CONFIG_FRONTEND)
-    assert "vision.person_detected" not in bus._assinantes
+    assert "lidar.scan" not in bus._assinantes
 
 
 # ----- instrumentacao da queda (2026-07-29) -----

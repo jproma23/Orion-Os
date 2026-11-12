@@ -40,6 +40,11 @@ TOPICOS_REPASSADOS = (
     # jamais apareceu na tela, e publicar nao falha: nada denunciava.
     # Quarta vez que este projeto paga pelo mesmo defeito.
     "voice.saudacao",
+    # O ROSTO LEVE (tools/rosto.py, 2026-11-12) le este mesmo SSE: o volume
+    # da fala para a boca, e onde esta a pessoa para os olhos olharem.
+    "voice.fala_envelope",
+    "vision.person_detected",
+    "vision.person_recognized",
     "motion.pan_tilt",
     "motion.status",
     "motion.obstacle_front",

@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=Jarvis - rosto (tela preta, olhos e boca)
+Comment=Rosto leve em pygame no lugar do Firefox em kiosk (2026-11-12)
+# POR QUE (dono, 12/11): "a tela kiosk consome bastante RAM, poderiamos usar
+# outra solucao" - "apenas uma tela preta e dois olhos emotivos" - "uma boca
+# que abre e fecha ao falar". O Firefox em kiosk era o maior consumidor do
+# Notebook (31/10: ~50% de um nucleo); este rosto mediu ~55 MB de RAM e 1-5%
+# de um nucleo (12/11, 960x540).
+#
+# Instalar: copiar para ~/.config/autostart/ e TIRAR de la o
+# orion-avatar-kiosk.desktop (os dois juntos abririam Firefox e rosto).
+# Voltar ao Firefox: o inverso. O orion-avatar continua servindo :8090 e
+# controlando o descanso da tela (tela.py) - este so le o SSE dele.
+#
+# `xset s off` / `s noblank` ficam pelo mesmo motivo do kiosk antigo: o
+# protetor de tela do X conta teclado e mouse, e ninguem toca neles.
+# O rosto reconecta sozinho ao SSE, entao nao precisa esperar o servico subir.
+# ATENCAO: o diretorio e o do servico no Notebook - em 01/11 era ~/orion-jarvis,
+# nao ~/orion-os. Conferir com `systemctl --user cat orion-avatar`.
+Exec=sh -c 'xset s off; xset s noblank; cd "$HOME/orion-os" && exec .venv/bin/python tools/rosto.py'
+X-GNOME-Autostart-enabled=true
+NoDisplay=false

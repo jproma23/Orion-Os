@@ -21,3 +21,30 @@ def reamostrar(audio: np.ndarray, taxa_origem: int, taxa_destino: int) -> np.nda
     indices_origem = np.arange(len(audio))
     indices_destino = np.linspace(0, len(audio) - 1, duracao_amostras)
     return np.interp(indices_destino, indices_origem, audio).astype(audio.dtype)
+
+
+#: Passo do envelope da fala (s). 40 ms = 25 pontos por segundo: segue as
+#: silabas (~4-6/s) sem mandar um evento enorme.
+PASSO_ENVELOPE_S = 0.04
+
+
+def envelope_da_fala(
+    audio: np.ndarray, taxa: int, passo_s: float = PASSO_ENVELOPE_S
+) -> list[float]:
+    """Volume da fala a cada `passo_s`, de 0 a 1 - para a BOCA do rosto (2026-11-12).
+
+    RMS por janela, normalizado pelo percentil 95 (e nao pelo maximo: um
+    estalo isolado nao pode deixar o resto da frase com a boca quase fechada).
+    Abaixo de 8% vira 0 - pausa entre palavras fecha a boca.
+    """
+    amostras = np.asarray(audio, dtype=np.float32).ravel()
+    janela = max(1, int(taxa * passo_s))
+    if amostras.size < janela:
+        return []
+    n = amostras.size // janela
+    blocos = amostras[: n * janela].reshape(n, janela)
+    rms = np.sqrt(np.mean(blocos * blocos, axis=1))
+    referencia = float(np.percentile(rms, 95)) or 1.0
+    niveis = np.clip(rms / referencia, 0.0, 1.0)
+    niveis[niveis < 0.08] = 0.0
+    return [round(float(v), 2) for v in niveis]

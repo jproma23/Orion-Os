@@ -24,6 +24,7 @@ import sounddevice as sd
 from piper import PiperVoice
 
 from orion.voice import timbre as _timbre
+from orion.voice.audio_utils import PASSO_ENVELOPE_S, envelope_da_fala
 from orion.voice.audio_utils import reamostrar as _reamostrar
 
 logger = logging.getLogger("orion.voice.sintese")
@@ -127,6 +128,10 @@ class Sintetizador:
         #: porque TODA fala passa por `falar` - resposta, saudacao, recado.
         self.falando = False
         self.fim_ultima_fala = float("-inf")
+        #: Chamado (DA THREAD de audio) logo antes de tocar, com o envelope da
+        #: fala e o passo (2026-11-12): e o que faz a boca do rosto abrir no
+        #: ritmo real da voz. Quem liga decide como levar ao barramento.
+        self.ao_comecar_a_tocar = None
         self._voz = PiperVoice.load(caminho_modelo)
         self._indice_dispositivo_saida = indice_dispositivo_saida
         self._aplicar_timbre = aplicar_timbre
@@ -198,6 +203,13 @@ class Sintetizador:
                 audio = _reamostrar(audio, taxa, taxa_dispositivo)
                 taxa = taxa_dispositivo
 
+            ao_tocar = getattr(self, "ao_comecar_a_tocar", None)
+            if ao_tocar is not None and not cancelada.is_set():
+                try:
+                    ao_tocar(envelope_da_fala(audio, taxa), PASSO_ENVELOPE_S)
+                except Exception:  # noqa: BLE001
+                    # rosto e enfeite: nunca impede a fala
+                    logger.debug("envelope da fala falhou", exc_info=True)
             with _trava_sd:
                 if cancelada.is_set():
                     return  # cancelaram durante a sintese: nem comeca a tocar

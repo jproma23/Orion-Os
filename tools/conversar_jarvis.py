@@ -180,6 +180,22 @@ async def principal() -> None:
         indice_dispositivo_saida=secao_voz["saida_audio_indice"],
     )
 
+    # A BOCA DO ROSTO NO RITMO DA VOZ (2026-11-12). O sintetizador chama isto
+    # DA THREAD de audio, logo antes de tocar; o evento vai ao barramento pelo
+    # laco (call_soon_threadsafe) e o rosto (tools/rosto.py) o recebe pelo SSE
+    # do avatar. Um evento por frase, nao um por quadro.
+    laco_principal = asyncio.get_running_loop()
+
+    def _envelope_para_o_rosto(niveis: list[float], passo_s: float) -> None:
+        laco_principal.call_soon_threadsafe(
+            lambda: disparar(
+                bus.publish("voice.fala_envelope", {"niveis": niveis, "passo_s": passo_s}),
+                "envelope_da_fala",
+            )
+        )
+
+    sintetizador.ao_comecar_a_tocar = _envelope_para_o_rosto
+
     ia = AiManager(
         temperatura=secao_ia["temperature"],
         caminho_prompt_sistema=secao_ia["system_prompt_file"],

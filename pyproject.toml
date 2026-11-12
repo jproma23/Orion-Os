@@ -54,9 +54,11 @@ vision = [
     # inteiro com um quit() interno (nao da so ImportError).
     "setuptools<81",
 ]
-# Mantido vazio para `pip install -e ".[display]"` antigo nao quebrar: o
-# aiohttp foi para as dependencias base (2026-11-10).
-display = []
+# O rosto leve (tools/rosto.py, 2026-11-12): tela preta, dois olhos e uma
+# boca em pygame, no lugar do Firefox em kiosk. Era vazio desde que o aiohttp
+# foi para as dependencias base (2026-11-10); `pip install -e ".[display]"`
+# continua valendo.
+display = ["pygame>=2.5"]
 
 [tool.ruff]
 line-length = 100
