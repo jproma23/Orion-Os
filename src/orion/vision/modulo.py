@@ -28,8 +28,15 @@ CallbackPanTilt = Callable[[float, float], Awaitable[None]]
 #: Notebook) sem transformar a espera num pedido a cada segundo.
 INTERVALO_RETENTATIVA_FAMILIA_S = 10.0
 
-#: 30 x 10s = 5 minutos. Passou disso, o problema nao e o Pi demorando.
+#: 30 x 10s = 5 minutos. Passou disso, o problema nao e o Pi demorando - grita
+#: no log e passa a tentar devagar (ver INTERVALO_LENTO_FAMILIA_S).
 MAX_TENTATIVAS_FAMILIA = 30
+
+#: Depois das tentativas rapidas, NAO desiste: tenta a cada minuto (auditoria
+#: 12/11). Antes, passados 5 min, o robo tratava a familia inteira como
+#: estranha ate alguem reiniciar - e o caso que mais demora e justamente o
+#: da SSD solta depois de uma queda, que volta quando alguem a encaixa.
+INTERVALO_LENTO_FAMILIA_S = 60.0
 
 
 class ModuloVisao:
@@ -80,7 +87,7 @@ class ModuloVisao:
         self._tarefa = asyncio.create_task(self._nucleo.executar())
         logger.info("Vision Core ativo (dono da camera %s)", self._conf["camera_indice_principal"])
 
-    async def _carregar_familia(self) -> bool:
+    async def _carregar_familia(self, avisar: bool = True) -> bool:
         """Ensina ao Vision Core quem e da casa. Devolve se conseguiu.
 
         Sem isso TODO mundo vira estranho e a Sentinela alerta sem parar -
@@ -94,11 +101,20 @@ class ModuloVisao:
         try:
             pessoas = await self._carregar_conhecidos()
         except Exception:  # noqa: BLE001
-            logger.warning("Nao consegui carregar os rostos conhecidos - seguindo sem", exc_info=True)
+            # `avisar=False` na fase lenta da retentativa: 1 aviso com
+            # traceback por minuto, para sempre, enterraria o log (ja houve
+            # arquivo de 39,7 MB por isso). O erro alto ja saiu uma vez.
+            nivel = logging.WARNING if avisar else logging.DEBUG
+            logger.log(
+                nivel, "Nao consegui carregar os rostos conhecidos - seguindo sem", exc_info=True
+            )
             return False
         conhecidos = [p for p in (pessoas or []) if p.get("embedding_face")]
         if not conhecidos:
-            logger.warning("Nenhum rosto conhecido no banco - Sentinela ficaria alertando de tudo")
+            logger.log(
+                logging.WARNING if avisar else logging.DEBUG,
+                "Nenhum rosto conhecido no banco - Sentinela ficaria alertando de tudo",
+            )
             return False
         self._nucleo.carregar_pessoas_conhecidas(conhecidos)
         logger.info("Vision Core: %d rosto(s) conhecido(s) carregado(s)", len(conhecidos))
@@ -122,20 +138,29 @@ class ModuloVisao:
         topico novo (e este projeto ja publicou no vazio tres vezes) e cobre
         tambem o banco que demora, nao so o enlace que atrasa.
 
-        Desiste alto depois de MAX_TENTATIVAS_FAMILIA: um robo que trata a
-        casa inteira como estranha precisa dizer isso em voz alta no log, e
-        nao seguir tentando calado para sempre.
+        Grita depois de MAX_TENTATIVAS_FAMILIA e NAO desiste (auditoria
+        12/11): passa a tentar a cada INTERVALO_LENTO_FAMILIA_S. Antes ele
+        desistia ate o reinicio, e uma SSD que voltasse 6 minutos depois
+        deixava o dono como estranho o dia inteiro.
         """
-        for tentativa in range(1, MAX_TENTATIVAS_FAMILIA + 1):
-            await asyncio.sleep(INTERVALO_RETENTATIVA_FAMILIA_S)
-            if await self._carregar_familia():
+        tentativa = 0
+        while True:
+            tentativa += 1
+            rapida = tentativa <= MAX_TENTATIVAS_FAMILIA
+            await asyncio.sleep(
+                INTERVALO_RETENTATIVA_FAMILIA_S if rapida else INTERVALO_LENTO_FAMILIA_S
+            )
+            if await self._carregar_familia(avisar=rapida):
                 logger.info("Rostos da familia carregados na tentativa %d", tentativa)
                 return
-        logger.error(
-            "Desisti de carregar os rostos apos %d tentativas - o robo vai tratar "
-            "TODA a familia como estranha ate ser reiniciado",
-            MAX_TENTATIVAS_FAMILIA,
-        )
+            if tentativa == MAX_TENTATIVAS_FAMILIA:
+                logger.error(
+                    "Rostos da familia ainda nao carregaram apos %d tentativas - o robo "
+                    "trata TODA a familia como estranha ate o banco do Pi responder "
+                    "(sigo tentando a cada %.0f s)",
+                    MAX_TENTATIVAS_FAMILIA,
+                    INTERVALO_LENTO_FAMILIA_S,
+                )
 
     async def _ligar_gestos(self) -> None:
         """Gestos de mao alimentados pelos frames de quem ja le a camera.

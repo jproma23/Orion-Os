@@ -358,3 +358,23 @@ def test_foto_agora_sem_nucleo_ou_quebrado_devolve_none_sem_levantar():
     assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=None).foto_agora() is None
     assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoQuebrado()).foto_agora() is None
     assert ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=NucleoFalso()).foto_agora() is None
+
+
+@pytest.mark.asyncio
+async def test_rostos_nao_desistem_depois_das_tentativas_rapidas(monkeypatch):
+    """Auditoria 12/11: depois de 30 tentativas (5 min) ele desistia ate o
+    reinicio - uma SSD que voltasse 6 min depois deixava o dono como estranho
+    o dia inteiro. Agora passa a tentar devagar e os rostos entram."""
+    monkeypatch.setattr("orion.vision.modulo.INTERVALO_RETENTATIVA_FAMILIA_S", 0.001)
+    monkeypatch.setattr("orion.vision.modulo.INTERVALO_LENTO_FAMILIA_S", 0.001)
+    monkeypatch.setattr("orion.vision.modulo.MAX_TENTATIVAS_FAMILIA", 3)
+    nucleo = NucleoFalso()
+    banco = _BancoQueDemora(falhas_antes=8)  # volta bem depois das 3 rapidas
+    modulo = ModuloVisao(EventBus(), CONFIG_VISAO, nucleo=nucleo, carregar_conhecidos=banco)
+    await modulo.iniciar()
+    for _ in range(200):
+        if getattr(nucleo, "familia", None):
+            break
+        await asyncio.sleep(0.005)
+    assert getattr(nucleo, "familia", None) == [ROSTO]
+    await modulo.encerrar()
