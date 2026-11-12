@@ -227,6 +227,14 @@ class TravaLidar:
             if perto is not None and perto < limite:
                 return f"obstaculo a {perto:.0f} cm para {sentido} (limite {limite:.0f} cm)"
         elif sentido == TRAS:
+            # TRASEIRA CEGA TAMBEM E OBSTACULO (auditoria C1-08, 12/11). A
+            # medicao de 01/11 (parede perto e de frente some do STL-50B2 em 3
+            # de 4 varreduras) e fisica do sensor, vale para qualquer lado - e
+            # a re e o movimento menos protegido do robo. Antes, so a frente
+            # cega travava; atras, "sem eco" liberava a re.
+            fracao = fracao_sem_eco(self._raios_cm, ANGULO_DO_SENTIDO[TRAS])
+            if fracao > FRACAO_CEGA_MAXIMA:
+                return f"traseira cega ({fracao:.0%} dos raios sem eco) - pode ser parede perto"
             perto = self._mais_perto_no_corredor(sentido)
             limite = self.limite_cm
             if perto is not None and perto < limite:
@@ -326,7 +334,7 @@ class TravaLidar:
         if sentido is None:
             return
         motivo = self._bloqueio(sentido)
-        if motivo is not None and motivo.startswith("frente cega"):
+        if motivo is not None and motivo.startswith(("frente cega", "traseira cega")):
             self._cegas_seguidas += 1
             if self._cegas_seguidas < self._cegas_para_parar:
                 return

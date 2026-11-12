@@ -543,3 +543,32 @@ async def test_calibrar_bussola_com_parede_no_raio_de_giro_e_recusado():
     trava = await _trava_com_scan(_raios(g180=25.0))  # 27 cm do eixo < 37,5
     motivo = trava.motivo_recusa({"comando": "CALIBRATE_COMPASS", "girar": True})
     assert motivo is not None and "raio de giro" in motivo
+
+
+@pytest.mark.asyncio
+async def test_traseira_cega_e_obstaculo_para_a_re():
+    """C1-08 (auditoria 12/11): atras, "sem eco" liberava a re. A parede perto
+    e de frente some do sensor (medido 01/11) - atras tambem."""
+    raios = [200.0] * 360
+    for angulo in range(245, 296):
+        raios[angulo] = None  # traseira cega
+    relogio = Relogio()
+    trava, paradas = _trava_padrao(relogio)
+    await _scan(trava, raios)
+    assert "traseira cega" in trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -10})
+    assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
+
+
+@pytest.mark.asyncio
+async def test_traseira_fica_cega_no_meio_da_re_para_com_duas_varreduras():
+    relogio = Relogio()
+    trava, paradas = _trava_padrao(relogio)
+    await _scan(trava, [200.0] * 360)
+    assert trava.motivo_recusa({"comando": "CMD_VEL", "v_m_s": -0.1, "w_rad_s": 0.0}) is None
+    cega = [200.0] * 360
+    for angulo in range(245, 296):
+        cega[angulo] = None
+    await _scan(trava, cega)
+    assert paradas.vezes == 0  # uma solta nao para
+    await _scan(trava, cega)
+    assert paradas.vezes == 1
