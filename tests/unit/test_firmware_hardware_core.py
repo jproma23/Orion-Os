@@ -462,3 +462,19 @@ def test_giro_de_calibracao_para_sem_o_pi():
     bloco = bloco[: bloco.index("ultimoComandoRecebido = millis();")]
     assert "orion::TIMEOUT_HEARTBEAT_PI_MS" in bloco
     assert "!piVivo" in bloco
+
+
+def test_leitura_do_encoder_e_consistente_com_a_isr_de_overflow():
+    """Auditoria 12/11: pulsos() lia o acumulado (somado pela ISR a cada 30000)
+    e o contador do hardware em dois passos, sem trava - a volta a zero entre
+    eles dava uma leitura com 30000 pulsos a menos (odometria do Pi pulando
+    metros; pico falso no PID). Agora: trava nos dois lados e, como a
+    contagem so sobe, total menor que o anterior = overflow com ISR pendente."""
+    cpp = _sem_comentarios(_ler(HC / "src/encoder_pcnt.cpp"))
+    pulsos = _corpo_da_funcao(cpp, "int64_t EncoderPcnt::pulsos()")
+    assert "portENTER_CRITICAL(&_trava)" in pulsos
+    assert "total < _ultimoTotal" in pulsos and "total += LIMITE_ALTO" in pulsos
+    isr = _corpo_da_funcao(cpp, "void EncoderPcnt::_sobre_limite()")
+    assert "portENTER_CRITICAL_ISR(&_trava)" in isr
+    zerar = _corpo_da_funcao(cpp, "void EncoderPcnt::zerar()")
+    assert "_ultimoTotal = 0" in zerar

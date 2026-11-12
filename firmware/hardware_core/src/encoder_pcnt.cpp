@@ -79,8 +79,17 @@ int64_t EncoderPcnt::pulsos() const
     return 0;
   }
   int16_t atual = 0;
+  portENTER_CRITICAL(&_trava);
   pcnt_get_counter_value(static_cast<pcnt_unit_t>(_unidade), &atual);
-  return _acumulado + static_cast<int64_t>(atual);
+  int64_t total = _acumulado + static_cast<int64_t>(atual);
+  if (total < _ultimoTotal) {
+    // O hardware ja voltou a 0 e a ISR de overflow ainda nao somou: conta
+    // aqui o que ela vai somar (sem gravar - quem grava e so a ISR).
+    total += LIMITE_ALTO;
+  }
+  _ultimoTotal = total;
+  portEXIT_CRITICAL(&_trava);
+  return total;
 }
 
 void EncoderPcnt::zerar()
@@ -88,13 +97,18 @@ void EncoderPcnt::zerar()
   if (_unidade < 0) {
     return;
   }
+  portENTER_CRITICAL(&_trava);
   pcnt_counter_clear(static_cast<pcnt_unit_t>(_unidade));
   _acumulado = 0;
+  _ultimoTotal = 0;
+  portEXIT_CRITICAL(&_trava);
 }
 
 void EncoderPcnt::_sobre_limite()
 {
+  portENTER_CRITICAL_ISR(&_trava);
   _acumulado += LIMITE_ALTO;
+  portEXIT_CRITICAL_ISR(&_trava);
 }
 
 }  // namespace orion

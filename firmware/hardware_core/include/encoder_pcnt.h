@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <freertos/FreeRTOS.h>
+
 namespace orion {
 
 class EncoderPcnt {
@@ -29,6 +31,15 @@ class EncoderPcnt {
 
   // Contagem BRUTA acumulada (sempre crescente, nunca decrementa - canal
   // unico nao sabe sentido). O chamador aplica o sinal externamente.
+  //
+  // LEITURA CONSISTENTE (auditoria 12/11). O total e `_acumulado` (somado
+  // pela ISR de overflow) + o contador do hardware, que volta a 0 ao chegar
+  // em 30000. Lidos em dois passos e sem trava, a volta a zero entre eles -
+  // ou a ISR ainda pendente - dava uma leitura com 30000 pulsos A MENOS e a
+  // seguinte certa: para a odometria do Pi, metros para tras e para a frente
+  // num piscar; para o PID, um pico falso de velocidade. Agora a leitura e
+  // sob trava e, como a contagem so sobe, "total menor que o ultimo" e a
+  // volta a zero cuja ISR ainda nao rodou.
   int64_t pulsos() const;
 
   void zerar();
@@ -39,6 +50,10 @@ class EncoderPcnt {
  private:
   int _unidade = -1;
   volatile int64_t _acumulado = 0;
+  //: Ultimo total devolvido - a contagem nunca desce (ver pulsos()).
+  mutable int64_t _ultimoTotal = 0;
+  //: Protege _acumulado (ISR) e _ultimoTotal entre a ISR e o loop.
+  mutable portMUX_TYPE _trava = portMUX_INITIALIZER_UNLOCKED;
 };
 
 }  // namespace orion
