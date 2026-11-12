@@ -595,3 +595,25 @@ async def test_firmware_de_outra_versao_aparece_no_painel(cenario):
     corpo = await (await http.get("/estado")).json()
     erros = corpo["estado"]["diagnostico"]["ultimos_erros"]
     assert erros and erros[-1]["topico"] == "comm.protocol_mismatch"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("topico", ["database.rebuilt", "database.backup_failed"])
+async def test_banco_recriado_ou_backup_falho_aparece_nos_erros(cenario, topico):
+    """Varredura de 12/11: os dois eram publicados no vazio - banco recriado do
+    zero (memoria perdida) era so uma linha de log."""
+    http, bus = cenario
+    await bus.publish(topico, {"caminho": "/mnt/ssd/orion/orion.db"})
+    await bus.aguardar_fila_vazia()
+    corpo = await (await http.get("/estado")).json()
+    assert corpo["estado"]["diagnostico"]["ultimos_erros"][-1]["topico"] == topico
+
+
+@pytest.mark.asyncio
+async def test_nav2_subindo_chega_ao_painel(cenario):
+    http, bus = cenario
+    await bus.publish("navigation.nav2_subindo", {"espera_estimada_s": 15})
+    await bus.aguardar_fila_vazia()
+    # /estado e nao /eventos: este e o fluxo SSE, que nao termina
+    corpo = await (await http.get("/estado")).json()
+    assert any(e["topico"] == "navigation.nav2_subindo" for e in corpo["eventos_recentes"])

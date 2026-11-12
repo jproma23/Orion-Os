@@ -1220,6 +1220,16 @@ async def principal() -> None:
     )
     await webui.iniciar()
 
+    # BANCO RECRIADO TEM QUE APARECER (auditoria 12/11). O banco abre no
+    # inicio do boot (`_abrir_memoria`, db.iniciar sincrono) e o
+    # `iniciar_banco()` que publicaria `database.rebuilt` nunca era chamado em
+    # producao - e ainda que fosse, a webui so nasce aqui. Banco recriado do
+    # zero = memoria do robo perdida, e so existia uma linha no log.
+    if db is not None and getattr(db, "foi_reconstruido", False):
+        await event_bus.publish(
+            "database.rebuilt", {"caminho": str(db.caminho_db)}, prioridade=Prioridade.ALTA
+        )
+
     registry.atualizar_estado(NOME_MODULO, EstadoModulo.RUNNING)
     await event_bus.publish(
         "system.ready",

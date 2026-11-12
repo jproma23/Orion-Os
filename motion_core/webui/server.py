@@ -74,6 +74,17 @@ TOPICOS_REPASSADOS = (
     "navigation.segment_completed",
     "navigation.obstacle_avoided",
     "navigation.obstacle_recorrente",
+    # PUBLICADOS NO VAZIO ate 12/11 (varredura da auditoria). O Nav2 leva
+    # ~15 s para subir e o robo ficava parado sem explicacao; o desvio do
+    # EXPLORE nao aparecia em lugar nenhum.
+    "navigation.nav2_subindo",
+    "navigation.nav2_pronto",
+    "navigation.nav2_desligado",
+    "navigation.desvio",
+    # Banco recriado do zero (memoria perdida) e backup falhando: so linha
+    # de log ate 12/11. Entram tambem nos erros recentes.
+    "database.rebuilt",
+    "database.backup_failed",
     "navigation.target_lost",
     "navigation.error",
     "vision.person_detected",
@@ -1184,6 +1195,8 @@ class WebUIServer:
             "voice.audio_error",
             "diagnostic.alerta",
             "comm.protocol_mismatch",
+            "database.rebuilt",
+            "database.backup_failed",
         ):
             self._registrar_erro(topico, dados)
         elif topico == "comm.module_lost":
