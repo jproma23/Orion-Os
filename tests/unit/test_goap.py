@@ -272,3 +272,17 @@ def test_heuristica_nunca_superestima():
         {**vazio, "corpo_vivo": True}, objetivo, modelo_goap.ACOES_PLANEJAVEIS
     )
     assert _nomes(plano) == ["olhar_em_volta"], "havia caminho de UM passo"
+
+
+def test_goap_respeita_acoes_permitidas():
+    """C5-09: com `goap: true` o planejador usava todas as acoes e ignorava
+    `acoes_permitidas` - as manobras finas tiradas da IA voltavam por ele."""
+    from motion_core.behavior import modelo_goap
+    from motion_core.behavior.comportamentos import IaEstrategica
+
+    todas = [a.nome for a in modelo_goap.ACOES_PLANEJAVEIS]
+    permitida = todas[0]
+    ia = IaEstrategica.__new__(IaEstrategica)
+    ia._acoes_sem_efeito = set()
+    ia._acoes_validas = (permitida,)
+    assert [a.nome for a in ia._acoes_confiaveis()] == [permitida]

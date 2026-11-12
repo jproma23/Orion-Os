@@ -698,13 +698,19 @@ class IaEstrategica(Comportamento):
         logger.info("%s", texto)
 
     def _acoes_confiaveis(self) -> tuple:
-        """As acoes planejaveis menos as que provaram nao cumprir o que prometem."""
-        if not self._acoes_sem_efeito:
-            return modelo_goap.ACOES_PLANEJAVEIS
+        """As acoes planejaveis menos as que provaram nao cumprir o que prometem
+        e menos as que o dono nao permitiu.
+
+        `acoes_permitidas` (C5-09, auditoria): o GOAP planejava com TODAS as
+        acoes e ignorava a lista do yaml - com `goap: true`, as manobras finas
+        que o dono tirou da IA em 01/11 ("a ia nao precisa fazer manobras")
+        voltavam pela porta do planejador.
+        """
+        permitidas = set(self._acoes_validas)
         return tuple(
             acao
             for acao in modelo_goap.ACOES_PLANEJAVEIS
-            if acao.nome not in self._acoes_sem_efeito
+            if acao.nome not in self._acoes_sem_efeito and acao.nome in permitidas
         )
 
     def _cobrar_promessas(self, estado: dict[str, bool]) -> None:
