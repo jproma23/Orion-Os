@@ -40,6 +40,7 @@ nao pode ser mais exigente com um recado do que e com uma pergunta.
 """
 from __future__ import annotations
 
+import difflib
 import logging
 import unicodedata
 from datetime import datetime
@@ -118,6 +119,35 @@ def mesmo_nome(a: str, b: str) -> bool:
         # Nome de duas letras casaria com meio mundo por prefixo.
         return x == y
     return x.startswith(y) or y.startswith(x)
+
+
+def destinatario_conhecido(para: str, familia) -> tuple[bool, str | None]:
+    """O destinatario casa com alguem da familia? (conhecido, sugestao).
+
+    POR QUE (achado de 06/08, consertado na auditoria de 12/11): o Whisper
+    ouviu "Marisani", o apelido cadastrado e "Marisane", e o robo disse
+    "combinado, eu aviso" para um recado que a entrega nunca ia achar - preso
+    para sempre, parecendo pendente. Corrigir a tabela de apelidos a cada
+    variante nova nao escala: o nome vem da transcricao, que erra.
+
+    So a CRIACAO tem alguem na frente para corrigir. `sugestao` e o nome (ou
+    apelido) mais parecido, para o robo perguntar "voce quis dizer...?".
+    Sem familia configurada, nao ha com o que conferir: conta como conhecido.
+    """
+    nomes: list[str] = []
+    for pessoa in familia or []:
+        oficial = str((pessoa or {}).get("nome", "")).strip()
+        if oficial:
+            nomes.append(oficial)
+        nomes.extend(str(a).strip() for a in (pessoa or {}).get("apelidos") or [] if str(a).strip())
+    if not nomes:
+        return True, None
+    if any(mesmo_nome(para, nome) for nome in nomes):
+        return True, None
+    primeiro = (_sem_acento(para).split() or [""])[0]
+    por_chave = {(_sem_acento(n).split() or [""])[0]: n for n in nomes}
+    parecidos = difflib.get_close_matches(primeiro, list(por_chave), n=1, cutoff=0.6)
+    return False, (por_chave[parecidos[0]] if parecidos else None)
 
 
 class Recados:

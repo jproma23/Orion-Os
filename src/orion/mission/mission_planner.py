@@ -36,6 +36,7 @@ from orion.mission.acoes_faladas import parametros_do_comando as _parametros_do_
 from orion.mission.acoes_faladas import partir_argumento as _partir_argumento
 from orion.kernel.tarefas import disparar
 from orion.mission.ai_manager import SEM_IA, AiManager
+from orion.mission.recados import destinatario_conhecido
 from orion.mission.comando_local import casar as _casar_comando_local
 from orion.mission.comando_local import combina_com_acao as _combina_com_acao
 from orion.mission.comando_local import pediu_de_fato as _pediu_de_fato
@@ -1053,7 +1054,10 @@ class MissionPlanner:
             elif acao.entrega == "cabeca":
                 await self._despachar_cabeca(acao)
             elif acao.entrega == "recado":
-                await self._despachar_recado(argumento)
+                if (aviso := await self._despachar_recado(argumento)) is not None:
+                    # Guardou, mas o nome nao casa com ninguem: a frase do
+                    # modelo ("combinado, eu aviso") seria promessa vazia.
+                    return aviso
             elif acao.entrega == "navegacao":
                 if self._comandar_navegacao is None:
                     raise _SemCaminho("sem callback de navegacao")
@@ -1155,7 +1159,10 @@ class MissionPlanner:
             raise _SemCaminho("sem callback de cabeca")
         await self._mover_cabeca(float(acao.pan or 0.0), float(acao.tilt or 0.0))
 
-    async def _despachar_recado(self, argumento: str) -> None:
+    async def _despachar_recado(self, argumento: str) -> str | None:
+        """Guarda o recado. Devolve a frase de AVISO quando o destinatario nao
+        casa com ninguem da familia (o recado fica guardado assim mesmo - nunca
+        se perde -, mas o robo nao promete entregar o que nao vai achar)."""
         if self._deixar_recado is None:
             raise _SemCaminho("sem callback de recado")
         para, mensagem = _partir_argumento(argumento)
@@ -1163,6 +1170,16 @@ class MissionPlanner:
             raise _NaoGuardou(f"argumento sem destinatario ou sem texto: {argumento!r}")
         if not await self._deixar_recado(para, mensagem, ""):
             raise _NaoGuardou(f"o banco recusou o recado para {para!r}")
+        conhecido, sugestao = destinatario_conhecido(para, self._familia)
+        if conhecido:
+            return None
+        logger.warning("recado para quem nao conheco: %r (sugestao %r)", para, sugestao)
+        if sugestao:
+            return (
+                f"Guardei o recado, mas nao conheco ninguem chamado {para}. "
+                f"Voce quis dizer {sugestao}?"
+            )
+        return f"Guardei o recado, mas nao conheco ninguem chamado {para}. Para quem e?"
 
     async def _despachar_conhecimento(self, argumento: str) -> None:
         if self._guardar_conhecimento is None:

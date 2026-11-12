@@ -930,3 +930,52 @@ async def test_acao_com_numero_entrega_os_parametros_ao_corpo():
     await planner._cumprir_acao_pedida("#acao:virar_direita 90", "vira para a direita")
     assert recebidos and recebidos[0][0] == "TURN_RIGHT"
     assert recebidos[0][1]["graus"] == 90
+
+
+# ---- recado para nome que nao existe (achado 06/08, consertado 12/11) ----
+
+FAMILIA = [
+    {"nome": "João Paulo"},
+    {"nome": "Kamal"},
+    {"nome": "Marah", "apelidos": ["Mara", "Marisane"]},
+]
+
+
+@pytest.mark.asyncio
+async def test_recado_para_nome_desconhecido_guarda_e_diz_a_verdade():
+    """O caso real: o Whisper ouviu "Marisani", o apelido e "Marisane". O robo
+    dizia "combinado" e o recado ficava preso para sempre. Agora guarda (nunca
+    se perde) e pergunta, sugerindo o nome mais parecido."""
+    ai = AiManagerFalso(resposta="#acao:deixar_recado Marisani | ligar para ele\nCombinado, eu aviso!")
+    guardados = []
+
+    async def guardar(para, texto, de):
+        guardados.append(para)
+        return True
+
+    planner = MissionPlanner(ai_manager=ai, deixar_recado=guardar, familia=FAMILIA)
+    resposta = await planner.processar("avisa a Marisani pra me ligar")
+
+    assert guardados == ["Marisani"]
+    assert "combinado" not in resposta.lower()
+    assert "Marisani" in resposta and "Marisane" in resposta
+
+
+@pytest.mark.asyncio
+async def test_recado_para_apelido_conhecido_continua_combinado():
+    ai = AiManagerFalso(resposta="#acao:deixar_recado Marisane | oi\nCombinado, eu aviso!")
+
+    async def guardar(para, texto, de):
+        return True
+
+    planner = MissionPlanner(ai_manager=ai, deixar_recado=guardar, familia=FAMILIA)
+    assert await planner.processar("avisa a Marisane") == "Combinado, eu aviso!"
+
+
+def test_nome_sem_nada_parecido_pergunta_para_quem():
+    from orion.mission.recados import destinatario_conhecido
+
+    assert destinatario_conhecido("Joao", FAMILIA) == (True, None)
+    conhecido, sugestao = destinatario_conhecido("Zebedeu", FAMILIA)
+    assert conhecido is False and sugestao is None
+    assert destinatario_conhecido("Qualquer", None) == (True, None)
