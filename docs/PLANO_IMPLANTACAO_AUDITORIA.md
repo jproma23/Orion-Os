@@ -177,6 +177,28 @@ Passos, no Notebook, com o `orion-avatar` no ar:
 
 ---
 
+## Etapa 7c — Rosto leve no lugar do Firefox (Notebook)
+
+Dono, 12/11: *"a tela kiosk consome bastante RAM"* — *"apenas uma tela preta e dois olhos
+emotivos"* — *"uma boca que abre e fecha ao falar"*. Medido no Windows: ~55 MB e 1–5% de um
+núcleo (o Firefox era ~50% de um núcleo).
+
+1. `.venv/bin/pip install -e ".[display]"` (instala o `pygame`).
+2. Testar sem mexer no autostart: `DISPLAY=:0 .venv/bin/python tools/rosto.py --janela --demo`
+   — passa por todas as expressões; Esc fecha.
+3. Com o robô no ar: `DISPLAY=:0 .venv/bin/python tools/rosto.py --janela` e falar com ele —
+   olhos ouvindo/pensando, boca no ritmo da voz, "^ ^" ao reconhecer alguém.
+4. Trocar o autostart: copiar `tools/orion-rosto-kiosk.desktop` para `~/.config/autostart/` e
+   TIRAR de lá o `orion-avatar-kiosk.desktop`. Conferir o diretório no `Exec=` (`~/orion-os` ou
+   `~/orion-jarvis`, o mesmo do serviço). Reiniciar a sessão gráfica.
+5. Medir no Notebook: `ps -o rss,pcpu -C python3` antes (Firefox) e depois (rosto).
+
+**Atenção:** o QUADRO das aulas (`display.quadro`) é desenhado pela página do Firefox. Com o rosto
+leve, a aula continua falada mas o quadro não aparece. Decisão do dono pendente: abrir o Firefox
+só durante a aula, ou deixar o quadro de lado. **Voltar:** inverter o passo 4.
+
+---
+
 ## Etapa 8 — Bancada com as rodas no ar (cada item prova um conserto)
 
 | # | Fazer | Esperado | Conserto que prova |
