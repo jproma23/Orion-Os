@@ -337,3 +337,15 @@ Scripts das varreduras (para refazer depois de mudanças grandes): `vazio.py`, `
 
 As varreduras automáticas e a leitura do firmware já acham pouco: o próximo ganho real é no
 robô ligado (suíte nas duas máquinas, merge, bancada).
+
+---
+
+## 12. Encoder e controle das rodas (12/11/2026, sétima rodada)
+
+| Ponto | Resultado |
+|---|---|
+| **Leitura do encoder (PCNT)** — era o "overflow PCNT sem seção crítica" (BAIXO de 10/11) | Mais sério que BAIXO: acumulado (ISR a cada 30000) + contador lidos em dois passos sem trava. Volta a zero entre os dois, ou ISR pendente = leitura com 30000 pulsos a menos e a seguinte certa → odometria do Pi pula metros (TF do Nav2) e o PID vê pico falso. Agora: `portMUX` na leitura, na ISR e no `zerar`; contagem só sobe, então "total menor que o último" = overflow com ISR pendente. Compila sem aviso nos arquivos do encoder. |
+| Roda travada | Certo: carimbo do último pulso renovado em todo início de movimento e troca de sentido; só cobra roda mandada girar. |
+| Fim por pulsos e teto de duty | Certos (já presos por teste). |
+
+Avisos do SDK em `main.cpp:273/295` (`PIN_INPUT_ENABLE`) já existiam — não são desta rodada.
