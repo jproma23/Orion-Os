@@ -817,3 +817,68 @@ async def test_gancho_de_repasse_ve_so_o_que_saiu_para_o_corpo():
     assert [v["comando"] for v in vistos] == ["SET_PAN_TILT"]
     assert vistos[0]["pan_graus"] == 35.0
     await comm.encerrar()
+
+
+# ---------- C5-05: memoria so quando for usada; extrator so do que foi a IA ----------
+
+
+class _MemoriaContada:
+    def __init__(self) -> None:
+        self.chamadas: list[str] = []
+        self.lembrados: list[dict] = []
+
+    async def context(self, pessoa_id, sobre=None):
+        self.chamadas.append("context")
+        return {}
+
+    async def nota_buscar(self, texto):
+        self.chamadas.append("nota_buscar")
+        return []
+
+    async def remember(self, tabela, dados):
+        self.lembrados.append(dados)
+
+    def __getattr__(self, nome):
+        async def _qualquer(*a, **k):
+            self.chamadas.append(nome)
+            return None
+
+        return _qualquer
+
+
+class _ExtratorEspiao:
+    def __init__(self) -> None:
+        self.turnos: list[tuple[str, str]] = []
+
+    def agendar(self, texto, resposta):
+        self.turnos.append((texto, resposta))
+
+    async def encerrar(self):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_pergunta_de_hora_nao_vai_a_memoria_nem_ao_extrator():
+    memoria = _MemoriaContada()
+    planner = mp.MissionPlanner(_IaQueNaoDeviaSerChamada(), memory_client=memoria)
+    planner._extrator = _ExtratorEspiao()
+    resposta = await planner.processar("que horas sao?")
+    assert resposta.startswith("Agora sao")
+    assert "context" not in memoria.chamadas and "nota_buscar" not in memoria.chamadas
+    assert planner._extrator.turnos == []  # nada para destilar: nao gasta cota
+    assert len(memoria.lembrados) == 2  # a conversa continua gravada
+
+
+@pytest.mark.asyncio
+async def test_parado_nao_vai_ao_extrator():
+    memoria = _MemoriaContada()
+
+    async def hw(comando, parametros=None):
+        pass
+
+    planner = mp.MissionPlanner(
+        _IaQueNaoDeviaSerChamada(), enviar_comando_hardware=hw, memory_client=memoria
+    )
+    planner._extrator = _ExtratorEspiao()
+    assert await planner.processar("Fofao, para!") == mp.RESPOSTA_PARAR
+    assert planner._extrator.turnos == []

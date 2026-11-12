@@ -487,6 +487,7 @@ class MissionPlanner:
 
     async def processar(self, texto_usuario: str, pessoa_id: int | None = None) -> str:
         resposta, contexto = await self._resposta_sem_ia(texto_usuario, pessoa_id)
+        foi_a_ia = resposta is None
         if resposta is None:
             await self._contar_consulta_ia()
             bruta = await self._ai_manager.responder(texto_usuario, contexto)
@@ -494,10 +495,11 @@ class MissionPlanner:
             # tenta obedecer sozinho antes de dizer que nao consegue pensar.
             if bruta == SEM_IA and (local := await self._obedecer_sem_ia(texto_usuario)):
                 resposta = local
+                foi_a_ia = False  # a IA nao respondeu: o extrator tambem falharia
             else:
                 resposta = await self._cumprir_acao_pedida(bruta, texto_usuario)
 
-        await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
+        await self._registrar_interacao(pessoa_id, texto_usuario, resposta, extrair=foi_a_ia)
         return resposta
 
     async def responder_em_frases(self, texto_usuario: str, pessoa_id: int | None = None):
@@ -518,7 +520,7 @@ class MissionPlanner:
 
         if resposta is not None:
             yield resposta
-            await self._registrar_interacao(pessoa_id, texto_usuario, resposta)
+            await self._registrar_interacao(pessoa_id, texto_usuario, resposta, extrair=False)
             return
 
         # O registro da interacao precisa do texto INTEIRO, e ele so existe
@@ -543,7 +545,9 @@ class MissionPlanner:
                     local = await self._obedecer_sem_ia(texto_usuario)
                     if local is not None:
                         yield local
-                        await self._registrar_interacao(pessoa_id, texto_usuario, local)
+                        await self._registrar_interacao(
+                            pessoa_id, texto_usuario, local, extrair=False
+                        )
                         return
                 # `pode_calar`: aqui sobrar nada e aceitavel, porque as frases
                 # seguintes ainda vem. Era exatamente nesta primeira frase que
@@ -599,7 +603,11 @@ class MissionPlanner:
             # conversa (FALAR), em vez de virar so "Parado." (C5-04).
             logger.info("parei e sigo a conversa: %r", texto_usuario)
 
-        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
+        # O CONTEXTO SO QUANDO FOR USADO (auditoria C5-05, 12/11). Ele faz ate
+        # 4 idas a memoria do Pi e era montado ANTES da cascata - para depois
+        # a hora, a aula ou o "quem sou eu" responderem sem olhar para ele.
+        # Dos degraus, so o diario ("viu o Kamal?") o usa; a IA tambem.
+        contexto: dict | None = None
         if (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
             resposta = aula_pausada
         elif (escolha := await self._escolher_aula_pendente(texto_usuario)) is not None:
@@ -618,7 +626,13 @@ class MissionPlanner:
             resposta = jarvis_resp
         elif self._eh_pergunta_de_hora(texto_usuario):
             resposta = self._responder_hora()
-        elif (resposta_diario := await self._responder_sobre_quem_viu(
+        else:
+            resposta = None
+        if resposta is not None:
+            return resposta, None
+
+        contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
+        if (resposta_diario := await self._responder_sobre_quem_viu(
             texto_usuario, contexto
         )) is not None:
             resposta = resposta_diario
@@ -626,8 +640,6 @@ class MissionPlanner:
             texto_usuario
         )) is not None:
             resposta = visao_agora
-        else:
-            resposta = None
         return resposta, contexto
 
     async def _consultar_contexto(self, pessoa_id: int | None, texto_usuario: str) -> dict | None:
@@ -1376,14 +1388,23 @@ class MissionPlanner:
             await self._extrator.encerrar()
 
     async def _registrar_interacao(
-        self, pessoa_id: int | None, texto_usuario: str, resposta: str
+        self,
+        pessoa_id: int | None,
+        texto_usuario: str,
+        resposta: str,
+        extrair: bool = True,
     ) -> None:
         if self._memory_client is None:
             return
         # A conversa vira FATO em segundo plano (2026-08-02). `agendar` volta
         # na hora: a extracao acontece depois, sem ninguem esperando. Perder um
         # fato e barato; atrasar a fala nao e.
-        extrator = self.extrator
+        #
+        # `extrair=False` (auditoria C5-05, 12/11): turno respondido pela
+        # cascata (hora, aula, "Parado.", o que a camera ve) nao tem fato de
+        # ninguem - e mandava ao extrator, que gasta COTA da IA (500/dia) para
+        # destilar "Parado.". A conversa continua sendo gravada igual.
+        extrator = self.extrator if extrair else None
         if extrator is not None:
             extrator.agendar(texto_usuario, resposta)
         try:
