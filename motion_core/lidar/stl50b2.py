@@ -197,9 +197,17 @@ def pontos_validos(quadro: QuadroLidar) -> tuple[PontoLidar, ...]:
 def acumular_scan(quadros: list[QuadroLidar]) -> dict[int, PontoLidar]:
     """Junta varios quadros numa varredura polar: angulo(graus) -> ponto.
 
-    Quando o mesmo angulo chega duas vezes (quadros sobrepostos, ou mais de
-    uma volta na janela), fica o ponto de MENOR distancia - um obstaculo perto
-    vale mais que um reflexo distante no mesmo angulo.
+    MESMO ANGULO DENTRO DE UM QUADRO (mesmo instante): fica o de MENOR
+    distancia - um obstaculo perto vale mais que um reflexo distante.
+
+    MESMO ANGULO EM QUADROS DIFERENTES: fica o MAIS NOVO (auditoria C2-06,
+    12/11). A janela do gerenciador guarda ~3,4 voltas deste sensor, e com
+    "menor vence" entre voltas um obstaculo que ja tinha saido daquele angulo
+    (o robo girou) continuava la por ~350 ms - fantasma que a navegacao
+    contornava com espera (ESPERA_VARREDURA_APOS_GIRO_S). Chegando mais perto,
+    o mais novo ja e o menor; a regra antiga so mudava o resultado quando o
+    obstaculo tinha IDO EMBORA. A janela continua grande: a cobertura da volta
+    inteira nao muda.
 
     Os pontos "sem retorno" (1-2 mm) sao descartados aqui e nao no
     gerenciador de proposito: nao receber eco e semantica do PROTOCOLO, nao
@@ -207,10 +215,12 @@ def acumular_scan(quadros: list[QuadroLidar]) -> dict[int, PontoLidar]:
     sempre o 1 mm e transformar cada direcao sem eco em parede colada.
     """
     scan: dict[int, PontoLidar] = {}
-    for quadro in quadros:
+    for quadro in quadros:  # do mais velho para o mais novo
+        deste_quadro: dict[int, PontoLidar] = {}
         for ponto in pontos_validos(quadro):
             angulo_int = int(ponto.angulo_graus) % 360
-            atual = scan.get(angulo_int)
+            atual = deste_quadro.get(angulo_int)
             if atual is None or ponto.distancia_mm < atual.distancia_mm:
-                scan[angulo_int] = ponto
+                deste_quadro[angulo_int] = ponto
+        scan.update(deste_quadro)
     return scan

@@ -144,13 +144,24 @@ def test_distancia_absurda_e_descartada():
 # ---------------------------------------------------------------------------
 
 
-def test_acumular_scan_mantem_menor_distancia_por_angulo():
-    """Obstaculo perto vale mais que reflexo distante no mesmo angulo."""
+def test_acumular_scan_obstaculo_que_chegou_perto_aparece():
+    """Chegando perto, o quadro mais novo e o mais perto - e e o que vale."""
     longe = stl50b2.decodificar_quadro(montar_quadro(10.0, 37.0, distancia_mm=3000))
     perto = stl50b2.decodificar_quadro(montar_quadro(10.0, 37.0, distancia_mm=500))
     scan = stl50b2.acumular_scan([longe, perto])
     assert scan, "scan vazio"
     assert all(p.distancia_mm == 500 for p in scan.values())
+
+
+def test_obstaculo_que_foi_embora_nao_vira_fantasma():
+    """C2-06 (auditoria 12/11): a janela guarda ~3,4 voltas. Com "menor vence"
+    entre voltas, o obstaculo que saiu daquele angulo (o robo girou) seguia
+    aparecendo por ~350 ms. Entre quadros, vale o mais novo."""
+    antes = stl50b2.decodificar_quadro(montar_quadro(10.0, 37.0, distancia_mm=400))
+    depois = stl50b2.decodificar_quadro(montar_quadro(10.0, 37.0, distancia_mm=2500))
+    scan = stl50b2.acumular_scan([antes, depois])
+    assert scan
+    assert all(p.distancia_mm == 2500 for p in scan.values())
 
 
 def test_acumular_scan_ignora_pontos_sem_retorno():
