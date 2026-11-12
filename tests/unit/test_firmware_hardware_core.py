@@ -450,3 +450,15 @@ def test_ota_senha_passa_auth_ao_upload_so_quando_ha_segredo(tmp_path):
     env = _EnvFalso(PROJECT_INCLUDE_DIR=str(diag / "include"), PROJECT_DIR=str(diag))
     _rodar_extra_script(OUVIDOS / "ota_senha.py", env)
     assert env.anexado["UPLOAD_FLAGS"] == ["--auth=abc123"]
+
+
+def test_giro_de_calibracao_para_sem_o_pi():
+    """Auditoria 12/11: o giro de calibrar a bussola renova o homem-morto
+    sozinho ate a coleta acabar (25 s). Com o Pi travado, a trava do LiDAR
+    (que roda no Pi) nao existe e o robo girava as cegas ate o fim. Mesmo
+    criterio do movimento com fim: heartbeat do Pi velho = para."""
+    codigo = _sem_comentarios(MAIN)
+    bloco = codigo[codigo.index("if (girandoParaCalibrar) {"):]
+    bloco = bloco[: bloco.index("ultimoComandoRecebido = millis();")]
+    assert "orion::TIMEOUT_HEARTBEAT_PI_MS" in bloco
+    assert "!piVivo" in bloco

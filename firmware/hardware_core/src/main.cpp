@@ -693,7 +693,14 @@ void loop() {
   // Giro da calibracao: acaba sozinho quando a coleta acaba (25 s). Se
   // alguem mandou STOP no meio, as rodas ja pararam e so falta esquecer.
   if (girandoParaCalibrar) {
-    if (!bussola.calibrando() || !motores.emMovimento()) {
+    // SEM O PI, NAO GIRA (auditoria 12/11). O giro renova o homem-morto
+    // sozinho ate a coleta acabar (25 s) - e quem para o robo se aparecer
+    // obstaculo no raio de giro e a trava do LiDAR, que roda NO PI. Com o Pi
+    // travado, o robo girava as cegas ate o fim. Mesmo criterio do movimento
+    // com fim (safety_manager.h): heartbeat do Pi velho = para.
+    const bool piVivo = heartbeatPiVisto &&
+                        (millis() - ultimoHeartbeatPi) <= orion::TIMEOUT_HEARTBEAT_PI_MS;
+    if (!bussola.calibrando() || !motores.emMovimento() || !piVivo) {
       motores.parar();
       girandoParaCalibrar = false;
     } else {
