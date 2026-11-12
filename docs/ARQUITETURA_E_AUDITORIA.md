@@ -266,3 +266,25 @@ sozinho quando a visão some (timeout de perda): a queda do Notebook não deixa 
 
 **Decisão do dono (12/11): a webui fica SEM SENHA.** Registrado como escolha, não como
 pendência. A API 8081 e o TCP 5757 continuam abertos na rede local, do jeito que estão.
+
+---
+
+## 8. Médios e baixos (12/11/2026, terceira rodada)
+
+| Achado | O que era | Conserto |
+|---|---|---|
+| **novo** | `CALIBRATE_COMPASS` com `girar` (gira no lugar; pedido pela IA, instinto e voz) e `TEST_WHEEL` (anda até 1,2 s) passavam pela trava sem checagem. | Calibrar girando = GIRO; teste de roda = frente/ré/GIRO. A bancada (`tools/testar_roda.py`) fala direto com a serial e não muda. |
+| C1-08 | Traseira cega liberava a ré (frente cega já travava desde 01/11). | Mesma regra atrás: 60% sem eco em ±20° = obstáculo; uma varredura solta não para, duas param. |
+| C2-06 | Janela de ~3,4 voltas + "menor distância vence" = obstáculo fantasma ~350 ms depois de girar. | STL-50B2: dentro do quadro vale o menor; entre quadros, o mais novo. Cobertura igual. |
+| A6 | Firmware com protocolo de outra versão = "Hardware Core não encontrado" (parecia cabo solto). | Vai para os erros da webui e o Pi loga "REGRAVAR o firmware". |
+| C5-10 | `ia_estrategica.intervalo_s` duas vezes (300 e 600); rodava 600. | Ficou só o 600; teste proíbe chave repetida em qualquer YAML. |
+| C5-11 | Tarefa do contador de IA sem referência. | `disparar()`. |
+| config | 25 chaves sem leitor; `security` parecia proteger e não protegia nada. | `security` marcada como NÃO IMPLEMENTADA; teste vigia a lista (falha com chave nova sem leitor ou se a lista mentir). Nada apagado: é decisão do dono. |
+| C6-08/09 | README dizia "python -m orion = boot real"; ARQUITETURA com tela ESP32-S3 e TB6600 sem encoder. | README com o serviço de cada máquina; ARQUITETURA com as mudanças datadas. |
+
+**Conferidos e já consertados antes:** A7 (CancelledError no bus), C4-05 (motores no 1º passo do
+boot; o resto da janela é pull-down de 10k, HARDWARE), C4-08 (ouvidos reiniciam sem Wi-Fi; OTA com
+senha), C6-03 (fala cancelada espera o áudio acabar).
+
+**Pendências de hardware (não são código):** pull-down de 10k nos IN1..IN4 do L298N (tranco no
+reset); medir o FOV da DV20 para ligar `peso_camera`.
