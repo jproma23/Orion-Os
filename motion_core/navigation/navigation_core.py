@@ -169,18 +169,19 @@ COMANDOS_MANUAIS = frozenset(
         "FAN_OFF",
         "DOCK",
         # Auto-ajuste (2026-07-28, pedido do usuario: calibracao ele tem que
-        # fazer, se auto ajustar). Nao movem o robo - mandam o Mega refazer a
-        # referencia dos proprios sensores. O CALIBRATE_IMU saiu em
-        # 2026-08-18 junto com a MPU6050.
+        # fazer, se auto ajustar). O CALIBRATE_IMU saiu em 2026-08-18 junto
+        # com a MPU6050. ATENCAO (auditoria 12/11): com `girar: true` o
+        # CALIBRATE_COMPASS GIRA o robo no lugar - a trava o trata como giro.
         "CALIBRATE_COMPASS",
     }
 )
 #: destes, quais avancam o robo para frente - sao os unicos sujeitos a
 #: checagem de obstaculo antes de serem enviados (Cap 12 s.6, camada tatica).
 #: MOVE_DISTANCE fica de fora de proposito: e o comando da re do joystick
-#: (distancia negativa), e a re nao tem sensor traseiro na seguranca reativa
-#: (SafetyManager so olha o radar frontal) - checar obstaculo A FRENTE antes
-#: de andar PARA TRAS não faria sentido.
+#: (distancia negativa) - checar obstaculo A FRENTE antes de andar PARA TRAS
+#: nao faria sentido. A re e protegida pela trava do LiDAR (porteiro do
+#: ComunicacaoService: corredor traseiro, piso de 25 cm e traseira cega desde
+#: 12/11), nao por esta lista.
 COMANDOS_QUE_AVANCAM = frozenset({"MOVE_FORWARD", "MOVE_CONTINUOUS"})
 #: comandos manuais que movimentam o robo (giram rodas) - esperam o Hardware
 #: Core ficar ocioso antes de seguir, para nao empilhar sobre um movimento em

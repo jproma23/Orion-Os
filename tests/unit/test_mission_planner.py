@@ -946,7 +946,9 @@ async def test_recado_para_nome_desconhecido_guarda_e_diz_a_verdade():
     """O caso real: o Whisper ouviu "Marisani", o apelido e "Marisane". O robo
     dizia "combinado" e o recado ficava preso para sempre. Agora guarda (nunca
     se perde) e pergunta, sugerindo o nome mais parecido."""
-    ai = AiManagerFalso(resposta="#acao:deixar_recado Marisani | ligar para ele\nCombinado, eu aviso!")
+    ai = AiManagerFalso(
+        resposta="#acao:deixar_recado Marisani | ligar para ele\nCombinado, eu aviso!"
+    )
     guardados = []
 
     async def guardar(para, texto, de):
