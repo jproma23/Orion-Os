@@ -580,3 +580,18 @@ async def test_sem_senha_por_padrao_dirige_de_fora(cenario, monkeypatch):
     resposta = await http.post("/comando", json={"comando": "MOVE_FORWARD"})
 
     assert resposta.status != 401
+
+
+@pytest.mark.asyncio
+async def test_firmware_de_outra_versao_aparece_no_painel(cenario):
+    """A6: `comm.protocol_mismatch` era publicado no vazio - o painel so
+    mostrava "Hardware Core nao encontrado", e parecia cabo solto."""
+    http, bus = cenario
+    await bus.publish(
+        "comm.protocol_mismatch",
+        {"destino": "hardware_core", "versao_recebida": "1.0", "versao_esperada": "2.0"},
+    )
+    await bus.aguardar_fila_vazia()
+    corpo = await (await http.get("/estado")).json()
+    erros = corpo["estado"]["diagnostico"]["ultimos_erros"]
+    assert erros and erros[-1]["topico"] == "comm.protocol_mismatch"

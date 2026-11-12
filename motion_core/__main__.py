@@ -116,7 +116,13 @@ async def _tentar_porta(
     comm.adicionar_link("hardware_core", transporte, exigir_checksum_mensagem=False)
     try:
         await descobrir(comm, "hardware_core", event_bus, timeout_s=3.0)
-    except (ErroVersaoIncompativel, ErroComunicacao):
+    except ErroVersaoIncompativel as erro:
+        # NAO e "nao achei o corpo": achei, e o firmware e de outra versao do
+        # protocolo (auditoria A6). Sem esta linha o sintoma era o mesmo de
+        # cabo solto e ninguem pensava em regravar.
+        logger.error("%s em %s - REGRAVAR o firmware do ESP32", erro, porta)
+        return False
+    except ErroComunicacao:
         # deixa o link registrado (comm.encerrar fecha o transporte no fim);
         # uma proxima candidata que responda sobrescreve "hardware_core".
         return False

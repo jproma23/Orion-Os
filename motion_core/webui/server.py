@@ -104,6 +104,10 @@ TOPICOS_REPASSADOS = (
     "comm.link_degraded",
     "comm.module_lost",
     "comm.module_recovered",
+    # Firmware gravado com outra versao do protocolo (auditoria A6, 12/11):
+    # era publicado sem ninguem ouvir, e o painel so mostrava "Hardware Core
+    # nao encontrado" - parecia cabo solto, e era firmware velho.
+    "comm.protocol_mismatch",
     "memory.updated",
     # O mapa 360° vem do LiDAR LD06 (Motion Core, 2026-08-17): o próprio
     # Motion Core lê a serial e publica setores. Antes o webui esperava
@@ -1179,6 +1183,7 @@ class WebUIServer:
             "vision.camera_error",
             "voice.audio_error",
             "diagnostic.alerta",
+            "comm.protocol_mismatch",
         ):
             self._registrar_erro(topico, dados)
         elif topico == "comm.module_lost":
