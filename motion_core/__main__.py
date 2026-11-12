@@ -596,7 +596,14 @@ async def principal() -> None:
     # cria um sozinho para nao gravar em /mnt/ssd durante os testes.
     memoria_decisoes = MemoriaDeDecisoes()
 
-    mundo = EstadoDoMundo(event_bus)
+    # Distancias do retrato contadas da LATARIA, com as mesmas medidas da
+    # trava (auditoria C2-07).
+    mundo = EstadoDoMundo(
+        event_bus,
+        corpo_frente_cm=corpo_frente_cm,
+        corpo_tras_cm=corpo_tras_cm,
+        corpo_meia_largura_cm=meia_largura_corpo_cm,
+    )
 
     # Instinto da bussola: percebe que o rumo esta oscilando demais com o robo
     # parado e avisa que nao da para confiar nele. Assina a telemetria; nao

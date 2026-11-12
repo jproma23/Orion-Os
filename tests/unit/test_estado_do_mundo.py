@@ -15,6 +15,9 @@ from motion_core.behavior.estado_do_mundo import (
     VALIDADE_TELEMETRIA_S,
     EstadoDoMundo,
     _Campo,
+    alcance_do_corpo_cm,
+    desvio_frontal,
+    livre_no_corredor,
 )
 from orion.kernel.event_bus import EventBus, Evento
 
@@ -26,6 +29,11 @@ def mundo() -> EstadoDoMundo:
 
 async def _telemetria(mundo: EstadoDoMundo, payload: dict) -> None:
     await mundo._ao_receber_telemetria(Evento("comm.mensagem.telemetry", {"payload": payload}))
+
+
+#: 34 cm do LiDAR nos setores da frente, contados da LATARIA (C2-07): o mais
+#: perto do corpo e o setor de 45 graus, onde a ponta fica a 8/sin(45) = 11,3 cm.
+DA_LATARIA_34 = round(34.0 - alcance_do_corpo_cm(45.0), 1)
 
 
 async def _lidar(mundo: EstadoDoMundo, frente_cm, tras_cm=999.0) -> None:
@@ -97,7 +105,7 @@ async def test_telemetria_preenche_o_corpo(mundo: EstadoDoMundo) -> None:
     await _telemetria(mundo, {"bateria_tensao_v": 12.1, "bateria_lida": True})
     await _lidar(mundo, frente_cm=34.0)
     r = mundo.retrato()
-    assert r.obstaculo_frente_cm == 34.0
+    assert r.obstaculo_frente_cm == DA_LATARIA_34
     assert r.telemetria_viva is True
 
 
@@ -128,7 +136,7 @@ async def test_telemetria_que_parou_de_chegar_marca_corpo_sem_sinal(
     # Varredura boa AGORA: sem ela o assert da distancia mais abaixo passaria
     # a toa, provando so que None continua None.
     await _lidar(mundo, frente_cm=34.0)
-    assert mundo.retrato().obstaculo_frente_cm == 34.0
+    assert mundo.retrato().obstaculo_frente_cm == DA_LATARIA_34
 
     # Avança o relógio para além do prazo de validade dos dois.
     real = time.monotonic
@@ -241,7 +249,7 @@ async def test_medida_real_aparece_no_retrato():
 
     await _lidar(mundo, frente_cm=34.0)
 
-    assert mundo.retrato().obstaculo_frente_cm == 34.0
+    assert mundo.retrato().obstaculo_frente_cm == DA_LATARIA_34
 
 
 # ----- quem esta na frente do robo, e nao so que ha alguem (2026-07-29) -----
@@ -413,3 +421,55 @@ async def test_objeto_longe_ou_de_lado_nao_pede_pressa():
     bus.parar()
     await tarefa
     assert pedidos == []
+
+
+# ----- C2-07 (auditoria 12/11): distancias da LATARIA, nao do LiDAR -----
+
+
+def _raios(**por_angulo):
+    raios = [None] * 360
+    for angulo, cm in por_angulo.items():
+        raios[int(angulo.lstrip("a"))] = cm
+    return raios
+
+
+def test_alcance_do_corpo_nas_quatro_direcoes():
+    assert alcance_do_corpo_cm(90.0) == pytest.approx(8.0)  # frente
+    assert alcance_do_corpo_cm(270.0) == pytest.approx(22.0)  # tras
+    assert alcance_do_corpo_cm(0.0) == pytest.approx(19.5)  # esquerda
+    assert alcance_do_corpo_cm(180.0) == pytest.approx(19.5)  # direita
+
+
+@pytest.mark.asyncio
+async def test_frente_e_tras_contam_da_lataria(mundo: EstadoDoMundo) -> None:
+    # Antes: "frente 33" com a ponta a 25 cm da parede; "tras 30" com a
+    # lataria a 8 cm. A IA decidia achando que tinha 3x mais espaco atras.
+    setores = [
+        {"inicio_graus": 75.0, "fim_graus": 105.0, "distancia_cm": 33.0},
+        {"inicio_graus": 255.0, "fim_graus": 285.0, "distancia_cm": 30.0},
+    ]
+    await mundo._ao_receber_lidar(Evento("lidar.scan", {"valido": True, "setores": setores}))
+    r = mundo.retrato()
+    assert r.obstaculo_frente_cm == pytest.approx(25.0)
+    assert r.obstaculo_tras_cm == pytest.approx(8.0)
+
+
+@pytest.mark.asyncio
+async def test_eco_de_dentro_do_corpo_nao_e_obstaculo(mundo: EstadoDoMundo) -> None:
+    setores = [
+        {"inicio_graus": 255.0, "fim_graus": 285.0, "distancia_cm": 15.0},  # dentro (22)
+    ]
+    await mundo._ao_receber_lidar(Evento("lidar.scan", {"valido": True, "setores": setores}))
+    assert mundo.retrato().obstaculo_tras_cm is None
+
+
+def test_corredor_conta_da_lataria():
+    raios = _raios(a90=50.0)
+    assert livre_no_corredor(raios, 90.0, 20.0) == pytest.approx(50.0)  # do LiDAR
+    assert livre_no_corredor(raios, 90.0, 20.0, corpo_cm=8.0) == pytest.approx(42.0)
+    assert livre_no_corredor(_raios(a90=6.0), 90.0, 20.0, corpo_cm=8.0) is None
+
+
+def test_desvio_frontal_conta_da_ponta():
+    d = desvio_frontal(_raios(a90=40.0), corpo_frente_cm=8.0)
+    assert d["obstaculo_mm"] == 320  # 400 do LiDAR - 80 da ponta

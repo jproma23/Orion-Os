@@ -109,14 +109,47 @@ DIRECOES_8 = (
 #: rodas = ~0,40 m; 20 cm de cada lado do eixo do movimento.
 MEIA_LARGURA_CORPO_CM = 20.0
 
+#: A CARCACA EM VOLTA DO LIDAR (auditoria C2-07, 12/11). As distancias do
+#: retrato eram do CENTRO do LiDAR: "frente livre 33 cm" eram 25 cm da ponta,
+#: e atras 30 cm eram 8 cm da lataria. Mesmas medidas da trava (orion.yaml
+#: chassi: lidar_recuo_m 0,08; profundidade 0,30 -> 22 atras; largura 0,39).
+#: O padrao e o corpo REAL de proposito: corpo 0 no padrao foi o "fake
+#: permissivo" que deixou o teste da re verde com a re desprotegida (C1-04).
+CORPO_FRENTE_CM = 8.0
+CORPO_TRAS_CM = 22.0
+CORPO_MEIA_LARGURA_CM = 19.5
 
-def livre_no_corredor(raios_cm, eixo_graus: float, meia_largura_cm: float) -> float | None:
+
+def alcance_do_corpo_cm(
+    direcao_graus: float,
+    frente_cm: float = CORPO_FRENTE_CM,
+    tras_cm: float = CORPO_TRAS_CM,
+    meia_largura_cm: float = CORPO_MEIA_LARGURA_CM,
+) -> float:
+    """Do centro do LiDAR ate a lataria, na direcao dada (0 = esquerda,
+    90 = frente, 180 = direita, 270 = tras): onde o raio sai da caixa do corpo."""
+    frente = math.sin(math.radians(direcao_graus))
+    lado = math.cos(math.radians(direcao_graus))
+    limites = []
+    if abs(frente) > 1e-9:
+        limites.append((frente_cm if frente > 0 else tras_cm) / abs(frente))
+    if abs(lado) > 1e-9:
+        limites.append(meia_largura_cm / abs(lado))
+    return min(limites)
+
+
+def livre_no_corredor(
+    raios_cm, eixo_graus: float, meia_largura_cm: float, corpo_cm: float = 0.0
+) -> float | None:
     """Quanto da para andar na direcao `eixo_graus` antes de um ponto do
     LiDAR entrar no CORREDOR da largura do corpo (2026-11-01).
 
     E isto, e nao a menor distancia de uma fatia, que diz o que e obstaculo:
     parede ao lado num corredor nao bate; caixa na frente bate. None = nenhum
     ponto medido no corredor (livre ate o alcance, ou perto demais/vidro).
+
+    `corpo_cm` (C2-07): quanto do eixo o corpo ja ocupa a partir do LiDAR.
+    O resultado e contado da LATARIA, e ponto dentro do corpo e eco proprio.
     """
     menor: float | None = None
     for angulo, distancia in enumerate(raios_cm or ()):
@@ -124,9 +157,9 @@ def livre_no_corredor(raios_cm, eixo_graus: float, meia_largura_cm: float) -> fl
             continue
         desvio = math.radians(angulo - eixo_graus)
         avanco = distancia * math.cos(desvio)
-        if avanco > 0 and abs(distancia * math.sin(desvio)) < meia_largura_cm:
-            if menor is None or avanco < menor:
-                menor = avanco
+        if avanco > corpo_cm and abs(distancia * math.sin(desvio)) < meia_largura_cm:
+            if menor is None or avanco - corpo_cm < menor:
+                menor = avanco - corpo_cm
     return menor
 
 
@@ -137,7 +170,10 @@ PASSO_DESVIO_MM = 50.0
 
 
 def desvio_frontal(
-    raios_cm, meia_largura_cm: float = 20.0, alcance_mm: float = ALCANCE_DESVIO_MM
+    raios_cm,
+    meia_largura_cm: float = 20.0,
+    alcance_mm: float = ALCANCE_DESVIO_MM,
+    corpo_frente_cm: float = 0.0,
 ) -> dict | None:
     """QUANTO DESVIAR, EM MM (2026-11-01). O dono: "ela precisa saber quando
     desviar e o quanto desvia em mm".
@@ -158,8 +194,9 @@ def desvio_frontal(
         desvio = math.radians(angulo - 90.0)  # 90 = frente
         x = distancia * 10.0 * math.cos(desvio)  # mm a frente
         y = distancia * 10.0 * math.sin(desvio)  # mm para a DIREITA (+)
-        if 0 < x <= alcance_mm:
-            pontos.append((x, y))
+        if corpo_frente_cm * 10.0 < x <= alcance_mm + corpo_frente_cm * 10.0:
+            # x contado da PONTA do corpo (C2-07); dentro dele e eco proprio
+            pontos.append((x - corpo_frente_cm * 10.0, y))
     meia_mm = meia_largura_cm * 10.0
 
     def bloqueado(deslocamento: float) -> list:
@@ -263,8 +300,16 @@ class RetratoDoMundo:
 class EstadoDoMundo:
     """Funde os eventos do barramento num retrato único e datado."""
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        corpo_frente_cm: float = CORPO_FRENTE_CM,
+        corpo_tras_cm: float = CORPO_TRAS_CM,
+        corpo_meia_largura_cm: float = CORPO_MEIA_LARGURA_CM,
+    ) -> None:
         self._bus = event_bus
+        #: Carcaca em volta do LiDAR - as distancias do retrato sao da LATARIA.
+        self._corpo = (float(corpo_frente_cm), float(corpo_tras_cm), float(corpo_meia_largura_cm))
 
         self._telemetria = _Campo()
         self._lidar = _Campo()
@@ -388,8 +433,13 @@ class EstadoDoMundo:
             delta = abs((centro - centro_graus + 180.0) % 360.0 - 180.0)
             if delta > self._MEIA_JANELA_GRAUS:
                 continue
-            if menor is None or distancia_cm < menor:
-                menor = float(distancia_cm)
+            # DA LATARIA (C2-07): desconta o corpo na direcao do setor; leitura
+            # dentro do corpo e eco proprio (mesma regra da trava).
+            corpo = alcance_do_corpo_cm(centro, *self._corpo)
+            if distancia_cm <= corpo:
+                continue
+            if menor is None or distancia_cm - corpo < menor:
+                menor = round(float(distancia_cm) - corpo, 1)
         return menor
 
     async def _ao_receber_telemetria(self, evento: Evento) -> None:
@@ -611,10 +661,22 @@ class EstadoDoMundo:
             rumo_graus=do_mega("rumo_graus", "rumo_valido"),
             posicao_x_m=(posicao or {}).get("x_m"),
             posicao_y_m=(posicao or {}).get("y_m"),
-            desvio_frontal=desvio_frontal(raios, MEIA_LARGURA_CORPO_CM) if raios else None,
+            desvio_frontal=(
+                desvio_frontal(raios, MEIA_LARGURA_CORPO_CM, corpo_frente_cm=self._corpo[0])
+                if raios
+                else None
+            ),
             livre_por_direcao=(
                 tuple(
-                    (nome, livre_no_corredor(raios, eixo, MEIA_LARGURA_CORPO_CM))
+                    (
+                        nome,
+                        livre_no_corredor(
+                            raios,
+                            eixo,
+                            MEIA_LARGURA_CORPO_CM,
+                            corpo_cm=alcance_do_corpo_cm(eixo, *self._corpo),
+                        ),
+                    )
                     for nome, eixo in DIRECOES_8
                 )
                 if raios
