@@ -252,8 +252,17 @@ sozinho quando a visão some (timeout de perda): a queda do Notebook não deixa 
 | C6-07 | `follow_distance_m: 1.2` no yaml, ninguém lia; o código usava 80 cm fixos. | Ligado ao yaml com 0,8 (o que rodou no teste de 08/11). | `navegacao` |
 | C5-09 | Com `goap: true` o planejador ignorava `acoes_permitidas` e as manobras finas voltavam. | Filtra pelas permitidas (sobram 9). GOAP hoje desligado. | `goap` |
 
-**Ainda abertos** (para a próxima rodada): C2-07 retrato da IA sem desconto do corpo ·
-C1-07 `bridge_cmd_vel` pega o volante uma vez só (409 depois) · C6-01/C6-02 o Pi não sabe
-quando a visão vira a cabeça · C5-05 idas ao Pi e cota gasta com "Parado." · C5-08 vault
-síncrono no laço do Pi · A4 heartbeat pelo bus. **Decisão do dono:** webui sem senha
-(C6-04), API 8081 e TCP 5757 abertos a qualquer cliente (C6-05).
+**Segunda rodada (12/11, dono: "faz tudo isso, web ui sem senha"):**
+
+| Achado | O que era | Conserto |
+|---|---|---|
+| C2-07 | Distâncias do retrato da IA contadas do centro do LiDAR: "frente 33" eram 25 cm da ponta; "trás 30" eram 8 cm da lataria. | Frente/trás/lados, corredor das 8 direções e desvio frontal contados da LATARIA (8/22/19,5 cm, as medidas da trava); eco de dentro da carcaça ignorado. Padrão do construtor = corpo real. |
+| C1-07 | Ponte `/cmd_vel` pegava o volante uma vez na vida. | Já consertado em 10/11 (por episódio); faltava teste — 3 testes com ROS falso. |
+| C6-01 | A visão do Notebook move a cabeça direto ao corpo; o Pi só repassava e o FOLLOW calculava a pessoa com a cabeça "no centro". | Gancho de repasse no `ComunicacaoService` (só depois do envio) publica `motion.cabeca_posicao`. |
+| C6-02 | `motion.pan_tilt` é PEDIDO e o Pi descarta parte (MANUAL, operador, taxa) — mas todos atualizavam a posição mesmo assim. | Só o que saiu ao ESP32 vira `motion.cabeca_posicao` (o FATO), e só isso vai ao Notebook. FOLLOW e retrato ouvem o fato. |
+| C5-05 | Contexto (até 4 idas à memória do Pi) montado antes de hora/aula responderem; todo turno ia ao extrator, que gasta cota com "Parado.". | Contexto só quando usado (diário e IA); extrator só recebe turnos que passaram pela IA. |
+| C5-08 | Vault síncrono no laço do Pi. | Já consertado (`asyncio.to_thread` na ponte de memória). |
+| A4 | Prova de vida passava pela fila do bus: handler lento = "perdi o corpo" + reconexão que reseta o ESP32. | Qualquer mensagem válida conta como vida na recepção, antes do bus; laço atrasado não julga perda. Teste falhava sem o conserto. |
+
+**Decisão do dono (12/11): a webui fica SEM SENHA.** Registrado como escolha, não como
+pendência. A API 8081 e o TCP 5757 continuam abertos na rede local, do jeito que estão.
