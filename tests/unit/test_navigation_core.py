@@ -1126,3 +1126,16 @@ async def test_follow_nao_gira_com_movel_encostado(cenario):
     await cenario.bus.aguardar_fila_vazia()
     await cenario.nav.iniciar_follow()
     assert cenario.nav._velocidade_follow() == (0.0, 0.0)
+
+
+def test_distancia_do_me_siga_vem_do_yaml():
+    """C6-07: `navigation.follow_distance_m` era config morta (o codigo usava
+    80 cm fixos). Sem a chave, o default continua 80 cm (teste de 08/11)."""
+    bus = EventBus()
+    comm = ComunicacaoService("motion_core", bus)
+    sem_chave = NavigationCore(bus, comm, CONFIG_MOTION, CONFIG_NAVIGATION)
+    assert sem_chave._follow_distancia_cm == pytest.approx(80.0)
+    com_chave = NavigationCore(
+        bus, comm, CONFIG_MOTION, {**CONFIG_NAVIGATION, "follow_distance_m": 1.5}
+    )
+    assert com_chave._follow_distancia_cm == pytest.approx(150.0)

@@ -288,7 +288,10 @@ motion:
     giro_parado_graus: 3
 
 navigation:
-  follow_distance_m: 1.2
+  # "Me siga": para quando a pessoa esta mais perto que isto (m). Era 1.2 e
+  # NINGUEM lia - o codigo usava 80 cm fixos, e 0,8 e o que rodou no teste do
+  # dono em 08/11 (auditoria C6-07). Agora e lido por navigation_core.py.
+  follow_distance_m: 0.8
   follow_lost_timeout_s: 10
   patrol_scan_before_segment: true
   obstacle_retry_max: 3

@@ -106,7 +106,7 @@ SEGMENTOS_POR_EXPLORE = 40
 #: errado ate sair dela.
 ESPERA_VARREDURA_APOS_GIRO_S = 0.6
 #: ME SIGA (2026-11-08) - ver `iniciar_follow`.
-FOLLOW_DISTANCIA_CM = 80.0          # para quando a pessoa esta mais perto que isto
+FOLLOW_DISTANCIA_CM = 80.0          # default de navigation.follow_distance_m (C6-07)
 FOLLOW_V_MAX_M_S = 0.11             # roda de 60 mm a 35 rpm
 FOLLOW_W_MAX_RAD_S = 0.6
 FOLLOW_KP_W = 1.5                   # rad/s por rad de desvio
@@ -241,6 +241,13 @@ class NavigationCore:
         self._scan_antes_de_segmento = config_navigation["patrol_scan_before_segment"]
         self._tentativas_obstaculo_max = config_navigation["obstacle_retry_max"]
         self._follow_lost_timeout_s = config_navigation["follow_lost_timeout_s"]
+        # A distancia do "me siga" vinha FIXA em FOLLOW_DISTANCIA_CM (80) e o
+        # `navigation.follow_distance_m: 1.2` do yaml era config morta
+        # (auditoria C6-07). Agora o yaml manda; o default e o que rodou no
+        # teste do dono em 08/11.
+        self._follow_distancia_cm = (
+            float(config_navigation.get("follow_distance_m", FOLLOW_DISTANCIA_CM / 100.0)) * 100.0
+        )
         #: Alvo do FOLLOW: (desvio em graus no robo, + = direita; largura da
         #: caixa em px; instante). Ver `_ao_ver_pessoa_follow`.
         self._alvo_follow: tuple[float, float, float] | None = None
@@ -1469,7 +1476,7 @@ class NavigationCore:
         await self._event_bus.publish(
             "motion.pan_tilt", {"pan": 0.0, "tilt": FOLLOW_TILT_GRAUS, "origem": "navegacao"}
         )
-        logger.info("follow: comecando - sigo a pessoa mais perto a %.0f cm", FOLLOW_DISTANCIA_CM)
+        logger.info("follow: comecando - sigo a pessoa mais perto a %.0f cm", self._follow_distancia_cm)
 
     async def _ao_mover_cabeca_follow(self, evento: Evento) -> None:
         try:
@@ -1630,7 +1637,7 @@ class NavigationCore:
             and confirmada
             and distancia is not None
             and abs(desvio) <= FOLLOW_ANDA_ATE_GRAUS
-            and distancia > FOLLOW_DISTANCIA_CM
+            and distancia > self._follow_distancia_cm
         ):
             livre = livre_na_direcao(self._raios_lidar, 90.0, self._meia_largura_desvio_cm)
             if (livre is None or livre <= FOLLOW_FREIO_CM + FOLLOW_FOLGA_FREIO_CM) and self._resumo_follow:
@@ -1638,7 +1645,7 @@ class NavigationCore:
             if livre is not None and livre > FOLLOW_FREIO_CM + FOLLOW_FOLGA_FREIO_CM:
                 v = min(
                     FOLLOW_V_MAX_M_S,
-                    (distancia - FOLLOW_DISTANCIA_CM) / 100.0 * FOLLOW_V_MAX_M_S,
+                    (distancia - self._follow_distancia_cm) / 100.0 * FOLLOW_V_MAX_M_S,
                     (livre - FOLLOW_FREIO_CM) / 100.0 * FOLLOW_V_MAX_M_S,
                 )
         return round(v, 3), round(w, 3)
