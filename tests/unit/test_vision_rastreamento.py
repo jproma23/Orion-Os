@@ -84,3 +84,52 @@ def test_candidata_diferente_reinicia_a_contagem_de_confirmacao():
 
     assert alvo is not None
     assert alvo.caixa == pessoa
+
+
+# --- alvo conhecido segue o ROSTO (auditoria 12/11, dono: "podemos usar o
+# reconhecimento") ---
+
+JOAO = (1, "Joao")
+ANA = (2, "Ana")
+
+
+def _rastreando_joao(caixa=(100, 100, 200, 300)):
+    rastreador = Rastreador()
+    rastreador.atualizar([caixa], {caixa: JOAO}, agora=0.0)
+    return rastreador
+
+
+def test_alvo_conhecido_nao_vira_outra_pessoa_conhecida():
+    # Joao sai do quadro; Ana, conhecida, esta colada onde ele estava.
+    rastreador = _rastreando_joao()
+    ana = (110, 100, 210, 300)
+    alvo = rastreador.atualizar([ana], {ana: ANA}, agora=0.5)
+    assert alvo.nome == "Joao"
+    assert alvo.caixa == (100, 100, 200, 300)  # nao andou para a Ana
+    assert rastreador.atualizar([ana], {ana: ANA}, agora=2.6) is None  # perde no timeout
+
+
+def test_alvo_conhecido_e_achado_pelo_rosto_mesmo_longe():
+    rastreador = _rastreando_joao()
+    estranho_perto = (105, 100, 205, 300)
+    joao_longe = (500, 100, 600, 300)
+    alvo = rastreador.atualizar(
+        [estranho_perto, joao_longe], {estranho_perto: (None, None), joao_longe: JOAO}, agora=0.5
+    )
+    assert alvo.caixa == joao_longe and alvo.nome == "Joao"
+
+
+def test_de_costas_continua_o_alvo_e_guarda_o_nome():
+    # rosto sumiu (virou de costas), caixa colada: e ele, com nome.
+    rastreador = _rastreando_joao()
+    de_costas = (120, 100, 220, 300)
+    alvo = rastreador.atualizar([de_costas], {}, agora=0.5)
+    assert alvo.caixa == de_costas
+    assert alvo.pessoa_id == 1 and alvo.nome == "Joao"
+
+
+def test_estranho_sem_rosto_longe_nao_vira_o_alvo():
+    rastreador = _rastreando_joao()
+    longe = (500, 100, 600, 300)
+    alvo = rastreador.atualizar([longe], {}, agora=0.5)
+    assert alvo.caixa == (100, 100, 200, 300)

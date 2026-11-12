@@ -222,9 +222,9 @@ USB dele). O Vision Engine do Pi (`motion_core/vision/`) está desligado de prop
 | V4 | **Cego e sala vazia davam a mesma frase**: pausada, câmera fechada, escuro, sem sinal ou visão que nem iniciou → "não estou vendo nada". A IA também não sabia que estava cega. | teste do planner | `motivo_cego()` no VisionCore/ModuloVisao; o planner diz "Não consigo enxergar agora: …" e põe isso no contexto da IA |
 | V5 | **Modelo relativo à pasta do processo**: `"yolov8n.pt"` solto; o serviço roda de `~/orion-os` ou `~/orion-jarvis`. Na pasta sem o arquivo o Ultralytics baixa; sem internet `YOLO()` levanta, o boot engole ("Visão indisponível") e a visão inteira some, rostos inclusive. | leitura: `modulo.py` + `orion-avatar.service` | procura primeiro em `data/modelos/` do projeto (como o Pi) e avisa alto no log quando não acha |
 
+| V6 | **O alvo trocava de pessoa**: com alvo, o rastreador pegava a caixa mais próxima; se o João saía e a Ana estava perto, o alvo virava a Ana sem `person_lost`. E o nome se perdia no quadro em que o rosto sumia (de costas) → o FOLLOW largava a pessoa. | 4 testes em `test_vision_rastreamento.py` | dono: *"podemos usar o reconhecimento"* — alvo com nome segue o ROSTO: mesma pessoa_id ganha onde estiver; outra pessoa conhecida nunca vira alvo; caixa sem rosto só se colada à anterior, e o alvo guarda o nome |
+
 Observações sem conserto (anotadas):
-- O rastreador, com alvo, pula para a caixa mais próxima sem checar IoU: se o alvo sai e
-  outra pessoa está perto, o alvo troca de pessoa sem `person_lost`.
 - `descartar_atrasados` liga para a DV20 local porque o `by-id` é string; inofensivo
   (o `grab()` local espera o quadro novo e sai no 1º laço).
 

@@ -4,6 +4,20 @@ Escolhe uma caixa entre as deteccoes de cada frame para ser "o alvo":
 a mais proxima da posicao anterior (rastreio continuo) ou, sem alvo
 anterior, a maior caixa (pessoa mais perto da camera). Sem nenhuma
 deteccao por `timeout_perdido_s`, o alvo e considerado perdido.
+
+O ALVO CONHECIDO E SEGUIDO PELO ROSTO (auditoria 12/11, dono: "podemos usar
+o reconhecimento"). Antes, com alvo, o rastreador pegava sempre a caixa mais
+proxima da anterior: se o Joao saia do quadro e a Ana estava perto, o alvo
+virava a Ana sem `person_lost` - e, se a Ana tivesse rosto conhecido, o FOLLOW
+passava a seguir a Ana. Agora, quando o alvo tem nome:
+
+- a caixa com o MESMO pessoa_id ganha, onde quer que esteja;
+- caixa de OUTRA pessoa conhecida nunca vira o alvo;
+- caixa sem rosto (de costas, longe) so continua o alvo se estiver colada a
+  caixa anterior - e o alvo GUARDA o nome, em vez de perde-lo no quadro em que
+  o rosto nao aparece (o FOLLOW so anda atras de gente reconhecida, e largava
+  a pessoa toda vez que ela virava de costas);
+- sem nenhuma dessas, conta como "ninguem" e o alvo se perde no timeout.
 """
 from __future__ import annotations
 
@@ -58,6 +72,17 @@ def _iou(a: Caixa, b: Caixa) -> float:
     return intersecao / uniao if uniao > 0 else 0.0
 
 
+def _colada(caixa: Caixa, anterior: Caixa) -> bool:
+    """A caixa nova e continuacao da anterior? Sobrepoe, ou o centro andou
+    menos que uma largura da caixa anterior (a 2 quadros/s uma pessoa andando
+    pode nao sobrepor, mas nao atravessa o quadro)."""
+    if _iou(caixa, anterior) > 0:
+        return True
+    (ax, ay), (bx, by) = _centro(caixa), _centro(anterior)
+    largura = max(1, anterior[2] - anterior[0])
+    return (ax - bx) ** 2 + (ay - by) ** 2 <= largura**2
+
+
 class Rastreador:
     def __init__(self, timeout_perdido_s: float = 2.0, frames_confirmacao: int = 1) -> None:
         self._timeout_perdido_s = timeout_perdido_s
@@ -90,6 +115,9 @@ class Rastreador:
                 self._alvo = None
             return self._alvo
 
+        if self._alvo is not None and self._alvo.pessoa_id is not None:
+            return self._seguir_conhecido(caixas_candidatas, identidades, agora)
+
         if self._alvo is not None:
             escolhida = _caixa_mais_proxima(caixas_candidatas, self._alvo.caixa)
             pessoa_id, nome = identidades.get(escolhida, (None, None))
@@ -110,6 +138,35 @@ class Rastreador:
         self._alvo = Alvo(caixa=candidata, pessoa_id=pessoa_id, nome=nome, ultima_atualizacao=agora)
         self._candidata = None
         self._candidata_contagem = 0
+        return self._alvo
+
+    def _seguir_conhecido(
+        self,
+        caixas: list[Caixa],
+        identidades: dict[Caixa, tuple[int | None, str | None]],
+        agora: float,
+    ) -> Alvo | None:
+        """Alvo com nome: segue o ROSTO, nao a proximidade. Ver docstring do modulo."""
+        alvo = self._alvo
+        mesma_pessoa = [c for c in caixas if identidades.get(c, (None, None))[0] == alvo.pessoa_id]
+        if mesma_pessoa:
+            escolhida = _caixa_mais_proxima(mesma_pessoa, alvo.caixa)
+        else:
+            sem_rosto_colada = [
+                c
+                for c in caixas
+                if identidades.get(c, (None, None))[0] is None and _colada(c, alvo.caixa)
+            ]
+            if not sem_rosto_colada:
+                # So ha estranhos longe ou OUTRA pessoa conhecida: para o
+                # alvo, isso e ninguem. Perde no timeout, como sem deteccao.
+                if agora - alvo.ultima_atualizacao > self._timeout_perdido_s:
+                    self._alvo = None
+                return self._alvo
+            escolhida = _caixa_mais_proxima(sem_rosto_colada, alvo.caixa)
+        self._alvo = Alvo(
+            caixa=escolhida, pessoa_id=alvo.pessoa_id, nome=alvo.nome, ultima_atualizacao=agora
+        )
         return self._alvo
 
     @property
