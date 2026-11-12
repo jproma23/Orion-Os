@@ -327,3 +327,33 @@ async def test_pose_do_encoder_se_declara_medida(cenario):
     pose = cenario.posicoes[-1]
     assert pose["medida"] is True
     assert pose["origem"] == ORIGEM_ENCODER
+
+
+@pytest.mark.asyncio
+async def test_bussola_que_chega_tarde_nao_gira_o_mapa(cenario):
+    """C2-04 (auditoria): o robo anda sem bussola valida e ela aparece depois.
+    Antes, a primeira leitura valida ALINHAVA de uma vez - a orientacao saltava
+    ate 180 graus e o TF/mapa do Nav2 girava junto. Agora ela entra RELATIVA:
+    a orientacao fica onde estava, e a bussola so corrige a deriva dali em diante.
+    """
+    await cenario.enviar_telemetria(passos_esquerda=0, passos_direita=0)
+    await cenario.enviar_telemetria(
+        passos_esquerda=PASSOS_POR_METRO, passos_direita=PASSOS_POR_METRO
+    )
+    assert cenario.posicoes[-1]["orientacao_graus"] == pytest.approx(0.0, abs=1e-3)
+    # bussola valida chega dizendo OESTE (yaw 180) com o robo apontando para leste
+    await cenario.enviar_telemetria(
+        passos_esquerda=2 * PASSOS_POR_METRO, passos_direita=2 * PASSOS_POR_METRO,
+        rumo_graus=270.0, rumo_valido=True,
+    )
+    pose = cenario.posicoes[-1]
+    assert pose["orientacao_graus"] % 360 == pytest.approx(0.0, abs=0.5)
+    assert pose["x_m"] == pytest.approx(2.0, abs=1e-2)
+    # e dali em diante a bussola manda na deriva: girar 90 graus a esquerda na
+    # bussola (rumo 270 -> 180) leva a orientacao para ~90 com o tempo
+    for _ in range(40):
+        await cenario.enviar_telemetria(
+            passos_esquerda=2 * PASSOS_POR_METRO, passos_direita=2 * PASSOS_POR_METRO,
+            rumo_graus=180.0, rumo_valido=True,
+        )
+    assert cenario.posicoes[-1]["orientacao_graus"] == pytest.approx(90.0, abs=1.0)

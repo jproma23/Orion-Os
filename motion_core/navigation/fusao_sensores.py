@@ -142,6 +142,13 @@ class FusaoSensores:
         #: A orientacao ja foi alinhada a bussola alguma vez? A primeira
         #: leitura valida ALINHA de uma vez; as seguintes so puxam devagar.
         self._ancorada = False
+        #: Diferenca (rad) entre o yaw da bussola e o referencial da pose,
+        #: fixada quando a bussola so fica valida DEPOIS de o robo andar
+        #: (auditoria C2-04). 0 = a pose e absoluta (ancorada parada).
+        self._desvio_bussola_rad = 0.0
+        #: O robo ja se mexeu desde que a pose nasceu? Depois disso, alinhar
+        #: de uma vez com a bussola giraria o mapa inteiro.
+        self._ja_andou = False
 
         # A CAMERA NA ODOMETRIA (2026-11-12). O Notebook mede o giro pela
         # imagem (src/orion/vision/odometria_visual.py) e manda o ACUMULADO.
@@ -345,6 +352,8 @@ class FusaoSensores:
 
         if delta_tempo_s <= 0:
             return  # telemetria duplicada ou fora de ordem - evita divisao por zero
+        if delta_esquerda or delta_direita:
+            self._ja_andou = True
 
         metros_por_passo = 1.0 / self._steps_per_meter
         distancia_esquerda_m = delta_esquerda * metros_por_passo * self._fator_correcao
@@ -365,7 +374,20 @@ class FusaoSensores:
         orientacao_rad = orientacao_anterior_rad + delta_orientacao_rad
         rumo_graus = self._rumo_valido(payload)
         if rumo_graus is not None:
-            erro = yaw_da_bussola_rad(rumo_graus) - orientacao_rad
+            if not self._ancorada and self._ja_andou:
+                # BUSSOLA TARDIA (auditoria C2-04): o robo andou sem bussola e
+                # ela chegou agora. Alinhar de uma vez saltava a orientacao
+                # (ate 180 graus) e o TF/mapa do Nav2 girava junto. Ela entra
+                # RELATIVA: guarda a diferenca deste instante e, dali em
+                # diante, so corrige a deriva - o referencial nao muda.
+                self._desvio_bussola_rad = yaw_da_bussola_rad(rumo_graus) - orientacao_rad
+                logger.warning(
+                    "bussola ficou valida com o robo ja andando - entra relativa "
+                    "(desvio %.0f graus), sem girar o mapa",
+                    math.degrees(self._desvio_bussola_rad),
+                )
+            alvo_rad = yaw_da_bussola_rad(rumo_graus) - self._desvio_bussola_rad
+            erro = alvo_rad - orientacao_rad
             erro = (erro + math.pi) % (2 * math.pi) - math.pi  # o lado mais curto
             peso = 1.0 if not self._ancorada else min(1.0, delta_tempo_s / TAU_BUSSOLA_S)
             orientacao_rad += peso * erro
