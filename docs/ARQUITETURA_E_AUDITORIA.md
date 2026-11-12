@@ -303,3 +303,23 @@ Sem lista antiga para seguir: varreduras por classe de defeito.
 | Comando que mexe as rodas fora da trava (varredura) | `DOCK` conferido: só para o robô, e é proibido para a IA. | Nada a fazer; comentários falsos do `navigation_core` corrigidos. |
 
 Restam sem assinante, só informativos: `database.ready`, `voice.transcription_ready`.
+
+---
+
+## 10. Varreduras por classe de defeito (12/11/2026, quinta rodada)
+
+| Varredura | Resultado |
+|---|---|
+| Tarefa sem referência (`create_task` solto) | 2 no Notebook: fala da resposta do chat → `disparar()`. |
+| Retentativa que desiste | Vozes da família desistiam em 5 min (como os rostos) → seguem a cada 60 s. |
+| Rede sem prazo | Limpo (httpx, aiohttp e urllib têm timeout). |
+| `except: pass` | Só em fechamento de socket/porta já caída — legítimo. |
+| Código órfão | Só `LocalizadorDirecao` (direção da voz) — já conhecido, voz não é prioridade do dono. |
+| Assinar o silêncio (tópico sem publicador) | Limpo (`motion.status` vem do firmware). |
+| Relógio de parede em prazo (Pi sem RTC) | Limpo: `time.time()` só em datas gravadas e carimbos de tela. |
+| C4-06 quadro serial | Já resolvido (768 B). |
+| **C6-04 CSRF** | Sem senha continua (decisão do dono). Mas POST vindo de OUTRO SITE pelo navegador (Origin diferente ou `null`) agora é 403; painel, ponte do Nav2 e ferramentas seguem iguais. |
+
+Scripts das varreduras (para refazer depois de mudanças grandes): `vazio.py`, `surdo.py`,
+`orfaos.py`, `config_morta.py` no scratchpad da sessão de 12/11 — a de config virou teste
+(`test_config_sem_leitor.py`).
