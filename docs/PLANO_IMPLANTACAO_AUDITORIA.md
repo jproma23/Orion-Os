@@ -193,9 +193,13 @@ núcleo (o Firefox era ~50% de um núcleo).
    `~/orion-jarvis`, o mesmo do serviço). Reiniciar a sessão gráfica.
 5. Medir no Notebook: `ps -o rss,pcpu -C python3` antes (Firefox) e depois (rosto).
 
-**Atenção:** o QUADRO das aulas (`display.quadro`) é desenhado pela página do Firefox. Com o rosto
-leve, a aula continua falada mas o quadro não aparece. Decisão do dono pendente: abrir o Firefox
-só durante a aula, ou deixar o quadro de lado. **Voltar:** inverter o passo 4.
+6. **Aula (dono, 12/11: "abre o Firefox só durante a aula"):** pedir "me dá uma aula de …".
+   Esperado: o Firefox abre em tela cheia em poucos segundos, **com o quadro já escrito** (o
+   servidor reentrega o que foi escrito antes de a página abrir); ~10 s depois do fim da aula ele
+   fecha e volta o rosto. Dizer "para" no meio: também fecha. Se não fechar, olhar o log do rosto
+   ("navegador do quadro").
+
+**Voltar:** inverter o passo 4 (o kiosk antigo do Firefox continua no repositório).
 
 ---
 
