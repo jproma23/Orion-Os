@@ -82,9 +82,11 @@ from orion.voice.vad import DetectorAtividadeSonora  # noqa: E402
 from orion.voice.voice_core import VoiceCore  # noqa: E402
 from orion.voice.wake_word import DetectorPalavraAtivacao  # noqa: E402
 from orion.vision.modulo import (  # noqa: E402
+    INTERVALO_LENTO_FAMILIA_S,
     INTERVALO_RETENTATIVA_FAMILIA_S,
     MAX_TENTATIVAS_FAMILIA,
 )
+from orion.kernel.tarefas import disparar  # noqa: E402
 
 def _palavras_ativacao(secao_voz: dict) -> tuple[str, ...]:
     """Os nomes que acordam o robo, LIDOS DA CONFIG (voice.wake_word).
@@ -754,7 +756,10 @@ async def principal() -> None:
         # Em segundo plano para a tela de quem digitou nao ficar esperando o
         # audio terminar - a resposta escrita ja esta pronta neste ponto.
         if resposta:
-            asyncio.create_task(voz.falar(resposta))
+            # `disparar` e nao create_task solto (auditoria 12/11): sem
+            # referencia o Python pode recolher a tarefa e a resposta
+            # escrita nao seria falada.
+            disparar(voz.falar(resposta), "falar_resposta_do_chat")
         return resposta
 
     PonteConversa(atender_texto, comm).registrar(bus)
@@ -769,9 +774,13 @@ async def principal() -> None:
         familia`): ate 2026-10-25 a carga era UMA tentativa, feita no mesmo
         segundo em que o enlace subia, e falhava com "Sem rota conhecida" -
         o robo passava o dia sem reconhecer ninguem pela voz. Mesmos numeros
-        da visao, e o mesmo desistir alto no fim.
+        da visao - e, como la (auditoria 12/11), NAO desiste: depois das
+        tentativas rapidas grita uma vez e segue a cada minuto, calado.
         """
-        for tentativa in range(1, MAX_TENTATIVAS_FAMILIA + 1):
+        tentativa = 0
+        while True:
+            tentativa += 1
+            rapida = tentativa <= MAX_TENTATIVAS_FAMILIA
             try:
                 identificador_locutor.carregar_vozes_conhecidas(
                     await MemoryClient(comm).recall("pessoas", limite=50)
@@ -779,15 +788,20 @@ async def principal() -> None:
                 logger.info("Vozes da familia carregadas na tentativa %d", tentativa)
                 return
             except Exception:  # noqa: BLE001
-                logger.warning(
-                    "vozes da familia ainda nao (tentativa %d) - o enlace com o Pi pode "
-                    "estar subindo", tentativa, exc_info=tentativa == 1,
+                if rapida:
+                    logger.warning(
+                        "vozes da familia ainda nao (tentativa %d) - o enlace com o Pi pode "
+                        "estar subindo", tentativa, exc_info=tentativa == 1,
+                    )
+            if tentativa == MAX_TENTATIVAS_FAMILIA:
+                logger.error(
+                    "Vozes da familia ainda nao carregaram apos %d tentativas - ninguem e "
+                    "reconhecido pela voz ate o banco do Pi responder (sigo a cada %.0f s)",
+                    MAX_TENTATIVAS_FAMILIA, INTERVALO_LENTO_FAMILIA_S,
                 )
-            await asyncio.sleep(INTERVALO_RETENTATIVA_FAMILIA_S)
-        logger.error(
-            "Desisti de carregar as vozes apos %d tentativas - ninguem sera reconhecido "
-            "pela voz ate reiniciar", MAX_TENTATIVAS_FAMILIA,
-        )
+            await asyncio.sleep(
+                INTERVALO_RETENTATIVA_FAMILIA_S if rapida else INTERVALO_LENTO_FAMILIA_S
+            )
 
     tarefa_vozes = (
         asyncio.create_task(carregar_vozes_da_familia())
