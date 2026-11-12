@@ -100,6 +100,16 @@ def sentido_do_comando(payload: dict[str, Any]) -> str | None:
         return FRENTE if distancia > 0 else TRAS if distancia < 0 else None
     if comando in COMANDOS_DE_GIRO:
         return GIRO
+    # MEXEM AS RODAS POR FORA DA LISTA (auditoria 12/11): passavam pela trava
+    # sem checagem nenhuma. CALIBRATE_COMPASS com `girar` gira o robo no lugar
+    # e pode vir da IA, de um instinto ou da voz; TEST_WHEEL e de bancada, mas
+    # no chao anda ate 1,2 s (duas rodas = frente/re; uma = pivota).
+    if comando == "CALIBRATE_COMPASS":
+        return GIRO if payload.get("girar") else None
+    if comando == "TEST_WHEEL":
+        if payload.get("lado") == "ambos":
+            return FRENTE if float(payload.get("sentido", 1) or 1) >= 0 else TRAS
+        return GIRO
     if comando == "CMD_VEL":
         v = float(payload.get("v_m_s", 0.0) or 0.0)
         w = float(payload.get("w_rad_s", 0.0) or 0.0)

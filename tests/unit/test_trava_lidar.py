@@ -517,3 +517,29 @@ async def test_ponto_dentro_da_carcaca_nao_bloqueia_giro():
     await _scan(trava, raios)
     assert trava.motivo_recusa({"comando": "TURN_LEFT"}) is None
 
+
+
+# ---- comandos que mexem as rodas por fora da lista (auditoria 12/11) ----
+
+
+def test_calibrar_bussola_girando_e_giro_para_a_trava():
+    """CALIBRATE_COMPASS com `girar: true` gira o robo no lugar - e a IA, um
+    instinto e a voz podem pedi-lo. Passava pela trava sem checar o raio de
+    giro. Sem `girar`, so coleta parado: nao e movimento."""
+    assert sentido_do_comando({"comando": "CALIBRATE_COMPASS", "girar": True}) == GIRO
+    assert sentido_do_comando({"comando": "CALIBRATE_COMPASS"}) is None
+
+
+def test_teste_de_roda_e_movimento_para_a_trava():
+    """TEST_WHEEL (bancada) gira roda por ate 1,2 s: no chao, anda. Com as
+    duas rodas e frente ou re; com uma so, o robo pivota."""
+    assert sentido_do_comando({"comando": "TEST_WHEEL", "lado": "ambos", "sentido": 1}) == FRENTE
+    assert sentido_do_comando({"comando": "TEST_WHEEL", "lado": "ambos", "sentido": -1}) == TRAS
+    assert sentido_do_comando({"comando": "TEST_WHEEL", "lado": "esquerdo"}) == GIRO
+
+
+@pytest.mark.asyncio
+async def test_calibrar_bussola_com_parede_no_raio_de_giro_e_recusado():
+    trava = await _trava_com_scan(_raios(g180=25.0))  # 27 cm do eixo < 37,5
+    motivo = trava.motivo_recusa({"comando": "CALIBRATE_COMPASS", "girar": True})
+    assert motivo is not None and "raio de giro" in motivo
