@@ -448,6 +448,9 @@ class MissionPlanner:
         #: que nao ve o frame e inventa. Mesmo contrato dos outros callbacks:
         #: sem caminho, ele nao finge.
         self._consultar_visao = consultar_visao
+        #: POR QUE a visao esta cega, ou None (auditoria 12/11) - ver
+        #: `registrar_consultar_visao`.
+        self._motivo_cego: Callable[[], str | None] | None = None
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -689,6 +692,12 @@ class MissionPlanner:
                 cena = self._consultar_visao()
                 if cena is not None:
                     contexto["visao_agora"] = self._descrever_cena(cena)
+                else:
+                    # Cego e diferente de "cena velha" (auditoria 12/11): a IA
+                    # precisa saber que NAO ha camera, senao responde do diario.
+                    motivo = self._perguntar_motivo_cego()
+                    if motivo:
+                        contexto["visao_agora"] = f"Nao consigo enxergar agora: {motivo}."
             except Exception:
                 logger.debug("Falha ao consultar a visao atual para o contexto", exc_info=True)
 
@@ -1181,7 +1190,11 @@ class MissionPlanner:
             return None
         return nome
 
-    def registrar_consultar_visao(self, callback: CallbackVisao | None) -> None:
+    def registrar_consultar_visao(
+        self,
+        callback: CallbackVisao | None,
+        motivo_cego: Callable[[], str | None] | None = None,
+    ) -> None:
         """Liga a visao ao planner DEPOIS de ela subir (2026-08-09).
 
         No `conversar_jarvis.py` o MissionPlanner e construido ANTES do
@@ -1193,8 +1206,13 @@ class MissionPlanner:
         deixar a pergunta "o que e isso?" para a IA - e volta a inventar,
         que e honesto demais para nao ser, mas e o que o contrato manda
         (sem caminho, ele nao finge).
+
+        `motivo_cego` (auditoria 12/11): diz POR QUE a camera nao esta vendo
+        (escuro, sem sinal, pausada, desconectada). Sem ele, cego e sala
+        vazia davam a mesma frase: "nao estou vendo nada".
         """
         self._consultar_visao = callback
+        self._motivo_cego = motivo_cego
 
     async def _responder_sobre_o_que_ve(self, texto: str) -> str | None:
         """Responde "o que e isso?" com o que a camera ve AGORA.
@@ -1216,8 +1234,22 @@ class MissionPlanner:
             cena = self._consultar_visao()
         except Exception:
             logger.exception("falha ao consultar a visao atual")
-            return "Nao estou vendo nada na minha frente agora."
+            return "Nao consigo enxergar agora: a visao deu erro."
+        if cena is None:
+            motivo = self._perguntar_motivo_cego()
+            if motivo:
+                return f"Nao consigo enxergar agora: {motivo}."
         return self._descrever_cena(cena)
+
+    def _perguntar_motivo_cego(self) -> str | None:
+        motivo_cego = getattr(self, "_motivo_cego", None)
+        if motivo_cego is None:
+            return None
+        try:
+            return motivo_cego()
+        except Exception:
+            logger.debug("falha ao consultar o motivo da cegueira", exc_info=True)
+            return None
 
     @staticmethod
     def _descrever_cena(cena: dict | None) -> str:

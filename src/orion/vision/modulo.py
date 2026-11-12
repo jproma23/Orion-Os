@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 from collections.abc import Awaitable, Callable
 
@@ -219,6 +220,25 @@ class ModuloVisao:
             logger.debug("falha ao consultar a visao atual", exc_info=True)
             return None
 
+    def motivo_cego(self) -> str | None:
+        """Por que a visao nao esta vendo, ou None se esta (auditoria 12/11).
+
+        Separa "estou cego" de "a sala esta vazia" na resposta falada. Nunca
+        levanta: na duvida, diz que a visao nao esta funcionando.
+        """
+        if self._nucleo is None:
+            return "a visao nao chegou a iniciar"
+        if self._tarefa is not None and self._tarefa.done():
+            return "a visao parou com erro"
+        motivo = getattr(self._nucleo, "motivo_cego", None)
+        if motivo is None:
+            return None
+        try:
+            return motivo()
+        except Exception:
+            logger.debug("falha ao consultar o motivo da cegueira", exc_info=True)
+            return "a visao nao esta respondendo"
+
     def foto_agora(self) -> bytes | None:
         """O ultimo quadro da camera em JPEG, ou None (2026-11-01).
 
@@ -371,10 +391,36 @@ def _odometria_visual(conf: dict[str, Any]) -> Any:
     )
 
 
-def _nome_do_arquivo_do_modelo(valor: str) -> str:
+#: Onde o modelo mora no projeto - o mesmo `data/modelos/` do Pi
+#: (`vision.yolo_model_path`). src/orion/vision/modulo.py -> raiz = parents[3].
+PASTA_MODELOS = Path(__file__).resolve().parents[3] / "data" / "modelos"
+
+
+def _nome_do_arquivo_do_modelo(valor: str, pasta_modelos: Path = PASTA_MODELOS) -> str:
     """A config traz "yolov8n"; o arquivo no disco e "yolov8n.pt".
 
     Sem o sufixo o Ultralytics trata como nome de catalogo e tenta BAIXAR o
     modelo - o que quebra a promessa de funcionar sem internet.
+
+    E o nome solto e procurado na PASTA ATUAL do processo (auditoria 12/11):
+    o servico roda de `~/orion-os` pelo unit e de `~/orion-jarvis` pelo
+    override do Notebook. Na pasta sem o arquivo o Ultralytics BAIXA - e sem
+    internet o `YOLO()` levanta, o boot engole ("Visao indisponivel") e o
+    robo passava o dia respondendo "nao estou vendo nada". Por isso procura
+    primeiro em `data/modelos/` do projeto, e avisa alto quando nao acha.
     """
-    return valor if valor.endswith(".pt") else f"{valor}.pt"
+    arquivo = valor if valor.endswith(".pt") else f"{valor}.pt"
+    if Path(arquivo).is_absolute() or Path(arquivo).parent != Path("."):
+        return arquivo  # caminho explicito na config: respeita
+    no_projeto = pasta_modelos / arquivo
+    if no_projeto.is_file():
+        return str(no_projeto)
+    logger.warning(
+        "modelo %s nao esta em %s - o Ultralytics vai procurar em %s e, se nao "
+        "achar, BAIXAR (sem internet a visao nao sobe). Copie o arquivo para %s.",
+        arquivo,
+        pasta_modelos,
+        Path.cwd(),
+        pasta_modelos,
+    )
+    return arquivo

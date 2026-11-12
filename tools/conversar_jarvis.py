@@ -827,7 +827,9 @@ async def principal() -> None:
     # fio e ligado aqui, DEPOIS de a visao estar no ar: quem pergunta o que
     # ha na frente recebe o que a camera ve agora - e nao o diario da meia
     # hora atras, nem a IA achando no escuro (o modelo nao ve o frame).
-    planner.registrar_consultar_visao(modulo_visao.ver_agora)
+    planner.registrar_consultar_visao(
+        modulo_visao.ver_agora, motivo_cego=modulo_visao.motivo_cego
+    )
     # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo
     # mesmo dono da camera (2026-11-01).
     set_camera(modulo_visao.foto_agora)

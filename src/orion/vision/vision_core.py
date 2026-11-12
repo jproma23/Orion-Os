@@ -157,6 +157,7 @@ class VisionCore:
         #: tampada, quadro congelado) - ver `sem_sinal.py`.
         self._sem_sinal = DetectorSemSinal()
         self._sem_sinal_reportado = False
+        self._motivo_sem_sinal: str | None = None
         #: Giro do corpo medido pela imagem (2026-11-12) - a testemunha da
         #: odometria do Pi. None = desligado (`vision.odometria_visual`).
         self._odometria = odometria_visual
@@ -287,6 +288,29 @@ class VisionCore:
             }
         )
 
+    def motivo_cego(self) -> str | None:
+        """POR QUE a visao nao esta vendo - ou None se esta (auditoria 12/11).
+
+        `ver_agora()` devolve None tanto para "estou cego" quanto para "ainda
+        nao processei", e a resposta virava "nao estou vendo nada na minha
+        frente" - a mesma frase de uma sala vazia. Quem pergunta "o que voce
+        ve?" com a camera tampada, no escuro ou com a visao pausada merece
+        ouvir que o robo esta cego, nao que a sala esta vazia.
+        """
+        if self._pausado:
+            return "a visao esta pausada para aliviar a memoria"
+        if not self._captura.aberta:
+            return "a camera nao abriu ou foi desconectada"
+        if self._sem_sinal_reportado:
+            if self._motivo_sem_sinal == "imagem_escura_uniforme":
+                return "esta escuro demais ou a lente esta tampada"
+            return "a imagem da camera parou de mudar"
+        if self._ultima_cena is None or (
+            time.monotonic() - self._ultima_cena.get("timestamp", 0.0) > TEMPO_MAXIMO_CENA_S
+        ):
+            return "a camera nao manda imagem nova ha alguns segundos"
+        return None
+
     def carregar_pessoas_conhecidas(self, pessoas: list[dict]) -> None:
         self._reconhecedor.carregar_pessoas_conhecidas(pessoas)
 
@@ -344,6 +368,7 @@ class VisionCore:
         self._ultimo_frame = frame
         avaliacao = self._sem_sinal.avaliar(frame)
         if avaliacao.sem_sinal:
+            self._motivo_sem_sinal = avaliacao.motivo
             if not self._sem_sinal_reportado:
                 self._sem_sinal_reportado = True
                 logger.error(
@@ -425,6 +450,12 @@ class VisionCore:
             )
 
         identidades = self._associar_identidades(pessoas_detectadas, rostos)
+        # ROSTO SEM CORPO (auditoria 12/11). So rosto que caisse numa caixa
+        # "person" do YOLO virava nome - e de perto o YOLO nao acha corpo: em
+        # 15 das 34 fotos reais com rosto (medido em 07/2026, orion.yaml) o
+        # face_recognition acha e o YOLO nao. O robo olhava o dono de perto e
+        # dizia "nao estou vendo nada", sem saudacao nem recado.
+        sem_corpo = self._reconhecidos_sem_corpo(pessoas_detectadas, rostos)
         # O AGORA consultavel (2026-08-09): quem pergunta "o que e isso?"
         # le este estado, preenchido a cada quadro. Objetos + quem foi
         # reconhecido + quantos estranhos - o que a camera ve, resumido.
@@ -437,7 +468,8 @@ class VisionCore:
                 {"nome": nome, "pessoa_id": pessoa_id}
                 for pessoa_id, nome in identidades.values()
                 if pessoa_id is not None and nome
-            ],
+            ]
+            + [{"nome": r.nome, "pessoa_id": r.pessoa_id} for r in sem_corpo],
             "desconhecidos": len(desconhecidos),
             "pessoas": sum(1 for d in para_descrever if d.classe == "person"),
             "timestamp": agora,
@@ -481,6 +513,24 @@ class VisionCore:
         elif self._tinha_alvo:
             await self._event_bus.publish("vision.person_lost", {"timestamp": agora})
             self._tinha_alvo = False
+
+        if alvo is None and sem_corpo:
+            # Sem ninguem rastreado pelo corpo, o rosto de perto e quem esta
+            # ali: saudacao, recados, diario e quem_fala escutam este evento.
+            # So quando NAO ha alvo - com alvo o FOLLOW ja tem a quem seguir,
+            # e dois `person_recognized` no mesmo quadro o fariam alternar.
+            rosto = max(sem_corpo, key=lambda r: r.confianca)
+            cx, _ = self._centro_caixa(rosto.caixa)
+            await self._event_bus.publish(
+                "vision.person_recognized",
+                {
+                    "pessoa_id": rosto.pessoa_id,
+                    "nome": rosto.nome,
+                    "centro_x": cx / frame.shape[1],
+                    "timestamp": agora,
+                    "so_rosto": True,
+                },
+            )
 
         return frame
 
@@ -580,24 +630,63 @@ class VisionCore:
         return ((x1 + x2) / 2, (y1 + y2) / 2)
 
     @staticmethod
+    def _parear(
+        pessoas_detectadas: list[Deteccao], rostos: list[RostoReconhecido]
+    ) -> list[tuple[int, int]]:
+        """Pares (indice da pessoa, indice do rosto), um rosto por pessoa.
+
+        REGRA NOVA (auditoria 12/11). Antes, cada caixa de pessoa pegava o
+        rosto de maior sobreposicao, com qualquer sobreposicao > 0 e sem
+        exclusividade: duas pessoas lado a lado, a caixa de uma encostando no
+        rosto da outra, e as DUAS recebiam o mesmo nome - o FOLLOW podia
+        seguir a errada. Agora o CENTRO do rosto tem que estar dentro da
+        caixa, e cada rosto vai para uma pessoa so (a de maior sobreposicao;
+        empate fica com a caixa menor, a mais justa).
+        """
+        candidatos = []
+        for i, pessoa in enumerate(pessoas_detectadas):
+            x1, y1, x2, y2 = pessoa.caixa
+            area = max(1, (x2 - x1) * (y2 - y1))
+            for j, rosto in enumerate(rostos):
+                cx, cy = VisionCore._centro_caixa(rosto.caixa)
+                if x1 <= cx <= x2 and y1 <= cy <= y2:
+                    candidatos.append(
+                        (VisionCore._sobreposicao(pessoa.caixa, rosto.caixa), -area, i, j)
+                    )
+        pares: list[tuple[int, int]] = []
+        pessoas_usadas: set[int] = set()
+        rostos_usados: set[int] = set()
+        for _, _, i, j in sorted(candidatos, reverse=True):
+            if i in pessoas_usadas or j in rostos_usados:
+                continue
+            pessoas_usadas.add(i)
+            rostos_usados.add(j)
+            pares.append((i, j))
+        return pares
+
+    @staticmethod
     def _associar_identidades(
         pessoas_detectadas: list[Deteccao], rostos: list[RostoReconhecido]
     ) -> dict[Caixa, tuple[int | None, str | None]]:
         """Casa cada caixa de pessoa (YOLO) com o rosto (face_recognition)
-        de maior sobreposicao - vem de dois modelos diferentes, cada um
-        com sua propria caixa."""
-        identidades: dict[Caixa, tuple[int | None, str | None]] = {}
-        for pessoa in pessoas_detectadas:
-            melhor: RostoReconhecido | None = None
-            melhor_sobreposicao = 0.0
-            for rosto in rostos:
-                sobreposicao = VisionCore._sobreposicao(pessoa.caixa, rosto.caixa)
-                if sobreposicao > melhor_sobreposicao:
-                    melhor_sobreposicao = sobreposicao
-                    melhor = rosto
-            if melhor is not None and melhor_sobreposicao > 0:
-                identidades[pessoa.caixa] = (melhor.pessoa_id, melhor.nome)
-        return identidades
+        que esta dentro dela - vem de dois modelos diferentes, cada um com
+        sua propria caixa. Ver `_parear`."""
+        return {
+            pessoas_detectadas[i].caixa: (rostos[j].pessoa_id, rostos[j].nome)
+            for i, j in VisionCore._parear(pessoas_detectadas, rostos)
+        }
+
+    @staticmethod
+    def _reconhecidos_sem_corpo(
+        pessoas_detectadas: list[Deteccao], rostos: list[RostoReconhecido]
+    ) -> list[RostoReconhecido]:
+        """Rostos CONHECIDOS que nao ficaram com caixa de pessoa nenhuma."""
+        usados = {j for _, j in VisionCore._parear(pessoas_detectadas, rostos)}
+        return [
+            rosto
+            for j, rosto in enumerate(rostos)
+            if j not in usados and rosto.pessoa_id is not None and rosto.nome
+        ]
 
     @staticmethod
     def _sobreposicao(caixa_a: Caixa, caixa_b: Caixa) -> float:

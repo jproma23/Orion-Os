@@ -36,9 +36,15 @@ BRILHO_MAXIMO_ESCURO = 20.0
 #: Desvio padrao do brilho abaixo do qual o quadro conta como uniforme.
 DESVIO_MAXIMO_UNIFORME = 8.0
 #: Diferenca media absoluta entre dois quadros abaixo da qual a imagem conta
-#: como congelada. Ruido de sensor de webcam fica acima disso mesmo com a cena
-#: parada; uma imagem fixa reenviada da exatamente 0.
-DIFERENCA_MAXIMA_CONGELADO = 0.2
+#: como congelada. Uma imagem fixa reenviada (o mesmo JPEG) da EXATAMENTE 0.
+#:
+#: ERA 0,2, e 0,2 pegava camera boa (auditoria 12/11): cena parada + pouco
+#: ruido de sensor + compressao MJPEG qualidade 80 deu diferenca media 0,13
+#: (simulado: ruido 0,5; com ruido 1,0 deu 0,26 - margem de nada). A
+#: compressao "come" o ruido nos blocos lisos, e uma sala parada de dia virava
+#: "camera SEM SINAL": o YOLO parava de rodar e a resposta era "nao estou
+#: vendo nada". 0,02 fica longe dos dois lados - o congelado de verdade e 0.
+DIFERENCA_MAXIMA_CONGELADO = 0.02
 #: Quantos quadros seguidos com a assinatura antes de declarar sem sinal. A
 #: 2 quadros/s, 6 quadros = 3 s.
 QUADROS_SEGUIDOS_PADRAO = 6

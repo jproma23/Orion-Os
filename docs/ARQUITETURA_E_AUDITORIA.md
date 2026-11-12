@@ -200,3 +200,38 @@ sequenceDiagram
    - Manter os plugins do Jarvis desligados até a implementação de um sandbox restrito.
 2. **Validação em Bancada**:
    - Testar o robô suspenso (rodas livres) verificando a resposta imediata aos comandos manuais, travamento de giro ao aproximar anteparo lateral a menos de 37,5 cm do eixo dianteiro, e corte imediato da ré a 25 cm de obstáculo traseiro.
+
+---
+
+## 6. Camada Visão / YOLO (12/11/2026)
+
+Queixa do dono: *"o YOLO, a visão não tá funcionando, não reconhece nada"*. O robô estava
+desligado (Pi sem resposta pelo Tailscale), então a auditoria foi no código do backup, com
+cada achado provado por teste que falhava antes do conserto
+(`tests/unit/test_visao_auditoria_12_11.py`).
+
+Ponto de partida: a visão que roda é a do **Notebook** (`src/orion/vision/`, câmera DV20 na
+USB dele). O Vision Engine do Pi (`motion_core/vision/`) está desligado de propósito desde
+01/11 (`vision.pi_engine_ativo: false`) e não é a causa.
+
+| # | Achado | Prova | Conserto |
+|---|--------|-------|----------|
+| V1 | **Câmera boa vira "sem sinal"**: cena parada + pouco ruído + MJPEG q80 dá diferença 0,13 entre quadros, abaixo do limiar 0,20 de "imagem congelada". O YOLO para de rodar e a resposta é "não estou vendo nada". | simulação: ruído 0,5 → 0,13 (falso SEM SINAL); ruído 1,0 → 0,26 (margem de nada) | limiar 0,02 — o congelado de verdade (mesmo JPEG reenviado) dá exatamente 0 |
+| V2 | **Rosto de perto não tem nome**: só rosto dentro de caixa `person` do YOLO virava identidade. De perto o YOLO não acha corpo (15 de 34 fotos reais, medido em 07/2026). Sem nome na cena, sem `vision.person_recognized` → sem saudação, recado, diário. | teste: rosto do João sem corpo → `reconhecidos == []` | rosto conhecido sem corpo entra na cena; sem alvo rastreado, publica `person_recognized` (`so_rosto: true`) |
+| V3 | **Um rosto dava nome a duas pessoas**: qualquer sobreposição > 0, sem exclusividade. Lado a lado, as duas viravam "João" — o FOLLOW podia seguir a errada. | teste: Ana recebia o nome do João | centro do rosto dentro da caixa + um rosto por pessoa |
+| V4 | **Cego e sala vazia davam a mesma frase**: pausada, câmera fechada, escuro, sem sinal ou visão que nem iniciou → "não estou vendo nada". A IA também não sabia que estava cega. | teste do planner | `motivo_cego()` no VisionCore/ModuloVisao; o planner diz "Não consigo enxergar agora: …" e põe isso no contexto da IA |
+| V5 | **Modelo relativo à pasta do processo**: `"yolov8n.pt"` solto; o serviço roda de `~/orion-os` ou `~/orion-jarvis`. Na pasta sem o arquivo o Ultralytics baixa; sem internet `YOLO()` levanta, o boot engole ("Visão indisponível") e a visão inteira some, rostos inclusive. | leitura: `modulo.py` + `orion-avatar.service` | procura primeiro em `data/modelos/` do projeto (como o Pi) e avisa alto no log quando não acha |
+
+Observações sem conserto (anotadas):
+- O rastreador, com alvo, pula para a caixa mais próxima sem checar IoU: se o alvo sai e
+  outra pessoa está perto, o alvo troca de pessoa sem `person_lost`.
+- `descartar_atrasados` liga para a DV20 local porque o `by-id` é string; inofensivo
+  (o `grab()` local espera o quadro novo e sai no 1º laço).
+
+**Ao aplicar, conferir no Notebook** (ordem): `ls ~/orion-*/data/modelos/yolov8n.pt` (V5) →
+`grep -E "SEM SINAL|Visao indisponivel|nao esta em" ~/orion-jarvis/data/logs/*.log | tail` (V1/V5)
+→ perguntar "o que você está vendo?" de perto, de longe e com a lente tampada (V2/V4).
+
+Também em 12/11 (commit 86d2ff7): a câmera entra na odometria — giro medido pela imagem,
+com as caixas do YOLO apagando pessoas e animais; testemunha do encoder no Pi; correção da
+pose desligada (`peso_camera: 0`) até medir o FOV da DV20.
