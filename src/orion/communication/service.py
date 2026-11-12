@@ -61,6 +61,7 @@ class ComunicacaoService:
         self._porteiros: dict = {}
         self._ganchos_stop: dict = {}
         self._ganchos_repasse: dict = {}
+        self._ouvintes_de_vida: list = []
         self._pendentes_ack: dict[str, asyncio.Future[Mensagem]] = {}
         self._pendentes_resposta: dict[str, asyncio.Future[Mensagem]] = {}
         # Uma tarefa de recepcao POR PEER (nao uma lista solta): ao
@@ -157,6 +158,19 @@ class ComunicacaoService:
         do link de origem. Excecao dele vira log, nunca queda da recepcao.
         """
         self._ganchos_stop[destino] = gancho
+
+    def definir_ouvinte_de_vida(self, ouvinte) -> None:
+        """`ouvinte(origem)` e chamado, SINCRONO, a cada mensagem valida que
+        chega - antes do Event Bus (2026-11-12, auditoria A4).
+
+        A prova de vida de um peer passava pela fila do bus
+        (`comm.mensagem.heartbeat`): um handler lento no Pi (>3 s) segurava a
+        fila, o heartbeat do corpo ficava parado nela e o monitor declarava o
+        corpo PERDIDO - e a reconexao reseta o ESP32. Qualquer mensagem valida
+        do peer prova que ele esta vivo; contar isso aqui nao depende de
+        ninguem mais andar. O ouvinte tem que ser rapido e nunca levantar.
+        """
+        self._ouvintes_de_vida.append(ouvinte)
 
     def definir_gancho_repasse(self, destino: str, gancho) -> None:
         """Depois de REPASSAR com sucesso um COMMAND para `destino`, chama
@@ -377,6 +391,12 @@ class ComunicacaoService:
             except ErroTransporte:
                 pass
             return
+
+        for ouvinte in self._ouvintes_de_vida:
+            try:
+                ouvinte(mensagem.origem)
+            except Exception:
+                logger.exception("ouvinte de vida falhou para '%s'", mensagem.origem)
 
         await self._tratar_mensagem_recebida(nome_peer, transporte, mensagem)
 

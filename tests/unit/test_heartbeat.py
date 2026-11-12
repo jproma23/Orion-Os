@@ -321,3 +321,54 @@ async def test_peer_travado_nao_congela_o_heartbeat_dos_outros():
     await servico.encerrar()
     bus.parar()
     await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_fila_do_bus_presa_nao_vira_falsa_perda():
+    """A4 (auditoria): a prova de vida passava pela fila do bus. Um handler
+    lento segurava a fila, o heartbeat do peer ficava parado nela e o monitor
+    declarava o peer PERDIDO com ele falando - no Pi, a reconexao reseta o
+    ESP32. Agora a mensagem conta como vida na recepcao, antes do bus."""
+    from orion.communication.protocol import Mensagem, TipoMensagem
+
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    perdidos = []
+    bus.subscribe("comm.module_lost", lambda e: perdidos.append(e.dados["modulo"]))
+
+    async def handler_lento(_evento):
+        await asyncio.sleep(0.6)  # a IA pensando dentro do handler (A1)
+
+    bus.subscribe("teste.lento", handler_lento)
+
+    servico = ComunicacaoService("mission_core", bus)
+    transporte = FakeTransporte()
+    servico.adicionar_link("motion_core", transporte)
+    monitor = MonitorHeartbeat(servico, bus, intervalo_s=0.05, heartbeats_perdidos_limite=2)
+    monitor.monitorar("motion_core")
+    tarefa_monitor = asyncio.create_task(monitor.iniciar())
+
+    async def peer_vivo():
+        while True:
+            hb = Mensagem.nova(TipoMensagem.HEARTBEAT, "motion_core", "mission_core")
+            await transporte.injetar(hb.to_bytes())
+            await asyncio.sleep(0.02)
+
+    tarefa_peer = asyncio.create_task(peer_vivo())
+    await asyncio.sleep(0.1)
+    await bus.publish("teste.lento", {})  # prende a fila do bus por 0,6 s
+    await asyncio.sleep(0.6)
+
+    tarefa_peer.cancel()
+    monitor.parar()
+    tarefa_monitor.cancel()
+    for t in (tarefa_peer, tarefa_monitor):
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
+    await bus.aguardar_fila_vazia()
+    assert perdidos == []
+    await servico.encerrar()
+    bus.parar()
+    await tarefa_bus

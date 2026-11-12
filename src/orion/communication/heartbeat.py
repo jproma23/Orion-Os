@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from orion.communication.service import ComunicacaoService
@@ -54,6 +55,18 @@ class MonitorHeartbeat:
         self._executando = False
 
         event_bus.subscribe("comm.mensagem.heartbeat", self._ao_receber_heartbeat)
+        # Prova de vida FORA do bus (auditoria A4) - ver
+        # ComunicacaoService.definir_ouvinte_de_vida. O handler do bus acima
+        # fica para o `comm.module_recovered`, que pode esperar a fila.
+        definir = getattr(servico, "definir_ouvinte_de_vida", None)
+        if definir is not None:
+            definir(self._sinal_de_vida)
+
+    def _sinal_de_vida(self, origem: str) -> None:
+        if origem not in self._peers:
+            return
+        self._ja_estabelecidos.add(origem)
+        self._health_monitor.receber_heartbeat(origem)
 
     def monitorar(
         self,
@@ -167,7 +180,19 @@ class MonitorHeartbeat:
     async def iniciar(self) -> None:
         """Loop continuo: envia heartbeats e verifica perdas a cada `intervalo_s`."""
         self._executando = True
+        acordou_esperado = time.monotonic()
         while self._executando:
+            # LACO ATRASADO NAO JULGA PERDA (auditoria A4). Se o proprio laco
+            # do processo engasgou (este sleep voltou muito depois do pedido),
+            # o que o peer mandou nesse tempo ainda nem foi lido: julgar agora
+            # daria "perdi o corpo" com o corpo falando - e a reconexao reseta
+            # o ESP32. Uma volta de carencia; na seguinte, o dado ja e fresco.
+            atraso = time.monotonic() - acordou_esperado
+            laco_atrasado = atraso > self._intervalo_s
+            if laco_atrasado:
+                logger.warning(
+                    "laco do heartbeat atrasou %.1f s - sem julgar perda nesta volta", atraso
+                )
             # Os envios correm JUNTOS e cada um tem prazo de `intervalo_s`
             # (2026-11-10, achado A2). Antes era um `await` por peer, em
             # fila e sem prazo: um peer que parou de ler (o `drain()` do TCP
@@ -206,10 +231,14 @@ class MonitorHeartbeat:
                     self._falhas_envio[peer] = 0
                     self._ja_estabelecidos.add(peer)
 
-            perdidos_por_recebimento = set(self._health_monitor.modulos_com_heartbeat_perdido())
-            for peer in perdidos_por_recebimento - self._perdidos_atualmente:
-                await self._marcar_perdido(peer)
+            if not laco_atrasado:
+                perdidos_por_recebimento = set(
+                    self._health_monitor.modulos_com_heartbeat_perdido()
+                )
+                for peer in perdidos_por_recebimento - self._perdidos_atualmente:
+                    await self._marcar_perdido(peer)
 
+            acordou_esperado = time.monotonic() + self._intervalo_s
             await asyncio.sleep(self._intervalo_s)
 
     async def _tentar_reconectar(self, peer: str) -> None:
