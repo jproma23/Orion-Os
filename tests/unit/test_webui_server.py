@@ -617,3 +617,36 @@ async def test_nav2_subindo_chega_ao_painel(cenario):
     # /estado e nao /eventos: este e o fluxo SSE, que nao termina
     corpo = await (await http.get("/estado")).json()
     assert any(e["topico"] == "navigation.nav2_subindo" for e in corpo["eventos_recentes"])
+
+
+# ---- C6-04: sem senha (decisao do dono), mas outro SITE nao manda no robo ----
+
+
+@pytest.mark.asyncio
+async def test_post_de_outro_site_e_recusado(cenario):
+    http, _ = cenario
+    resposta = await http.post(
+        "/desligar", data="x", headers={"Origin": "http://site-qualquer.com"}
+    )
+    assert resposta.status == 403
+
+
+@pytest.mark.asyncio
+async def test_origem_nula_e_recusada(cenario):
+    http, _ = cenario
+    resposta = await http.post("/controle", data="{}", headers={"Origin": "null"})
+    assert resposta.status == 403
+
+
+@pytest.mark.asyncio
+async def test_o_proprio_painel_e_clientes_sem_navegador_passam(cenario):
+    http, _ = cenario
+    host = http.server.host + ":" + str(http.server.port)
+    # o painel: mesma origem do robo
+    mesma = await http.post(
+        "/controle", json={"modo": "manual"}, headers={"Origin": f"http://{host}"}
+    )
+    assert mesma.status != 403
+    # ponte do Nav2 / curl: sem Origin
+    sem_origem = await http.post("/controle", json={"modo": "manual"})
+    assert sem_origem.status != 403

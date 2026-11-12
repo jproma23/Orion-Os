@@ -243,6 +243,39 @@ _INTERVALO_PING_S = 15.0
 _EXTENSOES_SEM_CACHE = (".css", ".js", ".html")
 
 
+_METODOS_QUE_MUDAM = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@web.middleware
+async def _recusar_outro_site(request: web.Request, handler):
+    """Recusa POST que um SITE QUALQUER manda pelo navegador (auditoria C6-04).
+
+    A webui e SEM SENHA por decisao do dono (12/11): quem esta na rede usa o
+    painel. Isto nao muda aquilo. O que fecha e outra coisa - uma pagina da
+    internet aberta num navegador desta rede podia mandar `POST /desligar`,
+    `/controle` ou `/velocidade` ao robo (formulario com text/plain dispensa
+    a checagem do navegador). Navegador SEMPRE manda `Origin` num POST: se ele
+    nao e este proprio robo, 403. Cliente sem navegador (ponte do Nav2, curl,
+    ferramentas de bancada) nao manda `Origin` e segue como antes.
+    """
+    if request.method in _METODOS_QUE_MUDAM:
+        origem = request.headers.get("Origin")
+        if origem and origem != "null":
+            from urllib.parse import urlsplit
+
+            if urlsplit(origem).netloc != request.host:
+                logger.warning(
+                    "webui: %s %s recusado - pedido de outro site (Origin %s)",
+                    request.method, request.path, origem,
+                )
+                return web.json_response({"erro": "pedido de outro site"}, status=403)
+        elif origem == "null":
+            # Origin "null" = pagina de arquivo, iframe isolado, redirect
+            # entre sites - nunca o proprio painel.
+            return web.json_response({"erro": "pedido de origem nula"}, status=403)
+    return await handler(request)
+
+
 @web.middleware
 async def _revalidar_estaticos(request: web.Request, handler):
     """Manda `Cache-Control: no-cache` para o front do dashboard.
@@ -367,7 +400,7 @@ class WebUIServer:
         #: Nav2 achava que dirigia e o ControleManual contava como atividade.
         self._velocidade_bloqueada = False
 
-        self._app = web.Application(middlewares=[_revalidar_estaticos])
+        self._app = web.Application(middlewares=[_recusar_outro_site, _revalidar_estaticos])
         self._app.router.add_get("/eventos", self._handler_sse)
         self._app.router.add_get("/estado", self._handler_estado)
         self._app.router.add_get("/camera/snapshot.jpg", self._handler_camera_snapshot)
