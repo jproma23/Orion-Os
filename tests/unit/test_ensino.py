@@ -4,6 +4,7 @@ O que estes testes protegem: o conteudo de verdade em `content/aulas/` e
 valido, a busca acha pelo que a PESSOA fala (e nao pelo titulo exato), e o
 vocabulario do quadro e mesmo fechado.
 """
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -147,3 +148,32 @@ def test_busca_respeita_o_nivel(banco):
 )
 def test_nivel_e_lido_da_fala(frase, nivel):
     assert normalizar_nivel(frase) == nivel
+
+
+# ------------------------------------------- comeco e fim declarados (12/11)
+
+
+class _BusComAssinatura(BusFalso):
+    def subscribe(self, topico, tratador):
+        pass
+
+
+async def _calado(_texto):
+    return None
+
+
+@pytest.mark.asyncio
+async def test_aula_anuncia_comeco_e_fim_mesmo_parada_no_meio(banco):
+    """Dono, 12/11: 'abre o firefox so durante a aula'. O rosto abre o quadro
+    no `comecou` e fecha no `terminou` - que tem que sair tambem quando a aula
+    e PARADA, senao o Firefox ficaria aberto para sempre."""
+    from orion.ensino.professor import TOPICO_AULA, Professor
+
+    bus = _BusComAssinatura()
+    professor = Professor(banco, _quadro.Quadro(bus), _calado, bus, pausa_entre_passos_s=0.01)
+    aula = carregar_pasta(PASTA_CONTEUDO)[0]
+    await professor.dar_aula(aula)
+    await asyncio.sleep(0.05)
+    await professor.parar()
+    estados = [d.get("estado") for t, d in bus.publicados if t == TOPICO_AULA and "estado" in d]
+    assert estados == ["comecou", "terminou"]

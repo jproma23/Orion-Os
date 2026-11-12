@@ -203,6 +203,13 @@ class Professor:
 
     async def _conduzir(self, aula: Aula) -> None:
         logger.info("aula: %s (%s, %d passos)", aula.id, aula.nivel, aula.quantos_passos)
+        # COMECO E FIM DECLARADOS (2026-11-12, dono: "abre o firefox so durante
+        # a aula"). O rosto leve (tools/rosto.py) abre o navegador do quadro no
+        # `comecou` e fecha no `terminou`. Sai ANTES de esperar o silencio: a
+        # frase de abertura ainda esta tocando, e e esse o tempo que o Firefox
+        # tem para abrir antes do primeiro bloco. O `terminou` sai no finally -
+        # vale para aula que acaba, que e parada ("para") e que cai.
+        await self._bus.publish(TOPICO_AULA, {"aula": aula.id, "estado": "comecou"})
         try:
             # A frase de abertura ainda esta saindo pelo alto-falante.
             await self._esperar_silencio()
@@ -285,6 +292,10 @@ class Professor:
             logger.info("aula %s terminada", aula.id)
         finally:
             self._aula_atual = None
+            try:
+                await self._bus.publish(TOPICO_AULA, {"aula": aula.id, "estado": "terminou"})
+            except Exception:  # noqa: BLE001
+                logger.warning("nao consegui anunciar o fim da aula", exc_info=True)
 
     @property
     def pausado(self) -> bool:

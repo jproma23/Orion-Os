@@ -161,3 +161,70 @@ def test_desenha_toda_expressao_sem_tela(expressao):
     assert any(
         tela.get_at((x, y))[:3] == COR for x in range(0, 960, 4) for y in range(0, 540, 4)
     )
+
+
+# ------------------------------------------------ Firefox so durante a aula
+
+
+class _ProcessoFalso:
+    def __init__(self):
+        self.vivo = True
+
+    def poll(self):
+        return None if self.vivo else 0
+
+    def terminate(self):
+        self.vivo = False
+
+    def wait(self, timeout=None):
+        return 0
+
+    def kill(self):
+        self.vivo = False
+
+
+def _navegador():
+    abertos = []
+
+    def lancar():
+        abertos.append(_ProcessoFalso())
+        return abertos[-1]
+
+    return rosto_tool.NavegadorDaAula(lancar=lancar), abertos
+
+
+def test_firefox_abre_no_comeco_e_fecha_depois_da_graca():
+    nav, abertos = _navegador()
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 0.0)
+    assert nav.aberto and len(abertos) == 1
+    nav.ao_evento("display.aula", {"passo": 3}, 5.0)  # pulso nao mexe
+    nav.ao_evento("display.aula", {"estado": "terminou"}, 60.0)
+    nav.tique(60.0 + rosto_tool.GRACA_FIM_AULA_S - 1)
+    assert nav.aberto  # ainda mostrando o fechamento
+    nav.tique(60.0 + rosto_tool.GRACA_FIM_AULA_S + 0.1)
+    assert not nav.aberto
+
+
+def test_aula_nova_na_graca_nao_fecha_nem_abre_outro():
+    nav, abertos = _navegador()
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 0.0)
+    nav.ao_evento("display.aula", {"estado": "terminou"}, 10.0)
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 12.0)
+    nav.tique(10.0 + rosto_tool.GRACA_FIM_AULA_S + 1)
+    assert nav.aberto and len(abertos) == 1
+
+
+def test_firefox_que_cai_no_meio_da_aula_reabre():
+    nav, abertos = _navegador()
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 0.0)
+    abertos[0].vivo = False
+    nav.tique(rosto_tool.ESPERA_REABRIR_S + 0.1)
+    assert nav.aberto and len(abertos) == 2
+
+
+def test_fora_da_aula_nunca_abre():
+    nav, abertos = _navegador()
+    for t in range(0, 100, 5):
+        nav.ao_evento("voice.status", {"estado": "SPEAKING"}, float(t))
+        nav.tique(float(t))
+    assert abertos == []

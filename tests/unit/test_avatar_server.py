@@ -182,3 +182,22 @@ async def test_conta_eventos_enviados(cliente):
     await bus.aguardar_fila_vazia()
 
     assert servidor._eventos_enviados == 2
+
+
+# ----- o quadro para quem conecta no meio da aula (2026-11-12) -----
+
+
+@pytest.mark.asyncio
+async def test_quem_conecta_depois_recebe_o_quadro_desde_o_ultimo_limpar(cliente):
+    """Com o Firefox aberto so durante a aula, a pagina conecta DEPOIS de o
+    professor comecar a escrever. Sem a reentrega, o quadro abria em branco."""
+    http, bus = cliente
+    await bus.publish("display.quadro", {"tipo": "titulo", "texto": "aula velha"})
+    await bus.publish("display.quadro", {"tipo": "limpar"})
+    await bus.publish("display.quadro", {"tipo": "titulo", "texto": "Fracoes"})
+    await bus.aguardar_fila_vazia()
+    async with http.get("/eventos") as resposta:
+        linhas = [await resposta.content.readline() for _ in range(6)]
+    texto = b"".join(linhas)
+    assert b"Fracoes" in texto and b"limpar" in texto
+    assert b"aula velha" not in texto

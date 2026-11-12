@@ -55,7 +55,14 @@ TOPICOS_REPASSADOS = (
     # escrito. Nao ha transporte novo: e o mesmo SSE que ja levava a
     # legenda da fala.
     "display.quadro",
+    # Comeco/fim da aula (2026-11-12): o rosto leve abre o Firefox do quadro
+    # so durante a aula (dono: "abre o firefox so durante a aula").
+    "display.aula",
 )
+
+#: Teto de blocos do quadro guardados para quem conecta depois (uma aula tem
+#: dezenas; o teto so impede crescer sem fim se ninguem limpar).
+MAXIMO_QUADRO_GUARDADO = 200
 
 _INTERVALO_PING_S = 15.0
 
@@ -74,6 +81,11 @@ class AvatarServer:
         self._host = host
         self._port = port
         self._clientes: set[web.StreamResponse] = set()
+        #: O QUADRO ATUAL, para quem conecta no meio (2026-11-12). Com o
+        #: Firefox aberto so durante a aula, a pagina conecta segundos DEPOIS
+        #: de o professor comecar a escrever - sem isto, abria em branco.
+        #: Guarda as linhas SSE do `display.quadro` desde o ultimo `limpar`.
+        self._quadro_atual: list[bytes] = []
         self._runner: web.AppRunner | None = None
         #: Contadores de diagnostico. Existem para responder "o avatar cai
         #: sozinho ou o navegador desiste?" olhando o log, sem precisar
@@ -151,6 +163,9 @@ class AvatarServer:
             },
         )
         await resposta.prepare(request)
+        # Quem chega no meio da aula recebe o quadro como esta, antes do resto.
+        for linha in list(self._quadro_atual):
+            await resposta.write(linha)
         self._clientes.add(resposta)
         # Instrumentacao (2026-07-29). O dono relatou que a janela do kiosk
         # mostra "sem conexao" quando o Fofao termina de falar. Nao foi possivel
@@ -196,9 +211,18 @@ class AvatarServer:
             )
         return resposta
 
+    def _guardar_quadro(self, dados, linha: bytes) -> None:
+        if isinstance(dados, dict) and dados.get("tipo") == "limpar":
+            self._quadro_atual = [linha]
+            return
+        self._quadro_atual.append(linha)
+        del self._quadro_atual[:-MAXIMO_QUADRO_GUARDADO]
+
     def _fazer_repassador(self, topico: str):
         async def _repassar(evento: Evento) -> None:
             linha = f"event: {topico}\ndata: {json.dumps(evento.dados)}\n\n".encode()
+            if topico == "display.quadro":
+                self._guardar_quadro(evento.dados, linha)
             # copia da lista de clientes: escrever e assincrono (cede o
             # loop), e um cliente pode conectar/desconectar entre uma
             # escrita e outra, mudando o set original durante a iteracao.
