@@ -288,3 +288,18 @@ senha), C6-03 (fala cancelada espera o áudio acabar).
 
 **Pendências de hardware (não são código):** pull-down de 10k nos IN1..IN4 do L298N (tranco no
 reset); medir o FOV da DV20 para ligar `peso_camera`.
+
+---
+
+## 9. Passada nova (12/11/2026, quarta rodada)
+
+Sem lista antiga para seguir: varreduras por classe de defeito.
+
+| Achado | O que era | Conserto |
+|---|---|---|
+| Recado para nome inexistente (aberto desde 06/08) | "Marisani" (Whisper) x "Marisane" (apelido): "combinado, eu aviso" e o recado preso para sempre. | Na criação: guarda (nunca se perde) e, se o nome não casa com a família, diz a verdade e sugere o parecido ("Você quis dizer Marisane?"). |
+| Rostos da família desistiam | 30 tentativas (5 min) e desistia até o reinício: SSD que voltasse depois = família inteira como estranha o dia todo. | Grita uma vez e segue tentando a cada 60 s (falhas em DEBUG na fase lenta, sem afogar o log). |
+| **Publicar no vazio** (varredura de todos os tópicos) | `database.rebuilt` (memória perdida), `database.backup_failed`, `navigation.nav2_subindo/pronto/desligado`, `navigation.desvio` sem assinante. E `database.rebuilt` nem era publicado: `iniciar_banco()` só rodava nos testes. | Todos chegam à webui; os do banco nos erros recentes; o Pi publica o `rebuilt` depois de a webui subir. |
+| Comando que mexe as rodas fora da trava (varredura) | `DOCK` conferido: só para o robô, e é proibido para a IA. | Nada a fazer; comentários falsos do `navigation_core` corrigidos. |
+
+Restam sem assinante, só informativos: `database.ready`, `voice.transcription_ready`.
