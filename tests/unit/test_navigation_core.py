@@ -438,8 +438,9 @@ async def _follow_com_pessoa(cenario, caixa, distancia_cm, pan=0.0):
         raios[angulo] = distancia_cm
     await cenario.bus.publish("lidar.scan", {"raios_cm": raios})
     await cenario.nav.iniciar_follow()
-    # depois do follow: ele mesmo centraliza o pan ao levantar a cabeca
-    await cenario.bus.publish("motion.pan_tilt", {"pan": pan, "tilt": 0})
+    # depois do follow: ele mesmo centraliza o pan ao levantar a cabeca.
+    # O FATO (cabeca mandada ao corpo), nao o pedido - auditoria C6-01/02.
+    await cenario.bus.publish("motion.cabeca_posicao", {"pan": pan, "tilt": 0})
     await cenario.bus.aguardar_fila_vazia()
     for _ in range(2):  # achar antes de seguir: duas deteccoes
         await cenario.bus.publish("vision.person_detected", {"classe": "person", "caixa": caixa})
@@ -1139,3 +1140,16 @@ def test_distancia_do_me_siga_vem_do_yaml():
         bus, comm, CONFIG_MOTION, {**CONFIG_NAVIGATION, "follow_distance_m": 1.5}
     )
     assert com_chave._follow_distancia_cm == pytest.approx(150.0)
+
+
+
+@pytest.mark.asyncio
+async def test_pedido_de_cabeca_descartado_nao_muda_o_follow(cenario):
+    """C6-02: `motion.pan_tilt` e PEDIDO - o Pi descarta parte deles (MANUAL,
+    operador, taxa). So `motion.cabeca_posicao` (o que saiu ao corpo) conta."""
+    await cenario.bus.publish("motion.pan_tilt", {"pan": 40.0, "tilt": 0})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._pan_follow_graus == 0.0
+    await cenario.bus.publish("motion.cabeca_posicao", {"pan": 40.0, "tilt": 0, "origem": "visao"})
+    await cenario.bus.aguardar_fila_vazia()
+    assert cenario.nav._pan_follow_graus == 40.0

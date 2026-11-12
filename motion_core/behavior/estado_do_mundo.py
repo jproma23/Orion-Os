@@ -368,7 +368,8 @@ class EstadoDoMundo:
         # Objetos que a camera ve (cadeira, tv, gato...) - chegam do Notebook
         # encaminhados, estrangulados la a 1/s por classe (2026-11-01).
         event_bus.subscribe("vision.object_detected", self._ao_ver_objeto)
-        event_bus.subscribe("motion.pan_tilt", self._ao_mover_cabeca)
+        # Fato, nao pedido - ver navigation_core (auditoria C6-01/02).
+        event_bus.subscribe("motion.cabeca_posicao", self._ao_mover_cabeca)
         # Pose pela roda (encoder) com rumo fundido a bussola - mesmo processo.
         event_bus.subscribe("motion.position", self._ao_receber_posicao)
         # A navegação declarando que andou sem saber o que havia à frente.

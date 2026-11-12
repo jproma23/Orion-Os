@@ -900,6 +900,7 @@ async def principal() -> None:
                 "hardware_core",
                 {"comando": "SET_PAN_TILT", "pan_graus": pan, "tilt_graus": tilt},
             )
+            await _cabeca_movida(pan, tilt, evento.dados.get("origem"))
         except ErroComunicacao:
             # Mega ausente nao derruba o maestro (Cap 6 s.8), mas isto vai em
             # WARNING e NAO em debug de proposito: foi exatamente um
@@ -908,6 +909,40 @@ async def principal() -> None:
             logger.warning("nao consegui mover o pan/tilt (pan=%.1f tilt=%.1f)", pan, tilt)
 
     event_bus.subscribe("motion.pan_tilt", _mover_servos_do_maestro)
+
+    async def _cabeca_movida(pan: float, tilt: float, origem) -> None:
+        """A cabeca FOI mandada para (pan, tilt) - o fato, nao o pedido.
+
+        `motion.pan_tilt` e PEDIDO: este Pi descarta parte deles (MANUAL,
+        janela do operador, limitador de taxa) e, ate 12/11, o FOLLOW, o
+        retrato e o Notebook atualizavam a posicao mesmo assim (auditoria
+        C6-02). E o comando da visao do Notebook nem passava por aqui (C6-01).
+        Agora so o que saiu para o ESP32 vira `motion.cabeca_posicao`, e so
+        isso vai ao Notebook - que ignora o eco da propria visao.
+        """
+        dados = {"pan": pan, "tilt": tilt, "origem": origem}
+        await event_bus.publish("motion.cabeca_posicao", dados)
+        if origem != "visao":
+            try:
+                await comm.publish("motion.pan_tilt", dict(dados), local=False)
+            except Exception:
+                logger.debug("falha ao repassar a cabeca ao Notebook", exc_info=True)
+
+    async def _repasse_ao_corpo(mensagem) -> None:
+        """Comando que o Pi REPASSOU ao corpo (o Notebook move a cabeca direto)."""
+        payload = mensagem.payload or {}
+        if payload.get("comando") != "SET_PAN_TILT":
+            return
+        try:
+            pan = float(payload.get("pan_graus", 0.0))
+            tilt = float(payload.get("tilt_graus", 0.0))
+        except (TypeError, ValueError):
+            return
+        await event_bus.publish(
+            "motion.cabeca_posicao", {"pan": pan, "tilt": tilt, "origem": "visao"}
+        )
+
+    comm.definir_gancho_repasse("hardware_core", _repasse_ao_corpo)
 
     async def _recentrar_cabeca_ociosa() -> None:
         """Depois de 3 min sem ninguem mexer, a cabeca volta ao centro.
@@ -964,7 +999,10 @@ async def principal() -> None:
     # para ca, e nao pode passar a encaminhar: a visao ja comanda os servos
     # pelo `comm.send` direto, e o evento faria o mesmo movimento uma segunda
     # vez por este handler.
-    event_bus.subscribe("motion.pan_tilt", _repassar_ao_notebook)
+    # (2026-11-12, C6-02) O repasse ao Notebook saiu daqui: ele agora e feito
+    # em `_cabeca_movida`, SO para o que de fato foi mandado ao corpo. Antes
+    # ia todo pedido, inclusive os descartados, e a visao ressincronizava
+    # para uma posicao onde a cabeca nunca foi.
 
     maestro = BehaviorCore(
         event_bus,

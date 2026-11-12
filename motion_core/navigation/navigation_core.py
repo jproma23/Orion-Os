@@ -336,7 +336,10 @@ class NavigationCore:
         event_bus.subscribe("navigation.goal_resultado", self._ao_resultado_goal)
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_atualizar_telemetria)
         event_bus.subscribe("vision.person_detected", self._ao_ver_pessoa_follow)
-        event_bus.subscribe("motion.pan_tilt", self._ao_mover_cabeca_follow)
+        # O FATO (cabeca movida de verdade), nao o PEDIDO (motion.pan_tilt):
+        # pedido descartado (MANUAL, operador, taxa) nao move nada, e o
+        # comando da visao do Notebook so aparece aqui (auditoria C6-01/02).
+        event_bus.subscribe("motion.cabeca_posicao", self._ao_mover_cabeca_follow)
         event_bus.subscribe("motion.scan_complete", self._ao_completar_scan)
         event_bus.subscribe("motion.status", self._ao_atualizar_estado_hardware)
         event_bus.subscribe("lidar.scan", self._ao_atualizar_lidar)

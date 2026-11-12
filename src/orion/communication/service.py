@@ -60,6 +60,7 @@ class ComunicacaoService:
         self._rotas: dict[str, str] = {}
         self._porteiros: dict = {}
         self._ganchos_stop: dict = {}
+        self._ganchos_repasse: dict = {}
         self._pendentes_ack: dict[str, asyncio.Future[Mensagem]] = {}
         self._pendentes_resposta: dict[str, asyncio.Future[Mensagem]] = {}
         # Uma tarefa de recepcao POR PEER (nao uma lista solta): ao
@@ -156,6 +157,19 @@ class ComunicacaoService:
         do link de origem. Excecao dele vira log, nunca queda da recepcao.
         """
         self._ganchos_stop[destino] = gancho
+
+    def definir_gancho_repasse(self, destino: str, gancho) -> None:
+        """Depois de REPASSAR com sucesso um COMMAND para `destino`, chama
+        `await gancho(mensagem)` (2026-11-12, auditoria C6-01).
+
+        O Notebook move a cabeca mandando SET_PAN_TILT direto ao corpo, e o
+        Pi so repassa: a navegacao e o retrato do Pi nunca sabiam para onde a
+        camera apontava, e o FOLLOW calculava o desvio da pessoa com a cabeca
+        "no centro" quando ela estava a 40 graus. So depois do envio - comando
+        recusado pelo porteiro ou sem rota nao moveu nada. Excecao do gancho
+        vira log, nunca queda da recepcao.
+        """
+        self._ganchos_repasse[destino] = gancho
 
     def _motivo_recusa(self, destino: str, payload: dict) -> str | None:
         porteiro = self._porteiros.get(destino)
@@ -467,6 +481,13 @@ class ComunicacaoService:
             await transporte.enviar(mensagem.to_bytes())
         except ErroTransporte:
             logger.warning("Falha ao encaminhar mensagem para '%s'", mensagem.destino)
+            return
+        gancho = self._ganchos_repasse.get(mensagem.destino)
+        if gancho is not None and mensagem.tipo is TipoMensagem.COMMAND:
+            try:
+                await gancho(mensagem)
+            except Exception:
+                logger.exception("gancho de repasse para '%s' falhou", mensagem.destino)
 
     def _avisar_stop_repassado(self, mensagem: Mensagem) -> None:
         if mensagem.tipo is not TipoMensagem.COMMAND or mensagem.payload.get("comando") != "STOP":

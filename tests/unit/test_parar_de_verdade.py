@@ -784,3 +784,36 @@ async def test_quero_parar_de_fumar_para_as_rodas_e_responde():
     resposta = await planner.processar("quero parar de fumar")
     assert enviados[:1] == ["STOP"]  # AGIR: parou mesmo assim
     assert resposta != mp.RESPOSTA_PARAR  # FALAR: a frase nao morreu no atalho
+
+
+# ---------- C6-01: o Pi fica sabendo da cabeca que a visao do Notebook moveu ----------
+
+
+@pytest.mark.asyncio
+async def test_gancho_de_repasse_ve_so_o_que_saiu_para_o_corpo():
+    vistos = []
+
+    async def gancho(m):
+        vistos.append(m.payload)
+
+    bus = EventBus()
+    comm = ComunicacaoService("motion_core", bus)
+    note = FakeTransporte()
+    esp = FakeTransporte()
+    comm.adicionar_link("mission_core", note)
+    comm.adicionar_link("hardware_core", esp)
+    comm.definir_gancho_repasse("hardware_core", gancho)
+    comm.definir_porteiro(
+        "hardware_core",
+        lambda p: "trava" if p.get("comando") == "MOVE_FORWARD" else None,
+    )
+    cabeca = Mensagem.nova(
+        TipoMensagem.COMMAND, "mission_core", "hardware_core",
+        {"comando": "SET_PAN_TILT", "pan_graus": 35.0, "tilt_graus": 5.0},
+    )
+    await note.injetar(cabeca.to_bytes())
+    await note.injetar(_comando_do_notebook("MOVE_FORWARD").to_bytes())  # recusado
+    await asyncio.sleep(0.05)
+    assert [v["comando"] for v in vistos] == ["SET_PAN_TILT"]
+    assert vistos[0]["pan_graus"] == 35.0
+    await comm.encerrar()
