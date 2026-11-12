@@ -23,6 +23,7 @@ import cv2
 from orion.kernel.event_bus import EventBus, Prioridade
 from orion.vision.captura import CapturaCamera, ErroCamera
 from orion.vision.deteccao import Deteccao, DetectorYolo
+from orion.vision.odometria_visual import CLASSES_DINAMICAS, OdometriaVisual
 from orion.vision.pan_tilt import CalculadoraPanTilt, LimitesPanTilt
 from orion.vision.rastreamento import Caixa, Rastreador
 from orion.vision.reconhecimento_facial import ReconhecedorFacial, RostoReconhecido
@@ -77,6 +78,7 @@ class VisionCore:
         imgsz: int = 640,
         reconhecer_rosto_a_cada: int = 1,
         confianca_para_descrever: float | None = None,
+        odometria_visual: OdometriaVisual | None = None,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -155,6 +157,9 @@ class VisionCore:
         #: tampada, quadro congelado) - ver `sem_sinal.py`.
         self._sem_sinal = DetectorSemSinal()
         self._sem_sinal_reportado = False
+        #: Giro do corpo medido pela imagem (2026-11-12) - a testemunha da
+        #: odometria do Pi. None = desligado (`vision.odometria_visual`).
+        self._odometria = odometria_visual
         # 0 = sem limite (comportamento antigo). Vem de vision.fps no
         # orion.yaml: ate 2026-07-25 essa chave era configuracao MORTA e o
         # laco rodava a toda velocidade, medido em 131% de CPU disputando os
@@ -356,6 +361,8 @@ class VisionCore:
                 )
             self._ultima_cena = None
             self._cenas_recentes.clear()
+            if self._odometria is not None:
+                self._odometria.quebrar()
             return frame
         if self._sem_sinal_reportado:
             self._sem_sinal_reportado = False
@@ -368,6 +375,7 @@ class VisionCore:
         deteccoes = [d for d in para_descrever if d.confianca >= self._confianca_acao]
         para_descrever = [d for d in para_descrever if d.confianca >= self._confianca_descrever]
         pessoas_detectadas = DetectorYolo.pessoas(deteccoes)
+        await self._medir_giro(frame, para_descrever, agora)
 
         # O RECONHECIMENTO FACIAL TEM RITMO PROPRIO (2026-07-30), porque ele
         # custa 442-716 ms contra 125 ms do YOLO e nao da para baratea-lo sem
@@ -482,6 +490,10 @@ class VisionCore:
         self._executando = True
         while self._executando:
             if self._pausado:
+                # Pausa = buraco na sequencia de quadros: a odometria visual
+                # nao pode comparar o quadro de depois com o de antes.
+                if self._odometria is not None:
+                    self._odometria.quebrar()
                 # Nao processa quadro nenhum: e aqui que o alivio de carga
                 # economiza de verdade. O YOLO e o face_recognition sao o
                 # trabalho mais pesado do Notebook, e ate 2026-07-30 o alivio
@@ -499,10 +511,36 @@ class VisionCore:
             try:
                 await self.processar_um_frame()
             except ErroCamera:
+                if self._odometria is not None:
+                    self._odometria.quebrar()
                 await self._captura.fechar()
                 await asyncio.sleep(intervalo_reconexao_s)
                 continue
             await self._dormir_o_resto_do_quadro(inicio)
+
+    async def _medir_giro(self, frame, deteccoes: list[Deteccao], agora: float) -> None:
+        """Mede o giro do corpo pela imagem e publica `vision.giro_visual`.
+
+        Usa as caixas do YOLO no limiar BAIXO (o de descrever): na duvida, e
+        melhor apagar uma pessoa a mais do que deixar alguem andando entrar
+        na conta do giro. A cabeca e lida ANTES de a correcao deste quadro
+        rodar - e a posicao em que a foto foi tirada. Falha aqui nunca
+        derruba a visao: e testemunha, nao o pipeline.
+        """
+        if self._odometria is None:
+            return
+        try:
+            caixas = [d.caixa for d in deteccoes if d.classe in CLASSES_DINAMICAS]
+            medida = self._odometria.medir(
+                frame, caixas, (self._pan_tilt.pan_atual, self._pan_tilt.tilt_atual)
+            )
+            if medida.motivo == "primeiro_quadro":
+                return
+            await self._event_bus.publish(
+                "vision.giro_visual", self._odometria.evento(medida, agora)
+            )
+        except Exception:
+            logger.warning("odometria visual falhou neste quadro", exc_info=True)
 
     async def _dormir_o_resto_do_quadro(self, inicio: float) -> None:
         """Devolve ao sistema o tempo que sobrou do orcamento do quadro.

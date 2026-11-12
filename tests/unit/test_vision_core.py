@@ -217,6 +217,10 @@ async def test_person_lost_publicado_quando_alvo_desaparece():
 
     await vision.processar_um_frame()
     detector._deteccoes = []  # frame seguinte: ninguem mais detectado
+    # O relogio monotonic do Windows anda em degraus de ~15,6 ms: os dois
+    # quadros caiam no MESMO tique, o tempo sem alvo dava 0 e "0 > 0" nao
+    # declarava perda - o teste falhava 1 vez em 2 ou 3 (medido 12/11).
+    await asyncio.sleep(0.03)
     await vision.processar_um_frame()
     await bus.aguardar_fila_vazia()
 

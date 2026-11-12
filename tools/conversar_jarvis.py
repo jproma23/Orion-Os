@@ -462,6 +462,14 @@ async def principal() -> None:
 
     bus.subscribe("vision.person_recognized", _repassar_identidade)
 
+    # GIRO MEDIDO PELA CAMERA (2026-11-12) - nasce aqui (a camera e o YOLO
+    # estao no Notebook) e o assinante e a FusaoSensores do Pi, que confere o
+    # encoder com ele. Sem este repasse seria a 6a vez de "publicar no
+    # vazio". NAO estrangulado: sai no ritmo da visao (vision.fps = 2/s), e
+    # o Pi precisa de todos para a janela nao parecer quebrada - mesmo assim
+    # o payload leva o ACUMULADO, entao mensagem perdida nao vira giro perdido.
+    bus.subscribe("vision.giro_visual", _repassar_ao_pi)
+
     async def enviar_comando_hardware(comando: str, parametros: dict | None = None) -> None:
         """Manda um COMMAND ao corpo pela cadeia TCP->serial e aguarda o ACK.
 

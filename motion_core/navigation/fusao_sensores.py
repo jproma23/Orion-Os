@@ -61,6 +61,7 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections import deque
 from typing import Any
 
 from orion.kernel.event_bus import EventBus, Evento
@@ -100,6 +101,17 @@ ORIGEM_ENCODER = "encoder"
 TAU_BUSSOLA_S = 2.0
 
 
+#: Padroes de `motion.odometria_visual` (ver orion.yaml) - peso 0 = a camera
+#: so testemunha, nao corrige a pose.
+PADRAO_ODOMETRIA_VISUAL = {
+    "peso_camera": 0.0,
+    "validade_s": 1.5,
+    "janela_testemunha_s": 2.0,
+    "giro_minimo_graus": 15.0,
+    "giro_parado_graus": 3.0,
+}
+
+
 def yaw_da_bussola_rad(rumo_graus: float) -> float:
     """Rumo da bussola (0 = norte, HORARIO) -> yaw ENU (0 = leste, anti-horario)."""
     return math.radians((90.0 - rumo_graus) % 360.0)
@@ -131,7 +143,37 @@ class FusaoSensores:
         #: leitura valida ALINHA de uma vez; as seguintes so puxam devagar.
         self._ancorada = False
 
+        # A CAMERA NA ODOMETRIA (2026-11-12). O Notebook mede o giro pela
+        # imagem (src/orion/vision/odometria_visual.py) e manda o ACUMULADO.
+        # Aqui ele vira duas coisas:
+        #   1. TESTEMUNHA: a roda diz que girou e a camera viu o mundo parado
+        #      = roda no ar, patinando ou robo preso (a "odometria mentirosa"
+        #      de 30/07). Sai em `camera_confirma_giro` e no log.
+        #   2. CORRECAO (so com peso_camera > 0): puxa a orientacao para o
+        #      giro que a camera viu. Feita pela DIFERENCA entre o que a
+        #      camera e o encoder giraram desde a ultima medida usada - e nao
+        #      somando os dois - para mensagem atrasada ou dois quadros num
+        #      intervalo de telemetria nao contarem o giro duas vezes.
+        conf_visual = {**PADRAO_ODOMETRIA_VISUAL, **(config_motion.get("odometria_visual") or {})}
+        self._peso_camera = min(1.0, max(0.0, float(conf_visual["peso_camera"])))
+        self._validade_camera_s = float(conf_visual["validade_s"])
+        self._janela_testemunha_s = float(conf_visual["janela_testemunha_s"])
+        self._giro_minimo_graus = float(conf_visual["giro_minimo_graus"])
+        self._giro_parado_graus = float(conf_visual["giro_parado_graus"])
+        #: Ultima `vision.giro_visual` recebida: (recebida_em, acumulado_graus,
+        #: quadros_invalidos, quadros_validos).
+        self._camera_ultima: tuple[float, float, int, int] | None = None
+        #: A medida da camera a partir da qual se compara (a ultima usada).
+        self._camera_base: tuple[float, float, int, int] | None = None
+        #: Giro do ENCODER (rad) desde `_camera_base` - o par da comparacao.
+        self._encoder_desde_base_rad = 0.0
+        #: Epocas fechadas para a testemunha: (instante, giro_encoder_graus,
+        #: giro_camera_graus ou None se a camera nao cobriu a epoca).
+        self._epocas: deque[tuple[float, float, float | None]] = deque()
+        self._desmentido_avisado = False
+
         event_bus.subscribe("comm.mensagem.telemetry", self._ao_receber_telemetria)
+        event_bus.subscribe("vision.giro_visual", self._ao_receber_giro_visual)
 
     @staticmethod
     def _rumo_valido(payload: dict[str, Any]) -> float | None:
@@ -150,6 +192,88 @@ class FusaoSensores:
     def pose_atual(self) -> tuple[float, float, float]:
         """(x_m, y_m, orientacao_graus) - util em testes/diagnostico."""
         return (self._x_m, self._y_m, math.degrees(self._orientacao_rad))
+
+    async def _ao_receber_giro_visual(self, evento: Evento) -> None:
+        dados = evento.dados or {}
+        try:
+            self._camera_ultima = (
+                time.monotonic(),
+                float(dados["acumulado_graus"]),
+                int(dados["quadros_invalidos"]),
+                int(dados["quadros_validos"]),
+            )
+        except (KeyError, TypeError, ValueError):
+            # payload de outra maquina: dado ruim nao derruba a odometria
+            logger.warning("vision.giro_visual invalido: %r", dados)
+
+    def _camera_fresca(self, agora: float) -> tuple[float, float, int, int] | None:
+        ultima = self._camera_ultima
+        if ultima is None or agora - ultima[0] > self._validade_camera_s:
+            return None
+        return ultima
+
+    def _comparar_com_camera(self, agora: float, delta_encoder_rad: float) -> float | None:
+        """Fecha uma epoca se chegou medida nova da camera.
+
+        Devolve o giro da camera (rad) da epoca - ou None se nao ha medida
+        nova (a epoca continua aberta, acumulando encoder) ou se a janela
+        quebrou (quadro invalido, camera velha): ai a base recomeca.
+        """
+        self._encoder_desde_base_rad += delta_encoder_rad
+        atual = self._camera_fresca(agora)
+        base = self._camera_base
+        if atual is None:
+            if base is not None:
+                self._epocas.append((agora, math.degrees(self._encoder_desde_base_rad), None))
+            self._camera_base = None
+            self._encoder_desde_base_rad = 0.0
+            return None
+        if base is None:
+            self._camera_base = atual
+            self._encoder_desde_base_rad = 0.0
+            return None
+        if atual[3] == base[3] and atual[2] == base[2]:
+            return None  # nenhum quadro novo desde a base: epoca segue aberta
+        giro_encoder_graus = math.degrees(self._encoder_desde_base_rad)
+        self._camera_base = atual
+        self._encoder_desde_base_rad = 0.0
+        if atual[2] != base[2]:
+            # houve quadro invalido no meio (cabeca mexeu, sem textura,
+            # buraco): o acumulado nao cobre a epoca inteira
+            self._epocas.append((agora, giro_encoder_graus, None))
+            return None
+        giro_camera_graus = atual[1] - base[1]
+        self._epocas.append((agora, giro_encoder_graus, giro_camera_graus))
+        return math.radians(giro_camera_graus)
+
+    def _testemunho(self, agora: float) -> bool | None:
+        """A camera confirma o giro da janela? None = nao ha o que confirmar
+        (giro pequeno) ou a camera nao cobriu a janela inteira."""
+        while self._epocas and agora - self._epocas[0][0] > self._janela_testemunha_s:
+            self._epocas.popleft()
+        if not self._epocas or any(c is None for _, _, c in self._epocas):
+            return None
+        giro_encoder = sum(e for _, e, _ in self._epocas)
+        giro_camera = sum(c for _, _, c in self._epocas)
+        if abs(giro_encoder) >= self._giro_minimo_graus:
+            confirma = abs(giro_camera) >= self._giro_parado_graus
+        elif abs(giro_camera) >= self._giro_minimo_graus:
+            # a camera viu girar e a roda nao: empurrado, carregado
+            confirma = abs(giro_encoder) >= self._giro_parado_graus
+        else:
+            return None
+        if not confirma and not self._desmentido_avisado:
+            self._desmentido_avisado = True
+            logger.warning(
+                "camera DESMENTE o encoder: encoder %.1f graus, camera %.1f graus em %.1f s "
+                "- roda no ar, patinando, robo preso ou empurrado",
+                giro_encoder,
+                giro_camera,
+                self._janela_testemunha_s,
+            )
+        elif confirma:
+            self._desmentido_avisado = False
+        return confirma
 
     async def _ao_receber_telemetria(self, evento: Evento) -> None:
         # TELEMETRY nao passa pela normalizacao de topico das EVENT (Cap 14
@@ -249,6 +373,14 @@ class FusaoSensores:
             orientacao_origem = "encoder+bussola"
         else:
             orientacao_origem = "encoder"
+
+        # CAMERA (2026-11-12): testemunha sempre; corrige so com peso > 0.
+        giro_camera_rad = self._comparar_com_camera(agora, delta_orientacao_rad)
+        if giro_camera_rad is not None and self._peso_camera > 0:
+            giro_encoder_rad = math.radians(self._epocas[-1][1])
+            orientacao_rad += self._peso_camera * (giro_camera_rad - giro_encoder_rad)
+            orientacao_origem += "+camera"
+        camera_confirma = self._testemunho(agora)
         self._orientacao_rad = orientacao_rad % (2 * math.pi)
 
         # integracao "ponto medio": projeta x/y usando a orientacao na METADE
@@ -273,5 +405,9 @@ class FusaoSensores:
                 "origem": ORIGEM_ENCODER,
                 "medida": True,
                 "orientacao_origem": orientacao_origem,
+                "giro_camera_graus": (
+                    None if giro_camera_rad is None else round(math.degrees(giro_camera_rad), 2)
+                ),
+                "camera_confirma_giro": camera_confirma,
             },
         )

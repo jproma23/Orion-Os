@@ -347,7 +347,28 @@ class ModuloVisao:
             # no mesmo instante.
             reconhecer_rosto_a_cada=self._conf.get("face_recognition_every_n_frames", 1),
             confianca_para_descrever=self._conf.get("confianca_para_descrever"),
+            odometria_visual=_odometria_visual(self._conf.get("odometria_visual") or {}),
         )
+
+
+def _odometria_visual(conf: dict[str, Any]) -> Any:
+    """O medidor de giro pela camera, ou None se `ativo: false` (2026-11-12).
+
+    Liga por padrao numa config que tenha a secao: medir nao mexe em nada -
+    quem decide se a medida corrige a pose e o peso na fusao do Pi.
+    """
+    if not conf or not conf.get("ativo", True):
+        return None
+    from orion.vision.odometria_visual import (
+        FOV_HORIZONTAL_PADRAO_GRAUS,
+        RESPOSTA_MINIMA_PADRAO,
+        OdometriaVisual,
+    )
+
+    return OdometriaVisual(
+        fov_horizontal_graus=conf.get("fov_horizontal_graus", FOV_HORIZONTAL_PADRAO_GRAUS),
+        resposta_minima=conf.get("resposta_minima", RESPOSTA_MINIMA_PADRAO),
+    )
 
 
 def _nome_do_arquivo_do_modelo(valor: str) -> str:

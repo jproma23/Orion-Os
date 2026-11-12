@@ -270,6 +270,22 @@ motion:
   # calibrada (2026-10-31): a fita deu 0,36, mas o robo girava 1,35x o pedido.
   # Entra na odometria diferencial (fusao_sensores.py) e TEM que bater com
   # BITOLA_M do firmware (test_medidas_corpo.py).
+  # A CAMERA NA ODOMETRIA (2026-11-12) - o lado do Pi de vision.odometria_visual.
+  # A FusaoSensores compara o giro do encoder com o giro que a camera viu.
+  odometria_visual:
+    # Quanto o giro da camera entra na orientacao (0 = so testemunha, 1 = so
+    # camera). 0 DE PROPOSITO ate medir vision.odometria_visual.fov_horizontal_graus:
+    # com o FOV chutado, corrigir a pose com a camera trocaria um erro por outro.
+    # Depois de medido: 0.5.
+    peso_camera: 0.0
+    # Medida da camera mais velha que isto (s, relogio do Pi) nao vale.
+    validade_s: 1.5
+    # Testemunha: se o encoder diz que girou mais que isto na janela e a
+    # camera viu menos que `giro_parado_graus`, a roda girou e o robo nao
+    # (no ar, patinando, preso) - aviso no log e camera_confirma_giro=false.
+    janela_testemunha_s: 2.0
+    giro_minimo_graus: 15
+    giro_parado_graus: 3
 
 navigation:
   follow_distance_m: 1.2
@@ -416,6 +432,22 @@ vision:
   # para LISTAR objetos era rigoroso demais e calava copo, celular e
   # controle. Os eventos e a cabeca continuam no confidence_threshold.
   confianca_para_descrever: 0.35
+  # GIRO DO CORPO MEDIDO PELA CAMERA (2026-11-12, dono: "o YOLO precisa usar
+  # a camera e usar na odometria"). src/orion/vision/odometria_visual.py:
+  # correlacao de fase entre quadros, com as caixas do YOLO de pessoas e
+  # animais APAGADAS (quem anda na frente nao vira giro). Publica
+  # vision.giro_visual -> FusaoSensores do Pi (motion.odometria_visual).
+  # So mede GIRO, nunca distancia (camera sozinha nao tem escala).
+  odometria_visual:
+    ativo: true
+    # NAO MEDIDO - estimativa de webcam comum. Converte pixel em grau: errado
+    # aqui = giro errado na mesma proporcao. Medir na bancada: girar o robo
+    # 90 graus marcados no chao (cabeca parada) e somar o delta_graus do log;
+    # fov_certo = 60 * 90 / soma. So depois subir motion.odometria_visual.peso_camera.
+    fov_horizontal_graus: 60
+    # Confianca minima da correlacao (0-1). Parede lisa deu 0,08 no teste
+    # sintetico; cena com textura, 0,86. NAO MEDIDO na camera real.
+    resposta_minima: 0.2
   # A CABECA SEGUE ROSTO E PESSOA DE NOVO (2026-11-01 noite, dono: "religa o
   # seguir rosto e pessoa"). Tinha sido desligado de manha (ebcd59d, "muito
   # chefe"). A cabeca tem DOIS donos - esta visao e o AcompanharPessoa do Pi -
