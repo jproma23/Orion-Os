@@ -323,3 +323,17 @@ Restam sem assinante, só informativos: `database.ready`, `voice.transcription_r
 Scripts das varreduras (para refazer depois de mudanças grandes): `vazio.py`, `surdo.py`,
 `orfaos.py`, `config_morta.py` no scratchpad da sessão de 12/11 — a de config virou teste
 (`test_config_sem_leitor.py`).
+
+---
+
+## 11. Firmware lido à mão (12/11/2026, sexta rodada)
+
+| Ponto | Resultado |
+|---|---|
+| Homem-morto (`safety_manager.h`) | Certo: só comando de roda renova; movimento com fim exige heartbeat do Pi (2,5 s). |
+| **Giro de calibrar a bússola** | Renovava o homem-morto sozinho por até 25 s **sem olhar o Pi**: com o Pi travado (e a trava do LiDAR junto), girava às cegas até o fim. Agora heartbeat do Pi velho = para. Compila (pio esp32dev, sem aviso novo). |
+| Enquadramento serial (`framing.cpp`) | Robusto: STX ressincroniza, quadro maior que 768 B é descartado sem travar, CRC conferido. |
+| Corpo por WebSocket (`ponte_corpo_ws`) | Fora de uso (`transporte: serial`); se voltar, é registrado como `hardware_core` e passa pela mesma trava. |
+
+As varreduras automáticas e a leitura do firmware já acham pouco: o próximo ganho real é no
+robô ligado (suíte nas duas máquinas, merge, bancada).
