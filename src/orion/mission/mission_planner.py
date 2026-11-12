@@ -200,6 +200,22 @@ _PADRAO_PARAR = re.compile(
     r"|\bpara\b(?=[\s!.,;?]*$|\s+(?:tudo|ja|já|agora|ai|aí|de|com)\b)"
 )
 
+#: AGIR x FALAR NO "PARAR" (auditoria C5-04, 12/11). O atalho acima para as
+#: rodas e respondia "Parado." - e a frase morria ali. "Quero PARAR de fumar",
+#: "vou PARAR no mercado", "PARE de me chamar de senhor": o robo parava (isso
+#: e seguro e continua) e nunca respondia o que foi dito. Agora o STOP sai
+#: SEMPRE, na hora; so a RESPOSTA depende da frase: se, tirando a ordem e as
+#: palavras que acompanham uma ordem, sobra conteudo (2+ palavras), a frase
+#: segue para a conversa. "Fofao, para!", "para tudo agora", "pare de andar"
+#: continuam sendo so a ordem.
+_PALAVRAS_DA_ORDEM_DE_PARAR = frozenset(
+    "pare parar para pára stop tudo ja já agora ai aí ei e de com isso o a os as "
+    "no na em por favor voce você pode podes consegue robo robô fofao fofão jarvis "
+    "se andar girar rodar virar mexer correr ir seguir falar me mim "
+    "ja ta tá bom ok hein".split()
+)
+_PALAVRAS = re.compile(r"[a-zA-Zà-úÀ-Ú]+")
+
 #: O que ele diz ao parar. Texto pronto: este caminho existe justamente para
 #: nao precisar de modelo, entao nao ha de onde vir uma frase melhor.
 RESPOSTA_PARAR = "Parado."
@@ -577,7 +593,11 @@ class MissionPlanner:
             resposta = await self._executar_comando("STOP", RESPOSTA_PARAR)
             if self._professor is not None:
                 await self._professor.parar()
-            return resposta, None
+            if self._so_ordem_de_parar(texto_usuario):
+                return resposta, None
+            # Parou (AGIR) - e a frase tinha mais que a ordem: segue para a
+            # conversa (FALAR), em vez de virar so "Parado." (C5-04).
+            logger.info("parei e sigo a conversa: %r", texto_usuario)
 
         contexto = await self._consultar_contexto(pessoa_id, texto_usuario)
         if (aula_pausada := self._pausar_ou_retomar(texto_usuario)) is not None:
@@ -958,6 +978,14 @@ class MissionPlanner:
     @staticmethod
     def _pediu_para_parar(texto: str) -> bool:
         return _PADRAO_PARAR.search(texto.lower()) is not None
+
+    @staticmethod
+    def _so_ordem_de_parar(texto: str) -> bool:
+        """A frase e so a ordem de parar? (ver `_PALAVRAS_DA_ORDEM_DE_PARAR`)"""
+        sobra = [
+            p for p in _PALAVRAS.findall(texto.lower()) if p not in _PALAVRAS_DA_ORDEM_DE_PARAR
+        ]
+        return len(sobra) < 2
 
     async def _executar_comando(self, comando: str, resposta_pronta: str = "Feito.") -> str:
         if self._enviar_comando_hardware is not None:

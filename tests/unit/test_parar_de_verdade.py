@@ -734,3 +734,53 @@ async def test_parar_tudo_nao_cancela_a_si_mesmo():
 
 def test_origens_humanas_sao_as_do_operador_e_do_notebook():
     assert nc.ORIGENS_HUMANAS_DE_PARADA == {"operador", "notebook"}
+
+
+# ---------- C5-04: parar AGE sempre; a frase so morre se for so a ordem ----------
+
+
+@pytest.mark.parametrize(
+    "frase",
+    ["Fofao, para!", "para tudo agora", "pare de andar", "jarvis pare por favor", "STOP", "parar"],
+)
+def test_ordem_de_parar_pura(frase):
+    assert mp.MissionPlanner._pediu_para_parar(frase)
+    assert mp.MissionPlanner._so_ordem_de_parar(frase)
+
+
+@pytest.mark.parametrize(
+    "frase",
+    ["quero parar de fumar", "vou parar no mercado depois", "pare de me chamar de senhor"],
+)
+def test_frase_com_conteudo_para_e_segue_a_conversa(frase):
+    assert mp.MissionPlanner._pediu_para_parar(frase)
+    assert not mp.MissionPlanner._so_ordem_de_parar(frase)
+
+
+class _IaQueResponde:
+    def __init__(self):
+        self.perguntas = []
+
+    async def responder(self, mensagens, *args, **kwargs):
+        self.perguntas.append(mensagens)
+        return "Boa decisao! Posso te ajudar com dicas."
+
+    def __getattr__(self, nome):
+        async def _nada(*a, **k):
+            return None
+
+        return _nada
+
+
+@pytest.mark.asyncio
+async def test_quero_parar_de_fumar_para_as_rodas_e_responde():
+    enviados = []
+
+    async def hw(comando, parametros=None):
+        enviados.append(comando)
+
+    ia = _IaQueResponde()
+    planner = mp.MissionPlanner(ia, enviar_comando_hardware=hw)
+    resposta = await planner.processar("quero parar de fumar")
+    assert enviados[:1] == ["STOP"]  # AGIR: parou mesmo assim
+    assert resposta != mp.RESPOSTA_PARAR  # FALAR: a frase nao morreu no atalho
