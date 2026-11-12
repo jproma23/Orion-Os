@@ -928,6 +928,11 @@ familia:
     relacao: "mae"
     descricao: "como uma mãe para mim - cuidadora e zeladora da casa"
 
+# NAO IMPLEMENTADA (auditoria 12/11): NENHUM codigo le esta secao. Ela PARECE
+# proteger (usuarios autorizados, acoes restritas, perfil infantil) e nao
+# protege nada - a webui e sem senha por decisao do dono (12/11). Mantida so
+# como intencao; tests/unit/test_config_sem_leitor.py lista esta e as outras
+# chaves sem leitor, e falha se surgir outra.
 security:
   authorized_users: []           # preenchido via interface
   restricted_actions: ["config.security", "database.restore"]
