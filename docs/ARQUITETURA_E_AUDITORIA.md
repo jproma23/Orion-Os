@@ -235,3 +235,25 @@ Observações sem conserto (anotadas):
 Também em 12/11 (commit 86d2ff7): a câmera entra na odometria — giro medido pela imagem,
 com as caixas do YOLO apagando pessoas e animais; testemunha do encoder no Pi; correção da
 pose desligada (`peso_camera: 0`) até medir o FOV da DV20.
+
+---
+
+## 7. Achados antigos que ainda estavam abertos (12/11/2026)
+
+Conferido no branch o que dos relatórios de 09-10/11 não tinha entrado em nenhum bloco.
+**Já estavam consertados:** A2 (prazo no `drain`), A3 (exceção qualquer na recepção do
+link), A5 (`goal_resultado` tem assinante), C4-02 (teto de duty no firmware). O FOLLOW para
+sozinho quando a visão some (timeout de perda): a queda do Notebook não deixa o robô andando.
+
+| Achado | O que era | Conserto | Commit |
+|---|---|---|---|
+| C2-04 | Bússola que só fica válida com o robô já andando alinhava de uma vez: a orientação saltava até 180° e o mapa do Nav2 girava junto (teste: 180,0 contra 0). | Entra relativa (guarda a diferença daquele instante) e só corrige a deriva dali em diante. | `fusao` |
+| C5-04 | "Quero parar de fumar" parava o robô e a frase morria em "Parado.". | AGIR x FALAR: o STOP sai sempre; se sobra conteúdo além da ordem, a frase segue para a conversa. | `planner` |
+| C6-07 | `follow_distance_m: 1.2` no yaml, ninguém lia; o código usava 80 cm fixos. | Ligado ao yaml com 0,8 (o que rodou no teste de 08/11). | `navegacao` |
+| C5-09 | Com `goap: true` o planejador ignorava `acoes_permitidas` e as manobras finas voltavam. | Filtra pelas permitidas (sobram 9). GOAP hoje desligado. | `goap` |
+
+**Ainda abertos** (para a próxima rodada): C2-07 retrato da IA sem desconto do corpo ·
+C1-07 `bridge_cmd_vel` pega o volante uma vez só (409 depois) · C6-01/C6-02 o Pi não sabe
+quando a visão vira a cabeça · C5-05 idas ao Pi e cota gasta com "Parado." · C5-08 vault
+síncrono no laço do Pi · A4 heartbeat pelo bus. **Decisão do dono:** webui sem senha
+(C6-04), API 8081 e TCP 5757 abertos a qualquer cliente (C6-05).
