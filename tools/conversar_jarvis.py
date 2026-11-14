@@ -906,6 +906,8 @@ async def principal() -> None:
     # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo
     # mesmo dono da camera (2026-11-01).
     set_camera(modulo_visao.foto_agora)
+    # A IA que conversa VE a foto quando a pergunta pede olhar (2026-11-14).
+    planner.registrar_foto_camera(modulo_visao.foto_agora)
 
     # Atende os pedidos de alivio do Guardiao de RAM que roda no Pi. Ate
     # 2026-07-19 esse pedido era publicado e ninguem escutava - a protecao

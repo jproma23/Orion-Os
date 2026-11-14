@@ -26,6 +26,7 @@ sabe - sem isso os modelos inventam observacoes (medido em 2026-07-19).
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import os
 from pathlib import Path
@@ -96,8 +97,12 @@ class AiManager:
         )
 
     def _montar_mensagens(
-        self, prompt_sistema: str, texto_usuario: str, usar_historico: bool
-    ) -> list[dict[str, str]]:
+        self,
+        prompt_sistema: str,
+        texto_usuario: str,
+        usar_historico: bool,
+        imagem_jpeg: bytes | None = None,
+    ) -> list[dict]:
         """Monta o `messages` completo: sistema + turnos anteriores + fala atual.
 
         Existe para os TRES caminhos que falam com o modelo montarem a
@@ -108,7 +113,22 @@ class AiManager:
         mensagens: list[dict[str, str]] = [{"role": "system", "content": prompt_sistema}]
         if usar_historico:
             mensagens.extend(self.historico.mensagens())
-        mensagens.append({"role": "user", "content": texto_usuario})
+        if imagem_jpeg:
+            # A IA VE A CAMERA (2026-11-14). Dono: "tem camera mais ele
+            # encherga?" - nao enxergava: ate aqui o modelo so recebia o
+            # resumo do YOLO em texto (80 classes, sem cor, sem texto, sem
+            # gesto). A foto vai NA MESMA chamada da conversa (formato
+            # image_url do endpoint OpenAI-compat do Gemini): zero chamada a
+            # mais na cota de 500/dia. So a mensagem ATUAL leva foto - o
+            # historico guarda o texto, senao cada turno reenviaria fotos velhas.
+            url = "data:image/jpeg;base64," + base64.b64encode(imagem_jpeg).decode("ascii")
+            conteudo = [
+                {"type": "text", "text": f"[foto da sua camera agora, anexada]\n{texto_usuario}"},
+                {"type": "image_url", "image_url": {"url": url}},
+            ]
+            mensagens.append({"role": "user", "content": conteudo})
+        else:
+            mensagens.append({"role": "user", "content": texto_usuario})
         return mensagens
 
     async def responder(
@@ -117,6 +137,7 @@ class AiManager:
         contexto: dict | None = None,
         usar_historico: bool = True,
         prompt_sistema: str | None = None,
+        imagem_jpeg: bytes | None = None,
     ) -> str:
         """Responde uma fala, lembrando dos turnos anteriores.
 
@@ -138,7 +159,9 @@ class AiManager:
         #
         # Quem faz um trabalho que nao e conversar passa o seu proprio prompt.
         prompt_sistema = prompt_sistema or self._montar_prompt_sistema(contexto)
-        mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico)
+        mensagens = self._montar_mensagens(
+            prompt_sistema, texto_usuario, usar_historico, imagem_jpeg=imagem_jpeg
+        )
 
         if not self._openai_api_key:
             logger.warning("sem chave de IA configurada - a conversa fica sem resposta")
@@ -162,7 +185,9 @@ class AiManager:
     #: acumula com a frase seguinte.
     MINIMO_CARACTERES_FRASE = 12
 
-    async def responder_em_frases(self, texto_usuario: str, contexto: dict | None = None):
+    async def responder_em_frases(
+        self, texto_usuario: str, contexto: dict | None = None, imagem_jpeg: bytes | None = None
+    ):
         """Gera a resposta e a entrega FRASE A FRASE, conforme sai do modelo.
 
         POR QUE EXISTE (2026-07-30, T5 da missao de naturalidade). Medido neste
@@ -191,7 +216,9 @@ class AiManager:
         sem pensar, e nao ha o que picotar.
         """
         prompt_sistema = self._montar_prompt_sistema(contexto)
-        mensagens = self._montar_mensagens(prompt_sistema, texto_usuario, usar_historico=True)
+        mensagens = self._montar_mensagens(
+            prompt_sistema, texto_usuario, usar_historico=True, imagem_jpeg=imagem_jpeg
+        )
 
         if not self._openai_api_key:
             # `responder` ja registra o turno sozinho - nao registrar de novo

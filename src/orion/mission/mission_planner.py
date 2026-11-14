@@ -331,6 +331,18 @@ _LOCAL_DA_CENA = (
     r"|(?:em\s+|na\s+)?(?:minha\s+|sua\s+)?(?:m[ãa]o|frente)"
     r"|à\s+frente)"
 )
+#: Pergunta que pede OLHAR (2026-11-14): a foto da camera vai junto para a
+#: IA. Junto com `_PADRAO_VER_AGORA` ("o que e isso?"). Nao mais larga que
+#: isto: a foto custa so tokens (a chamada e a mesma), mas cada uma soma
+#: ~50 KB de envio ao tempo ate a primeira palavra.
+_PADRAO_PERGUNTA_VISUAL = re.compile(
+    r"\b(?:v[e\u00ea]s?|vendo|enxerg\w*|olh[ae]\w*|repar\w*|"
+    r"cor|cores|colorid\w*|roupa|vestid\w*|camiseta|"
+    r"segurando|na\s+(?:minha\s+)?m[a\u00e3]o|descrev\w*|aparenc\w*|"
+    r"c[a\u00e2]mera|foto|imagem|quantos\s+dedos|gesto|escrito)\b",
+    re.IGNORECASE,
+)
+
 _PADRAO_VER_AGORA = re.compile(
     r"\bo\s+que\s+[ée]\s+"
     r"(?:isso|isto|esse|este|essa|esta|essa\s+coisa|esse\s+objeto|este\s+objeto)\b"
@@ -468,6 +480,9 @@ class MissionPlanner:
         #: POR QUE a visao esta cega, ou None (auditoria 12/11) - ver
         #: `registrar_consultar_visao`.
         self._motivo_cego: Callable[[], str | None] | None = None
+        #: A foto da camera em JPEG, ou None (2026-11-14) - ver
+        #: `registrar_foto_camera`. None = a IA conversa sem ver.
+        self._foto_camera: Callable[[], bytes | None] | None = None
         self._memory_client = memory_client
         self._extrator: ExtratorFatos | None = None
         # Diario das observacoes (camada 2). Sem ele o grounding recebe
@@ -491,10 +506,12 @@ class MissionPlanner:
         foi_a_ia = resposta is None
         if resposta is None:
             await self._contar_consulta_ia()
-            bruta = await self._ai_manager.responder(texto_usuario, contexto)
+            bruta = await self._ai_manager.responder(
+                texto_usuario, contexto, imagem_jpeg=self._foto_se_visual(texto_usuario)
+            )
             # Mesmo degrau do caminho por frases: se a IA nao respondeu, ele
             # tenta obedecer sozinho antes de dizer que nao consegue pensar.
-            if bruta == SEM_IA and (local := await self._obedecer_sem_ia(texto_usuario)):
+            if bruta == SEM_IA and (local := await self._sem_ia(texto_usuario)):
                 resposta = local
                 foi_a_ia = False  # a IA nao respondeu: o extrator tambem falharia
             else:
@@ -531,7 +548,9 @@ class MissionPlanner:
         partes = []
         primeira = True
         await self._contar_consulta_ia()
-        async for frase in self._ai_manager.responder_em_frases(texto_usuario, contexto):
+        async for frase in self._ai_manager.responder_em_frases(
+            texto_usuario, contexto, imagem_jpeg=self._foto_se_visual(texto_usuario)
+        ):
             if primeira:
                 # A ACAO SO PODE ESTAR AQUI. O marcador e a primeira coisa que
                 # o modelo escreve (ver acoes_faladas), entao ele vem colado na
@@ -543,7 +562,7 @@ class MissionPlanner:
                 # inteiro estava trancado atras do modelo, e foi assim que a
                 # cota esgotada deixou o robo sem fazer NADA em 07/08.
                 if frase == SEM_IA:
-                    local = await self._obedecer_sem_ia(texto_usuario)
+                    local = await self._sem_ia(texto_usuario)
                     if local is not None:
                         yield local
                         await self._registrar_interacao(
@@ -1273,7 +1292,37 @@ class MissionPlanner:
         self._consultar_visao = callback
         self._motivo_cego = motivo_cego
 
-    async def _responder_sobre_o_que_ve(self, texto: str) -> str | None:
+    def registrar_foto_camera(self, callback: Callable[[], bytes | None] | None) -> None:
+        """Liga a FOTO da camera a conversa (2026-11-14). Mesmo motivo do
+        `registrar_consultar_visao`: a camera sobe depois do planner."""
+        self._foto_camera = callback
+
+    def _foto_se_visual(self, texto: str) -> bytes | None:
+        """A foto de agora, se a pergunta pede olhar. Nunca levanta."""
+        if getattr(self, "_foto_camera", None) is None:
+            return None
+        if not (_PADRAO_PERGUNTA_VISUAL.search(texto) or _PADRAO_VER_AGORA.search(texto.lower())):
+            return None
+        try:
+            foto = self._foto_camera()
+        except Exception:
+            logger.debug("falha ao pegar a foto da camera", exc_info=True)
+            return None
+        if foto:
+            logger.info("conversa: foto da camera anexada (%d KB)", len(foto) // 1024)
+        return foto or None
+
+    async def _sem_ia(self, texto: str) -> str | None:
+        """O que da para responder com a IA FORA: a cena do YOLO, depois o
+        catalogo de acoes. A cena entra aqui porque, com a IA no ar e a foto
+        ligada, ela nao responde mais na frente (ver `_responder_sobre_o_que_ve`)."""
+        if (cena := await self._responder_sobre_o_que_ve(texto, mesmo_com_foto=True)) is not None:
+            return cena
+        return await self._obedecer_sem_ia(texto)
+
+    async def _responder_sobre_o_que_ve(
+        self, texto: str, mesmo_com_foto: bool = False
+    ) -> str | None:
         """Responde "o que e isso?" com o que a camera ve AGORA.
 
         MESMA RAZAO DO DIARIO (NAO VAI PARA A IA): e leitura de sensor, no
@@ -1288,6 +1337,13 @@ class MissionPlanner:
         if self._consultar_visao is None:
             return None
         if not _PADRAO_VER_AGORA.search(texto.lower()):
+            return None
+        if not mesmo_com_foto and getattr(self, "_foto_camera", None) is not None:
+            # SUBSTITUI, NAO EMPILHA (2026-11-14): com a foto ligada quem
+            # responde "o que e isso?" e a IA OLHANDO - o YOLO so conhece 80
+            # classes e nao ve cor, texto nem o que esta na mao. A cena dele
+            # continua no contexto da IA e volta a responder sozinha quando a
+            # IA cai (`_sem_ia`).
             return None
         try:
             cena = self._consultar_visao()
