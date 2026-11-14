@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from enum import Enum
 from typing import Any
@@ -287,7 +288,8 @@ class VoiceCore:
         falando = getattr(self._sintetizador, "falando", False)
         if not falando and isinstance(fim, (int, float)) and fim <= inicio and duracao_s > 0:
             corte_s = fim + self._rastro_eco_s - inicio
-            amostras = int(len(audio) * min(corte_s, duracao_s) / duracao_s)
+            # para cima: no eco, uma amostra a mais zerada e o erro certo
+            amostras = math.ceil(len(audio) * min(corte_s, duracao_s) / duracao_s)
             audio = audio.copy()
             audio[:amostras] = 0
             logger.info("rastro da propria fala zerado no comeco da janela (%.1f s)", corte_s)
