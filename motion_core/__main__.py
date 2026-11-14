@@ -57,6 +57,7 @@ from motion_core.navigation.fusao_sensores import FusaoSensores
 from motion_core.navigation.navigation_core import NavigationCore
 from motion_core.navigation.trava_lidar import TravaLidar
 from motion_core.navigation.gerente_nav2 import GerenteNav2
+from motion_core.navigation.mapeamento import Mapeamento
 from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
 from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
@@ -536,6 +537,9 @@ async def principal() -> None:
         )
         tarefa_gerente_nav2 = asyncio.create_task(gerente_nav2.iniciar())
     Nav2Goal(event_bus, gerente=gerente_nav2)
+    # Mapear a casa (2026-11-14): explorador de fronteiras no container do
+    # Nav2, pedido pela acao MAPEAR. Ver motion_core/navigation/mapeamento.py.
+    Mapeamento(event_bus, gerente=gerente_nav2)
 
     # 3c. LiDAR (Motion Core, USB serial) - publica setores no barramento para
     # a navegacao, o retrato do mundo e a web (decisao do dono 2026-08-17).

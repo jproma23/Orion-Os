@@ -172,6 +172,25 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         acao_navegacao="FOLLOW",
         resposta="Estou te seguindo. Quando quiser que eu pare, diga: Jarvis, para.",
     ),
+    # Pedido do dono (2026-11-14): "pedi para ele mapear a casa inteira e
+    # disse q os sensores ainda nao consegui" - e nao havia acao para isso.
+    # Quem dirige e o Nav2 com o LiDAR; quem escolhe para onde ir e o
+    # explorador de fronteiras (motion_core/navigation/mapeamento.py).
+    AcaoFalada(
+        nome="mapear_casa",
+        descricao=(
+            "sair andando sozinho pela casa para fazer o MAPA dela com o LiDAR, "
+            "indo ate onde o mapa ainda nao conhece e desviando dos obstaculos. "
+            "Use quando pedirem para mapear, explorar ou conhecer a casa (ou um "
+            "comodo). Demora varios minutos; para interromper a pessoa diz para"
+        ),
+        entrega="navegacao",
+        acao_navegacao="MAPEAR",
+        resposta=(
+            "Vou mapear a casa. Leva uns minutos e eu ando sozinho; "
+            "se precisar que eu pare, diga: Jarvis, para."
+        ),
+    ),
     # ---- O MUNDO LA FORA (2026-08-07) -----------------------------------
     # Pedido do dono: "o robo vai usar a internet para aprender sobre o
     # mundo" - e a delimitacao dele na mesma conversa: "e nao eventos de

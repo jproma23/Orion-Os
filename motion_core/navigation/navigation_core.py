@@ -366,6 +366,21 @@ class NavigationCore:
             logger.info("navegacao: goal novo do Nav2 - velocidade destravada")
         self._velocidade_travada = False
 
+    async def iniciar_mapeamento(self) -> None:
+        """Mapear a casa inteira (2026-11-14): pede ao `Mapeamento`.
+
+        Quem dirige e o Nav2, guiado pelo explorador de fronteiras - ver
+        `motion_core/navigation/mapeamento.py`. Aqui so se solta a trava da
+        VELOCIDADE (mesma regra do goal novo: pedido explicito de "Nav2,
+        dirija") e se publica `navigation.mapear`, que o Mapeamento e a webui
+        assinam. Sem soltar, um STOP de antes deixaria o explorador mandando
+        alvos com as rodas recusando todo /cmd_vel.
+        """
+        if self._velocidade_travada:
+            logger.info("navegacao: mapeamento pedido - velocidade destravada")
+        self._velocidade_travada = False
+        await self._event_bus.publish("navigation.mapear", {}, prioridade=Prioridade.ALTA)
+
     async def _ao_resultado_goal(self, evento: Evento) -> None:
         """Guarda o fim do goal (2026-11-10, auditoria A5).
 
@@ -995,6 +1010,8 @@ class NavigationCore:
                 await self.iniciar_follow()
             elif acao == "EXPLORE":
                 await self.executar_explore()
+            elif acao == "MAPEAR":
+                await self.iniciar_mapeamento()
             elif acao == "SCAN_FRONT":
                 # Varredura avulsa (sem andar): a Ronda e o comando de voz
                 # "varredura" pedem isto. O motion.scan_complete resultante

@@ -80,6 +80,10 @@ TOPICOS_REPASSADOS = (
     "navigation.nav2_subindo",
     "navigation.nav2_pronto",
     "navigation.nav2_desligado",
+    # Mapear a casa (2026-11-14): o resultado vai para /estado ->
+    # navegacao.mapeamento e para o SSE. E o UNICO assinante - sem esta linha
+    # o fim do mapeamento seria mais um evento publicado no vazio.
+    "navigation.mapeamento_terminado",
     "navigation.desvio",
     # Banco recriado do zero (memoria perdida) e backup falhando: so linha
     # de log ate 12/11. Entram tambem nos erros recentes.
@@ -369,7 +373,7 @@ class WebUIServer:
         # nunca logica de decisao - so cache pra quem acabou de conectar
         self._estado: dict[str, Any] = {
             "sistema": {"robot_name": None, "modo": None},
-            "navegacao": {"modo": None, "ultimo_plano": None},
+            "navegacao": {"modo": None, "ultimo_plano": None, "mapeamento": None},
             "hardware": {
                 "estado": None,
                 "em_movimento": None,
@@ -431,6 +435,9 @@ class WebUIServer:
         # Solta no `navigation.goal` (publicado pelo /goal_nav2 ou por quem
         # mais mandar destino) - a MESMA regra que destrava o NavigationCore.
         event_bus.subscribe("navigation.goal", self._ao_navigation_goal)
+        # Mapear a casa tambem e "Nav2, dirija" (2026-11-14): sem isto o
+        # explorador mandaria /cmd_vel e esta trava recusaria todos.
+        event_bus.subscribe("navigation.mapear", self._ao_navigation_goal)
 
     async def _ao_navigation_parar(self, evento: Evento) -> None:
         self._velocidade_bloqueada = True
@@ -1143,6 +1150,8 @@ class WebUIServer:
             }
         elif topico == "navigation.mode_changed":
             self._estado["navegacao"]["modo"] = dados.get("modo")
+        elif topico == "navigation.mapeamento_terminado":
+            self._estado["navegacao"]["mapeamento"] = dados
         elif topico in (
             "navigation.plan_created",
             "navigation.segment_started",

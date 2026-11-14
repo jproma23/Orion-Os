@@ -61,6 +61,14 @@ GATILHOS: dict[str, tuple[str, ...]] = {
         # como o Whisper base escreve "me siga" (teste de 08/11 15:50: "Missiga!")
         "missiga", "mi siga", "me ciga", "messiga",
     ),
+    "mapear_casa": (
+        "mapeia a casa", "mapear a casa", "mapeie a casa", "mapeia casa",
+        "faz o mapa da casa", "faca o mapa da casa", "fazer o mapa da casa",
+        "mapeamento da casa", "mapeamento de toda casa", "mapeamento de toda a casa",
+        "explora a casa", "explorar a casa", "explore a casa",
+        # a frase do dono em 14/11, digitada no chat: "faz um mapeamento de toda cassa"
+        "mapeamento de toda cassa",
+    ),
     "acender_luz": (
         "acende a luz", "acender a luz", "liga a luz", "ligar a luz",
         "acende a lanterna", "liga a lanterna", "ligue a luz", "acenda a luz",
