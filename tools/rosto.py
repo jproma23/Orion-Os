@@ -187,7 +187,11 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
-    pygame.init()
+    # SO a tela. `pygame.init()` liga tambem o mixer, que abre um fluxo no
+    # PulseAudio; o Pulse pega o alto-falante USB e a voz do robo (PortAudio
+    # direto no ALSA) passa a dar "Device unavailable" - 14/11, o Jarvis ouviu
+    # e nao conseguiu responder. O rosto nao toca som nenhum.
+    pygame.display.init()
     if args.janela:
         tela = pygame.display.set_mode((960, 540))
     else:
