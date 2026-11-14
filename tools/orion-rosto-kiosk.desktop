@@ -16,8 +16,9 @@ Comment=Rosto leve em pygame no lugar do Firefox em kiosk (2026-11-12)
 # `xset s off` / `s noblank` ficam pelo mesmo motivo do kiosk antigo: o
 # protetor de tela do X conta teclado e mouse, e ninguem toca neles.
 # O rosto reconecta sozinho ao SSE, entao nao precisa esperar o servico subir.
-# ATENCAO: o diretorio e o do servico no Notebook - em 01/11 era ~/orion-jarvis,
-# nao ~/orion-os. Conferir com `systemctl --user cat orion-avatar`.
-Exec=sh -c 'xset s off; xset s noblank; cd "$HOME/orion-os" && exec .venv/bin/python tools/rosto.py'
+# O diretorio e o do servico no Notebook: ~/orion-jarvis (override do
+# orion-avatar), com o Python do venv de ~/orion-os - conferido em 14/11 com
+# `systemctl --user cat orion-avatar`. Se o servico mudar de pasta, mude aqui.
+Exec=sh -c 'xset s off; xset s noblank; cd "$HOME/orion-jarvis" && exec "$HOME/orion-os/.venv/bin/python" tools/rosto.py'
 X-GNOME-Autostart-enabled=true
 NoDisplay=false
