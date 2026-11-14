@@ -189,3 +189,25 @@ async def test_xset_que_falha_nao_marca_a_tela_como_acesa():
     controle._habilitado = True
     await controle.acordar("teste")
     assert not controle.acesa
+
+
+
+@pytest.mark.asyncio
+async def test_a_subida_apaga_a_tela():
+    """14/11, dono: "a tela so liga quando ele ouvir jarvis". Reiniciar o
+    servico deixava a tela acesa mais um prazo inteiro."""
+    controle, xset, _ = _controle()
+    await controle.iniciar()
+    try:
+        assert xset.chamadas[-1] == ("dpms", "force", "off")
+        assert ("dpms", "force", "on") not in xset.chamadas
+        assert not controle.acesa
+    finally:
+        await controle.encerrar()
+
+
+def test_system_ready_nao_acende_mais():
+    from orion.display.tela import TOPICOS_QUE_ACORDAM
+
+    assert "system.ready" not in TOPICOS_QUE_ACORDAM
+    assert "voice.wake_detected" in TOPICOS_QUE_ACORDAM

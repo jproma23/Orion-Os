@@ -60,13 +60,13 @@ logger = logging.getLogger("orion.display.tela")
 #: Eventos que ACENDEM a tela. Lista fechada e curta de proposito - ver o
 #: cabecalho: acender no que acontece o dia todo e o mesmo que nunca apagar.
 #:
-#: `system.ready` esta aqui por um motivo diferente dos outros: ele acontece
-#: UMA vez, na subida, e serve de prova de vida - quem liga o robo ve o rosto
-#: dele antes de a tela descansar.
+#: `system.ready` SAIU daqui em 14/11 (dono: "bora apaga a tela para
+#: economizar bateria" / "a tela so liga quando ele ouvir jarvis"). Era a
+#: prova de vida da subida - e cada reinicio do servico deixava a tela acesa
+#: mais um prazo inteiro. Agora a subida APAGA (ver `iniciar`).
 TOPICOS_QUE_ACORDAM = (
     "display.quadro",
     "display.tela",
-    "system.ready",
     # 08/11, dono: "toda vez que eu falar com ele a tela deve acender". So
     # os dois eventos de alguem falar COM ele - ouviu "Jarvis" e recebeu um
     # pedido. Nao o voice.status, que muda o dia inteiro (ver abaixo).
@@ -257,7 +257,11 @@ class ControleTela:
         # apagaria a tela sozinho pelos SEUS proprios contadores, por baixo
         # da decisao do robo - dois donos para a mesma tela.
         await self._executar(("dpms", "0", "0", "0"))
-        await self.acordar("subida")
+        # A SUBIDA APAGA (2026-11-14). O X pode vir aceso de antes (boot,
+        # reinicio do servico): marca como acesa para o `apagar` mandar o
+        # `force off` de verdade em vez de achar que nao ha o que fazer.
+        self._acesa = True
+        await self.apagar("subida")
         self._tarefa = asyncio.create_task(self._laco())
 
     async def _laco(self) -> None:
