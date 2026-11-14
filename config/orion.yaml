@@ -541,7 +541,12 @@ vision:
   # `confidence_threshold`, nao este - subir este traz o impasse de volta.
   target_confirmation_frames: 1
   pan_limits_degrees: [-80, 80]
-  tilt_limits_degrees: [-30, 45]
+  # Topo do tilt 45 -> 30 (2026-11-14, medido com o dono): em 45 o servo do
+  # tilt TREMIA parado, com um comando so; em 30, firme. A visao vivia
+  # pregada em 45 com gente perto (o alto da pessoa sai do quadro e a mira
+  # pede "mais para cima"). 35/40 nao foram testados - subir so medindo.
+  # Mesmo numero em acoes_faladas.py e webui/server.py (teste prende).
+  tilt_limits_degrees: [-30, 30]
   servo_max_speed_deg_s: 60
   # A DV20 (webcam USB dedicada a visao, no pan/tilt) so alcanca fisicamente
   # o Raspberry Pi (2026-07-28) - o Notebook, que roda o Vision Core, nao

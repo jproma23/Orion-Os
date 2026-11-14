@@ -824,7 +824,7 @@ class WebUIServer:
     #: melhor um numero repetido e conferido que um servo forcado contra o
     #: batente, que foi o que derrubou o ESP32 inteiro em 2026-08-03.
     PAN_MIN, PAN_MAX = -80.0, 80.0
-    TILT_MIN, TILT_MAX = -30.0, 45.0
+    TILT_MIN, TILT_MAX = -30.0, 30.0  # 45 tremia (medido 14/11)
 
     @staticmethod
     def _limitar(valor: float, minimo: float, maximo: float) -> float:

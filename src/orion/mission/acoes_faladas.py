@@ -93,7 +93,7 @@ ENTREGAS = frozenset(
 #: teste que um servo forcado contra o batente, que ja derrubou o ESP32
 #: inteiro uma vez (2026-08-03).
 PAN_MIN, PAN_MAX = -80.0, 80.0
-TILT_MIN, TILT_MAX = -30.0, 45.0
+TILT_MIN, TILT_MAX = -30.0, 30.0  # 45 tremia (medido 14/11)
 
 #: Quanto o robo vira quando alguem diz so "olha pra esquerda", sem medida.
 #:
@@ -102,7 +102,7 @@ TILT_MIN, TILT_MAX = -30.0, 45.0
 #: assim que um servo em estol derrubou o ESP32 inteiro. "Bem para a esquerda"
 #: e 60 graus; os 80 ficam de reserva para quem sabe o que esta pedindo.
 PAN_LADO = 60.0
-TILT_CIMA = 35.0
+TILT_CIMA = 25.0  # abaixo do topo de 30 (45 tremia, medido 14/11)
 TILT_BAIXO = -25.0
 
 
