@@ -26,6 +26,7 @@ from piper import PiperVoice
 from orion.voice import timbre as _timbre
 from orion.voice.audio_utils import PASSO_ENVELOPE_S, envelope_da_fala
 from orion.voice.audio_utils import reamostrar as _reamostrar
+from orion.voice.pronuncia import acentuar
 
 logger = logging.getLogger("orion.voice.sintese")
 
@@ -151,6 +152,8 @@ class Sintetizador:
 
     def _sintetizar(self, texto: str) -> tuple[np.ndarray, int]:
         """Texto -> PCM 16-bit na taxa nativa do Piper, ja com o timbre."""
+        # Acento de volta (2026-11-14): "relacao" saia "relacão". Ver pronuncia.py.
+        texto = acentuar(texto)
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_out:
             if self._config is not None:
