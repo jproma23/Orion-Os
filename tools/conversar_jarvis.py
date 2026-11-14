@@ -75,6 +75,7 @@ from orion.mission.quem_fala import QuemEstaFalando  # noqa: E402
 from orion.mission.recados import Recados, definir_apelidos  # noqa: E402
 from orion.mission.saudacao import SaudacaoEspontanea  # noqa: E402
 from orion.vision.modulo import ModuloVisao  # noqa: E402
+from orion.vision.obstaculo_chao import VigiaChao  # noqa: E402
 from orion.voice.ouvidos_esp32 import OuvidosESP32  # noqa: E402
 from orion.voice.sintese import Sintetizador  # noqa: E402
 from orion.voice.transcricao import Transcritor  # noqa: E402
@@ -908,6 +909,26 @@ async def principal() -> None:
     set_camera(modulo_visao.foto_agora)
     # A IA que conversa VE a foto quando a pergunta pede olhar (2026-11-14).
     planner.registrar_foto_camera(modulo_visao.foto_agora)
+
+    # OBSTACULO NO CHAO (2026-11-14): andando, o Pi abaixa a cabeca e varre;
+    # aqui o detector local olha cada quadro e, quando algo chega perto, a IA
+    # ve ESTE quadro e decide parar ou seguir. Ver vision/obstaculo_chao.py.
+    async def _perguntar_ia_chao(prompt: str, jpeg: bytes) -> str:
+        return await ia.responder(
+            "O que e isto no chao? PARAR ou SEGUIR?",
+            usar_historico=False,
+            prompt_sistema=prompt,
+            imagem_jpeg=jpeg,
+        )
+
+    async def _publicar_no_pi(topico: str, dados: dict) -> None:
+        await comm.publish(topico, dados, local=False)
+
+    vigia_chao = VigiaChao(_perguntar_ia_chao, comandar_navegacao, _publicar_no_pi)
+    bus.subscribe("vision.varredura_chao", vigia_chao.ao_varredura)
+    bus.subscribe("motion.pan_tilt", vigia_chao.ao_mover_cabeca)
+    if not modulo_visao.registrar_observador_de_frame(vigia_chao.processar_frame):
+        logger.warning("obstaculo no chao: sem visao - a varredura ao andar fica sem olhos")
 
     # Atende os pedidos de alivio do Guardiao de RAM que roda no Pi. Ate
     # 2026-07-19 esse pedido era publicado e ninguem escutava - a protecao

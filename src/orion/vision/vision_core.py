@@ -190,6 +190,11 @@ class VisionCore:
         #: mexe na cabeca - nem para seguir, nem para procurar.
         self._modo_manual = False
         event_bus.subscribe("behavior.modo_controle", self._ao_mudar_modo_controle)
+        #: VARREDURA AO ANDAR (2026-11-14): o Pi abaixa a cabeca e varre o
+        #: chao enquanto o robo anda. A visao continua vendo, mas nao mexe na
+        #: cabeca - seguir alguem com a camera agora a tiraria do caminho.
+        self._varredura_chao = False
+        event_bus.subscribe("vision.varredura_chao", self._ao_mudar_varredura_chao)
 
     async def _ao_outro_dono_mover_a_cabeca(self, evento) -> None:
         """Ressincroniza a posicao assumida dos servos.
@@ -223,6 +228,14 @@ class VisionCore:
                 "a cabeca e do operador" if manual else "a visao volta a mover a cabeca",
             )
         self._modo_manual = manual
+
+    async def _ao_mudar_varredura_chao(self, evento) -> None:
+        self._varredura_chao = bool(evento.dados.get("ativo"))
+
+    @property
+    def _cabeca_de_outro(self) -> bool:
+        """MANUAL (operador) ou varredura ao andar (Pi): a visao nao mexe."""
+        return self._modo_manual or getattr(self, "_varredura_chao", False)
 
     def salvar_ultimo_frame(self, caminho: str) -> str | None:
         """Grava em disco a ultima imagem lida. Devolve o caminho, ou None se
@@ -554,7 +567,7 @@ class VisionCore:
                         "timestamp": agora,
                     },
                 )
-            if self._modo_manual:
+            if self._cabeca_de_outro:
                 pan, tilt = self._pan_tilt.pan_atual, self._pan_tilt.tilt_atual
             else:
                 pan, tilt = self._pan_tilt.calcular_correcao(
@@ -617,7 +630,7 @@ class VisionCore:
         """
         if self._olhar is None or self._procura is None or not self._olhar.procurar:
             return
-        if self._publicar_pan_tilt is None or self._modo_manual:
+        if self._publicar_pan_tilt is None or self._cabeca_de_outro:
             return
         if self._sem_alvo_desde is None:
             self._sem_alvo_desde = agora

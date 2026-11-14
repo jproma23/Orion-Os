@@ -264,6 +264,14 @@ class ModuloVisao:
             logger.debug("falha ao consultar o motivo da cegueira", exc_info=True)
             return "a visao nao esta respondendo"
 
+    def registrar_observador_de_frame(self, callback) -> bool:
+        """Repassa ao Vision Core (o dono da camera). False = sem visao."""
+        registrar = getattr(self._nucleo, "registrar_observador_de_frame", None)
+        if registrar is None:
+            return False
+        registrar(callback)
+        return True
+
     def foto_agora(self) -> bytes | None:
         """O ultimo quadro da camera em JPEG, ou None (2026-11-01).
 
