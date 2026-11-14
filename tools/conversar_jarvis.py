@@ -792,6 +792,7 @@ async def principal() -> None:
         processar_comando_em_frases=processar_comando_em_frases,
         detector_palavra_ativacao=DetectorPalavraAtivacao(_palavras_ativacao(secao_voz)),
         exigir_palavra_ativacao=secao_voz["exigir_palavra_ativacao"],
+        comandos_aceitos_apos_convite=tuple(secao_voz.get("comandos_aceitos_apos_convite") or ()),
         frase_ativacao="Oi? Pode falar!",
         transcritor_ativacao=transcritor_ativacao,
         detector_atividade=detector_atividade,

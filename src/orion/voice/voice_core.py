@@ -13,6 +13,7 @@ import asyncio
 import logging
 import math
 import time
+import unicodedata
 from enum import Enum
 from typing import Any
 from collections.abc import Awaitable, Callable
@@ -28,6 +29,14 @@ logger = logging.getLogger("orion.voice.voice_core")
 
 CallbackProcessarComando = Callable[[str], Awaitable[str]]
 CallbackGravarAudio = Callable[[float], Awaitable[Any]]
+
+
+def _normalizar(texto: str) -> str:
+    """"Me siga." e "me siga" sao o mesmo comando: minusculas, sem acento e
+    sem pontuacao, espacos colapsados."""
+    sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    limpo = "".join(c if c.isalnum() else " " for c in sem_acento.lower())
+    return " ".join(limpo.split())
 
 
 class EstadoVoz(str, Enum):
@@ -65,8 +74,11 @@ class VoiceCore:
         silencios_para_fechar_sessao: int = 2,
         identificador_locutor=None,
         exigir_palavra_ativacao: bool = True,
+        comandos_aceitos_apos_convite: tuple[str, ...] = (),
     ) -> None:
         self._event_bus = event_bus
+        #: Ver `_resgatar_comando_do_convite`.
+        self._comandos_apos_convite = {_normalizar(c) for c in comandos_aceitos_apos_convite}
         self._indice_microfone = indice_microfone
         self._transcritor = transcritor
         self._sintetizador = sintetizador
@@ -257,6 +269,27 @@ class VoiceCore:
             if self._assentamento_pos_fala_s > 0:
                 await asyncio.sleep(self._assentamento_pos_fala_s)
 
+    def _resgatar_comando_do_convite(self) -> str:
+        """Comando conhecido que o portao de confianca derrubou, logo apos o
+        "Pode falar" (2026-11-14, decisao do dono).
+
+        "me siga" saiu com confianca -1,42 (corte -1,00) e foi descartado: o
+        portao e certo contra ruido, mas comando curto e o que tem menos
+        contexto para o Whisper ter certeza. SO aqui, e SO texto IGUAL a um da
+        lista: o robo acabou de convidar a falar, entao o som nao e ruido
+        qualquer. Risco aceito: o Whisper inventar exatamente esse comando
+        neste instante - o efeito e o comando, nao uma frase qualquer.
+        """
+        if not self._comandos_apos_convite:
+            return ""
+        for texto in getattr(self._transcritor, "descartados_por_confianca", None) or []:
+            if _normalizar(texto) in self._comandos_apos_convite:
+                logger.info(
+                    "comando aceito apesar da confianca baixa (logo apos o convite): %r", texto
+                )
+                return texto
+        return ""
+
     async def _gravar_sem_eco(self, duracao_s: float):
         """Grava, e devolve SILENCIO se ele falou durante a janela (2026-11-01).
 
@@ -389,6 +422,8 @@ class VoiceCore:
                     self._transcritor.transcrever(audio_comando),
                     self._identificar_falante(audio_comando),
                 )
+                if not texto_comando:
+                    texto_comando = self._resgatar_comando_do_convite()
             elif self._continuar_audio is None or texto_comando == self._comando_na_janela(
                 texto_janela
             ):

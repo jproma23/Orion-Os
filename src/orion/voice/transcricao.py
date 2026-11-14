@@ -92,9 +92,14 @@ class Transcritor:
         self._log_prob_threshold = log_prob_threshold
         self._compression_ratio_threshold = compression_ratio_threshold
         self._hotwords = hotwords
+        #: O que a ULTIMA transcricao descartou por confianca baixa (14/11).
+        #: Nao muda o que `transcrever` devolve: so deixa quem chamou decidir
+        #: se aquele descarte, naquele momento, era o comando esperado.
+        self.descartados_por_confianca: list[str] = []
 
     async def transcrever(self, audio: np.ndarray) -> str:
         def _transcrever() -> str:
+            self.descartados_por_confianca = []
             segmentos, _ = self._modelo.transcribe(
                 audio,
                 language=self._idioma,
@@ -150,6 +155,7 @@ class Transcritor:
                     "descartado (confianca %.2f abaixo de %.2f): %r",
                     confianca, self._log_prob_threshold, s.text.strip(),
                 )
+                self.descartados_por_confianca.append(s.text.strip())
                 continue
             razao = razao_de_compressao(s.text.strip())
             if razao > self._compression_ratio_threshold:

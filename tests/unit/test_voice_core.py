@@ -761,3 +761,73 @@ async def test_sem_fala_recente_a_janela_passa_inteira(monkeypatch):
     monkeypatch.setattr("orion.voice.voice_core.time.monotonic", lambda: 100.0)
     voz = _voz_gravando(_SintetizadorComRelogio(fim_ultima_fala=50.0), np.ones(8000))
     assert (await voz._gravar_sem_eco(8.0)).all()
+
+
+class _TranscritorComDescartes(TranscritorFalso):
+    """Cada item: (texto aceito, descartados por confianca) - como o real."""
+
+    def __init__(self, itens):
+        super().__init__([])
+        self._itens = list(itens)
+        self.descartados_por_confianca = []
+
+    async def transcrever(self, audio) -> str:
+        texto, descartados = self._itens.pop(0) if self._itens else ("", [])
+        self.descartados_por_confianca = list(descartados)
+        return texto
+
+
+async def _conversa_apos_convite(itens, comandos):
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    processados = []
+
+    async def processar(texto):
+        processados.append(texto)
+        return "ok"
+
+    async def continuar(duracao):
+        return object()
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=_TranscritorComDescartes(itens),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=processar,
+        gravar_audio=_gravar_audio_falso,
+        continuar_audio=continuar,
+        frase_ativacao="Oi? Pode falar!",
+        comandos_aceitos_apos_convite=comandos,
+    )
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+    bus.parar()
+    await tarefa
+    return processados
+
+
+@pytest.mark.asyncio
+async def test_me_siga_de_confianca_baixa_logo_apos_o_convite_e_aceito():
+    # 14/11: "me siga." saiu com -1,42 e o portao derrubou
+    itens = [("jarvis", []), ("", []), ("", ["Me siga."])]
+    assert await _conversa_apos_convite(itens, ("me siga",)) == ["Me siga."]
+
+
+@pytest.mark.asyncio
+async def test_frase_qualquer_de_confianca_baixa_continua_descartada():
+    itens = [("jarvis", []), ("", []), ("", ["anda para frente"])]
+    assert await _conversa_apos_convite(itens, ("me siga",)) == []
+
+
+@pytest.mark.asyncio
+async def test_comando_dentro_de_frase_maior_nao_e_resgatado():
+    # IGUAL, nao "contem": o resgate nao pode virar porta para o ruido
+    itens = [("jarvis", []), ("", []), ("", ["me siga ate a cozinha e abre a porta"])]
+    assert await _conversa_apos_convite(itens, ("me siga",)) == []
+
+
+@pytest.mark.asyncio
+async def test_sem_lista_nada_e_resgatado():
+    itens = [("jarvis", []), ("", []), ("", ["me siga"])]
+    assert await _conversa_apos_convite(itens, ()) == []
