@@ -820,7 +820,8 @@ class WebUIServer:
 
     #: Limites fisicos do pan/tilt, iguais aos do orion.yaml (vision).
     #: Duplicar numero e ruim, mas o Motion Core nao le a secao `vision` - ela
-    #: e do Notebook. Ficam aqui com o mesmo valor e um teste que os prende:
+    #: e do Notebook. Ficam aqui com o mesmo valor e um teste que os prende
+    #: (tests/unit/test_limites_cabeca.py - so existe desde 14/11; antes era promessa):
     #: melhor um numero repetido e conferido que um servo forcado contra o
     #: batente, que foi o que derrubou o ESP32 inteiro em 2026-08-03.
     PAN_MIN, PAN_MAX = -80.0, 80.0

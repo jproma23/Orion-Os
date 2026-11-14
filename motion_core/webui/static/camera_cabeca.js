@@ -112,7 +112,7 @@ function montarJoystickCabeca() {
   const ZONA_MORTA = 0.18;         // idêntico ao das rodas
   const INTERVALO_MS = 120;        // servo aceita mais ritmo que o motor de passo
   const PAN_MAX = 80;              // iguais aos limites do servidor
-  const TILT_MIN = -30, TILT_MAX = 45;
+  const TILT_MIN = -30, TILT_MAX = 30;  // 45 tremia (14/11); test_limites_cabeca prende
 
   let arrastando = false;
   let ultimoEnvio = 0;
