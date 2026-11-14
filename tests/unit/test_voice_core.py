@@ -695,3 +695,69 @@ async def test_so_jarvis_sem_comando_publica_fim_de_sessao():
     assert len(fins) == 1
     bus.parar()
     await tarefa
+
+
+class _SintetizadorComRelogio(SintetizadorFalso):
+    """Fala que acabou em `fim_ultima_fala` (monotonic), como o Sintetizador real."""
+
+    def __init__(self, fim_ultima_fala, falando=False):
+        super().__init__()
+        self.fim_ultima_fala = fim_ultima_fala
+        self.falando = falando
+
+    def falou_desde(self, instante, rastro_s):
+        return self.falando or self.fim_ultima_fala + rastro_s > instante
+
+
+def _voz_gravando(sintetizador, audio):
+    import numpy as np  # noqa: F401 - so para deixar claro o tipo do audio
+
+    async def gravar(duracao):
+        return audio.copy()
+
+    return VoiceCore(
+        EventBus(),
+        indice_microfone=0,
+        transcritor=TranscritorFalso([]),
+        sintetizador=sintetizador,
+        processar_comando=lambda texto: "ok",
+        gravar_audio=gravar,
+    )
+
+
+@pytest.mark.asyncio
+async def test_frase_logo_depois_do_pode_falar_nao_e_jogada_fora(monkeypatch):
+    # 14/11: "Oi? Pode falar!" acaba e a janela do comando comeca dentro do
+    # rastro de 1 s. Descartar a janela inteira perdia a frase do dono TODA vez.
+    np = pytest.importorskip("numpy")
+    monkeypatch.setattr("orion.voice.voice_core.time.monotonic", lambda: 100.0)
+    voz = _voz_gravando(_SintetizadorComRelogio(fim_ultima_fala=99.8), np.ones(8000))
+    audio = await voz._gravar_sem_eco(8.0)
+    # rastro: fim 99.8 + 1.0 - inicio 100.0 = 0.8 s de 8 s = 800 amostras
+    assert not audio[:800].any()
+    assert audio[800:].all()
+
+
+@pytest.mark.asyncio
+async def test_fala_durante_a_janela_ainda_descarta_tudo(monkeypatch):
+    # o caso de 01/11 (saudacao espontanea no meio da gravacao) nao muda
+    np = pytest.importorskip("numpy")
+    monkeypatch.setattr("orion.voice.voice_core.time.monotonic", lambda: 100.0)
+    voz = _voz_gravando(_SintetizadorComRelogio(fim_ultima_fala=103.0), np.ones(8000))
+    assert not (await voz._gravar_sem_eco(8.0)).any()
+
+
+@pytest.mark.asyncio
+async def test_falando_agora_descarta_tudo(monkeypatch):
+    np = pytest.importorskip("numpy")
+    monkeypatch.setattr("orion.voice.voice_core.time.monotonic", lambda: 100.0)
+    voz = _voz_gravando(_SintetizadorComRelogio(fim_ultima_fala=50.0, falando=True), np.ones(8000))
+    assert not (await voz._gravar_sem_eco(8.0)).any()
+
+
+@pytest.mark.asyncio
+async def test_sem_fala_recente_a_janela_passa_inteira(monkeypatch):
+    np = pytest.importorskip("numpy")
+    monkeypatch.setattr("orion.voice.voice_core.time.monotonic", lambda: 100.0)
+    voz = _voz_gravando(_SintetizadorComRelogio(fim_ultima_fala=50.0), np.ones(8000))
+    assert (await voz._gravar_sem_eco(8.0)).all()

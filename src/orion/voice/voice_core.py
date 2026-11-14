@@ -274,10 +274,26 @@ class VoiceCore:
         inicio = time.monotonic()
         audio = await self._gravar_audio(duracao_s)
         falou_desde = getattr(self._sintetizador, "falou_desde", None)
-        if falou_desde is not None and falou_desde(inicio, self._rastro_eco_s):
-            logger.info("janela descartada: ele estava falando enquanto ela era gravada")
-            return audio * 0
-        return audio
+        if falou_desde is None or not falou_desde(inicio, self._rastro_eco_s):
+            return audio
+        # SO O RASTRO, quando a fala acabou ANTES da janela (2026-11-14). A
+        # janela do comando comeca logo depois do "Oi? Pode falar!" - sempre
+        # dentro do rastro -, e descartar a janela inteira jogava fora a frase
+        # do dono TODA vez: ele respondia a primeira frase e nunca a segunda.
+        # O eco so pode estar no comeco: zera ate fim da fala + rastro e deixa
+        # o resto. Fala DURANTE a janela (saudacao espontanea) segue
+        # descartando tudo, que e o caso de 01/11.
+        fim = getattr(self._sintetizador, "fim_ultima_fala", None)
+        falando = getattr(self._sintetizador, "falando", False)
+        if not falando and isinstance(fim, (int, float)) and fim <= inicio and duracao_s > 0:
+            corte_s = fim + self._rastro_eco_s - inicio
+            amostras = int(len(audio) * min(corte_s, duracao_s) / duracao_s)
+            audio = audio.copy()
+            audio[:amostras] = 0
+            logger.info("rastro da propria fala zerado no comeco da janela (%.1f s)", corte_s)
+            return audio
+        logger.info("janela descartada: ele estava falando enquanto ela era gravada")
+        return audio * 0
 
     async def ciclo_uma_vez(self) -> bool:
         """Um ciclo: escuta uma janela curta, verifica a palavra de
