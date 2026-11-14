@@ -39,6 +39,10 @@ class EstadoVoz(str, Enum):
     ERROR = "ERROR"
 
 
+#: Espera entre tentativas quando a entrada de audio esta fora (ver `executar`).
+PAUSA_COM_AUDIO_EM_FALHA_S = 2.0
+
+
 class VoiceCore:
     def __init__(
         self,
@@ -739,6 +743,11 @@ class VoiceCore:
         self._executando = True
         while self._executando:
             await self.ciclo_uma_vez()
+            if self._audio_em_falha:
+                # Sem ouvidos o `gravar` falha NA HORA; sem esta pausa o laco
+                # giraria a 100% de CPU publicando voice.audio_error sem parar
+                # (o boot passou a seguir sem os ouvidos em 2026-11-08).
+                await asyncio.sleep(PAUSA_COM_AUDIO_EM_FALHA_S)
 
     def parar(self) -> None:
         self._executando = False

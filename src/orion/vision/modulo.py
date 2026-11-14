@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-from collections.abc import Awaitable, Callable
 
 from orion.kernel.event_bus import EventBus
 
@@ -347,6 +347,7 @@ class ModuloVisao:
         # import local: puxa cv2/ultralytics/face_recognition, que sao
         # pesados e podem faltar numa maquina de desenvolvimento. Assim o
         # simples import deste arquivo nao exige a pilha de visao inteira.
+        from orion.vision.olhar import ConfigOlhar
         from orion.vision.pan_tilt import LimitesPanTilt
         from orion.vision.vision_core import VisionCore
 
@@ -393,6 +394,9 @@ class ModuloVisao:
             reconhecer_rosto_a_cada=self._conf.get("face_recognition_every_n_frames", 1),
             confianca_para_descrever=self._conf.get("confianca_para_descrever"),
             odometria_visual=_odometria_visual(self._conf.get("odometria_visual") or {}),
+            # Mirar o rosto e procurar quando nao ve (2026-11-08). Sem a
+            # secao no orion.yaml, os padroes de ConfigOlhar valem.
+            olhar=ConfigOlhar.de_dict(self._conf.get("olhar")),
         )
 
 

@@ -206,9 +206,17 @@ class ModuloVoz:
         )
         # O de vigilancia e o que MAIS precisa: a unica coisa que ele procura
         # nas janelas curtas e exatamente esses nomes.
-        transcritor_ativacao = await asyncio.to_thread(
-            _TranscritorComLog, self._conf["whisper_model_ativacao"], " ".join(nomes)
-        )
+        # UM Whisper so quando os dois nomes sao iguais (dono, 08/11: "2 whisper?
+        # nao pode"). Os dois eram o mesmo `base` carregado duas vezes - memoria
+        # gasta a toa e mais ~2 s de boot. O WhisperModel aceita chamadas de
+        # threads diferentes; o VoiceCore ja usa o da conversa como vigia quando
+        # nao recebe outro (`transcritor_ativacao or transcritor`).
+        if self._conf["whisper_model_ativacao"] == self._conf["whisper_model"]:
+            transcritor_ativacao = transcritor
+        else:
+            transcritor_ativacao = await asyncio.to_thread(
+                _TranscritorComLog, self._conf["whisper_model_ativacao"], " ".join(nomes)
+            )
 
         detector_atividade = None
         conf_vad = self._conf["vad"]

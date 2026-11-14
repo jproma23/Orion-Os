@@ -24,6 +24,7 @@ from orion.kernel.event_bus import EventBus, Prioridade
 from orion.vision.captura import CapturaCamera, ErroCamera
 from orion.vision.deteccao import Deteccao, DetectorYolo
 from orion.vision.odometria_visual import CLASSES_DINAMICAS, OdometriaVisual
+from orion.vision.olhar import ConfigOlhar, Procura, ponto_de_mira
 from orion.vision.pan_tilt import CalculadoraPanTilt, LimitesPanTilt
 from orion.vision.rastreamento import Caixa, Rastreador
 from orion.vision.reconhecimento_facial import ReconhecedorFacial, RostoReconhecido
@@ -79,6 +80,7 @@ class VisionCore:
         reconhecer_rosto_a_cada: int = 1,
         confianca_para_descrever: float | None = None,
         odometria_visual: OdometriaVisual | None = None,
+        olhar: ConfigOlhar | None = None,
     ) -> None:
         # captura/detector/reconhecedor sao injetaveis para testar a logica
         # de orquestracao (associacao de identidade, eventos, rastreamento)
@@ -172,6 +174,22 @@ class VisionCore:
         # e o que impede a estimativa de virar ficcao - ver
         # CalculadoraPanTilt.sincronizar.
         event_bus.subscribe("motion.pan_tilt", self._ao_outro_dono_mover_a_cabeca)
+        # PARA ONDE OLHAR (2026-11-08, ver vision/olhar.py). None = o
+        # comportamento antigo: mira o centro da caixa e nao procura.
+        self._olhar = olhar
+        self._procura = Procura(olhar) if olhar is not None else None
+        self._sem_alvo_desde: float | None = None
+        self._procurando = False
+        #: Quando OUTRO dono (explore, ronda, joystick, conversa) mexeu na
+        #: cabeca pela ultima vez. A procura cede a vez por
+        #: `ceder_a_outro_dono_s` - sem isso ela brigaria com quem esta usando.
+        self._outro_dono_ts = float("-inf")
+        #: EM MANUAL A CABECA E DO OPERADOR (decisao do dono, 2026-08-04). O
+        #: Pi ja respeitava isso no caminho dele; a visao mandava o servo
+        #: direto e ignorava. Agora ela continua vendo e informando, mas nao
+        #: mexe na cabeca - nem para seguir, nem para procurar.
+        self._modo_manual = False
+        event_bus.subscribe("behavior.modo_controle", self._ao_mudar_modo_controle)
 
     async def _ao_outro_dono_mover_a_cabeca(self, evento) -> None:
         """Ressincroniza a posicao assumida dos servos.
@@ -192,7 +210,19 @@ class VisionCore:
             # payload de outra maquina: dado ruim nao pode derrubar o handler.
             logger.warning("motion.pan_tilt com pan/tilt invalido: %r", evento.dados)
             return
+        self._outro_dono_ts = time.monotonic()
         logger.debug("pan/tilt ressincronizado por outro dono: %s, %s", pan, tilt)
+
+    async def _ao_mudar_modo_controle(self, evento) -> None:
+        """`behavior.modo_controle` vem do Pi (repassado pelo enlace)."""
+        manual = evento.dados.get("modo") == "manual"
+        if manual != self._modo_manual:
+            logger.info(
+                "visao: modo %s - %s",
+                evento.dados.get("modo"),
+                "a cabeca e do operador" if manual else "a visao volta a mover a cabeca",
+            )
+        self._modo_manual = manual
 
     def salvar_ultimo_frame(self, caminho: str) -> str | None:
         """Grava em disco a ultima imagem lida. Devolve o caminho, ou None se
@@ -494,8 +524,22 @@ class VisionCore:
 
         if alvo is not None:
             self._tinha_alvo = True
+            self._sem_alvo_desde = None
+            if self._procurando:
+                self._procurando = False
+                logger.info("visao: achei alguem - parei de procurar")
             altura, largura = frame.shape[:2]
             cx, cy = self._centro_caixa(alvo.caixa)
+            # Onde CENTRALIZAR: o rosto, nao a barriga (vision/olhar.py). O
+            # `cx` do corpo continua indo no evento - e o lado da pessoa que o
+            # FOLLOW usa, e para isso o corpo e a melhor referencia.
+            mira_x, mira_y = cx, cy
+            if self._olhar is not None and self._olhar.mirar_no_rosto:
+                mira_x, mira_y = ponto_de_mira(
+                    alvo.caixa,
+                    [rosto.caixa for rosto in rostos],
+                    self._olhar.fracao_altura_cabeca,
+                )
             if alvo.pessoa_id is not None:
                 # centro_x normalizado (0..1, 0.5 = centralizado): o FOLLOW
                 # do NavigationCore (Pi) so anda atras de gente RECONHECIDA -
@@ -510,23 +554,36 @@ class VisionCore:
                         "timestamp": agora,
                     },
                 )
-            pan, tilt = self._pan_tilt.calcular_correcao(cx, cy, largura, altura, intervalo_s)
-            # publica sempre (mesmo sem callback de hardware) - o avatar
-            # (Cap 13) reflete a direcao calculada independente do robo
-            # fisico estar montado ou nao.
-            await self._event_bus.publish(
-                "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_VISAO}
-            )
-            if self._publicar_pan_tilt is not None:
-                await self._publicar_pan_tilt(pan, tilt)
+            if self._modo_manual:
+                pan, tilt = self._pan_tilt.pan_atual, self._pan_tilt.tilt_atual
+            else:
+                pan, tilt = self._pan_tilt.calcular_correcao(
+                    mira_x, mira_y, largura, altura, intervalo_s
+                )
+                # publica sempre (mesmo sem callback de hardware) - o avatar
+                # (Cap 13) reflete a direcao calculada independente do robo
+                # fisico estar montado ou nao.
+                await self._event_bus.publish(
+                    "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_VISAO}
+                )
+                if self._publicar_pan_tilt is not None:
+                    await self._publicar_pan_tilt(pan, tilt)
 
-            if self._pan_tilt.alvo_centralizado(cx, cy, largura, altura):
+            if self._pan_tilt.alvo_centralizado(mira_x, mira_y, largura, altura):
                 await self._event_bus.publish(
                     "vision.target_centered", {"pan": pan, "tilt": tilt, "timestamp": agora}
                 )
-        elif self._tinha_alvo:
-            await self._event_bus.publish("vision.person_lost", {"timestamp": agora})
-            self._tinha_alvo = False
+        else:
+            if self._tinha_alvo:
+                await self._event_bus.publish("vision.person_lost", {"timestamp": agora})
+                self._tinha_alvo = False
+            if sem_corpo:
+                # Rosto de perto sem corpo (V2 da auditoria) e alguem ali: nao
+                # sair varrendo o quarto com a pessoa na frente da camera.
+                self._sem_alvo_desde = None
+                self._procurando = False
+            else:
+                await self._talvez_procurar(agora, intervalo_s)
 
         if alvo is None and sem_corpo:
             # Sem ninguem rastreado pelo corpo, o rosto de perto e quem esta
@@ -547,6 +604,41 @@ class VisionCore:
             )
 
         return frame
+
+    async def _talvez_procurar(self, agora: float, intervalo_s: float) -> None:
+        """Sem ninguem no quadro, varre devagar com a camera erguida.
+
+        So mexe quando TUDO isto vale - cada condicao protege alguem:
+        - `cabeca_segue_pessoa` ligado (sem callback de servo, nao ha cabeca);
+        - fora do MANUAL (a cabeca e do operador);
+        - `procurar_apos_s` sem alvo (nao sai procurando por 1 quadro ruim);
+        - ninguem mais mexeu na cabeca nos ultimos `ceder_a_outro_dono_s`
+          (o explore apontando para o giro, a ronda, o joystick).
+        """
+        if self._olhar is None or self._procura is None or not self._olhar.procurar:
+            return
+        if self._publicar_pan_tilt is None or self._modo_manual:
+            return
+        if self._sem_alvo_desde is None:
+            self._sem_alvo_desde = agora
+            return
+        if agora - self._sem_alvo_desde < self._olhar.procurar_apos_s:
+            return
+        if agora - self._outro_dono_ts < self._olhar.ceder_a_outro_dono_s:
+            return
+        if not self._procurando:
+            self._procurando = True
+            logger.info(
+                "visao: ninguem no quadro ha %.0f s - procurando", self._olhar.procurar_apos_s
+            )
+        pan, tilt = self._procura.proximo(
+            self._pan_tilt.pan_atual, self._pan_tilt.tilt_atual, intervalo_s
+        )
+        self._pan_tilt.sincronizar(pan, tilt)
+        await self._event_bus.publish(
+            "motion.pan_tilt", {"pan": pan, "tilt": tilt, "origem": ORIGEM_VISAO}
+        )
+        await self._publicar_pan_tilt(pan, tilt)
 
     async def executar(self, intervalo_reconexao_s: float = 3.0) -> None:
         """Loop continuo ate parar() ser chamado. Reconecta automaticamente
