@@ -35,11 +35,13 @@ from __future__ import annotations
 
 import re
 
-PALAVRAS_ATIVACAO_PADRAO = ("jarvis",)
+PALAVRAS_ATIVACAO_PADRAO = ("atom", "atomo", "aton", "jarvis")
 #: edicoes (substituicao/insercao/remocao de 1 letra) toleradas por
 #: palavra na checagem foneticamente tolerante (passo 3) - pequeno de
 #: proposito, ver docstring do modulo.
 DISTANCIA_MAXIMA_TOLERADA = 1
+#: Palavra com menos letras que isto so casa exata (ou junta: "a tom").
+TAMANHO_MINIMO_TOLERANCIA = 5
 
 
 def _normalizar(texto: str) -> str:
@@ -111,6 +113,12 @@ class DetectorPalavraAtivacao:
         #    dispararia. Agora cada palavra usa a propria medida.
         for token in tokens + pares:
             for palavra in self._palavras:
+                if len(palavra) < TAMANHO_MINIMO_TOLERANCIA:
+                    # NOME CURTO NAO TEM TOLERANCIA (2026-11-14, "Atom"): com
+                    # uma letra de folga, "ato", "tom" e "atum" - palavras do
+                    # dia a dia - acordariam o robo. As grafias do Whisper vao
+                    # explicitas no orion.yaml ("atomo", "aton").
+                    continue
                 if abs(len(token) - len(palavra)) > 2:
                     continue
                 if _distancia_levenshtein(token, palavra) <= self._distancia_maxima:

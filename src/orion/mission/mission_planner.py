@@ -211,7 +211,7 @@ _PADRAO_PARAR = re.compile(
 #: continuam sendo so a ordem.
 _PALAVRAS_DA_ORDEM_DE_PARAR = frozenset(
     "pare parar para pára stop tudo ja já agora ai aí ei e de com isso o a os as "
-    "no na em por favor voce você pode podes consegue robo robô fofao fofão jarvis "
+    "no na em por favor voce você pode podes consegue robo robô fofao fofão jarvis atom "
     "se andar girar rodar virar mexer correr ir seguir falar me mim "
     "ja ta tá bom ok hein".split()
 )

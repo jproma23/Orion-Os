@@ -27,7 +27,7 @@ logger = logging.getLogger("orion.voice.modulo")
 ProcessarComando = Callable[[str], Awaitable[str]]
 
 #: dito uma vez quando a voz sobe, para o usuario saber que pode falar.
-SAUDACAO_PADRAO = "Oi! Eu sou o Jarvis. Pode falar comigo."
+SAUDACAO_PADRAO = "Oi! Eu sou o Atom. Pode falar comigo."
 
 
 class ModuloVoz:
@@ -185,7 +185,7 @@ class ModuloVoz:
                 # de pe. Voltar None diz ao `iniciar()` que nao ha escuta para
                 # rodar - nao ha o que ouvir, mas ha o que dizer.
                 logger.warning(
-                    "Sem microfone (%s) - o Jarvis segue SURDO, mas continua falando", erro
+                    "Sem microfone (%s) - o Atom segue SURDO, mas continua falando", erro
                 )
                 return None
 

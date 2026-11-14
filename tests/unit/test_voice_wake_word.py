@@ -81,3 +81,19 @@ def test_fuzzy_nao_dispara_em_palavra_curta_qualquer():
     assert detector.verificar("oi, tudo bem com voce") is False
     assert detector.verificar("bom dia, como vai") is False
     assert detector.verificar("vamos tomar cafe") is False
+
+
+
+def test_atom_e_as_grafias_do_whisper():
+    """14/11: o robo passou a se chamar Atom."""
+    d = DetectorPalavraAtivacao()
+    for frase in ("Atom, me siga", "Átomo, que horas são?", "A tom, para", "Aton!"):
+        assert d.verificar(frase) is True, frase
+
+
+def test_nome_curto_sem_folga_de_letra():
+    """Com 1 letra de folga, "ato", "tom" e "atum" acordariam por "atom".
+    Se o dono os quer (ele quer, 14/11), eles vao EXPLICITOS no orion.yaml."""
+    d = DetectorPalavraAtivacao(palavras_ativacao=("atom",))
+    for frase in ("isso foi um ato bonito", "o tom da voz", "comi atum", "atomic"):
+        assert d.verificar(frase) is False, frase

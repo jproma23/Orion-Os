@@ -112,7 +112,7 @@ async def principal() -> int:
 
     if resposta.payload.get("ok"):
         logger.info(
-            "CADASTRADO! %s (%s), id=%s, a partir de %d foto(s). O Jarvis ja reconhece.",
+            "CADASTRADO! %s (%s), id=%s, a partir de %d foto(s). O Atom ja reconhece.",
             args.nome,
             args.autorizacao,
             resposta.payload.get("resultado"),

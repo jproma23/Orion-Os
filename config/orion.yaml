@@ -2,7 +2,7 @@
 # Nenhum valor deve ser fixado no código. Todo parâmetro vive aqui.
 
 system:
-  robot_name: "Jarvis"
+  robot_name: "Atom"
   language: "pt-BR"
   timezone: "America/Sao_Paulo"
   log_level: "INFO"          # DEBUG | INFO | WARNING | ERROR
@@ -633,7 +633,15 @@ voice:
   # (ver docs/journal.md), nenhum dos dois nomes e ouvido.
   # 2026-11-01: "boku" e "defai" a pedido do dono. Conferido que nao
   # disparam com boca, foco, desafio, de fato; casam com bocu e de fai.
-  wake_word: ["jarvis"]
+  # 2026-11-14, dono: "quero retirar o jarvis e mudar para atom" / "Atom,
+  # orion os". ATOM e o nome dele; ORION OS e o sistema. As grafias abaixo
+  # sao as do Whisper (a junção "a tom" ja casa sozinha - ver wake_word.py).
+  # "ato", "tom", "atum" e o antigo "jarvis" TAMBEM acordam - decisao do dono
+  # ("deixa todas, dai se entender pega"), sabendo que "ato" e "tom" sao
+  # palavras do dia a dia e vao acordar por engano as vezes. Quem quiser
+  # menos falso alarme tira daqui; o detector nao da folga de letra a nome
+  # curto (wake_word.py), entao a lista e exatamente o que acorda.
+  wake_word: ["atom", "atomo", "aton", "ato", "tom", "atum", "jarvis"]
   # COMANDO CURTO LOGO APOS O "PODE FALAR" (2026-11-14, decisao do dono).
   # O portao de confianca do Whisper (log_prob_threshold, abaixo) derrubou
   # "me siga" com -1,42. Logo depois do convite, e SO se o texto descartado
@@ -749,7 +757,7 @@ voice:
     # 08/11 16:39: com os comandos de MOVIMENTO aqui o Whisper passou a tirar
     # a propria lista do ruido ("olha, olha, olha", "anda para frente, anda
     # para frente") - perigoso num robo que obedece. So o nome e o me siga.
-    hotwords: "Jarvis, me siga"
+    hotwords: "Atom, me siga"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
@@ -889,13 +897,13 @@ display:
     # NINGUEM o lia: o autostart do kiosk fazia `xset -dpms` e a tela nunca
     # dormia. Agora quem o le e `orion/display/tela.py`, pelo AvatarServer.
     #
-    # 1 minuto desde 14/11 (eram 3, de 07/08). Dono: "bora apaga a tela
-    # para economizar bateria", "a tela so liga quando ele ouvir jarvis,
-    # depois ele deve desligar". A tela fica APAGADA por padrao e acende com
+    # 3 minutos (dono 14/11: "descanso de tela apos 3 min"; por meia hora
+    # foi 1). "bora apaga a tela para economizar bateria", "a tela so liga
+    # quando ele ouvir jarvis, depois ele deve desligar". APAGADA por padrao e acende com
     # a palavra de ativacao, o pedido e o quadro da aula; este minuto e o
     # FECHAMENTO, contado da ultima coisa que a acendeu. A aula empurra o
     # prazo sozinha (display.aula), entao nao apaga no meio da explicacao.
-    sleep_timeout_min: 1
+    sleep_timeout_min: 3
     descanso_habilitado: true
     # Onde mora o X do kiosk. So a maquina da tela (o Notebook) tem um; onde
     # nao houver `xset`, o controle se declara inativo e nao faz nada.

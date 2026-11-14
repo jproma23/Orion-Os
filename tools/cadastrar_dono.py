@@ -71,7 +71,7 @@ async def _capturar_embeddings(indice_camera: int, espelhado: bool, n_fotos: int
 
 
 async def principal() -> int:
-    parser = argparse.ArgumentParser(description="Cadastra um dono/morador conhecido do Jarvis.")
+    parser = argparse.ArgumentParser(description="Cadastra um dono/morador conhecido do Atom.")
     parser.add_argument("nome", help="Nome da pessoa (ex.: Joao)")
     parser.add_argument(
         "--autorizacao", default="dono", help="Nivel: dono | morador | visitante (padrao: dono)"
@@ -127,7 +127,7 @@ async def principal() -> int:
     if resposta.payload.get("ok"):
         pessoa_id = resposta.payload.get("resultado")
         logger.info(
-            "CADASTRADO! %s (%s) e a pessoa id=%s. O Jarvis agora reconhece esse rosto.",
+            "CADASTRADO! %s (%s) e a pessoa id=%s. O Atom agora reconhece esse rosto.",
             args.nome,
             args.autorizacao,
             pessoa_id,

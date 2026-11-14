@@ -1030,7 +1030,7 @@ async def principal() -> None:
         ", ".join(p.get("nome", "?") for p in (familia_conf or [])) or "(ninguem)",
     )
 
-    await sintetizador.falar("Oi! Eu sou o Jarvis. Pode falar comigo.")
+    await sintetizador.falar("Oi! Eu sou o Atom. Pode falar comigo.")
     if secao_voz["exigir_palavra_ativacao"]:
         logger.info(
             'Pronto! Diga "%s" e depois o seu comando. Ctrl+C para sair.',

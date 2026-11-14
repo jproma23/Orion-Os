@@ -170,7 +170,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         ),
         entrega="navegacao",
         acao_navegacao="FOLLOW",
-        resposta="Estou te seguindo. Quando quiser que eu pare, diga: Jarvis, para.",
+        resposta="Estou te seguindo. Quando quiser que eu pare, diga: Atom, para.",
     ),
     # Pedido do dono (2026-11-14): "pedi para ele mapear a casa inteira e
     # disse q os sensores ainda nao consegui" - e nao havia acao para isso.
@@ -188,7 +188,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         acao_navegacao="MAPEAR",
         resposta=(
             "Vou mapear a casa. Leva uns minutos e eu ando sozinho; "
-            "se precisar que eu pare, diga: Jarvis, para."
+            "se precisar que eu pare, diga: Atom, para."
         ),
     ),
     # ---- O MUNDO LA FORA (2026-08-07) -----------------------------------
