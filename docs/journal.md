@@ -9540,3 +9540,44 @@ Erros meus registrados: commit com teste quebrado (corrigido no seguinte) e rein
 **11. Ele andando, em público.** O vídeo de 55 s do robô circulando sozinho pelo quarto (radar do LiDAR e trava de 50 cm na webui) foi para o README do GitHub (seção "Em movimento", com GIF e duas fotos), para o YouTube (https://youtu.be/mMFkYHiu2Kc, canal ELETRO MAKERS) e para o LinkedIn.
 
 **Pendentes:** levar ao Pi os commits de voz que só o Notebook tem (o `mission_planner.py` do Pi tem trabalho do dono sem commit); prender o SSD; medir o campo de visão da câmera; a faixa cega fixa do LiDAR em 56–70° (algo encostado?); rostos que não carregam quando o Notebook sobe antes do Pi; ganho dos microfones (rms 0,03–0,07).
+
+
+## 14/11 (madrugada) — a auditoria entra no robô, e o robô ligado acha o que o Windows não via
+
+O dono pediu "vamos atualizar o orion" com as máquinas no ar. A sessão terminou às ~05:50 com a **bateria descarregada** (o Notebook sumiu da rede às 05:49 e o SSH do Pi caiu em seguida).
+
+**1. O que havia nas máquinas.** O Pi estava em `fdf280e` (1 commit depois do `7eda681` que a auditoria usou de base) e com **11 arquivos sem commit**; o Notebook (`~/orion-jarvis`) em `1a15777` (2 commits depois). Tudo foi guardado antes do merge: tag `antes-auditoria-2026-11` nas duas máquinas e cópia do banco em `orion.db.antes-auditoria`.
+
+**2. O trabalho sem commit do Pi NÃO entrou.** Era o patch dos plugins do Jarvis (que liga `code_executor` e `system_control`) mais nav2. A auditoria classificou como **C5-07, crítico** (exec escapa para `os`, timeout não mata). Guardado no branch `wip-dono-plugins-2026-11-08`, no Pi e no backup; fora do robô e fora do GitHub (repositório público). Os consertos de nav2 do mesmo patch já tinham equivalente na auditoria.
+
+**3. Merge.** Branch `implantacao-2026-11-14` = auditoria + Notebook + `fdf280e`. Conflito só aditivo na visão (odometria visual x "olhar"). Achado na junção: o rosto de perto sem corpo (V2) e a procura nova do Notebook juntos fariam a câmera **varrer o quarto com a pessoa na frente** — guarda nova, com teste.
+
+**4. Suíte nas duas máquinas** (serviços parados): Pi 1610 e Notebook 1611 passando, **3 falhas que só existiam lá**: um teste de voz que reimportava `orion.voice.sintese` deixava o pacote apontando para a cópia nova (os testes seguintes faziam monkeypatch no módulo errado), e o teste do `yolov8n` só passava se o arquivo **não** existisse. Corrigidos os testes; o código estava certo.
+
+**5. Firmware do corpo.** O plano dizia `/dev/ttyUSB0` — **errado**: lá está o CH340 do LiDAR. O corpo é o **CP2102 em `/dev/ttyUSB1`** (`by-id ...Silicon_Labs_CP2102...`). Flash antiga lida antes (4 MB, sha `ef2d117f...`, no Pi e em `ORION_backup/esp32`). Gravado `1e1b891`; "conectado e confirmado" sem pedido de REGRAVAR.
+
+**6. YOLO "não detecta" = lente suja.** Diagnóstico com `tools/diagnostico_yolo.py`: modelo, câmera e limiar ok, mas a imagem estava **leitosa** (brilho 180, quase sem contraste); pessoa 0,28 em 320. Dono limpou: imagem nítida, **garrafa** registrada no diário, pessoa **0,70 já em 320**. `yolo_imgsz` não mudou.
+
+**7. Defeitos achados com o robô ligado** (todos com teste, todos no ar):
+- **A visão não sabia do MANUAL.** O modo só atravessava o enlace quando *mudava*; o Notebook que conectava depois nunca sabia e procurava com a cabeça do operador. O Pi agora conta o modo ao conectar, em 0/3/6/10/20 s (a visão assina ~7 s depois do enlace). Provado: restart do Notebook em MANUAL = zero "procurando".
+- **O rosto deixou o robô MUDO** (erro meu). `pygame.init()` liga o mixer → o PulseAudio pega o alto-falante USB → a voz dava `Device unavailable -9985`. Agora só `pygame.display.init()`. Lição: mexeu na tela, testar a FALA.
+- **"Ele parou de andar."** O `Atender` (prio 80) segura o robô do `wake_detected` até o `response_finished`. "Jarvis" sem comando nunca publicava o fim: o robô ficou "em espera" das 04:56 até reiniciar, em AUTÔNOMO. Agora a voz publica `voice.session_ended` em todo caminho (`try/finally`), o Pi recebe, e o `Atender` tem **teto de 120 s**. Provado: soltou sozinho em 19 s.
+- **"Ele só responde a primeira frase."** O descarte de eco por tempo (`4022ee9`, 01/11) zerava a janela **inteira** se ele tinha falado até 1 s antes — e a janela do comando começa logo depois do "Oi? Pode falar!". O pedido do dono era descartado **toda vez**. Agora, se a fala acabou antes da janela, só o começo (fim + rastro) é zerado. Esse filtro **não tinha teste nenhum**. Provado na conversa seguinte: piada, depois "cadê a cama" sem dizer Jarvis.
+- **"me siga" descartado** com confiança −1,42 (corte −1,00). Decisão do dono: logo após o "Pode falar", e só se o texto for **igual** a um de `voice.comandos_aceitos_apos_convite` (me siga, para, pare, vem aqui, venha aqui), o descarte é resgatado e o log diz. Fora disso o portão vale inteiro.
+
+**8. A cabeça tremendo.** Medido pela transmissão de eventos: 81 de 81 comandos em `pan 4,6 / tilt 45` — a visão vivia no topo do tilt com gente perto. Teste com o dono: 45° com um comando só = tremeu. O topo foi para 30°. Mas tremia **"às vezes", só subindo, em qualquer ângulo** (degraus 10..30 e 0..8 não acharam limiar) → era **alimentação**: subir puxa mais corrente. **Resolvido com um capacitor na linha de VCC do servo** (dono): degraus + 6 subidas sem tremer. O topo segue 30°; dá para medir 35/40 de novo.
+
+**9. Revisão por classe de defeito (robô desligado).**
+- O comentário da webui prometia "um teste que prende" os limites da cabeça — **não existia**, e eu tinha dito que existia. Prova: o joystick (`camera_cabeca.js`) ficou em 45°. `test_limites_cabeca.py` prende pan e tilt nos 4 lugares; conferido que falha com o JS em 45.
+- O mesmo par aberto do `Atender` em mais dois ouvintes: `estado_do_mundo` (`ouvindo` preso — só no log) e `saudacao` (cumprimento pendurado se o fim do turno se perde). Os dois fecham no `session_ended`; os testes falham sem o conserto.
+- Conferidos sem defeito: `Ronda` (limpa no `finally`), `VigilanciaObstaculo` (nunca assume), e os que já tinham prazo (`AcompanharPessoa`, `Vigilia`, `AtenderGesto`, `ControleManual`).
+
+**10. Rede.** Às 05:24 o Wi-Fi engasgou (~30 s; ping aos ouvidos 180–360 ms): ouvidos caíram e o corpo deixou de confirmar comandos **ao mesmo tempo**. Voltou sozinho.
+
+**Medidas:** rosto leve no lugar do Firefox — Firefox 11 processos / ~1,1 GB / 51% de um núcleo → rosto 136 MB / 3,5%; RAM usada do Notebook 2,7 → 2,2 GB.
+
+**GitHub:** `master` = Pi = Notebook = `636ef38` ao fim da sessão (fast-forward desde `7eda681`). Os consertos da revisão (seção 9) estão **só no backup**, para entrar quando o robô ligar.
+
+**Erros meus:** o plano tinha a porta errada do ESP32; o rosto deixou o robô mudo; afirmei que existia um teste que não existia; contei os testes de voz como rodados no Windows quando eram **pulados inteiros** (falta `sounddevice`/`piper` lá — testar voz no Pi via `git worktree add /tmp/teste_voz <branch>`).
+
+**Pendentes:** levar ao robô os commits depois de `636ef38`; a aula abrindo/fechando o Firefox; o rosto subir sozinho no boot; "me siga" pelo caminho novo; testes no chão (STOP e ré); OTA dos ouvidos com senha; medir o FOV da câmera.

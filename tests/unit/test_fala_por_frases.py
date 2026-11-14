@@ -17,6 +17,8 @@ import pytest
 # de test_voice_core.py e test_vision_core.py.
 pytest.importorskip("numpy")
 pytest.importorskip("sounddevice")
+pytest.importorskip("faster_whisper")
+pytest.importorskip("piper")
 
 from orion.kernel.event_bus import EventBus  # noqa: E402
 from orion.voice.voice_core import VoiceCore  # noqa: E402
