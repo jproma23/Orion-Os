@@ -228,3 +228,33 @@ def test_fora_da_aula_nunca_abre():
         nav.ao_evento("voice.status", {"estado": "SPEAKING"}, float(t))
         nav.tique(float(t))
     assert abertos == []
+
+
+
+def test_avatar_reiniciado_no_meio_da_aula_fecha_e_nao_reabre():
+    """14/11: o "terminou" se perdeu num reinicio do avatar; o Firefox ficou
+    50 min aberto e voltava a cada vez que alguem o fechava."""
+    nav, abertos = _navegador()
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 0.0)
+    nav.ao_evento(rosto_tool.TOPICO_RECONECTOU, {}, 30.0)
+    assert not nav.aberto
+    nav.tique(30.0 + rosto_tool.ESPERA_REABRIR_S + 1)
+    assert not nav.aberto and len(abertos) == 1
+
+
+def test_aula_que_some_sem_terminar_fecha_sozinha():
+    nav, abertos = _navegador()
+    nav.ao_evento("display.aula", {"estado": "comecou"}, 0.0)
+    nav.ao_evento("display.aula", {"passo": 2}, 100.0)  # pulso segura
+    nav.tique(100.0 + rosto_tool.AULA_SEM_SINAL_S - 1)
+    assert nav.aberto
+    nav.tique(100.0 + rosto_tool.AULA_SEM_SINAL_S + 0.1)
+    assert not nav.aberto
+    nav.tique(100.0 + rosto_tool.AULA_SEM_SINAL_S + rosto_tool.ESPERA_REABRIR_S + 1)
+    assert not nav.aberto and len(abertos) == 1
+
+
+def test_reconectar_fora_da_aula_nao_faz_nada():
+    nav, abertos = _navegador()
+    nav.ao_evento(rosto_tool.TOPICO_RECONECTOU, {}, 0.0)
+    assert abertos == []

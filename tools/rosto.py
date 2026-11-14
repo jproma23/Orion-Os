@@ -54,6 +54,14 @@ COMANDO_NAVEGADOR = (
 GRACA_FIM_AULA_S = 10.0
 #: Se o navegador cair no meio da aula, espera isto antes de reabrir.
 ESPERA_REABRIR_S = 10.0
+#: Aula sem NENHUM sinal (comecou, pulso de passo) por este tempo acabou sem
+#: avisar. 14/11: o "terminou" se perdeu num reinicio do avatar e o Firefox
+#: ficou 50 min aberto (45% de um nucleo, tela apagada), reaberto a cada
+#: tentativa de fecha-lo - "a aula ainda esta rolando".
+AULA_SEM_SINAL_S = 300.0
+#: Topico inventado AQUI (nao vem do robo): a thread do SSE avisa que
+#: (re)conectou. Avatar novo = processo novo = nenhuma aula viva nele.
+TOPICO_RECONECTOU = "rosto.reconectou"
 
 
 class NavegadorDaAula:
@@ -70,14 +78,23 @@ class NavegadorDaAula:
         self._em_aula = False
         self._fechar_em: float | None = None
         self._aberto_em = float("-inf")
+        self._sinal_em = float("-inf")
 
     @property
     def aberto(self) -> bool:
         return self._processo is not None and self._processo.poll() is None
 
     def ao_evento(self, topico: str, dados: dict, agora: float) -> None:
+        if topico == TOPICO_RECONECTOU:
+            if self._em_aula or self.aberto:
+                logger.warning("avatar reiniciou no meio da aula - nenhuma aula viva: fechando")
+                self._em_aula = False
+                self._fechar_em = None
+                self.fechar()
+            return
         if topico != "display.aula" or not isinstance(dados, dict):
             return
+        self._sinal_em = agora
         estado = dados.get("estado")
         if estado == "comecou":
             self._em_aula = True
@@ -88,6 +105,12 @@ class NavegadorDaAula:
             self._fechar_em = agora + GRACA_FIM_AULA_S
 
     def tique(self, agora: float) -> None:
+        if self._em_aula and agora - self._sinal_em >= AULA_SEM_SINAL_S:
+            logger.warning(
+                "aula sem sinal ha %.0f s - acabou sem avisar: fechando", agora - self._sinal_em
+            )
+            self._em_aula = False
+            self._fechar_em = agora
         if self._fechar_em is not None and agora >= self._fechar_em:
             self._fechar_em = None
             self.fechar()
@@ -146,6 +169,7 @@ def ouvir_para_sempre(url: str, fila: queue.Queue, parar: threading.Event) -> No
         try:
             with urllib.request.urlopen(url, timeout=30) as resposta:
                 logger.info("rosto conectado em %s", url)
+                fila.put((TOPICO_RECONECTOU, {}))
                 ler_sse(resposta, lambda t, d: fila.put((t, d)))
         except Exception as erro:  # noqa: BLE001
             logger.debug("SSE caiu (%r) - reconectando", erro)
@@ -197,7 +221,7 @@ def main() -> int:
     else:
         tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.mouse.set_visible(False)
-    pygame.display.set_caption("Jarvis")
+    pygame.display.set_caption("Atom")
 
     fila: queue.Queue = queue.Queue()
     parar = threading.Event()
