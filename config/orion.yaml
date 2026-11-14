@@ -383,7 +383,13 @@ lidar:
   # "dentro do robo" - mas 30 s de captura bruta com filtro em 0 nao acharam
   # NENHUM ponto a menos de 12 cm em 360 graus: nao ha peca do robo na visao
   # do LiDAR. 100 descartaria parede encostada no para-choque.
-  min_distancia_mm: 50
+  # 70 desde 2026-11-14: as leituras de 5-5,5 cm VOLTARAM (raio unico em
+  # 10-14 graus do LiDAR, aparecendo e sumindo - coluna do suporte/cabo, ver
+  # stl50b2.py). Com 50 elas passavam por 0-5 mm, a IA recebia "frente a 5 cm"
+  # e so decidia "olhar em volta": o robo ficava parado com a frente livre
+  # (dono confirmou). 70 fica abaixo da ponta do corpo (8 cm, lidar_recuo_m):
+  # parede encostada no para-choque continua sendo vista.
+  min_distancia_mm: 70
   max_distancia_mm: 12000     # limite do sensor (12 m)
   # Intensidade do retorno. O COIN-D6 usa 0..63; o STL-50B2 usa 0..255. Com 0
   # aceita tudo nos dois - nao subir sem medir, a escala e diferente.
