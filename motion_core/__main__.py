@@ -1010,6 +1010,12 @@ async def principal() -> None:
     # ia todo pedido, inclusive os descartados, e a visao ressincronizava
     # para uma posicao onde a cabeca nunca foi.
 
+    # O MODO tambem (2026-11-08). A visao do Notebook passou a mover a cabeca
+    # sozinha (mirar o rosto, procurar quando nao ve) e precisa saber quando o
+    # dono pegou o volante: em MANUAL a cabeca e do operador. O evento ja
+    # existia - a trava do LiDAR o escuta aqui -, so nao atravessava o enlace.
+    event_bus.subscribe("behavior.modo_controle", _repassar_ao_notebook)
+
     maestro = BehaviorCore(
         event_bus,
         ponte_conselho=ponte_conselho,
