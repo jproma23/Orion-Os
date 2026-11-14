@@ -473,3 +473,20 @@ def test_corredor_conta_da_lataria():
 def test_desvio_frontal_conta_da_ponta():
     d = desvio_frontal(_raios(a90=40.0), corpo_frente_cm=8.0)
     assert d["obstaculo_mm"] == 320  # 400 do LiDAR - 80 da ponta
+
+
+@pytest.mark.asyncio
+async def test_jarvis_sem_comando_nao_deixa_ouvindo_preso():
+    # 14/11: "Jarvis" sem comando nao gera response_finished; so o fim de
+    # sessao. Pelo barramento, para provar a ASSINATURA e nao so o metodo.
+    bus = EventBus()
+    tarefa = asyncio.create_task(bus.iniciar())
+    mundo = EstadoDoMundo(bus)
+    await bus.publish("voice.wake_detected", {"texto_janela": "jarvis"})
+    await bus.aguardar_fila_vazia()
+    assert mundo.retrato().ouvindo is True
+    await bus.publish("voice.session_ended", {})
+    await bus.aguardar_fila_vazia()
+    assert mundo.retrato().ouvindo is False
+    bus.parar()
+    await tarefa

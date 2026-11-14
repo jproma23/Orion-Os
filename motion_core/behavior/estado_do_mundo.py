@@ -381,6 +381,9 @@ class EstadoDoMundo:
         # Interação por voz.
         event_bus.subscribe("voice.wake_detected", self._ao_acordar_voz)
         event_bus.subscribe("voice.response_finished", self._ao_terminar_voz)
+        # "Jarvis" sem comando nao tem response_finished - so o fim de sessao
+        # (14/11; o mesmo buraco prendia o Atender e o robo parou de andar).
+        event_bus.subscribe("voice.session_ended", self._ao_terminar_voz)
 
     # ----- entrada de eventos -----
 
