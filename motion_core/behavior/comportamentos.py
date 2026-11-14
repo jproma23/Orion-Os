@@ -1116,6 +1116,8 @@ class ControleManual(Comportamento):
         super().__init__(event_bus)
         #: 0.0 = nenhum comando manual ainda nesta execução (ver quer_rodar).
         self._ultimo_comando_monotonic = 0.0
+        #: "MANUAL" (joystick, /comando) ou "VELOCIDADE" (a ponte do Nav2).
+        self._ultima_acao: str | None = None
         event_bus.subscribe("navigation.comando", self._ao_receber_comando)
 
     async def _ao_receber_comando(self, evento: Evento) -> None:
@@ -1127,6 +1129,7 @@ class ControleManual(Comportamento):
             return
         ja_ativo = self.quer_rodar()
         self._ultimo_comando_monotonic = time.monotonic()
+        self._ultima_acao = evento.dados.get("acao")
         if not ja_ativo:
             self._reavaliar()  # acorda o maestro para assumir a prioridade
 
@@ -1146,7 +1149,17 @@ class ControleManual(Comportamento):
             # soltar (ver dashboard.js), então isto é rede de segurança para o
             # caso de o navegador travar/fechar sem enviar o release: garante
             # que o robô para mesmo sem depender só do timeout do Mega.
-            await self._event_bus.publish("navigation.comando", {"acao": "HOLD"})
+            #
+            # SO PARA O JOYSTICK (2026-11-14, 1o mapeamento real). O Nav2
+            # pausa entre um alvo e outro (o explorador pensa, o goal estoura
+            # o tempo) e este HOLD de "operador soltou" PARAVA TUDO - matou o
+            # mapeamento as 17:46:29 sem ninguem ter pedido. Quem soltou o
+            # VELOCIDADE e o Nav2: ele manda o zero ao parar, e o firmware
+            # para sozinho em 0,5 s sem comando.
+            if self._ultima_acao == "MANUAL":
+                await self._event_bus.publish("navigation.comando", {"acao": "HOLD"})
+            else:
+                logger.info("maestro: Nav2 pausou - volante solto sem HOLD")
         except asyncio.CancelledError:
             logger.info("maestro: controle manual preemptado")
             raise

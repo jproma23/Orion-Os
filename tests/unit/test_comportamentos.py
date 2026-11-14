@@ -1360,3 +1360,36 @@ async def test_atender_solta_sozinho_no_teto_quando_o_fim_se_perde():
     await laco
     bus.parar()
     await tarefa_bus
+
+
+
+@pytest.mark.asyncio
+async def test_nav2_pausar_nao_dispara_o_hold_do_joystick_solto():
+    """1o mapeamento real (14/11 17:46:29): o Nav2 pausou entre dois alvos, o
+    ControleManual achou que o operador tinha soltado o joystick e mandou
+    HOLD - o mapeamento morreu sem ninguem pedir. VELOCIDADE e a ponte do
+    Nav2: ao soltar, so devolve o volante."""
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    comandos_nav = []
+    bus.subscribe("navigation.comando", lambda e: comandos_nav.append(e.dados))
+
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(ControleManual(bus))
+    laco = asyncio.create_task(maestro.executar())
+    await maestro.definir_modo_controle(MODO_MANUAL)
+    await _passo(maestro)
+
+    await bus.publish("navigation.comando", {"acao": "VELOCIDADE", "v_m_s": 0.1, "w_rad_s": 0.0})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "controle_manual"
+
+    await asyncio.sleep(TIMEOUT_INATIVIDADE_MANUAL_S + 0.3)
+    assert maestro.ativo_nome == "repouso"
+    assert {"acao": "HOLD"} not in comandos_nav
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
