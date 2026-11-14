@@ -242,7 +242,14 @@ motion:
   # TRAVA DO LIDAR (EDR-0037): porteiro de todo comando de roda + STOP no meio
   # do movimento + watchdog. Numeros do dono, 01/11.
   trava_lidar:
-    bloquear: true
+    # false desde 2026-11-14, DECISAO DO DONO ("tudo que for trava serve para
+    # impedir"; ver project_orion_sem_travas_risco): a trava so AVISA no log
+    # ("LiDAR avisa (sem bloquear)") - nao recusa comando, nao para no meio,
+    # watchdog desligado. Contexto: preso num vao de ~1 m, ela recusava todo
+    # giro (canto a 37,5 cm) e ele ficava parado. RISCO ACEITO: foi esta trava
+    # que parou as batidas de 01/11 (EDR-0037). Ficam: velocidade 30%, o freio
+    # proprio do FOLLOW e o homem-morto do firmware. Voltar = true.
+    bloquear: false
     distancia_cm: 50        # frente e tras, modo autonomo
     piso_manual_cm: 25      # modo manual: obedece ate o raio de seguranca (25 cm do LiDAR; a re volta a travar)
     meia_largura_cm: 25     # corredor: 39 cm de corpo / 2 + folga
