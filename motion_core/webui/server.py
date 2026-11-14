@@ -84,6 +84,10 @@ TOPICOS_REPASSADOS = (
     # navegacao.mapeamento e para o SSE. E o UNICO assinante - sem esta linha
     # o fim do mapeamento seria mais um evento publicado no vazio.
     "navigation.mapeamento_terminado",
+    # Varredura ao andar e o que a camera achou no chao (2026-11-14). O
+    # `vision.obstaculo_chao` nasce no Notebook - aqui e o unico assinante.
+    "vision.varredura_chao",
+    "vision.obstaculo_chao",
     "navigation.desvio",
     # Banco recriado do zero (memoria perdida) e backup falhando: so linha
     # de log ate 12/11. Entram tambem nos erros recentes.
@@ -373,7 +377,13 @@ class WebUIServer:
         # nunca logica de decisao - so cache pra quem acabou de conectar
         self._estado: dict[str, Any] = {
             "sistema": {"robot_name": None, "modo": None},
-            "navegacao": {"modo": None, "ultimo_plano": None, "mapeamento": None},
+            "navegacao": {
+                "modo": None,
+                "ultimo_plano": None,
+                "mapeamento": None,
+                "varredura_chao": False,
+                "obstaculo_chao": None,
+            },
             "hardware": {
                 "estado": None,
                 "em_movimento": None,
@@ -1152,6 +1162,10 @@ class WebUIServer:
             self._estado["navegacao"]["modo"] = dados.get("modo")
         elif topico == "navigation.mapeamento_terminado":
             self._estado["navegacao"]["mapeamento"] = dados
+        elif topico == "vision.varredura_chao":
+            self._estado["navegacao"]["varredura_chao"] = bool(dados.get("ativo"))
+        elif topico == "vision.obstaculo_chao":
+            self._estado["navegacao"]["obstaculo_chao"] = dados
         elif topico in (
             "navigation.plan_created",
             "navigation.segment_started",

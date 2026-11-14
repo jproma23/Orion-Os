@@ -58,6 +58,7 @@ from motion_core.navigation.navigation_core import NavigationCore
 from motion_core.navigation.trava_lidar import TravaLidar
 from motion_core.navigation.gerente_nav2 import GerenteNav2
 from motion_core.navigation.mapeamento import Mapeamento
+from motion_core.navigation.varredura_andar import ORIGEM_VARREDURA, VarreduraAoAndar
 from motion_core.navigation.nav2_goal import Nav2Goal
 from motion_core.vision.engine import CLASSES_PESSOAS_ANIMAIS, VisionEngine
 from motion_core.webui.server import ORIGEM_OPERADOR, WebUIServer
@@ -512,6 +513,11 @@ async def principal() -> None:
     trava_lidar.ligar_parada(_parar_rodas)
     # Watchdog: andando e o LiDAR calado alem de idade_max_s -> STOP.
     tarefa_watchdog_trava = asyncio.create_task(trava_lidar.vigiar())
+    # MODO VARREDURA AO ANDAR (2026-11-14, pedido do dono): andando para a
+    # frente, a cabeca olha o CHAO e varre - o LiDAR, a 45 cm, nao ve nada
+    # baixo. Quem ve e decide e o Notebook (vision/obstaculo_chao.py).
+    varredura = VarreduraAoAndar(event_bus, trava_lidar, navigation, comm)
+    tarefa_varredura = asyncio.create_task(varredura.iniciar())
     comm.definir_porteiro("hardware_core", trava_lidar.motivo_recusa)
     # STOP REPASSADO PARA A NAVEGACAO TAMBEM (2026-11-10, auditoria C1-02):
     # o "Jarvis, para" vem do Notebook e o Pi so o repassa ao corpo; sem isto
@@ -888,8 +894,26 @@ async def principal() -> None:
         agora = time.monotonic()
         do_operador = evento.dados.get("origem") == ORIGEM_OPERADOR
 
+        da_varredura = evento.dados.get("origem") == ORIGEM_VARREDURA
         if do_operador:
             ultimo_pan_tilt["operador_ts"] = agora
+        elif varredura.ativa and not da_varredura:
+            # ANDANDO, A CABECA E DO CHAO (2026-11-14). Comportamento que
+            # quisesse olhar em volta agora tiraria a camera do caminho por
+            # onde o robo vai passar - e o LiDAR nao ve o que esta baixo.
+            logger.debug(
+                "pan/tilt de '%s' ignorado: varredura ao andar ativa",
+                evento.dados.get("origem"),
+            )
+            return
+        elif da_varredura and agora - ultimo_pan_tilt["operador_ts"] < JANELA_DO_OPERADOR_S:
+            # O dono acabou de mexer na cabeca pelo joystick: ele manda.
+            return
+        elif da_varredura:
+            # Passa INCLUSIVE em MANUAL: o Nav2 dirige pelo modo MANUAL (a
+            # ponte do cmd_vel pede o volante assim), e mapear a casa sem
+            # olhar o chao e justamente o que o dono pediu para nao acontecer.
+            pass
         elif evento.dados.get("origem") == ORIGEM_RECENTRAGEM:
             # A recentragem por ociosidade PASSA por cima de tudo, e e a unica
             # que passa. Ver `_recentrar_cabeca_ociosa`: ela so dispara depois
@@ -925,7 +949,7 @@ async def principal() -> None:
             )
             return
 
-        if agora - ultimo_pan_tilt["ts"] < INTERVALO_MINIMO_S:
+        if agora - ultimo_pan_tilt["ts"] < INTERVALO_MINIMO_S and not da_varredura:
             return
         ultimo_pan_tilt["ts"] = agora
         # Sai do centro? entao volta a haver o que recentrar. Sem esta linha a
@@ -1289,6 +1313,7 @@ async def principal() -> None:
     heartbeat.parar()
     tarefa_heartbeat.cancel()
     tarefa_watchdog_trava.cancel()
+    tarefa_varredura.cancel()
     tarefa_recentragem.cancel()
     if tarefa_ronda is not None:
         tarefa_ronda.cancel()

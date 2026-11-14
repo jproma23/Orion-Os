@@ -195,6 +195,16 @@ class TravaLidar:
         logger.warning("trava do LiDAR recusou %s: %s", comando, motivo)
         return motivo
 
+    @property
+    def sentido_em_curso(self) -> str | None:
+        """FRENTE, TRAS, GIRO ou None - o movimento que a trava ve em curso.
+
+        Lido pela varredura ao andar (2026-11-14): esta classe ja ve todo
+        comando de roda e encerra o movimento por STOP, CMD_VEL zerado ou
+        telemetria parada - um segundo rastreador so serviria para divergir.
+        """
+        return self._sentido_em_curso
+
     def _marcar_em_curso(self, sentido: str) -> None:
         self._sentido_em_curso = sentido
         self._comando_em_curso_em = self._relogio()
