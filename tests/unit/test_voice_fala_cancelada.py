@@ -65,6 +65,14 @@ def sintese_com_som_falso(monkeypatch):
         piper_falso = types.ModuleType("piper")
         piper_falso.PiperVoice = type("PiperVoice", (), {"load": staticmethod(lambda c: object())})
         monkeypatch.setitem(sys.modules, "piper", piper_falso)
+    # O reimport abaixo tambem religa o ATRIBUTO `orion.voice.sintese` do pacote,
+    # que o delitem nao devolve: sem isto os testes seguintes faziam monkeypatch
+    # na copia nova enquanto a classe usava a original (14/11, so no Pi/Notebook).
+    import orion.voice as pacote_voz
+
+    monkeypatch.setattr(
+        pacote_voz, "sintese", sys.modules.get("orion.voice.sintese"), raising=False
+    )
     monkeypatch.delitem(sys.modules, "orion.voice.sintese", raising=False)
     sintese = importlib.import_module("orion.voice.sintese")
     sd = sintese.sd

@@ -47,11 +47,17 @@ class NucleoFalso:
         self.familia = list(pessoas)
 
 
-def test_modelo_ganha_sufixo_pt():
+def test_modelo_ganha_sufixo_pt(tmp_path):
     # sem o .pt o Ultralytics trata como nome de catalogo e tenta baixar -
-    # quebrando a promessa de funcionar sem internet
-    assert _nome_do_arquivo_do_modelo("yolov8n") == "yolov8n.pt"
-    assert _nome_do_arquivo_do_modelo("yolov8n.pt") == "yolov8n.pt"
+    # quebrando a promessa de funcionar sem internet. Pasta de modelos vazia
+    # e propria do teste: no Pi/Notebook o data/modelos real TEM o arquivo.
+    assert _nome_do_arquivo_do_modelo("yolov8n", tmp_path) == "yolov8n.pt"
+    assert _nome_do_arquivo_do_modelo("yolov8n.pt", tmp_path) == "yolov8n.pt"
+
+
+def test_modelo_em_data_modelos_vence_a_pasta_atual(tmp_path):
+    (tmp_path / "yolov8n.pt").write_bytes(b"")
+    assert _nome_do_arquivo_do_modelo("yolov8n", tmp_path) == str(tmp_path / "yolov8n.pt")
 
 
 def test_cumpre_o_contrato_de_modulo():
