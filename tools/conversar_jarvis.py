@@ -406,6 +406,9 @@ async def principal() -> None:
 
     bus.subscribe("voice.wake_detected", _repassar_ao_pi)
     bus.subscribe("voice.response_finished", _repassar_ao_pi)
+    # Fim de sessao (14/11): e o que solta o Atender do Pi quando o "Jarvis"
+    # nao vira resposta. Sem este repasse seria publicar no vazio.
+    bus.subscribe("voice.session_ended", _repassar_ao_pi)
 
     # "Fiquei surdo" precisa CHEGAR ao painel do Pi, que é a única tela de
     # diagnóstico do robô. O `voice.audio_error` nasce aqui (o VoiceCore roda

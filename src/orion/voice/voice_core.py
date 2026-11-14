@@ -317,81 +317,94 @@ class VoiceCore:
         await self._definir_estado(EstadoVoz.WAKE_DETECTED)
         await self._event_bus.publish("voice.wake_detected", {"texto_janela": texto_janela})
 
-        # "Fofão, anda para frente" numa respirada so. Se a propria janela de
-        # ativacao ja traz o comando, aproveita - em vez de responder "pode
-        # falar" para um usuario que JA falou e gravar 3 segundos de silencio.
-        #
-        # Achado ao vivo em 2026-07-25: o usuario dizia a frase inteira, a
-        # janela capturava "Fofão, anda para frente", o robo acordava, e a
-        # janela seguinte (a do comando) pegava silencio porque ele ja tinha
-        # terminado. Pedir para falar em dois tempos seria remendo - ninguem
-        # fala com assistente assim.
-        texto_comando = self._comando_na_janela(texto_janela)
-        if texto_comando is None and self._continuar_audio is not None:
-            # O COMANDO QUE VEIO LOGO DEPOIS (2026-11-08). Quem diz "Jarvis, me
-            # siga" de uma vez tem o "me siga" chegando enquanto a janela de
-            # ativacao e transcrita. Antes de responder qualquer coisa - a
-            # resposta falada cobria a fala e a janela dela era descartada -
-            # ouve o que chegou em seguida. So se vier silencio e que ele diz
-            # "pode falar" e espera, como antes.
-            try:
-                audio_seguinte = await self._continuar_audio(self._duracao_janela_escuta_s)
-            except ErroAudio as erro:
-                await self._publicar_erro_audio(erro)
-                return False
-            if self._detector_atividade is None or self._detector_atividade.tem_som(audio_seguinte):
-                texto_seguinte = await self._transcritor.transcrever(audio_seguinte)
-                if self._motivo_para_descartar(texto_seguinte) is None:
-                    logger.info("comando veio logo depois da ativacao: %r", texto_seguinte)
-                    texto_comando = texto_seguinte
-                    await self._identificar_falante(audio_seguinte)
-        if texto_comando is None:
-            if self._frase_ativacao:
-                await self._falar_com_protecao(self._frase_ativacao)
+        # O ATENDIMENTO SEMPRE FECHA (2026-11-14). O Atender do Pi segura o robo
+        # parado do wake_detected ate o fim - e so `voice.response_finished`
+        # o soltava. "Jarvis" sem comando, ou erro de audio no meio, nao
+        # passa pelo `_responder`: o robo ficou "em espera" das 04:56 ate
+        # alguem reiniciar, sem andar. O `finally` cobre todo caminho.
+        try:
+            # "Fofão, anda para frente" numa respirada so. Se a propria janela de
+            # ativacao ja traz o comando, aproveita - em vez de responder "pode
+            # falar" para um usuario que JA falou e gravar 3 segundos de silencio.
+            #
+            # Achado ao vivo em 2026-07-25: o usuario dizia a frase inteira, a
+            # janela capturava "Fofão, anda para frente", o robo acordava, e a
+            # janela seguinte (a do comando) pegava silencio porque ele ja tinha
+            # terminado. Pedir para falar em dois tempos seria remendo - ninguem
+            # fala com assistente assim.
+            texto_comando = self._comando_na_janela(texto_janela)
+            if texto_comando is None and self._continuar_audio is not None:
+                # O COMANDO QUE VEIO LOGO DEPOIS (2026-11-08). Quem diz "Jarvis, me
+                # siga" de uma vez tem o "me siga" chegando enquanto a janela de
+                # ativacao e transcrita. Antes de responder qualquer coisa - a
+                # resposta falada cobria a fala e a janela dela era descartada -
+                # ouve o que chegou em seguida. So se vier silencio e que ele diz
+                # "pode falar" e espera, como antes.
+                try:
+                    audio_seguinte = await self._continuar_audio(self._duracao_janela_escuta_s)
+                except ErroAudio as erro:
+                    await self._publicar_erro_audio(erro)
+                    return False
+                detector = self._detector_atividade
+                if detector is None or detector.tem_som(audio_seguinte):
+                    texto_seguinte = await self._transcritor.transcrever(audio_seguinte)
+                    if self._motivo_para_descartar(texto_seguinte) is None:
+                        logger.info("comando veio logo depois da ativacao: %r", texto_seguinte)
+                        texto_comando = texto_seguinte
+                        await self._identificar_falante(audio_seguinte)
+            if texto_comando is None:
+                if self._frase_ativacao:
+                    await self._falar_com_protecao(self._frase_ativacao)
 
-            await self._definir_estado(EstadoVoz.TRANSCRIBING)
-            try:
-                audio_comando = await self._gravar_sem_eco(self._duracao_comando_s)
-            except ErroAudio as erro:
-                await self._publicar_erro_audio(erro)
-                return False
+                await self._definir_estado(EstadoVoz.TRANSCRIBING)
+                try:
+                    audio_comando = await self._gravar_sem_eco(self._duracao_comando_s)
+                except ErroAudio as erro:
+                    await self._publicar_erro_audio(erro)
+                    return False
 
-            # Transcreve e identifica o locutor em PARALELO: os dois sao
-            # bloqueantes em thread e independentes, e o ECAPA e barato
-            # perto do Whisper - correr os dois juntos esconde quase todo o
-            # custo da identificacao dentro do tempo da transcricao.
-            texto_comando, _ = await asyncio.gather(
-                self._transcritor.transcrever(audio_comando),
-                self._identificar_falante(audio_comando),
-            )
-        elif self._continuar_audio is None or texto_comando == self._comando_na_janela(texto_janela):
-            logger.info("comando veio junto com a ativacao: %r", texto_comando)
-            # O comando inteiro (incluindo quem o disse) esta na janela da
-            # ativacao: identifica ai mesmo, antes de responder - quem_fala
-            # precisa ver o evento antes do planner processar a fala.
-            await self._identificar_falante(audio_janela)
+                # Transcreve e identifica o locutor em PARALELO: os dois sao
+                # bloqueantes em thread e independentes, e o ECAPA e barato
+                # perto do Whisper - correr os dois juntos esconde quase todo o
+                # custo da identificacao dentro do tempo da transcricao.
+                texto_comando, _ = await asyncio.gather(
+                    self._transcritor.transcrever(audio_comando),
+                    self._identificar_falante(audio_comando),
+                )
+            elif self._continuar_audio is None or texto_comando == self._comando_na_janela(
+                texto_janela
+            ):
+                logger.info("comando veio junto com a ativacao: %r", texto_comando)
+                # O comando inteiro (incluindo quem o disse) esta na janela da
+                # ativacao: identifica ai mesmo, antes de responder - quem_fala
+                # precisa ver o evento antes do planner processar a fala.
+                await self._identificar_falante(audio_janela)
 
-        # O MESMO portao da sessao, aqui tambem (2026-09-20). Ate hoje este
-        # caminho nao olhava o que tinha transcrito, e "acordou mas nao falou
-        # nada" virava uma chamada de IA com a fala do usuario em branco - que
-        # o Gemini recusa com 400 (ver `_motivo_para_descartar`).
-        #
-        # E NAO SE VOLTA PARA O IDLE: quem disse a palavra de ativacao QUER
-        # falar, so nao chegou a tempo na janela de 3 s. Cair fora aqui o
-        # obrigaria a dizer "Oi javis" de novo, que e exatamente o "falar em
-        # dois tempos" que o bloco acima evita. Entao pula-se so a resposta e
-        # entra-se na sessao, que tem a paciencia certa para esperar a fala.
-        motivo = self._motivo_para_descartar(texto_comando)
-        if motivo is not None:
-            logger.info("acordou mas nao veio comando aproveitavel (%s) - abrindo a sessao", motivo)
-        else:
-            await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
-            await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
-            await self._responder(texto_comando)
+            # O MESMO portao da sessao, aqui tambem (2026-09-20). Ate hoje este
+            # caminho nao olhava o que tinha transcrito, e "acordou mas nao falou
+            # nada" virava uma chamada de IA com a fala do usuario em branco - que
+            # o Gemini recusa com 400 (ver `_motivo_para_descartar`).
+            #
+            # E NAO SE VOLTA PARA O IDLE: quem disse a palavra de ativacao QUER
+            # falar, so nao chegou a tempo na janela de 3 s. Cair fora aqui o
+            # obrigaria a dizer "Oi javis" de novo, que e exatamente o "falar em
+            # dois tempos" que o bloco acima evita. Entao pula-se so a resposta e
+            # entra-se na sessao, que tem a paciencia certa para esperar a fala.
+            motivo = self._motivo_para_descartar(texto_comando)
+            if motivo is not None:
+                logger.info(
+                    "acordou mas nao veio comando aproveitavel (%s) - abrindo a sessao", motivo
+                )
+            else:
+                await self._event_bus.publish("voice.command_received", {"texto": texto_comando})
+                await self._event_bus.publish("voice.transcription_ready", {"texto": texto_comando})
+                await self._responder(texto_comando)
 
-        await self._conversar_ate_o_silencio()
-        await self._definir_estado(EstadoVoz.IDLE)
-        return True
+            await self._conversar_ate_o_silencio()
+            await self._definir_estado(EstadoVoz.IDLE)
+            return True
+        finally:
+            await self._event_bus.publish("voice.session_ended", {})
 
     async def _responder(self, texto_comando: str) -> None:
         """Pensa e fala. Extraido de `ciclo_uma_vez` para a sessao poder

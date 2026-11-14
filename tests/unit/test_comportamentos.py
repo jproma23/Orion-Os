@@ -1316,3 +1316,47 @@ async def test_ia_estrategica_nao_atropela_o_me_siga():
     ia._comm = _CommQueFalha()
     await IaEstrategica._consultar(ia)
     assert _CommQueFalha.chamadas == 0
+
+
+@pytest.mark.asyncio
+async def test_atender_solta_no_fim_de_sessao_sem_resposta():
+    # "Jarvis" e silencio: nao ha response_finished, so o fim de sessao.
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(Atender(bus))
+    laco = asyncio.create_task(maestro.executar())
+
+    await bus.publish("voice.wake_detected", {"texto_janela": "jarvis"})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "atender"
+    await bus.publish("voice.session_ended", {})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "repouso"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus
+
+
+@pytest.mark.asyncio
+async def test_atender_solta_sozinho_no_teto_quando_o_fim_se_perde():
+    bus = EventBus()
+    tarefa_bus = asyncio.create_task(bus.iniciar())
+    maestro = BehaviorCore(bus)
+    maestro.registrar(Repouso(bus))
+    maestro.registrar(Atender(bus, teto_s=0.1))
+    laco = asyncio.create_task(maestro.executar())
+
+    await bus.publish("voice.wake_detected", {"texto_janela": "jarvis"})
+    await asyncio.sleep(0.05)
+    assert maestro.ativo_nome == "atender"
+    await asyncio.sleep(0.2)  # nenhum fim chegou do Notebook
+    assert maestro.ativo_nome == "repouso"
+
+    maestro.parar()
+    await laco
+    bus.parar()
+    await tarefa_bus

@@ -660,3 +660,38 @@ async def test_so_jarvis_e_silencio_depois_ainda_diz_pode_falar():
     assert sintetizador.falas[:1] == ["Oi? Pode falar!"]
     bus.parar()
     await tarefa
+
+
+@pytest.mark.asyncio
+async def test_so_jarvis_sem_comando_publica_fim_de_sessao():
+    # 14/11: "Jarvis" sem comando nao passava pelo _responder, entao nenhum
+    # response_finished saia - e o Atender do Pi segurou o robo parado ate
+    # reiniciar. O fim de sessao e o que o solta.
+    bus = EventBus()
+    tarefa = await _rodar_bus(bus)
+    fins = []
+    bus.subscribe("voice.session_ended", lambda e: fins.append(e))
+    respostas = []
+    bus.subscribe("voice.response_finished", lambda e: respostas.append(e))
+
+    async def continuar(duracao):
+        return object()
+
+    voice = VoiceCore(
+        bus,
+        indice_microfone=0,
+        transcritor=TranscritorFalso(["jarvis", "", ""]),
+        sintetizador=SintetizadorFalso(),
+        processar_comando=lambda texto: "ok",
+        gravar_audio=_gravar_audio_falso,
+        continuar_audio=continuar,
+        frase_ativacao="Oi? Pode falar!",
+    )
+
+    await voice.ciclo_uma_vez()
+    await bus.aguardar_fila_vazia()
+
+    assert respostas == []  # o caminho que prendia o robo
+    assert len(fins) == 1
+    bus.parar()
+    await tarefa

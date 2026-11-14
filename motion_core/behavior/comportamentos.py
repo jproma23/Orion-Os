@@ -261,16 +261,25 @@ class Atender(Comportamento):
     Motion Core e segura o controle.
 
     Gatilhos vêm do Notebook, encaminhados pelo Event Bus: voice.wake_detected
-    (começou) e voice.response_finished (terminou)."""
+    (começou), voice.response_finished e voice.session_ended (terminou).
+
+    TETO (2026-11-14): só o fim vindo do Notebook soltava o robô. "Jarvis" sem
+    comando não publicava fim nenhum e ele ficou "em espera" das 04:56 até
+    reiniciar - em AUTÔNOMO, parado, com a IA decidindo no vazio. Evento que
+    se perde no enlace (Notebook reiniciando, link caído) faria o mesmo, então
+    além do fim de sessão há um prazo: nenhum atendimento segura o robô mais
+    que `teto_s`."""
 
     nome = "atender"
     prioridade = 80
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(self, event_bus: EventBus, teto_s: float = 120.0) -> None:
         super().__init__(event_bus)
         self._atendendo = False
+        self._teto_s = teto_s
         event_bus.subscribe("voice.wake_detected", self._ao_acordar)
         event_bus.subscribe("voice.response_finished", self._ao_terminar)
+        event_bus.subscribe("voice.session_ended", self._ao_terminar)
 
     async def _ao_acordar(self, evento: Evento) -> None:
         if not self._atendendo:
@@ -291,6 +300,14 @@ class Atender(Comportamento):
         await self._event_bus.publish("navigation.comando", {"acao": "HOLD"})
         logger.info("maestro: dono chamou - atendendo (robô em espera)")
         try:
+            await asyncio.sleep(self._teto_s)
+            logger.warning(
+                "maestro: atendimento sem fim ha %.0f s - soltando o robo (o fim da "
+                "conversa nao chegou do Notebook)",
+                self._teto_s,
+            )
+            self._atendendo = False
+            self._reavaliar()
             while True:
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
