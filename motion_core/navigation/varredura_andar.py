@@ -33,7 +33,7 @@ import asyncio
 import logging
 from typing import Any
 
-from motion_core.navigation.trava_lidar import FRENTE
+from motion_core.navigation.trava_lidar import FRENTE, GIRO
 from orion.kernel.event_bus import EventBus
 
 logger = logging.getLogger("motion_core.navigation.varredura_andar")
@@ -81,7 +81,12 @@ class VarreduraAoAndar:
         return self._ativa
 
     def _andando(self) -> bool:
-        if self._trava.sentido_em_curso != FRENTE:
+        sentido = self._trava.sentido_em_curso
+        # GIRO SO SEGURA, NAO LIGA (medido 14/11, 1o mapeamento): o Nav2
+        # alterna andar e girar a cada poucos segundos, e a cabeca subia ao
+        # centro e descia de novo a cada giro. Girar no meio do caminho mantem
+        # a varredura; girar parado (TURN_* avulso) nao a liga.
+        if sentido != FRENTE and not (sentido == GIRO and self._ativa):
             return False
         modo = getattr(self._navigation, "modo", None)
         return getattr(modo, "value", modo) != "FOLLOW"
