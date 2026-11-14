@@ -397,9 +397,11 @@ async def principal() -> None:
         # O modo so atravessa o enlace quando MUDA. Notebook que conecta depois
         # da troca nunca sabia: em 14/11 o robo entrou em MANUAL as 04:47:04, o
         # enlace subiu as 04:47:30 e a visao do Notebook saiu procurando com a
-        # cabeca que era do operador. Repete uma vez porque a visao pode
-        # assinar o topico depois do enlace subir; o handler la e idempotente.
-        for espera in (0.0, 15.0):
+        # cabeca que era do operador. Repete porque a visao assina o topico
+        # DEPOIS do enlace subir (medido: ~7 s) e comeca a procurar 6 s apos o
+        # primeiro quadro - so 0 s e 15 s deixou 2 s de procura em MANUAL. O
+        # handler la e idempotente, entao repetir nao custa nada.
+        for espera in (0.0, 3.0, 3.0, 4.0, 10.0):
             await asyncio.sleep(espera)
             if maestro is None:
                 continue
