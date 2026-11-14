@@ -89,8 +89,8 @@ ENTREGAS = frozenset(
 )
 
 #: Limites dos servos da cabeca. Os MESMOS numeros do webui/server.py e do
-#: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por (test_limites_cabeca.py)
-#: teste que um servo forcado contra o batente, que ja derrubou o ESP32
+#: joystick - ver a nota la sobre numero repetido: melhor repetido e preso por
+#: teste (test_limites_cabeca.py) que um servo forcado contra o batente, que ja derrubou o ESP32
 #: inteiro uma vez (2026-08-03).
 PAN_MIN, PAN_MAX = -80.0, 80.0
 TILT_MIN, TILT_MAX = -30.0, 30.0  # 45 tremia (medido 14/11)
