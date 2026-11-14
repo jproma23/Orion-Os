@@ -385,6 +385,33 @@ async def principal() -> None:
     # local e trava a CPU por dezenas de segundos sem estar quebrado.
     limites_por_link = conf_comm.get("heartbeats_lost_threshold_por_link") or {}
 
+    #: Preenchido mais abaixo (o BehaviorCore nasce depois deste handler e do
+    #: servidor TCP). Declarado aqui para os closures terem o nome ligado se o
+    #: Notebook conectar, ou um evento de pan/tilt chegar, antes da construcao
+    #: do maestro - sem isto seria um NameError numa janela de milissegundos,
+    #: que e o tipo de falha que so aparece na madrugada de quinta.
+    maestro = None
+    tarefas_do_enlace: set[asyncio.Task] = set()
+
+    async def _contar_o_modo_ao_notebook() -> None:
+        # O modo so atravessa o enlace quando MUDA. Notebook que conecta depois
+        # da troca nunca sabia: em 14/11 o robo entrou em MANUAL as 04:47:04, o
+        # enlace subiu as 04:47:30 e a visao do Notebook saiu procurando com a
+        # cabeca que era do operador. Repete uma vez porque a visao pode
+        # assinar o topico depois do enlace subir; o handler la e idempotente.
+        for espera in (0.0, 15.0):
+            await asyncio.sleep(espera)
+            if maestro is None:
+                continue
+            try:
+                await comm.publish(
+                    "behavior.modo_controle",
+                    {"modo": maestro.modo_controle, "anterior": None},
+                    local=False,
+                )
+            except Exception:
+                logger.debug("falha ao contar o modo ao Notebook", exc_info=True)
+
     async def _ao_conectar_notebook(conexao: ConexaoTcp) -> None:
         comm.adicionar_link("mission_core", conexao)
         heartbeat.monitorar(
@@ -392,6 +419,9 @@ async def principal() -> None:
             heartbeats_perdidos_limite=limites_por_link.get("mission_core"),
         )
         logger.info("Notebook (Mission Core) conectado via TCP")
+        tarefa = asyncio.create_task(_contar_o_modo_ao_notebook())
+        tarefas_do_enlace.add(tarefa)
+        tarefa.add_done_callback(tarefas_do_enlace.discard)
 
     servidor_tcp = await iniciar_servidor_tcp(
         "0.0.0.0", conf_raspberry["tcp_port"], _ao_conectar_notebook
@@ -822,12 +852,7 @@ async def principal() -> None:
     #: o robo, e o log tem que poder dizer isso.
     ORIGEM_RECENTRAGEM = "recentragem_ociosidade"
 
-    #: Preenchido mais abaixo (o BehaviorCore nasce depois deste handler).
-    #: Declarado aqui para o closure ter o nome ligado se um evento de pan/tilt
-    #: chegar entre o subscribe e a construcao do maestro - sem isto seria um
-    #: NameError numa janela de milissegundos, que e o tipo de falha que so
-    #: aparece na madrugada de quinta.
-    maestro = None
+    # `maestro` ja nasceu como None la em cima, junto do servidor TCP.
 
     #: Quem mexeu no joystick da cabeca fica DONO dela por este tempo, e os
     #: comportamentos esperam a vez (2026-08-03).
