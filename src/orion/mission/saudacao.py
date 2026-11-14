@@ -37,6 +37,8 @@ TOPICO_PERDIDA = "vision.person_lost"
 TOPICO_ACORDOU = "voice.wake_detected"
 TOPICO_RESPOSTA_INICIO = "voice.response_started"
 TOPICO_RESPOSTA_FIM = "voice.response_finished"
+#: Sempre publicado quando a conversa acaba, com ou sem resposta (14/11).
+TOPICO_SESSAO_FIM = "voice.session_ended"
 TOPICO_SAUDACAO = "voice.saudacao"
 
 #: Tempo sem ver a pessoa para que revê-la conte como CHEGADA de novo.
@@ -240,6 +242,7 @@ class SaudacaoEspontanea:
         event_bus.subscribe(TOPICO_ACORDOU, self._ao_acordar)
         event_bus.subscribe(TOPICO_RESPOSTA_INICIO, self._ao_comecar_resposta)
         event_bus.subscribe(TOPICO_RESPOSTA_FIM, self._ao_terminar_resposta)
+        event_bus.subscribe(TOPICO_SESSAO_FIM, self._ao_encerrar_sessao)
 
     async def _ao_acordar(self, evento: Evento) -> None:
         # O wake abre a SESSÃO de conversa, mas NÃO a janela de 15 min. Se
@@ -271,6 +274,19 @@ class SaudacaoEspontanea:
             self._tarefa_cumprimento = asyncio.create_task(
                 self._cumprimentar(nome, self._cumprimentados.get(nome))
             )
+
+    async def _ao_encerrar_sessao(self, evento: Evento) -> None:
+        """A sessao acabou: nada mais pode estar "no meio do turno".
+
+        "Jarvis" sem comando abria `_conversando` e nunca fechava; um erro
+        entre response_started e response_finished deixaria `_falando` preso
+        e o cumprimento de quem chegasse pendurado para sempre (o mesmo par
+        aberto que prendeu o Atender em 14/11). Se o fim do turno se perdeu,
+        fecha-o agora - o que tambem entrega os cumprimentos pendentes.
+        """
+        if self._falando:
+            await self._ao_terminar_resposta(evento)
+        self._conversando = False
 
     def _pos_conversa(self) -> bool:
         """Acabou de ter uma conversa REAL (uma resposta terminou há < 15 min).

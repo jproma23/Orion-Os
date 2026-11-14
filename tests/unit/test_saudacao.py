@@ -648,3 +648,21 @@ def test_arquivo_estragado_nao_impede_o_boot(bus, tmp_path):
         pass
 
     SaudacaoEspontanea(bus, falar, arquivo_estado=arquivo)  # nao levanta
+
+
+@pytest.mark.asyncio
+async def test_fim_de_sessao_entrega_cumprimento_quando_o_fim_do_turno_se_perde(bus):
+    # 14/11: o par aberto (started sem finished) prendia o cumprimento de
+    # quem chegou durante a fala. O fim de sessao fecha o turno.
+    _, ditas = _montar(bus)
+    await bus.publish("voice.wake_detected", {})
+    await bus.publish("voice.response_started", {})
+    await bus.aguardar_fila_vazia()
+    await _ver(bus, "João Paulo")
+    assert ditas == []  # no meio da fala: pendente
+
+    await bus.publish("voice.session_ended", {})  # o response_finished nao veio
+    await bus.aguardar_fila_vazia()
+    for _ in range(6):
+        await asyncio.sleep(0)
+    assert len(ditas) == 1
