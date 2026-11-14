@@ -26,10 +26,12 @@ import math
 import os
 import subprocess
 import time
-from collections import deque
 
 import numpy as np
 import rclpy
+
+# Mesmo diretorio: `python3 .../explorar.py` poe a pasta no sys.path.
+from explorar_escolha import escolher  # noqa: E402
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import OccupancyGrid
@@ -42,12 +44,8 @@ PASTA_MAPAS = "/opt/orion_nav2/mapas"
 ARQUIVO_PARAR = os.path.join(PASTA_MAPAS, "PARAR")
 NOME_MAPA = "casa"
 
-MIN_CELULAS_FRONTEIRA = 6       # 6 x 5 cm: menos que isso e ruido do LiDAR
-DISTANCIA_MINIMA_M = 0.5        # alvo mais perto que isso nao leva a lugar novo
-RAIO_LISTA_NEGRA_M = 0.5        # alvo que ja falhou: nao tentar perto dele de novo
 TEMPO_MAXIMO_ALVO_S = 120.0
 MAXIMO_ALVOS = 40
-FASE_LONGE_M = 1.5          # acima disto a fronteira conta como LONGE
 
 
 class Explorador(Node):
@@ -77,66 +75,17 @@ class Explorador(Node):
             return None
         return t.transform.translation.x, t.transform.translation.y
 
-    def _fronteiras(self) -> list[tuple[float, float, int]]:
-        """Grupos de fronteira: (x, y do ponto do grupo mais perto do centro, tamanho)."""
-        m = self._mapa
-        larg, alt = m.info.width, m.info.height
-        g = np.array(m.data, dtype=np.int16).reshape(alt, larg)
-        livre = g == 0
-        desconhecido = g == -1
-        viz = np.zeros_like(livre)
-        viz[1:, :] |= desconhecido[:-1, :]
-        viz[:-1, :] |= desconhecido[1:, :]
-        viz[:, 1:] |= desconhecido[:, :-1]
-        viz[:, :-1] |= desconhecido[:, 1:]
-        fronteira = livre & viz
-        visto = np.zeros_like(fronteira)
-        grupos = []
-        res, ox, oy = m.info.resolution, m.info.origin.position.x, m.info.origin.position.y
-        for (i, j) in zip(*np.nonzero(fronteira)):
-            if visto[i, j]:
-                continue
-            fila, celulas = deque([(i, j)]), []
-            visto[i, j] = True
-            while fila:
-                a, b = fila.popleft()
-                celulas.append((a, b))
-                for da in (-1, 0, 1):
-                    for db in (-1, 0, 1):
-                        na, nb = a + da, b + db
-                        if 0 <= na < alt and 0 <= nb < larg and fronteira[na, nb] and not visto[na, nb]:
-                            visto[na, nb] = True
-                            fila.append((na, nb))
-            if len(celulas) < MIN_CELULAS_FRONTEIRA:
-                continue
-            ci = sum(c[0] for c in celulas) / len(celulas)
-            cj = sum(c[1] for c in celulas) / len(celulas)
-            a, b = min(celulas, key=lambda c: (c[0] - ci) ** 2 + (c[1] - cj) ** 2)
-            grupos.append((ox + (b + 0.5) * res, oy + (a + 0.5) * res, len(celulas)))
-        return grupos
-
-    def _escolher(self, pose, grupos):
-        candidatos = []
-        for x, y, n in grupos:
-            d = math.hypot(x - pose[0], y - pose[1])
-            if d < DISTANCIA_MINIMA_M:
-                continue
-            if any(math.hypot(x - bx, y - by) < RAIO_LISTA_NEGRA_M for bx, by in self._lista_negra):
-                continue
-            candidatos.append((d, x, y, n))
-        if not candidatos:
+    def _escolher(self, pose):
+        """CURIOSIDADE (2026-11-14): a fronteira com mais desconhecido atras -
+        ver explorar_escolha.py. Substitui a regra antiga (a mais longe)."""
+        if self._mapa is None:
             return None
-        # DUAS FASES (pedido do dono: "procurar as maiores distancias e
-        # percorrer, depois voltar nas distancias menores"): enquanto houver
-        # fronteira LONGE, vai na mais longe - o esqueleto da casa (corredores,
-        # salas abertas); quando so sobram as perto, vai da mais perto - os
-        # cantos e os detalhes.
-        longe = [c for c in candidatos if c[0] >= FASE_LONGE_M]
-        if longe:
-            d, x, y, n = max(longe, key=lambda c: c[0] + 0.02 * c[3])
-        else:
-            d, x, y, n = min(candidatos, key=lambda c: c[0] - 0.02 * c[3])
-        return (0, x, y, n, d)
+        m = self._mapa
+        g = np.array(m.data, dtype=np.int16).reshape(m.info.height, m.info.width)
+        return escolher(
+            g, m.info.resolution, m.info.origin.position.x, m.info.origin.position.y,
+            pose, self._lista_negra,
+        )
 
     def _salvar_mapa(self) -> None:
         subprocess.run(
@@ -185,13 +134,15 @@ class Explorador(Node):
                 break
             self._girar(1.0)  # deixa o mapa atualizar depois do ultimo movimento
             pose = self._pose()
-            grupos = self._fronteiras() if self._mapa else []
-            escolha = self._escolher(pose, grupos) if pose else None
+            escolha = self._escolher(pose) if pose else None
             if escolha is None:
-                self.get_logger().info("sem fronteira alcancavel: exploracao COMPLETA (%d grupos ignorados)" % len(grupos))
+                self.get_logger().info("sem fronteira que valha a viagem: exploracao COMPLETA")
                 break
-            _, x, y, n, d = escolha
-            self.get_logger().info("alvo %d: (%.2f, %.2f), %.1f m, fronteira de %d celulas, %d grupos" % (numero, x, y, d, n, len(grupos)))
+            x, y = escolha["x"], escolha["y"]
+            self.get_logger().info(
+                "alvo %d: (%.2f, %.2f), %.1f m, %.1f m2 desconhecidos atras, %d grupos"
+                % (numero, x, y, escolha["distancia"], escolha["ganho_m2"], escolha["grupos"])
+            )
             resultado = self._ir(pose, x, y)
             self.get_logger().info("alvo %d: %s" % (numero, resultado))
             if resultado == "parado pelo dono":
