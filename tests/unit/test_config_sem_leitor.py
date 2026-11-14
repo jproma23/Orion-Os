@@ -48,7 +48,12 @@ SEM_LEITOR_CONHECIDAS = {
 
 #: Secoes cujo conteudo e repassado inteiro (**dict) - as folhas nao aparecem
 #: no codigo pelo nome, e isso nao as torna mortas.
-REPASSADAS_INTEIRAS = {"voice.transcricao"}
+REPASSADAS_INTEIRAS = {
+    "voice.transcricao",
+    # vai inteira para ConfigOlhar.de_dict; o teste abaixo garante que toda
+    # folha e campo da dataclass (de_dict descarta o resto em silencio)
+    "vision.olhar",
+}
 
 
 def _codigo() -> str:
@@ -90,3 +95,14 @@ def test_nenhuma_chave_nova_sem_leitor():
 def test_lista_nao_mente():
     voltaram = SEM_LEITOR_CONHECIDAS - _sem_leitor()
     assert not voltaram, f"passaram a ser lidas - tirar da lista: {sorted(voltaram)}"
+
+
+def test_olhar_do_yaml_so_tem_campos_do_config_olhar():
+    from orion.vision.olhar import ConfigOlhar
+
+    config = yaml.safe_load(open("config/orion.yaml", encoding="utf-8"))
+    olhar = config["vision"].get("olhar") or {}
+    assert set(olhar) <= set(ConfigOlhar.__dataclass_fields__), (
+        "chave em vision.olhar que o ConfigOlhar ignora: "
+        f"{sorted(set(olhar) - set(ConfigOlhar.__dataclass_fields__))}"
+    )
