@@ -133,3 +133,16 @@ async def test_notebook_fora_nao_impede_a_varredura():
     trava.sentido_em_curso = FRENTE
     await _avancar(v, relogio, 1.0)
     assert v.ativa and bus.cabeca()
+
+
+@pytest.mark.asyncio
+async def test_giro_no_meio_do_caminho_nao_levanta_a_cabeca():
+    """1o mapeamento real (14/11): o Nav2 alterna andar e girar."""
+    v, bus, comm, trava, nav, relogio = _montar()
+    trava.sentido_em_curso = FRENTE
+    await _avancar(v, relogio, 1.0)
+    trava.sentido_em_curso = GIRO
+    await _avancar(v, relogio, 5.0)
+    assert v.ativa
+    assert bus.avisos() == [True]
+    assert (0.0, 0.0) not in bus.cabeca()
