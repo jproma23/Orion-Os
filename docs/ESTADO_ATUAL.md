@@ -47,7 +47,8 @@ Serviços no Pi: `systemctl --user` (`orion-motion`; `orion-mission` e `orion-ca
 | Ações faladas (andar, girar, ré, cabeça, recado, busca, me siga, mapear) | catálogo fechado `#acao:`; "me siga" recusa com a câmera cega |
 | Folga de frente: o avanço para a 15 cm da parede | `1fad862` (15/11) |
 | Seguir pessoa (FOLLOW) | 15/11 09:08: seguiu o Kamal sozinho pelo LiDAR |
-| Iniciativa própria (maestro + impulsos + GOAP) | 15/11 09:08: decidiu seguir sem ninguém pedir |
+| Iniciativa própria (maestro + IA estratégica a cada 10 min) | 15/11 09:08: decidiu seguir sem ninguém pedir |
+| **Curiosidade e companhia** (impulsos: solidão, tédio, proteção, corpo) | ligados em 15/11 (); ao vivo 09:32: "obstáculo a 18 cm [forte]". Silêncio 22h–7h |
 | Mapear a casa (explorador + Nav2) | 14/11 17:44, de ponta a ponta |
 | Reconhecer rostos | 3 cadastrados (João Paulo, Kamal, Marah); 15/11: "vi Kamal", "vi João Paulo" |
 | A IA vê a foto quando a pergunta pede olhar | `228f96e` (14/11) |
@@ -100,3 +101,4 @@ Fila de capacidades (14/11): estranho se identifica (nome → foto → cadastro 
 | `9a250fb` | O acervo vira contexto da IA, não resposta lida crua |
 | `6ef2c82` | A IA do Pi não diz mais "Eu sou o Jarvis" |
 | `86b2b1c` | **A conversa passa a saber a frente medida** — a causa da batida de 14/11 |
+| `683fbd8` `4402c85` | **Impulsos ligados** (órfãos desde 05/08): curiosidade, tédio, busca de companhia, horário de silêncio |
