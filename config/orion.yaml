@@ -757,7 +757,11 @@ voice:
     # 08/11 16:39: com os comandos de MOVIMENTO aqui o Whisper passou a tirar
     # a propria lista do ruido ("olha, olha, olha", "anda para frente, anda
     # para frente") - perigoso num robo que obedece. So o nome e o me siga.
-    hotwords: "Atom, me siga"
+    # 15/11: "para" ENTROU. Em 14/11 18:15 o dono gritou "Atom, para!" com o
+    # robo indo contra a parede e saiu "Tom o patêu! Patêu!" - nao parou.
+    # Diferente dos comandos de movimento (que o Whisper passou a tirar do
+    # ruido), um "para" inventado so faz o robo PARAR: o erro e seguro.
+    hotwords: "Atom, para, me siga"
   # OS OUVIDOS DE VERDADE DO FOFAO: dois microfones I2S num ESP32, que le os
   # dois a 16 kHz e despeja int16 LE intercalado num socket TCP.
   #
