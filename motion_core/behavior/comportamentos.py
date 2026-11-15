@@ -581,11 +581,16 @@ class IaEstrategica(Comportamento):
             try:
                 retrato_agora = self._ler_retrato()
                 estado_goap = goap.estado_de(retrato_agora)
-                partes.append(
-                    self._impulsos.bloco_para_prompt(
-                        self._impulsos.avaliar(retrato_agora, estado_goap)
-                    )
+                sentindo = self._impulsos.bloco_para_prompt(
+                    self._impulsos.avaliar(retrato_agora, estado_goap)
                 )
+                partes.append(sentindo)
+                # O log do contexto e escrito ANTES deste bloco entrar
+                # (_contexto_para_ia): sem esta linha nao da para ver ao vivo
+                # o que ele sente. So quando muda, como o resto do maestro.
+                if sentindo != getattr(self, "_ultimo_sentindo", None):
+                    self._ultimo_sentindo = sentindo
+                    logger.info("impulsos: %s", sentindo.replace(chr(10), " | "))
             except Exception:
                 logger.warning("falha ao medir os impulsos", exc_info=True)
                 retrato_agora, estado_goap = None, None
