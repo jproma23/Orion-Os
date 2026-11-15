@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Plataforma de robótica modular para robôs domésticos autônomos.</strong><br>
-  Primeiro robô: <strong>Jarvis</strong> (antes chamado Fofão).
+  Primeiro robô: <strong>Atom</strong> (antes chamado Jarvis e Fofão).
 </p>
 
 <p align="center">
@@ -27,6 +27,21 @@ pouco.
 **[→ Diário de bordo do desenvolvimento](https://jproma23.github.io/Orion-Os/)**
 — cada sessão registrada no dia em que aconteceu, os acertos e os bugs que
 custaram caro.
+
+## O Atom hoje (15/11/2026)
+
+<table>
+<tr>
+<td align="center" width="33%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-sorrindo-2026-11-15.webp" alt="Atom sorrindo na tela enquanto uma criança brinca com ele" width="240"></a><br><sub>O rosto muda quando ele ouve, pensa e fala.</sub></td>
+<td align="center" width="33%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-aula-2026-11-15.webp" alt="A tela do Atom vira um quadro com o plano da aula de Eletrônica Básica" width="240"></a><br><sub>Pedem uma aula e a tela vira quadro: Eletrônica Básica.</sub></td>
+<td align="center" width="33%"><a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4"><img src="docs/assets/fotos/atom-corredor-2026-11-15.webp" alt="Atom vindo pelo corredor com os olhos na tela" width="240"></a><br><sub>Andando pelo corredor, com o LiDAR no topo.</sub></td>
+</tr>
+</table>
+
+<p align="center"><sub>Clique nas imagens para os vídeos (480p, com som):
+<a href="docs/assets/fotos/atom-aula-2026-11-15.mp4">a aula (2 min)</a> ·
+<a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4">o corredor (1 min 28 s)</a> ·
+<a href="docs/assets/fotos/atom-chegando-2026-11-15.mp4">chegando de perto (54 s)</a>.</sub></p>
 
 ## Em movimento (08/11/2026)
 
