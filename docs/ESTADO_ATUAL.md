@@ -48,7 +48,7 @@ Serviços no Pi: `systemctl --user` (`orion-motion`; `orion-mission` e `orion-ca
 | Folga de frente: o avanço para a 15 cm da parede | `1fad862` (15/11) |
 | Seguir pessoa (FOLLOW) | 15/11 09:08: seguiu o Kamal sozinho pelo LiDAR |
 | Iniciativa própria (maestro + IA estratégica a cada 10 min) | 15/11 09:08: decidiu seguir sem ninguém pedir |
-| **Curiosidade e companhia** (impulsos: solidão, tédio, proteção, corpo) | ligados em 15/11 (); ao vivo 09:32: "obstáculo a 18 cm [forte]". Silêncio 22h–7h |
+| **Curiosidade e companhia** (impulsos: solidão, tédio, proteção, corpo) | ligados em 15/11 (`683fbd8`); ao vivo 09:32: "obstáculo a 18 cm [forte]". Silêncio 22h–7h |
 | Mapear a casa (explorador + Nav2) | 14/11 17:44, de ponta a ponta |
 | Reconhecer rostos | 3 cadastrados (João Paulo, Kamal, Marah); 15/11: "vi Kamal", "vi João Paulo" |
 | A IA vê a foto quando a pergunta pede olhar | `228f96e` (14/11) |
