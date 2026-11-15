@@ -111,6 +111,34 @@ SEGUNDOS_ATE_SOLIDAO_MAXIMA = 900.0
 #: para amadurecer.
 SEGUNDOS_ATE_BLOQUEIO_MAXIMO = 60.0
 
+#: Quanto tempo PARADO, com o corpo vivo, ate o tedio chegar ao maximo
+#: (2026-11-15, dono: "o robo tem q ter curiosidade e buscar companhia").
+#: Vinte minutos: mais que a solidao, porque ficar quieto um tempo e normal;
+#: o que nao e normal e passar a tarde inteira no mesmo lugar sem descobrir
+#: nada. Quem satisfaz o tedio e andar - qualquer movimento zera o relogio.
+SEGUNDOS_ATE_TEDIO_MAXIMO = 1200.0
+
+#: HORARIO DE SILENCIO (2026-11-15): de madrugada a casa dorme, e um robo que
+#: sai procurando companhia as 3h acorda o Kamal. Nessas horas a solidao e o
+#: tedio ficam em zero; protecao e o corpo continuam valendo. (inicio, fim)
+#: em horas locais; o intervalo pode passar da meia-noite.
+HORARIO_SILENCIO_PADRAO = (22, 7)
+
+#: O que cada impulso faz QUANDO A IA NAO RESPONDE e o GOAP esta desligado
+#: (o padrao desde 01/11: a IA escolhe a intencao direto). None = o impulso
+#: nao tem acao propria e so informa (o caminho bloqueado e do EXPLORE e da
+#: folga de frente, nao de uma decisao a cada 10 min).
+ACAO_POR_IMPULSO: dict[str, str | None] = {
+    "corpo_mudo": "parar",
+    "bateria_no_fim": "parar",
+    "caminho_bloqueado": None,
+    "estranho_em_casa": "olhar_em_volta",
+    "nao_sei_o_que_ha_na_frente": "olhar_em_volta",
+    "tedio": "explorar",
+    "solidao": "explorar",
+    "recado_na_fila": "explorar",
+}
+
 
 @dataclass(frozen=True)
 class Impulso:
@@ -204,6 +232,12 @@ IMPULSOS: tuple[Impulso, ...] = (
         familia=CURIOSIDADE,
         objetivo="entender_o_ambiente",
         descricao="estou sem medida confiavel da frente",
+    ),
+    Impulso(
+        nome="tedio",
+        familia=CURIOSIDADE,
+        objetivo="entender_o_ambiente",
+        descricao="faz tempo que estou parado sem descobrir nada novo",
     ),
     # --- SOCIAL: gente ----------------------------------------------------
     Impulso(
@@ -303,6 +337,8 @@ class Impulsos:
         limiar_acao: float = LIMIAR_ACAO,
         contar_recados_pendentes=None,
         agora=None,
+        horario_silencio: tuple[int, int] | None = HORARIO_SILENCIO_PADRAO,
+        hora_local=None,
     ) -> None:
         self._limiar = limiar_acao
         self._contar_recados = contar_recados_pendentes
@@ -311,6 +347,12 @@ class Impulsos:
         self._sem_frente = _Relogio()
         self._sem_pessoa = _Relogio()
         self._bloqueado = _Relogio()
+        self._parado = _Relogio()
+        self._horario_silencio = horario_silencio
+        #: Hora local (0-23), injetavel para o teste.
+        self._hora_local = hora_local if hora_local is not None else (
+            lambda: time.localtime().tm_hour
+        )
         #: Ultima linha registrada, para nao repetir a mesma frase a cada 30 s.
         #: Mesma razao do `IaEstrategica._registrar_plano`: em 04/08 o log teve
         #: 8 horas da mesma frase e foi preciso `grep -v` para ler qualquer
@@ -397,15 +439,39 @@ class Impulsos:
             ),
         ]
 
+    def em_silencio(self) -> bool:
+        """True no horario em que ele nao sai procurando ninguem."""
+        if not self._horario_silencio:
+            return False
+        inicio, fim = self._horario_silencio
+        hora = self._hora_local()
+        if inicio <= fim:
+            return inicio <= hora < fim
+        return hora >= inicio or hora < fim
+
     def _curiosidade(self, retrato, estado, agora) -> list[ImpulsoMedido]:
         cego = not estado.get("frente_conhecida", False)
         ha_quanto = self._sem_frente.marcar(cego, agora)
+        # Parado = corpo vivo e o firmware em IDLE. Corpo mudo nao conta: ai
+        # quem fala e a fisiologia, e tedio de quem nao sente o corpo seria
+        # vontade de andar as cegas.
+        parado = estado.get("corpo_vivo", False) and getattr(retrato, "estado_hardware", None) == "IDLE"
+        parado_ha = self._parado.marcar(parado, agora)
+        silencio = self.em_silencio()
+        if silencio:
+            tedio, porque_tedio = 0.0, "e horario de silencio: fico quieto"
+        elif parado:
+            tedio = _rampa(parado_ha, SEGUNDOS_ATE_TEDIO_MAXIMO)
+            porque_tedio = f"parado ha {parado_ha / 60:.0f} min"
+        else:
+            tedio, porque_tedio = 0.0, "estou em movimento"
         return [
             ImpulsoMedido(
                 IMPULSOS_POR_NOME["nao_sei_o_que_ha_na_frente"],
                 _rampa(ha_quanto, SEGUNDOS_ATE_CURIOSIDADE_MAXIMA) if cego else 0.0,
                 f"sem medida da frente ha {ha_quanto:.0f} s" if cego else "sei o que ha na frente",
-            )
+            ),
+            ImpulsoMedido(IMPULSOS_POR_NOME["tedio"], tedio, porque_tedio),
         ]
 
     def _social(self, retrato, estado, agora) -> list[ImpulsoMedido]:
@@ -422,12 +488,15 @@ class Impulsos:
             except Exception:
                 logger.warning("nao consegui contar os recados pendentes", exc_info=True)
 
+        if self.em_silencio():
+            solidao, porque = 0.0, "e horario de silencio: a casa dorme"
+        elif sozinho:
+            solidao = _rampa(ha_quanto, SEGUNDOS_ATE_SOLIDAO_MAXIMA)
+            porque = f"sem ver ninguem ha {ha_quanto / 60:.0f} min"
+        else:
+            solidao, porque = 0.0, "tem gente aqui"
         return [
-            ImpulsoMedido(
-                IMPULSOS_POR_NOME["solidao"],
-                _rampa(ha_quanto, SEGUNDOS_ATE_SOLIDAO_MAXIMA) if sozinho else 0.0,
-                f"sem ver ninguem ha {ha_quanto:.0f} s" if sozinho else "tem gente aqui",
-            ),
+            ImpulsoMedido(IMPULSOS_POR_NOME["solidao"], solidao, porque),
             ImpulsoMedido(
                 IMPULSOS_POR_NOME["recado_na_fila"],
                 0.75 if pendentes else 0.0,
@@ -473,6 +542,35 @@ class Impulsos:
             )
             return medido.objetivo, motivo
 
+        self._registrar("impulso: nenhum forte o bastante agora - sem vontade propria")
+        return None
+
+    def acao_interna(
+        self, retrato, estado: dict[str, bool], acoes_validas
+    ) -> tuple[str, str] | None:
+        """A ACAO que o robo quer por si, para quando a IA nao respondeu.
+
+        E o caminho do GOAP desligado (o padrao desde 01/11). Mesmo descarte
+        do `objetivo_interno` por limiar; o "ja satisfeito" aqui e a propria
+        urgencia - solidao com gente a vista ja e zero. So devolve acao que
+        esta em `acoes_validas` (o `acoes_permitidas` do orion.yaml).
+        """
+        validas = set(acoes_validas)
+        for medido in self.avaliar(retrato, estado):
+            if medido.urgencia < self._limiar:
+                break
+            acao = ACAO_POR_IMPULSO.get(medido.nome)
+            # Explorar exige saber que a frente esta livre; sem isso, olhar.
+            if acao == "explorar" and not estado.get("frente_livre", False):
+                acao = "olhar_em_volta"
+            if acao is None or acao not in validas:
+                continue
+            motivo = f"impulso proprio: {medido.impulso.descricao} ({medido.porque})"
+            self._registrar(
+                f"impulso: '{medido.nome}' ({medido.familia}, urgencia {medido.urgencia:.2f}) "
+                f"-> acao '{acao}' - {medido.porque}"
+            )
+            return acao, motivo
         self._registrar("impulso: nenhum forte o bastante agora - sem vontade propria")
         return None
 

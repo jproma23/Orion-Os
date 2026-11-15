@@ -46,6 +46,7 @@ from motion_core.lidar.gerenciador import LidarManager
 from motion_core.memory.api import MemoryAPI
 from motion_core.memory.bridge import PonteMemoria
 from motion_core.memory.database import DatabaseManager
+from motion_core.behavior.impulsos import Impulsos
 from motion_core.memory.experiencias import RegistradorExperiencias
 from motion_core.memory.manutencao import TarefaManutencao
 from motion_core.memory.replica_pendente import (
@@ -1121,6 +1122,12 @@ async def principal() -> None:
             # a IA escolhe a acao direto, com o retrato das 8 direcoes na mao.
             # Volta com `behavior.ia_estrategica.goap: true`.
             retrato=mundo.retrato if conf_ia_estrategica.get("goap", False) else None,
+            # CURIOSIDADE E COMPANHIA (2026-11-15, dono: "o robo tem q ter
+            # curiosidade e buscar companhia"): os impulsos, orfaos desde 05/08.
+            impulsos=Impulsos(
+                horario_silencio=tuple(conf_ia_estrategica.get("horario_silencio") or (22, 7)),
+            ),
+            ler_retrato=mundo.retrato,
             # A IA ESCOLHE INTENCAO, NAO MANOBRA (2026-11-01, dono: "a ia nao
             # precisa fazer manobras, isso sai caro" / "a ia so decide onde ir
             # e o corpo usa os motores e sensores para ir"). Na 1a volta do

@@ -412,8 +412,19 @@ class IaEstrategica(Comportamento):
         retrato=None,
         objetivos_validos: tuple[str, ...] = modelo_goap.NOMES_OBJETIVOS,
         espera_inicial_s: float = 0.0,
+        impulsos=None,
+        ler_retrato=None,
     ) -> None:
         super().__init__(event_bus)
+        #: OS IMPULSOS LIGADOS (2026-11-15). O `impulsos.py` existia desde
+        #: 05/08 e ninguem o chamava - o proprio commit dizia "AINDA NAO ESTA
+        #: LIGADO". A vontade do robo vinha so da IA remota; com ela calada
+        #: (cota, rede) ele ficava parado sem querer nada. Agora: o que ele
+        #: sente vai no contexto dela, e quando ela nao responde o impulso
+        #: mais forte escolhe. `ler_retrato` e separado de `retrato` porque
+        #: este liga o GOAP, e o GOAP esta desligado por decisao do dono.
+        self._impulsos = impulsos
+        self._ler_retrato = ler_retrato if ler_retrato is not None else retrato
         self._comm = comm
         self._intervalo_s = intervalo_s
         #: Quanto esperar antes da PRIMEIRA consulta (2026-11-01). Sem isto
@@ -565,6 +576,19 @@ class IaEstrategica(Comportamento):
                 partes.append(await resolver_contexto(self._montar_contexto))
             except Exception:
                 logger.warning("falha ao montar o contexto do mundo", exc_info=True)
+        retrato_agora, estado_goap = None, None
+        if self._impulsos is not None and self._ler_retrato is not None:
+            try:
+                retrato_agora = self._ler_retrato()
+                estado_goap = goap.estado_de(retrato_agora)
+                partes.append(
+                    self._impulsos.bloco_para_prompt(
+                        self._impulsos.avaliar(retrato_agora, estado_goap)
+                    )
+                )
+            except Exception:
+                logger.warning("falha ao medir os impulsos", exc_info=True)
+                retrato_agora, estado_goap = None, None
         partes.append(f"comportamento_ativo: {nome_ativo}")
         estado = "\n".join(p for p in partes if p)
         # COM GOAP a IA escolhe um OBJETIVO; sem ele, uma acao. A lista muda,
@@ -594,6 +618,23 @@ class IaEstrategica(Comportamento):
         except Exception:
             logger.debug("IA indisponivel (sem Notebook/internet?)", exc_info=True)
             escolha, motivo, valor = None, "", 0.0
+
+        # IA CALADA, VONTADE PROPRIA (2026-11-15). So quando ela NAO respondeu:
+        # a abstencao dela ("parar", "nada agora") continua sendo dela.
+        interno = None
+        if escolha is None and estado_goap is not None and not seguranca_ativa:
+            try:
+                if em_goap:
+                    interno = self._impulsos.objetivo_interno(retrato_agora, estado_goap)
+                else:
+                    interno = self._impulsos.acao_interna(
+                        retrato_agora, estado_goap, self._acoes_validas
+                    )
+            except Exception:
+                logger.warning("falha ao decidir pelo impulso", exc_info=True)
+            if interno is not None:
+                escolha, motivo = interno
+                logger.info("maestro: IA sem resposta - %s", motivo)
 
         if em_goap:
             nome_acao, motivo = self._planejar(escolha, motivo)

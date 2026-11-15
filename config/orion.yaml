@@ -1153,6 +1153,10 @@ behavior:                        # Behavior Core / maestro (EDR-0020)
     # pode voltar a cair: o limite deixa de ser 500/dia. Ate la, nao baixar
     # sem refazer a conta.
     intervalo_s: 600
+    # Horas (local) em que ele NAO sai procurando companhia nem explora por
+    # tedio (2026-11-15): a casa dorme. Protecao e corpo continuam valendo.
+    # [inicio, fim]; pode passar da meia-noite.
+    horario_silencio: [22, 7]
     # O VOCABULARIO NAO MORA AQUI (2026-07-28, EDR-0026). O que a IA pode
     # fazer esta em motion_core/behavior/contrato.py, em codigo: e o limite
     # da autoridade dela sobre o robo, e limite de autoridade nao e
