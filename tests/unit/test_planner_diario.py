@@ -31,7 +31,7 @@ class _IaFalsa:
 
 
 class _DiarioFalso:
-    async def observacoes_de_hoje(self):
+    async def observacoes_de_hoje(self, sem_o_pedido=""):
         return []
 
 
@@ -155,7 +155,7 @@ async def test_fluxo_completo_nao_chama_a_ia_para_essa_pergunta() -> None:
     ia = _IaFalsa()
 
     class _DiarioComAna:
-        async def observacoes_de_hoje(self):
+        async def observacoes_de_hoje(self, sem_o_pedido=""):
             return [{"quando": "14:30", "o_que": "vi Ana"}]
 
     planner = MissionPlanner(ia, diario=_DiarioComAna())

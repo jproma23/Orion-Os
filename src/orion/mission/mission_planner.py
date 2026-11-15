@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -342,6 +343,31 @@ _PADRAO_PERGUNTA_VISUAL = re.compile(
     r"c[a\u00e2]mera|foto|imagem|quantos\s+dedos|gesto|escrito)\b",
     re.IGNORECASE,
 )
+
+#: SO PERGUNTA VAI AO ACERVO (2026-11-15). O "Eu ja sei?" le o registro em
+#: voz alta, e isso so faz sentido como RESPOSTA. Em 14/11 "atom tb tem" (um
+#: comentario no meio do papo sobre o nome) casou com "Relacao dono e Atom" e
+#: o robo leu a ficha inteira. Cada vazamento anterior ganhou uma palavra na
+#: lista de vazias do saber.py e o proximo achou outra; o que separa os casos
+#: nao e a palavra, e a frase ser pergunta. Interrogativa no comeco (depois de
+#: um chamado opcional) ou "?" - o Whisper poe "?" quando ouve entonacao.
+_PADRAO_PERGUNTA = re.compile(
+    r"^\W*(?:(?:atom|atomo|jarvis|ei|oi|ola)\W+)*"
+    r"(?:o\s+que|que|qual|quais|quem|como|quando|onde|aonde|quant[oa]s?|"
+    r"por\s*que|pra\s+que|para\s+que|explica\w*|"
+    r"me\s+(?:fala|conta|diz|explica)\w*|voce\s+sabe|sabe)\b"
+)
+
+
+def _eh_pergunta(texto: str) -> bool:
+    if "?" in texto:
+        return True
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFD", texto.lower())
+        if unicodedata.category(c) != "Mn"
+    )
+    return bool(_PADRAO_PERGUNTA.match(sem_acento))
+
 
 _PADRAO_VER_AGORA = re.compile(
     r"\bo\s+que\s+[ée]\s+"
@@ -711,7 +737,9 @@ class MissionPlanner:
         # uma visita. Omitir o campo faria o silencio voltar.
         if self._diario is not None:
             try:
-                contexto["observacoes"] = await self._diario.observacoes_de_hoje()
+                contexto["observacoes"] = await self._diario.observacoes_de_hoje(
+                    sem_o_pedido=texto_usuario
+                )
             except Exception:
                 logger.exception("Falha ao ler o diario de observacoes")
                 contexto["observacoes"] = []
@@ -853,7 +881,7 @@ class MissionPlanner:
         para a IA. Mesmo contrato dos outros degraus locais: sem caminho, ele
         nao finge - e a resposta que sai daqui so contem o que foi guardado.
         """
-        if self._memory_client is None:
+        if self._memory_client is None or not _eh_pergunta(texto):
             return None
         try:
             achados = await self._memory_client.saber_buscar(texto)
@@ -1080,6 +1108,14 @@ class MissionPlanner:
             elif acao.entrega == "navegacao":
                 if self._comandar_navegacao is None:
                     raise _SemCaminho("sem callback de navegacao")
+                # SEGUIR SEM ENXERGAR (2026-11-15): a DV20 parou de mandar
+                # imagem em 14/11 17:40 e, as 06:56 de 15/11, "me siga" fez o
+                # Pi girar 10 s procurando ninguem enquanto a IA dizia "ja
+                # estou atras de voce". Com a camera cega, quem pediu ouve o
+                # motivo e o corpo nem sai do lugar.
+                if acao.precisa_ver and (cego := self._perguntar_motivo_cego()):
+                    logger.warning("acao %r recusada: camera cega (%s)", acao.nome, cego)
+                    return f"Nao consigo fazer isso agora: {cego}."
                 await self._comandar_navegacao({"acao": acao.acao_navegacao})
             elif acao.entrega == "internet":
                 # SAI AQUI, e a saida antecipada e o ponto: nas outras acoes

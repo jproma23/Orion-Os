@@ -269,7 +269,7 @@ def bloco_observacoes(observacoes: list[dict[str, Any]] | None) -> str:
         )
 
     linhas = [
-        f"- às {o.get('quando', 'hora desconhecida')} eu vi: {o.get('o_que', '?')}"
+        f"- às {o.get('quando', 'hora desconhecida')}: {o.get('o_que', '?')}"
         for o in observacoes
     ]
     return (

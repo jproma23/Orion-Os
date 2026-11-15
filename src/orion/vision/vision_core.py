@@ -87,6 +87,7 @@ class VisionCore:
         # sem precisar de camera/modelos de verdade.
         self._event_bus = event_bus
         self._captura = captura or CapturaCamera(indice=indice_camera, espelhado=camera_espelhada)
+        self._sem_quadros_reportado = False
         #: Quem quer ver os frames sem abrir a camera (EDR-0023 s.3: so o
         #: dono da camera tem o frame). Hoje: o detector de gestos.
         self._observadores_de_frame: list = []
@@ -673,19 +674,39 @@ class VisionCore:
             if not self._captura.aberta:
                 try:
                     await self.iniciar_camera()
-                except ErroCamera:
+                except ErroCamera as erro:
+                    self._avisar_sem_quadros(erro, intervalo_reconexao_s)
                     await asyncio.sleep(intervalo_reconexao_s)
                     continue
             inicio = time.monotonic()
             try:
                 await self.processar_um_frame()
-            except ErroCamera:
+            except ErroCamera as erro:
+                self._avisar_sem_quadros(erro, intervalo_reconexao_s)
                 if self._odometria is not None:
                     self._odometria.quebrar()
                 await self._captura.fechar()
                 await asyncio.sleep(intervalo_reconexao_s)
                 continue
+            if self._sem_quadros_reportado:
+                self._sem_quadros_reportado = False
+                logger.info("camera voltou a mandar quadros")
             await self._dormir_o_resto_do_quadro(inicio)
+
+    def _avisar_sem_quadros(self, erro: Exception, intervalo_s: float) -> None:
+        """ERRO uma vez na borda de "a camera parou" (2026-11-15).
+
+        A DV20 deixou de mandar quadros em 14/11 17:40 e por 13 h o log so
+        teve o WARN do OpenCV e "aberta/fechada" em INFO - e o
+        `vision.camera_error` publicado nao tem assinante. Ninguem soube.
+        """
+        if self._sem_quadros_reportado:
+            return
+        self._sem_quadros_reportado = True
+        logger.error(
+            "camera NAO MANDA QUADROS (%s) - a visao esta cega; sigo tentando "
+            "reabrir a cada %.0f s", erro, intervalo_s,
+        )
 
     async def _medir_giro(self, frame, deteccoes: list[Deteccao], agora: float) -> None:
         """Mede o giro do corpo pela imagem e publica `vision.giro_visual`.

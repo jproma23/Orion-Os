@@ -152,6 +152,9 @@ class AcaoFalada:
     #: Qual parametro o NUMERO falado substitui ("anda 30 centimetros" ->
     #: distancia_cm=30). Vazio = a acao nao aceita numero.
     parametro_numerico: str = ""
+    #: A acao depende da CAMERA (seguir alguem). Com a visao cega o planner
+    #: recusa e diz o motivo, em vez de mandar o corpo procurar as cegas.
+    precisa_ver: bool = False
     #: Teto do numero falado. Pedido acima disto vira o teto, e nao recusa:
     #: "anda 10 metros" anda o maximo e o robo diz o que fez.
     maximo: float = 0.0
@@ -170,6 +173,7 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
         ),
         entrega="navegacao",
         acao_navegacao="FOLLOW",
+        precisa_ver=True,
         resposta="Estou te seguindo. Quando quiser que eu pare, diga: Atom, para.",
     ),
     # Pedido do dono (2026-11-14): "pedi para ele mapear a casa inteira e
@@ -313,7 +317,9 @@ _CATALOGO: tuple[AcaoFalada, ...] = (
     AcaoFalada(
         nome="andar_para_tras",
         descricao=(
-            "andar de re, para tras. Escreva os CENTIMETROS depois do nome, se "
+            "andar de re, para tras. A palavra \"re\" (ou \"ré\") sozinha "
+            "tambem e este pedido - nunca e para ir para a frente. "
+            "Escreva os CENTIMETROS depois do nome, se "
             "a pessoa disse; sem numero voce recua 30 cm. Maximo 100 cm: "
             "atras de voce nao ha olho nenhum alem do LiDAR"
         ),

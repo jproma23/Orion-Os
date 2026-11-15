@@ -100,8 +100,16 @@ class CapturaCamera:
             # URLs, costuma ignorar) - por isso o descarte no ler_frame existe
             # de qualquer forma, e nao confiamos so nisto.
             captura.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            for _ in range(self._frames_aquecimento):
-                captura.read()  # deixa a exposicao/balanco de branco assentar
+            for i in range(self._frames_aquecimento):
+                ok, _ = captura.read()  # deixa a exposicao/balanco de branco assentar
+                if not ok and i == 0:
+                    # Sem o primeiro quadro, os outros 14 tambem nao vem: cada
+                    # leitura espera 10 s (timeout do V4L2) e a tentativa de
+                    # reabrir levava 2,5 min calada (DV20, 14/11).
+                    captura.release()
+                    raise ErroCamera(
+                        f"A camera {self._indice} abriu mas nao manda quadros"
+                    )
             return captura
 
         self._captura = await asyncio.to_thread(_abrir)

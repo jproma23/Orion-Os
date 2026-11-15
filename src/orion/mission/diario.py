@@ -223,12 +223,18 @@ class DiarioObservacoes:
 
     # ----- leitura -----
 
-    async def observacoes_de_hoje(self) -> list[dict[str, str]]:
+    async def observacoes_de_hoje(self, sem_o_pedido: str = "") -> list[dict[str, str]]:
         """Registros de hoje, no formato que o grounding espera.
 
         Devolve lista vazia quando não há nada - e isso É informação: o
         grounding a transforma em "não tenho NENHUM registro hoje", que é
         o que impede a IA de inventar uma visita.
+
+        `sem_o_pedido` e a frase que esta sendo respondida AGORA (2026-11-15).
+        Ela ja foi gravada como `pedido_ouvido` antes de a IA ser chamada e
+        voltava no bloco como "as 06:55 eu vi: me pediram ..." - e a IA
+        respondia a fala da pessoa narrando-a: "Eu vi voce digitar isso as
+        06:55". O pedido de agora e a conversa, nao um fato do diario.
         """
         try:
             registros = await self._memoria.recall(
@@ -247,6 +253,9 @@ class DiarioObservacoes:
             )
             if quando is None or quando < inicio_do_dia:
                 continue  # ontem não conta como "hoje"
+            if sem_o_pedido and _eh_o_pedido(registro, sem_o_pedido):
+                sem_o_pedido = ""  # so a gravacao mais recente e a de agora
+                continue
             observacoes.append(
                 {"quando": quando.strftime("%H:%M"), "o_que": _descrever(registro)}
             )
@@ -293,6 +302,16 @@ def _parse_timestamp(valor: Any) -> datetime | None:
         return datetime.fromisoformat(valor)
     except ValueError:
         return None
+
+
+def _eh_o_pedido(registro: dict[str, Any], texto: str) -> bool:
+    if registro.get("tipo") != TIPO_PEDIDO_OUVIDO:
+        return False
+    try:
+        dados = json.loads(registro.get("payload_json") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return str(dados.get("texto", "")).strip() == texto.strip()
 
 
 def _descrever(registro: dict[str, Any]) -> str:
