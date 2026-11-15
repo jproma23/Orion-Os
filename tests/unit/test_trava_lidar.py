@@ -6,13 +6,12 @@ LiDAR, e o robo bateu.
 import asyncio
 
 import pytest
+from conftest import FakeTransporte
 
 from motion_core.navigation.trava_lidar import FRENTE, GIRO, TRAS, TravaLidar, sentido_do_comando
 from orion.communication.protocol import Mensagem, TipoMensagem
 from orion.communication.service import ComunicacaoService, ErroComunicacao
 from orion.kernel.event_bus import EventBus, Evento
-
-from conftest import FakeTransporte
 
 
 class Relogio:
@@ -161,9 +160,11 @@ async def test_porteiro_barra_o_comando_repassado_do_notebook_e_devolve_nack():
 @pytest.mark.asyncio
 async def test_com_bloquear_false_so_informa_e_nao_bloqueia():
     """O modo "so informa" (01/11 de manha) continua existindo, mas so com
-    `bloquear=False` explicito - o padrao passou a bloquear (EDR-0037)."""
+    `bloquear=False` explicito - o padrao passou a bloquear (EDR-0037).
+    Desde 15/11 ele so informa FORA da folga de frente (15 cm da ponta, ver
+    os testes da FOLGA DE FRENTE abaixo): aqui o obstaculo fica alem dela."""
     trava = TravaLidar(EventBus(), relogio=Relogio(), bloquear=False)
-    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=20.0)}))
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=40.0)}))
     paradas = []
 
     async def parar():
@@ -171,7 +172,7 @@ async def test_com_bloquear_false_so_informa_e_nao_bloqueia():
 
     trava.ligar_parada(parar)
     assert trava.motivo_recusa({"comando": "MOVE_FORWARD"}) is None
-    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=10.0)}))
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=30.0)}))
     assert paradas == []
 
 
@@ -572,3 +573,73 @@ async def test_traseira_fica_cega_no_meio_da_re_para_com_duas_varreduras():
     assert paradas.vezes == 0  # uma solta nao para
     await _scan(trava, cega)
     assert paradas.vezes == 1
+
+
+
+# --- FOLGA DE FRENTE (2026-11-15): a batida de 14/11 18:15 ------------------
+# O LiDAR fica 8 cm atras da ponta (corpo_frente_cm=8). "obstaculo a 8 cm"
+# do log = 0 cm da ponta. Tudo aqui com bloquear=False, como em producao.
+
+async def _trava_sem_bloquear(raios, relogio=None) -> TravaLidar:
+    trava = TravaLidar(EventBus(), relogio=relogio or Relogio(), bloquear=False)
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": raios}))
+    return trava
+
+
+@pytest.mark.asyncio
+async def test_a_batida_de_14_11_nao_anda_e_diz_por_que():
+    # "obstaculo a 8 cm" no log = 8 e pouco do LiDAR; 8,0 exato cai na ponta
+    # do corpo, que o corredor descarta.
+    trava = await _trava_sem_bloquear(_raios(g90=8.4))
+    payload = {"comando": "MOVE_DISTANCE", "distancia_cm": 50, "velocidade_percent": 40}
+    motivo = trava.motivo_recusa(payload)
+    assert motivo is not None and "obstaculo a 0 cm para frente" in motivo
+
+
+@pytest.mark.asyncio
+async def test_passo_longo_e_encurtado_para_parar_antes_da_parede():
+    trava = await _trava_sem_bloquear(_raios(g90=8.0 + 40.0))  # 40 cm da ponta
+    payload = {"comando": "MOVE_DISTANCE", "distancia_cm": 50}
+    assert trava.motivo_recusa(payload) is None
+    assert payload["distancia_cm"] == pytest.approx(40.0 - 15.0)
+
+
+@pytest.mark.asyncio
+async def test_passo_curto_que_cabe_nao_muda():
+    trava = await _trava_sem_bloquear(_raios(g90=8.0 + 40.0))
+    payload = {"comando": "MOVE_DISTANCE", "distancia_cm": 10}
+    assert trava.motivo_recusa(payload) is None
+    assert payload["distancia_cm"] == 10
+
+
+@pytest.mark.asyncio
+async def test_avanco_continuo_colado_na_parede_nao_comeca():
+    trava = await _trava_sem_bloquear(_raios(g90=8.0 + 10.0))
+    assert trava.motivo_recusa({"comando": "CMD_VEL", "v_m_s": 0.1, "w_rad_s": 0.0})
+    assert trava.motivo_recusa({"comando": "MOVE_FORWARD"})
+
+
+@pytest.mark.asyncio
+async def test_giro_e_re_continuam_livres_colado_na_parede():
+    """O que deixava o robo preso no vao de 1 m era recusar GIRO."""
+    trava = await _trava_sem_bloquear(_raios(g90=8.0))
+    assert trava.motivo_recusa({"comando": "TURN_LEFT", "graus": 90}) is None
+    assert trava.motivo_recusa({"comando": "MOVE_DISTANCE", "distancia_cm": -20}) is None
+
+
+@pytest.mark.asyncio
+async def test_avanco_em_curso_para_ao_chegar_na_folga():
+    paradas = []
+
+    async def parar():
+        paradas.append(1)
+
+    trava = await _trava_sem_bloquear(_raios(g90=200.0))
+    trava.ligar_parada(parar)
+    assert trava.motivo_recusa({"comando": "CMD_VEL", "v_m_s": 0.1, "w_rad_s": 0.0}) is None
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": _raios(g90=60.0)}))
+    assert paradas == []
+    perto = _raios(g90=8.0 + 12.0)
+    await trava._ao_receber_scan(Evento(topico="lidar.scan", dados={"raios_cm": perto}))
+    assert paradas == [1]
+    assert trava.sentido_em_curso is None

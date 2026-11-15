@@ -89,6 +89,20 @@ TELEMETRIA_PARADO_APOS_S = 1.0
 #: Intervalo do laco do watchdog.
 INTERVALO_WATCHDOG_S = 0.1
 
+#: FOLGA DE FRENTE (2026-11-15, escolha do dono depois da batida de 14/11
+#: 18:15: "encurtar o passo"). Com `bloquear: false` a trava so avisava - e o
+#: robo andou 50 cm para uma parede a 0 cm da ponta do corpo ("obstaculo a 8
+#: cm" do LiDAR, que fica 8 cm atras da ponta). Isto NAO e a trava de antes:
+#: ninguem e recusado por estar "perto demais" (50 cm), giro e re seguem 100%
+#: livres (o que deixava o robo preso num vao de 1 m era recusar GIRO). So o
+#: AVANCO para antes de encostar:
+#: - passo com medida (MOVE_DISTANCE): encurtado para parar a esta distancia
+#:   da ponta do corpo; sem nem MINIMO_PASSO_CM de espaco, nao anda e diz;
+#: - avanco continuo (joystick, Nav2, MOVE_FORWARD): nao comeca, e para no
+#:   meio, a esta distancia.
+FOLGA_FRENTE_CM = 15.0
+MINIMO_PASSO_CM = 3.0
+
 
 def sentido_do_comando(payload: dict[str, Any]) -> str | None:
     """Para onde o comando leva o robo: FRENTE, TRAS, GIRO ou None (nao anda)."""
@@ -176,7 +190,11 @@ class TravaLidar:
     # --- o porteiro -------------------------------------------------------
 
     def motivo_recusa(self, payload: dict[str, Any]) -> str | None:
-        """None se o comando pode seguir; senao, o motivo da recusa."""
+        """None se o comando pode seguir; senao, o motivo da recusa.
+
+        ATENCAO: pode ENCURTAR o `distancia_cm` de um MOVE_DISTANCE no proprio
+        payload (folga de frente) - o ComunicacaoService envia o mesmo dict.
+        """
         comando = payload.get("comando")
         sentido = sentido_do_comando(payload)
         if sentido is None:
@@ -184,6 +202,12 @@ class TravaLidar:
                 # STOP ou CMD_VEL parado (v=0, w=0): o movimento acabou.
                 self._sentido_em_curso = None
             return None
+        if sentido == FRENTE and not self._bloquear:
+            # Com `bloquear` a trava cheia (50/25 cm) ja e mais rigida.
+            motivo_folga = self._garantir_folga_de_frente(payload)
+            if motivo_folga is not None:
+                logger.warning("folga de frente recusou %s: %s", comando, motivo_folga)
+                return motivo_folga
         motivo = self._bloqueio(sentido)
         if motivo is None:
             self._marcar_em_curso(sentido)
@@ -209,6 +233,38 @@ class TravaLidar:
         self._sentido_em_curso = sentido
         self._comando_em_curso_em = self._relogio()
         self._cegas_seguidas = 0
+
+    def _folga_de_frente_cm(self) -> float | None:
+        """Espaco livre (cm) entre a PONTA do corpo e o obstaculo mais perto
+        no corredor da frente. None = leitura velha/ausente ou corredor livre."""
+        if self._raios_cm is None or self._recebido_em is None:
+            return None
+        if self._relogio() - self._recebido_em > self._idade_max_s:
+            return None
+        perto = self._mais_perto_no_corredor(FRENTE)
+        if perto is None:
+            return None
+        return max(0.0, perto - self._corpo_cm[FRENTE])
+
+    def _garantir_folga_de_frente(self, payload: dict[str, Any]) -> str | None:
+        """Encurta o passo ou recusa o avanco que encostaria. Ver FOLGA_FRENTE_CM."""
+        folga = self._folga_de_frente_cm()
+        if folga is None:
+            return None
+        disponivel = folga - FOLGA_FRENTE_CM
+        motivo = f"obstaculo a {folga:.0f} cm para frente (limite {FOLGA_FRENTE_CM:.0f} cm)"
+        if payload.get("comando") == "MOVE_DISTANCE":
+            pedido = float(payload.get("distancia_cm", 0.0) or 0.0)
+            if disponivel < MINIMO_PASSO_CM:
+                return motivo
+            if disponivel < pedido:
+                payload["distancia_cm"] = round(disponivel, 1)
+                logger.warning(
+                    "folga de frente: passo encurtado de %.0f para %.0f cm (parede a %.0f cm)",
+                    pedido, disponivel, folga,
+                )
+            return None
+        return motivo if disponivel <= 0 else None
 
     @property
     def limite_cm(self) -> float:
@@ -343,6 +399,16 @@ class TravaLidar:
         sentido = self._sentido_em_curso
         if sentido is None:
             return
+        if sentido == FRENTE and self._parar is not None and not self._bloquear:
+            folga = self._folga_de_frente_cm()
+            if folga is not None and folga <= FOLGA_FRENTE_CM:
+                # Vale com `bloquear: false` tambem - ver FOLGA_FRENTE_CM.
+                logger.warning(
+                    "folga de frente PAROU o avanco: obstaculo a %.0f cm da ponta", folga
+                )
+                self._sentido_em_curso = None
+                await self._parar()
+                return
         motivo = self._bloqueio(sentido)
         if motivo is not None and motivo.startswith(("frente cega", "traseira cega")):
             self._cegas_seguidas += 1
