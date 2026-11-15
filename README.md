@@ -43,6 +43,8 @@ custaram caro.
 <a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4">o corredor (1 min 28 s)</a> ·
 <a href="docs/assets/fotos/atom-chegando-2026-11-15.mp4">chegando de perto (54 s)</a>.</sub></p>
 
+<p align="center"><a href="https://www.youtube.com/watch?v=XCiCQvAqAsA"><img alt="Assistir no YouTube" src="https://img.shields.io/badge/assistir_a_aula_no_YouTube_(4K)-FF0000?style=for-the-badge&logo=youtube&logoColor=white"></a></p>
+
 ## Em movimento (08/11/2026)
 
 <p align="center">
