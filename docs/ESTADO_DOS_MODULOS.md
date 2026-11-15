@@ -1,4 +1,5 @@
 # ORION OS — Mapa de saúde dos módulos
+> **O estado conferido mais recente está em [`ESTADO_ATUAL.md`](ESTADO_ATUAL.md) (15/11/2026).**
 
 > ## AVISO: ESTE MAPA ESTA VENCIDO (2026-07-30)
 >

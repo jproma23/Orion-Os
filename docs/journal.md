@@ -9581,3 +9581,45 @@ O dono pediu "vamos atualizar o orion" com as máquinas no ar. A sessão termino
 **Erros meus:** o plano tinha a porta errada do ESP32; o rosto deixou o robô mudo; afirmei que existia um teste que não existia; contei os testes de voz como rodados no Windows quando eram **pulados inteiros** (falta `sounddevice`/`piper` lá — testar voz no Pi via `git worktree add /tmp/teste_voz <branch>`).
 
 **Pendentes:** levar ao robô os commits depois de `636ef38`; a aula abrindo/fechando o Firefox; o rosto subir sozinho no boot; "me siga" pelo caminho novo; testes no chão (STOP e ré); OTA dos ouvidos com senha; medir o FOV da câmera.
+
+
+## 14/11 (tarde) — o robô vira Atom, mapeia a casa e bate no corredor
+
+Pedido do dono: um plano de "tudo que for legal" (siga, mapa, reconhecer, estranho se identifica, foto), com o modo de trabalho *"irei conversando com ele para ver tudo q ele é capaz, se nao for capaz vc como engenheiro de robotica vai torna-lo"*.
+
+- **LiDAR**: o corte mínimo foi de 50 para 70 mm (`c7214c1`), porque a coluna do suporte a 5 cm fazia a IA ver "frente a 5 cm" com a frente livre.
+- **Trava do LiDAR só avisa** (`5a64976`, decisão do dono): a trava cheia recusava até GIRO e prendia o robô num vão de 1 m.
+- **`mapear_casa`** (`ed12ea3`): ação falada que liga o explorador de fronteiras ao Nav2. **1º mapeamento real às 17:44**: foi de ponta a ponta, mas o HOLD do "joystick solto" matava o mapeamento quando o Nav2 pausava (consertado em `7887281`); o Nav2 deu "Failed to make progress" 8x com o robô preso entre tapete e pano; e o `casa.pgm` saiu com as **mesmas 1741 células livres** do `casa_31_10`, só deslocado (suspeita de SLAM recarregando mapa velho, **não conferida**).
+- **A IA que conversa VÊ a foto** quando a pergunta pede olhar (`228f96e`). O flash-lite descreve mal.
+- **Varredura ao andar** (`b1e18c8`, `3760fc2`) e **detector de chão local** que, com algo chegando perto, manda o quadro para a IA decidir PARAR/SEGUIR (`79bb699`).
+- **Curiosidade no explorador** = ganho de informação (`9d54d73`). **Tela** apagada desde a subida, acende com a palavra de ativação (`5dc1cb7`).
+- **Jarvis → Atom** (`bfa2110`, `6df0e2c`, `9cdb361`): o "Meu nome é Jarvis" vinha do `content/saber` e das conversas antigas. Ativa com atom, atomo, aton, ato, tom, atum E jarvis.
+- **18:15, a batida**: "sai do corredor" → a IA escolheu `andar_para_frente 50` com a parede a 0 cm da ponta do corpo, e a trava estava em "só avisa". O "Atom, para!" gritado saiu "Tom o patêu! Patêu!" e não parou. (A causa de a IA não saber da parede só foi achada em 15/11, seção 5 abaixo.)
+
+## 15/11 — os bugs do chat, a câmera cega por 13 h e o autodiagnóstico
+
+Pedido do dono: *"vamos ver os bugs do chat e checar todos seus sistemas e verificar as melhorias"*. Método: ler o `journalctl` do `orion-avatar` de 14/11 18h até 15/11 07h, achar a causa de cada resposta errada e conferir ao vivo pelo `POST /api/conversa/mensagem` do Pi. E a regra que o dono deu no meio: *"o q te melhor é a convversa"* — a conversa é o ponto forte e é por ela que se começa.
+
+**0. Folga de frente (decisão do dono, "encurtar o passo").** `1fad862`: com a trava em "só avisa", o `MOVE_DISTANCE` é encurtado no payload para parar a 15 cm da parede; com menos de 3 cm vem o NACK "obstáculo a X cm". Giro e ré livres. `9710b6c`: "para" entrou nos hotwords do Whisper.
+
+**1. A DV20 parou de mandar quadros às 17:40 de 14/11 — e nada no robô soube por 13 h.** O log só tinha o `WARN` do OpenCV (`select() timeout` a cada 10 s) e "Camera aberta/fechada" em INFO. O `vision.camera_error` publicado **não tem assinante** (o bug recorrente "publicar no vazio"). Ela já estava cega no mapeamento das 17:44 e na batida das 18:15. Diagnóstico: com o avatar parado, `read()` falhou em MJPG e em YUYV; **um reset da USB por sysfs (`authorized` 0/1) não bastou**. Voltou com o dono desligando tudo (power cycle). A outra câmera USB (Sunplus, `/dev/video2`) deu 10 de 10 quadros. → `56f1e39`: a câmera que abre e não manda o 1º quadro falha na hora (eram 15 leituras × 10 s = **2,5 min calada** por tentativa) e gera um ERRO na borda.
+
+**2. "me siga" com a câmera cega** (06:56): o Pi girou 10 s procurando ninguém e a IA disse "Pronto, já estou atrás de você". → `AcaoFalada.precisa_ver`: com a visão cega o planner recusa e diz o motivo. Prompt: *"nunca 'pronto, já fiz': quem confirma é o corpo"*.
+
+**3. "Eu vi você digitar isso às 06:55".** A frase que estava sendo respondida já tinha sido gravada como `pedido_ouvido` e voltava no prompt como "às 06:55 eu vi: me pediram ...", com a regra "diga a hora". → `observacoes_de_hoje(sem_o_pedido=)` e o "eu vi:" saiu da linha (`_descrever` já diz "vi o Kamal" / "me pediram"). Prompt ganhou a seção **"VOCÊ OUVE POR UM MICROFONE"**: a fala chega transcrita e às vezes trocada; se não fizer sentido, pedir para repetir.
+
+**4. O acervo lido cru.** "atom tb tem" leu em voz alta a ficha "Relacao dono e Atom...". Primeiro conserto (`56f1e39`): só pergunta vai ao acervo. **No mesmo dia** "faz um autodiagnóstico: quais sentidos estão funcionando?" leu "Ciclo de projeto do dono" — cada vazamento anterior já tinha ganhado um remendo na lista de palavras vazias. O defeito não era o casamento, era **ler a ficha crua**: `9a250fb` — com a IA no ar a ficha vai para o prompt ("O QUE EU APRENDI E GUARDEI ... se não tiver a ver, ignore") e a IA responde com as próprias palavras; ficha lida só com a IA fora. **Custo:** pergunta que saía do acervo agora gasta 1 chamada da IA (cota de 500/dia).
+
+**5. A causa da batida de 14/11: a IA da conversa NUNCA soube o que havia na frente.** O bloco "O QUE EU SINTO AGORA" do prompt lê `contexto["retrato"]`, e **no Notebook ninguém preenchia esse campo** — só a IA estratégica do Pi recebia o retrato. Toda frase da conversa via "à minha frente: não sei". → `86b2b1c`: o retrato vem do bloco `mundo` do `/estado` do Pi. **Conferido ao vivo**: o LiDAR medindo 61,5 / 89,9 / 62,2 cm, e a resposta foi "sessenta e dois centímetros livres na frente, noventa à esquerda e sessenta e três à direita".
+
+**6. Autodiagnóstico que conversa** (item 1 do plano de autonomia que o dono escolheu: *"C puxando para B"*). `3b33201` + `6c15d62`: `orion/mission/sentidos.py` — o `PainelSentidos` pergunta a cada 5 s a **câmera** (`motivo_cego`), os **microfones** (`ouvidos_esp32.conectado`), a **ligação com o Pi**, o **corpo** (`telemetria_viva`), o **LiDAR** (`valido` + `timestamp_s` andando; o campo `rpm` vem sempre 0 e não serve) e a **bússola**. Falha que dura 10 s vira `ERROR "sentido CAIU: ..."` e entra no prompt: "câmera: FALHANDO desde as 17:40 - motivo". Ao vivo, com tudo bem, ele listou os 6. **A falha ao vivo não foi provocada** (só nos testes).
+
+**7. Outros.** "re" sozinho virou "Avançando mais um pouco" → a descrição de `andar_para_tras` diz que "re/ré" é este pedido. A IA estratégica do Pi ainda se apresentava "Eu sou o Jarvis" (`6ef2c82`, DISPOSICAO do grounding) e o erro do chat da webui também.
+
+**8. O "me siga" das 09:10 que falhou não era bug.** Às 09:08 o maestro decidiu sozinho seguir o Kamal ("Estou vendo o Kamal no momento e preciso continuar acompanhando-o"), seguiu pelo LiDAR e o perdeu. É a iniciativa própria funcionando.
+
+**Testes:** 322 nos arquivos afetados, passando no Pi e no Notebook (suíte inteira NÃO rodada: o robô estava no ar). `tests/unit/test_chat_15_11.py` (18) e `tests/unit/test_sentidos.py` (14) são novos, com as frases reais do log.
+
+**Erros meus:** o primeiro conserto do acervo ("só pergunta") foi mais um remendo e vazou de novo no mesmo dia; a 1ª rodada de testes depois do ajuste caiu com o SSH (o dono desligando) e o commit `56f1e39` foi feito antes de ela terminar — refeita depois, 322 passando.
+
+**Aberto:** experiências na conversa (o "avançar falhou" foi gravado 17x e a conversa nunca leu nenhuma); aviso FALADO quando um sentido cai (precisa de regra de horário); 0 vozes de família carregadas (nenhum código grava embedding de voz); o `casa.pgm` repetindo o mapa de 31/10; nomear lugares no mapa; o GitHub não é alcançável do Pi (sem chave).
