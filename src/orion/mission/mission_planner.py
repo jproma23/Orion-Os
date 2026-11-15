@@ -786,6 +786,13 @@ class MissionPlanner:
             if fichas := [f for f in fichas if f[0]]:
                 contexto["acervo"] = fichas
 
+        if (ler_retrato := getattr(self, "_ler_retrato", None)) is not None:
+            try:
+                if retrato := ler_retrato():
+                    contexto["retrato"] = retrato
+            except Exception:
+                logger.debug("falha ao ler o retrato do corpo", exc_info=True)
+
         # O AUTODIAGNOSTICO VAI JUNTO (2026-11-15): com a camera cega por
         # 13 h a IA conversava, andava e seguia sem saber. Nunca levanta.
         painel = getattr(self, "_sentidos", None)
@@ -1361,6 +1368,18 @@ class MissionPlanner:
         """Liga a FOTO da camera a conversa (2026-11-14). Mesmo motivo do
         `registrar_consultar_visao`: a camera sobe depois do planner."""
         self._foto_camera = callback
+
+    def registrar_retrato(self, ler_retrato) -> None:
+        """De onde vem o "O QUE EU SINTO AGORA" da conversa (2026-11-15).
+
+        O bloco do corpo no prompt le `contexto["retrato"]`, e no Notebook
+        NINGUEM o preenchia: a IA da conversa via "a minha frente: nao sei"
+        em toda frase - inclusive em 14/11 18:15, quando mandou
+        `andar_para_frente 50` com a parede a 8 cm e bateu. So a IA do Pi
+        recebia o retrato. `ler_retrato()` devolve o `mundo` do /estado do Pi
+        (o RetratoDoMundo de la) ou None quando nao ha leitura.
+        """
+        self._ler_retrato = ler_retrato
 
     def registrar_sentidos(self, painel) -> None:
         """O painel dos sentidos (orion/mission/sentidos.py, 2026-11-15)."""

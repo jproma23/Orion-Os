@@ -930,6 +930,7 @@ async def principal() -> None:
     painel_sentidos.registrar("LiDAR", estado_pi.lidar)
     painel_sentidos.registrar("bussola", estado_pi.bussola)
     tarefa_estado_pi = disparar(estado_pi.vigiar(), "leitor_estado_pi")
+    planner.registrar_retrato(estado_pi.retrato)
     planner.registrar_sentidos(painel_sentidos)
     tarefa_sentidos = disparar(painel_sentidos.vigiar(), "painel_sentidos")
     # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo

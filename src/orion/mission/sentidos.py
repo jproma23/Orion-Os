@@ -171,6 +171,12 @@ class LeitorEstadoPi:
             return f"nao consigo ler o estado do Pi ({self._erro or 'ainda sem leitura'})"
         return None
 
+    def retrato(self) -> dict | None:
+        """O RetratoDoMundo do Pi (bloco `mundo`), para o prompt da conversa."""
+        if self.estado is None:
+            return None
+        return self.estado.get("mundo") or None
+
     def corpo(self) -> str | None:
         if motivo := self._sem_estado():
             return motivo

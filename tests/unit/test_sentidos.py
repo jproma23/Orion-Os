@@ -159,3 +159,32 @@ def test_bussola_desconectada():
     leitor, _ = _leitor({"r": _estado(bussola=False)})
     leitor.atualizar()
     assert "bussola" in leitor.bussola()
+
+
+# ------------------------------------------------- o corpo no prompt da conversa
+@pytest.mark.asyncio
+async def test_conversa_recebe_a_frente_medida_pelo_lidar():
+    """14/11 18:15: a IA da conversa mandou andar 50 cm com a parede a 8 cm -
+    o contexto dela nunca tinha recebido o retrato do corpo."""
+    leitor = LeitorEstadoPi(
+        "http://pi/estado",
+        ler=lambda url: {"estado": {"mundo": {"obstaculo_frente_cm": 8.0, "telemetria_viva": True}}},
+    )
+    leitor.atualizar()
+    ai = AiManagerFalso()
+    planner = MissionPlanner(ai_manager=ai)
+    planner.registrar_retrato(leitor.retrato)
+
+    contexto = await planner._consultar_contexto(None, "sai do corredor")
+
+    assert contexto["retrato"]["obstaculo_frente_cm"] == 8.0
+    assert "8 cm" in montar_contexto(retrato=contexto["retrato"])
+
+
+def test_sem_leitura_do_pi_nao_ha_retrato():
+    def explode(url):
+        raise OSError("fora")
+
+    leitor = LeitorEstadoPi("http://pi/estado", ler=explode)
+    leitor.atualizar()
+    assert leitor.retrato() is None
