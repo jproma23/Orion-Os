@@ -32,18 +32,23 @@ custaram caro.
 
 <table>
 <tr>
-<td align="center" width="33%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-sorrindo-2026-11-15.webp" alt="Atom sorrindo na tela enquanto uma criança brinca com ele" width="240"></a><br><sub>O rosto muda quando ele ouve, pensa e fala.</sub></td>
-<td align="center" width="33%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-aula-2026-11-15.webp" alt="A tela do Atom vira um quadro com o plano da aula de Eletrônica Básica" width="240"></a><br><sub>Pedem uma aula e a tela vira quadro: Eletrônica Básica.</sub></td>
-<td align="center" width="33%"><a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4"><img src="docs/assets/fotos/atom-corredor-2026-11-15.webp" alt="Atom vindo pelo corredor com os olhos na tela" width="240"></a><br><sub>Andando pelo corredor, com o LiDAR no topo.</sub></td>
+<td align="center" width="50%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-sorrindo-2026-11-15.webp" alt="Atom sorrindo na tela enquanto uma criança brinca com ele" width="300"></a><br><sub>O rosto muda quando ele ouve, pensa e fala.</sub></td>
+<td align="center" width="50%"><a href="docs/assets/fotos/atom-aula-2026-11-15.mp4"><img src="docs/assets/fotos/atom-aula-2026-11-15.webp" alt="A tela do Atom vira um quadro com o plano da aula de Eletrônica Básica" width="300"></a><br><sub>Pedem uma aula e a tela vira quadro: Eletrônica Básica.</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><a href="https://www.youtube.com/watch?v=Sz9aWDwHvdE"><img src="docs/assets/fotos/atom-parede-2026-11-15.webp" alt="Atom de frente para a parede com reboco e tinta soltando" width="300"></a><br><sub>Ele olha a parede e diz o que vê: reboco e tinta soltando.</sub></td>
+<td align="center" width="50%"><a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4"><img src="docs/assets/fotos/atom-corredor-2026-11-15.webp" alt="Atom vindo pelo corredor com os olhos na tela" width="300"></a><br><sub>Andando pelo corredor, com o LiDAR no topo.</sub></td>
 </tr>
 </table>
 
 <p align="center"><sub>Clique nas imagens para os vídeos (480p, com som):
 <a href="docs/assets/fotos/atom-aula-2026-11-15.mp4">a aula (2 min)</a> ·
 <a href="docs/assets/fotos/atom-corredor-2026-11-15.mp4">o corredor (1 min 28 s)</a> ·
-<a href="docs/assets/fotos/atom-chegando-2026-11-15.mp4">chegando de perto (54 s)</a>.</sub></p>
+<a href="docs/assets/fotos/atom-chegando-2026-11-15.mp4">chegando de perto (54 s)</a> ·
+<a href="docs/assets/fotos/atom-parede-2026-11-15.mp4">a parede (2 min 44 s)</a>.</sub></p>
 
-<p align="center"><a href="https://www.youtube.com/watch?v=XCiCQvAqAsA"><img alt="Assistir no YouTube" src="https://img.shields.io/badge/assistir_a_aula_no_YouTube_(4K)-FF0000?style=for-the-badge&logo=youtube&logoColor=white"></a></p>
+<p align="center"><a href="https://www.youtube.com/watch?v=XCiCQvAqAsA"><img alt="Assistir no YouTube" src="https://img.shields.io/badge/assistir_a_aula_no_YouTube_(4K)-FF0000?style=for-the-badge&logo=youtube&logoColor=white"></a>
+<a href="https://www.youtube.com/watch?v=Sz9aWDwHvdE"><img alt="Ele olha a parede (YouTube)" src="https://img.shields.io/badge/ele_olha_a_parede_(YouTube)-FF0000?style=for-the-badge&logo=youtube&logoColor=white"></a></p>
 
 ## Em movimento (08/11/2026)
 
