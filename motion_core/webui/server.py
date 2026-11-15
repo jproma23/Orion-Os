@@ -720,7 +720,7 @@ class WebUIServer:
         payload = resposta.payload or {}
         if not payload.get("ok"):
             return web.json_response(
-                {"erro": payload.get("erro", "o Jarvis nao conseguiu responder")},
+                {"erro": payload.get("erro", "o Atom nao conseguiu responder")},
                 status=502,
             )
         return web.json_response({"ok": True, "resposta": payload.get("resposta", "")})
