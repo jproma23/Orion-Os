@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import queue
 import subprocess
 import sys
@@ -42,6 +43,10 @@ logger = logging.getLogger("orion.rosto")
 URL_PADRAO = "http://127.0.0.1:8090/eventos"
 FPS = 30
 ESPERA_RECONEXAO_S = 2.0
+
+#: De quanto em quanto tempo, no maximo, o rosto se traz de volta quando esta
+#: escondido sem aula aberta (s).
+INTERVALO_RESTAURAR_S = 2.0
 
 #: O navegador do QUADRO, so durante a aula (dono, 12/11: "abre o firefox so
 #: durante a aula"). Mesmo perfil e mesma pagina do kiosk antigo.
@@ -215,6 +220,12 @@ def main() -> int:
     # PulseAudio; o Pulse pega o alto-falante USB e a voz do robo (PortAudio
     # direto no ALSA) passa a dar "Device unavailable" - 14/11, o Jarvis ouviu
     # e nao conseguiu responder. O rosto nao toca som nenhum.
+    # O ROSTO SUMIA DEPOIS DA AULA (15/11, dono: "ao encerrar a aula o face do
+    # robo sumiu"). O SDL MINIMIZA uma janela de tela cheia quando ela perde o
+    # foco - e o Firefox do quadro toma o foco. Fechado o Firefox, sobrava a
+    # area de trabalho do XFCE com a janela "Atom" em WM_STATE Iconic (medido).
+    # Antes do display.init, senao o SDL ja leu a dica.
+    os.environ.setdefault("SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS", "0")
     pygame.display.init()
     if args.janela:
         tela = pygame.display.set_mode((960, 540))
@@ -235,6 +246,7 @@ def main() -> int:
     estado = EstadoRosto(inicio)
     navegador = None if args.sem_quadro else NavegadorDaAula()
     ultima_chave = None
+    ultima_restauracao = 0.0
     try:
         while True:
             for evento in pygame.event.get():
@@ -259,6 +271,28 @@ def main() -> int:
                 navegador.tique(agora)
                 if estava_aberto and not navegador.aberto:
                     ultima_chave = None  # o Firefox saiu da frente: redesenha
+            # ESCONDIDO SEM AULA = VOLTA PARA A FRENTE. Cobre o fim da aula e
+            # qualquer outro jeito de a janela ter sido minimizada (o gerenciador
+            # de janelas, um clique na barra). `get_active()` e False com a
+            # janela iconificada; refazer o modo a mapeia de novo. No maximo a
+            # cada INTERVALO_RESTAURAR_S, para nao brigar com o foco.
+            aula_aberta = navegador is not None and navegador.aberto
+            if (
+                not args.janela
+                and not aula_aberta
+                and not pygame.display.get_active()
+                and agora - ultima_restauracao >= INTERVALO_RESTAURAR_S
+            ):
+                ultima_restauracao = agora
+                try:  # pygame 2: desminimiza a janela de verdade
+                    from pygame._sdl2.video import Window
+
+                    Window.from_display_module().restore()
+                except Exception:  # noqa: BLE001 - o set_mode abaixo ainda tenta
+                    logger.debug("restore() do SDL indisponivel", exc_info=True)
+                tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                ultima_chave = None
+                logger.info("rosto estava escondido sem aula aberta - trazendo de volta")
             rosto = estado.quadro(agora)
             # SO REDESENHA O QUE MUDOU: parado, o rosto e a mesma imagem por
             # segundos - redesenhar 30x/s gastava ~18% de um nucleo a 960x540
