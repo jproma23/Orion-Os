@@ -449,6 +449,15 @@ class AiManager:
             fatos = "\n".join(f"- {c['chave']}: {c['valor']}" for c in conhecimento[:5])
             partes.append(f"FATOS QUE EU JA SEI:\n{fatos}")
 
+        acervo = contexto.get("acervo") or []
+        if acervo:
+            fichas = "\n".join(f"- {titulo}: {corpo}" for titulo, corpo in acervo)
+            partes.append(
+                "O QUE EU APRENDI E GUARDEI (achado pela busca; pode nao ter a ver "
+                "com a pergunta - se nao tiver, ignore. Se tiver, responda com as "
+                "suas palavras, curto, sem ler o texto):\n" + fichas
+            )
+
         notas = contexto.get("notas_relevantes") or []
         if notas:
             resumo = "\n".join(f"- {n['titulo']}: {n['trecho']}" for n in notas[:5])

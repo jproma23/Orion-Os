@@ -564,17 +564,33 @@ async def test_quando_o_kamal_chega_da_escola_chega_na_ia():
 # que ele guardou, a resposta sai do proprio acervo antes da IA - e, quando
 # nao sabe, a IA e chamada e a consulta a ela e contada.
 @pytest.mark.asyncio
-async def test_quando_sabe_responde_do_proprio_acervo_sem_chamar_ia():
-    ai = AiManagerFalso(resposta="Nao devia ter sido chamada")
+async def test_quando_sabe_a_ficha_vai_para_a_ia_e_nao_e_lida_crua():
+    """2026-11-15: ler a ficha crua vazava ("Ciclo de projeto do dono" para
+    uma pergunta de autodiagnostico). Com a IA no ar ela recebe a ficha."""
+    ai = AiManagerFalso(resposta="Eu meco pelo eco do LiDAR.")
     memoria = MemoryClientFalso()
     memoria.saber_plantar("Sensor de distancia", "Pingar, esperar o eco.")
 
     planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
     resposta = await planner.processar("como mede a distancia?")
 
-    assert "distancia" in resposta
-    assert ai.chamadas == []
-    assert memoria.consultas_ia == 0  # respondeu de casa, nao consultou a IA
+    assert resposta == "Eu meco pelo eco do LiDAR."
+    _, contexto = ai.chamadas[0]
+    assert contexto["acervo"] == [("Sensor de distancia", "Pingar, esperar o eco.")]
+
+
+@pytest.mark.asyncio
+async def test_com_a_ia_fora_a_ficha_ainda_responde():
+    from orion.mission.ai_manager import SEM_IA
+
+    ai = AiManagerFalso(resposta=SEM_IA)
+    memoria = MemoryClientFalso()
+    memoria.saber_plantar("Sensor de distancia", "Pingar, esperar o eco.")
+
+    planner = MissionPlanner(ai_manager=ai, memory_client=memoria)
+    resposta = await planner.processar("como mede a distancia?")
+
+    assert "Pingar" in resposta
 
 
 @pytest.mark.asyncio

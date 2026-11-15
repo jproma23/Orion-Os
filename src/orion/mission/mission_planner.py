@@ -666,8 +666,6 @@ class MissionPlanner:
             resposta = programa
         elif (sobre_mim := self._responder_sobre_mim(texto_usuario)) is not None:
             resposta = sobre_mim
-        elif (ja_sei := await self._responder_do_saber(texto_usuario)) is not None:
-            resposta = ja_sei
         elif (jarvis_resp := await self._responder_plugins_jarvis(texto_usuario)) is not None:
             resposta = jarvis_resp
         elif self._eh_pergunta_de_hora(texto_usuario):
@@ -767,6 +765,27 @@ class MissionPlanner:
         # afirmacao - sem o bloco, a IA nao fala do passado como se fosse
         # agora. Quando a camera VE algo (mesmo "nada"), a frase descreve a
         # cena traduzida, com o mesmo texto que o caminho deterministico.
+        # O ACERVO VIRA CONTEXTO, NAO RESPOSTA (2026-11-15). Ate aqui o "Eu ja
+        # sei?" respondia NA FRENTE da IA lendo titulo + corpo da ficha em voz
+        # alta, e cada vazamento ganhava um remendo (palavras vazias, titulo,
+        # metade das palavras, so pergunta). No mesmo dia do ultimo remendo,
+        # "faz um autodiagnostico: quais sentidos estao funcionando?" leu a
+        # ficha "Ciclo de projeto do dono". O defeito nao e o casamento, e ler
+        # a ficha crua: agora a IA recebe a ficha e decide se ela responde.
+        # Com a IA fora, `_sem_ia` ainda le a ficha - melhor que o silencio.
+        if _eh_pergunta(texto_usuario) and self._memory_client is not None:
+            try:
+                achados = await self._memory_client.saber_buscar(texto_usuario, limite=2)
+            except Exception:
+                logger.debug("falha ao consultar o acervo para o contexto", exc_info=True)
+                achados = []
+            fichas = [
+                (str(a.get("titulo") or "").strip(), str(a.get("corpo") or "").strip()[:500])
+                for a in achados or []
+            ]
+            if fichas := [f for f in fichas if f[0]]:
+                contexto["acervo"] = fichas
+
         # O AUTODIAGNOSTICO VAI JUNTO (2026-11-15): com a camera cega por
         # 13 h a IA conversava, andava e seguia sem saber. Nunca levanta.
         painel = getattr(self, "_sentidos", None)
@@ -1368,6 +1387,8 @@ class MissionPlanner:
         ligada, ela nao responde mais na frente (ver `_responder_sobre_o_que_ve`)."""
         if (cena := await self._responder_sobre_o_que_ve(texto, mesmo_com_foto=True)) is not None:
             return cena
+        if (ja_sei := await self._responder_do_saber(texto)) is not None:
+            return ja_sei
         return await self._obedecer_sem_ia(texto)
 
     async def _responder_sobre_o_que_ve(
