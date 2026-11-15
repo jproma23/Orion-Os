@@ -120,3 +120,85 @@ class PainelSentidos:
         while True:
             self.avaliar()
             await asyncio.sleep(intervalo_s)
+
+
+class LeitorEstadoPi:
+    """O `/estado` da webui do Pi, lido em segundo plano e guardado.
+
+    Os verificadores do painel sao sincronos e rapidos; ler HTTP dentro deles
+    travaria o laco. Este leitor busca a cada `intervalo_s` e os verificadores
+    so olham o que ele guardou. E a mesma fonte do CorpoAgora e da tela do
+    mapa - nenhum caminho novo ate o dado.
+    """
+
+    def __init__(
+        self,
+        url: str,
+        intervalo_s: float = INTERVALO_S,
+        relogio: Callable[[], float] = time.monotonic,
+        ler: Callable[[str], dict] | None = None,
+    ) -> None:
+        self._url = url
+        self._intervalo_s = intervalo_s
+        self._relogio = relogio
+        self._ler = ler or _ler_json
+        self.estado: dict | None = None
+        self._erro = ""
+        #: (timestamp_s do LiDAR, quando ele mudou pela ultima vez)
+        self._lidar_ts: float | None = None
+        self._lidar_mudou_em: float | None = None
+
+    def atualizar(self) -> None:
+        try:
+            self.estado = (self._ler(self._url) or {}).get("estado") or {}
+            self._erro = ""
+        except Exception as erro:  # noqa: BLE001
+            self.estado = None
+            self._erro = str(erro) or type(erro).__name__
+            return
+        ts = (self.estado.get("lidar") or {}).get("timestamp_s")
+        if ts != self._lidar_ts:
+            self._lidar_ts = ts
+            self._lidar_mudou_em = self._relogio()
+
+    async def vigiar(self) -> None:
+        while True:
+            await asyncio.to_thread(self.atualizar)
+            await asyncio.sleep(self._intervalo_s)
+
+    def _sem_estado(self) -> str | None:
+        if self.estado is None:
+            return f"nao consigo ler o estado do Pi ({self._erro or 'ainda sem leitura'})"
+        return None
+
+    def corpo(self) -> str | None:
+        if motivo := self._sem_estado():
+            return motivo
+        if (self.estado.get("mundo") or {}).get("telemetria_viva") is False:
+            return "o ESP32 do corpo parou de mandar telemetria"
+        return None
+
+    def lidar(self, parado_s: float = CONFIRMAR_S * 2) -> str | None:
+        if motivo := self._sem_estado():
+            return motivo
+        lidar = self.estado.get("lidar") or {}
+        if not lidar.get("valido"):
+            return "o LiDAR esta sem leitura valida"
+        if self._lidar_mudou_em is not None and self._relogio() - self._lidar_mudou_em > parado_s:
+            return "o LiDAR parou de mandar leituras novas"
+        return None
+
+    def bussola(self) -> str | None:
+        if self._sem_estado():
+            return None  # quem avisa a falta do Pi e o corpo/LiDAR; uma vez basta
+        if (self.estado.get("hardware") or {}).get("bussola_conectada") is False:
+            return "a bussola nao responde"
+        return None
+
+
+def _ler_json(url: str) -> dict:
+    import json
+    import urllib.request
+
+    with urllib.request.urlopen(url, timeout=3) as resposta:  # noqa: S310 - URL da config
+        return json.loads(resposta.read().decode("utf-8"))

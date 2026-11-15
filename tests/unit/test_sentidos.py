@@ -99,3 +99,63 @@ async def test_planner_poe_os_sentidos_no_contexto():
     contexto = await planner._consultar_contexto(None, "como voce esta?")
 
     assert "camera: FALHANDO" in contexto["sentidos"]
+
+
+# ------------------------------------------------------------ estado do Pi
+from orion.mission.sentidos import LeitorEstadoPi
+
+
+def _estado(viva=True, valido=True, ts=1.0, bussola=True):
+    return {"estado": {
+        "mundo": {"telemetria_viva": viva},
+        "lidar": {"valido": valido, "timestamp_s": ts},
+        "hardware": {"bussola_conectada": bussola},
+    }}
+
+
+def _leitor(resposta):
+    relogio = _Relogio()
+    leitor = LeitorEstadoPi("http://pi/estado", relogio=relogio, ler=lambda url: resposta["r"])
+    return leitor, relogio
+
+
+def test_pi_saudavel_nao_acusa_nada():
+    leitor, _ = _leitor({"r": _estado()})
+    leitor.atualizar()
+    assert (leitor.corpo(), leitor.lidar(), leitor.bussola()) == (None, None, None)
+
+
+def test_corpo_sem_telemetria():
+    leitor, _ = _leitor({"r": _estado(viva=False)})
+    leitor.atualizar()
+    assert "ESP32" in leitor.corpo()
+
+
+def test_lidar_invalido_e_lidar_congelado():
+    resposta = {"r": _estado(valido=False)}
+    leitor, relogio = _leitor(resposta)
+    leitor.atualizar()
+    assert "sem leitura" in leitor.lidar()
+
+    resposta["r"] = _estado(ts=5.0)
+    leitor.atualizar()
+    assert leitor.lidar() is None
+    relogio.t = 30.0
+    leitor.atualizar()  # mesmo timestamp_s: o LiDAR parou
+    assert "parou" in leitor.lidar()
+
+
+def test_pi_fora_do_ar_aparece_no_corpo_e_nao_duplica_na_bussola():
+    def explode(url):
+        raise OSError("timed out")
+
+    leitor = LeitorEstadoPi("http://pi/estado", ler=explode)
+    leitor.atualizar()
+    assert "timed out" in leitor.corpo()
+    assert leitor.bussola() is None
+
+
+def test_bussola_desconectada():
+    leitor, _ = _leitor({"r": _estado(bussola=False)})
+    leitor.atualizar()
+    assert "bussola" in leitor.bussola()

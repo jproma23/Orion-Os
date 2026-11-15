@@ -65,7 +65,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.internet import ConsultaInternet  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
-from orion.mission.sentidos import PainelSentidos
+from orion.mission.sentidos import LeitorEstadoPi, PainelSentidos
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.mission.jarvis_plugins import get_registry  # noqa: E402
 from orion_api import set_camera, set_mission_planner, app as orion_api_app  # noqa: E402
@@ -921,6 +921,15 @@ async def principal() -> None:
         "ligacao com o Pi (corpo, LiDAR e memoria)",
         lambda: None if link_pi["ok"] else "sem ligacao com o Raspberry Pi",
     )
+    # Corpo, LiDAR e bussola moram no Pi: o mesmo /estado da webui que a tela
+    # do mapa usa, lido em segundo plano (o painel nao pode esperar HTTP).
+    estado_pi = LeitorEstadoPi(
+        f"http://{conf_raspberry['host']}:{conf_raspberry.get('webui_port', 8080)}/estado"
+    )
+    painel_sentidos.registrar("corpo (ESP32)", estado_pi.corpo)
+    painel_sentidos.registrar("LiDAR", estado_pi.lidar)
+    painel_sentidos.registrar("bussola", estado_pi.bussola)
+    tarefa_estado_pi = disparar(estado_pi.vigiar(), "leitor_estado_pi")
     planner.registrar_sentidos(painel_sentidos)
     tarefa_sentidos = disparar(painel_sentidos.vigiar(), "painel_sentidos")
     # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo
