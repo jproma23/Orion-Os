@@ -380,6 +380,7 @@ def montar_contexto(
     conversas_recentes: list[dict[str, Any]] | None = None,
     visao_agora: str | None = None,
     limiar_obstaculo_cm: float = LIMIAR_OBSTACULO_CM,
+    sentidos: str | None = None,
 ) -> str:
     """Junta tudo num bloco pronto para colar no prompt de sistema."""
     partes = [
@@ -389,6 +390,8 @@ def montar_contexto(
         # que qualquer número que venha depois.
         DISPOSICAO,
         bloco_corpo(retrato, limiar_obstaculo_cm),
+        # Logo depois do corpo: o que ele sente so vale se o sentido esta vivo.
+        *([sentidos] if sentidos else []),
         bloco_pessoas(retrato, familia),
         bloco_observacoes(observacoes),
     ]

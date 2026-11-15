@@ -767,6 +767,16 @@ class MissionPlanner:
         # afirmacao - sem o bloco, a IA nao fala do passado como se fosse
         # agora. Quando a camera VE algo (mesmo "nada"), a frase descreve a
         # cena traduzida, com o mesmo texto que o caminho deterministico.
+        # O AUTODIAGNOSTICO VAI JUNTO (2026-11-15): com a camera cega por
+        # 13 h a IA conversava, andava e seguia sem saber. Nunca levanta.
+        painel = getattr(self, "_sentidos", None)
+        if painel is not None:
+            try:
+                if bloco := painel.bloco():
+                    contexto["sentidos"] = bloco
+            except Exception:
+                logger.debug("falha ao ler o painel dos sentidos", exc_info=True)
+
         if self._consultar_visao is not None:
             try:
                 cena = self._consultar_visao()
@@ -1332,6 +1342,10 @@ class MissionPlanner:
         """Liga a FOTO da camera a conversa (2026-11-14). Mesmo motivo do
         `registrar_consultar_visao`: a camera sobe depois do planner."""
         self._foto_camera = callback
+
+    def registrar_sentidos(self, painel) -> None:
+        """O painel dos sentidos (orion/mission/sentidos.py, 2026-11-15)."""
+        self._sentidos = painel
 
     def _foto_se_visual(self, texto: str) -> bytes | None:
         """A foto de agora, se a pergunta pede olhar. Nunca levanta."""

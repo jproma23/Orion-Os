@@ -65,6 +65,7 @@ from orion.mission.decisao_estrategica import PonteDecisao  # noqa: E402
 from orion.mission.diario import DiarioObservacoes  # noqa: E402
 from orion.mission.internet import ConsultaInternet  # noqa: E402
 from orion.mission.memory_client import MemoryClient  # noqa: E402
+from orion.mission.sentidos import PainelSentidos
 from orion.mission.mission_planner import MissionPlanner  # noqa: E402
 from orion.mission.jarvis_plugins import get_registry  # noqa: E402
 from orion_api import set_camera, set_mission_planner, app as orion_api_app  # noqa: E402
@@ -344,6 +345,8 @@ async def principal() -> None:
 
     # o heartbeat publica comm.module_lost quando o link com o Pi cai.
     link_caiu = asyncio.Event()
+    # Para o painel dos sentidos: o Event so diz que CAIU, nao que esta de pe.
+    link_pi = {"ok": False}
 
     def _ao_perder_link(evento) -> None:
         if evento.dados.get("modulo") == "motion_core":
@@ -374,7 +377,9 @@ async def principal() -> None:
                 conf_raspberry["tcp_port"],
             )
             link_caiu.clear()
+            link_pi["ok"] = True
             await link_caiu.wait()  # dorme ate o link cair
+            link_pi["ok"] = False
             logger.warning("Link com o Motion Core caiu - reconectando...")
             await asyncio.sleep(2)
 
@@ -904,6 +909,20 @@ async def principal() -> None:
     planner.registrar_consultar_visao(
         modulo_visao.ver_agora, motivo_cego=modulo_visao.motivo_cego
     )
+    # AUTODIAGNOSTICO QUE CONVERSA (2026-11-15): cada sentido diz se esta vivo;
+    # o painel guarda desde quando caiu e a IA recebe isso. Ver mission/sentidos.py.
+    painel_sentidos = PainelSentidos()
+    painel_sentidos.registrar("camera", modulo_visao.motivo_cego)
+    painel_sentidos.registrar(
+        "microfones (ESP32 dos ouvidos)",
+        lambda: None if ouvidos_esp32.conectado else "o ESP32 dos ouvidos nao esta conectado",
+    )
+    painel_sentidos.registrar(
+        "ligacao com o Pi (corpo, LiDAR e memoria)",
+        lambda: None if link_pi["ok"] else "sem ligacao com o Raspberry Pi",
+    )
+    planner.registrar_sentidos(painel_sentidos)
+    tarefa_sentidos = disparar(painel_sentidos.vigiar(), "painel_sentidos")
     # Snapshot na API (:8081/camera): ver de fora o que a camera ve, pelo
     # mesmo dono da camera (2026-11-01).
     set_camera(modulo_visao.foto_agora)
